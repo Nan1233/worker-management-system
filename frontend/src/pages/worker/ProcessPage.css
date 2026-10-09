@@ -172,3 +172,11 @@
 .machine-detail-values-column .worker-field-label{overflow-wrap:anywhere;}
 .machine-detail-values-column .worker-text-input{width:100%;min-width:0;}
 @media(max-width:560px){.machine-detail-values-row{grid-template-columns:minmax(0,1fr);gap:10px}.machine-detail-values-column{padding:11px}}
+
+
+/* GC machine time row: use the full available width without an empty third grid column. */
+.worker-time-grid.machine-worker-time-grid{grid-template-columns:minmax(0,1.75fr) minmax(180px,1fr);width:100%;align-items:stretch;}
+.worker-time-grid.machine-worker-time-grid>[data-worker-time="machine-actual"]{min-width:0;}
+.worker-time-grid.machine-worker-time-grid>[data-worker-time="machine-deduction"]{min-width:0;}
+.worker-time-grid.machine-worker-time-grid .worker-time-item>small{line-height:1.45;}
+@media(max-width:560px){.worker-time-grid.machine-worker-time-grid{grid-template-columns:minmax(0,1fr);}}
