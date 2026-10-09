@@ -39,7 +39,8 @@ const buildGiaCongMachineAccounting = (report, machineLines, eventMap) => {
                 seenEvents.add(eventId);
                 grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
             }
-        } else {
+        } else if (!eventId || !seenEvents.has(eventId)) {
+            if (eventId) seenEvents.add(eventId);
             grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
         }
         let lineDeductions = [];
