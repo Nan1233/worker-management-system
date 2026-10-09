@@ -440,8 +440,11 @@ function buildColumnContract(map, processData) {
   const defectMap = defectRange.size ? subMap(map, (column) => defectRange.has(column)) : base;
   const deductionResult = assignDetailColumns(deductionMap, processTypes(processData, 'deduction'), 'deduction');
   const defectResult = assignDetailColumns(defectMap, processTypes(processData, 'defect'), 'defect');
+  const timeLabel = cols.time ? normalize(map.get(cols.time)) : '';
+  const timeKind = timeLabel.includes('tong thoi gian') ? 'TOTAL' : 'ACTUAL';
   return {
     cols,
+    timeKind,
     deductions: deductionResult.assigned,
     defects: defectResult.assigned,
     unmatchedDeductionTypes: deductionResult.unmatched,
@@ -622,7 +625,7 @@ function applyReportRow(row, report, contract, processData, index) {
     cell.numFmt = '0%';
   }
   set(contract.cols.standard, planned);
-  set(contract.cols.time, exportTimes.actualHours);
+  set(contract.cols.time, contract.timeKind === 'TOTAL' ? exportTimes.totalHours : exportTimes.actualHours);
   if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, exportTimes.actualHours);
   set(contract.cols.deductionTotal, exportTimes.deductionHours);
   if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
