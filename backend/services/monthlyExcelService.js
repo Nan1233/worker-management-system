@@ -204,7 +204,7 @@ const loadMonthReports = async (yearMonth) => {
     if (machineEventIds.length) {
         const eventPlaceholders = machineEventIds.map(() => '?').join(',');
         machineEventRows = await query(
-            `SELECT id,machine_time_hours FROM machine_production_events WHERE id IN (${eventPlaceholders})`,
+            `SELECT id,machine_time_hours FROM machine_production_events WHERE status='approved' AND id IN (${eventPlaceholders})`,
             machineEventIds
         );
     }
