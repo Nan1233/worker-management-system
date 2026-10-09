@@ -315,6 +315,9 @@ function assignDetailColumns(rangeMap, types, kind) {
   const columnByLabel = new Map(assigned.map((item) => [normalize(typeLabel(item.type, kind)), item.column]));
   for (const type of types) {
     if (usedTypes.has(type)) continue;
+    // Keep encoded CAT/LONG values distinct even when two codes share the
+    // same display label (notably CAT10 and LONG08 are both named "Khác").
+    if (kind === 'defect' && encodedGcDefectCode(type)) continue;
     const column = columnByLabel.get(normalize(typeLabel(type, kind)));
     if (!column) continue;
     usedTypes.add(type);
