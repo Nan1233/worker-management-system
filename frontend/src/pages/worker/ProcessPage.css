@@ -180,3 +180,9 @@
 .worker-time-grid.machine-worker-time-grid>[data-worker-time="machine-deduction"]{min-width:0;}
 .worker-time-grid.machine-worker-time-grid .worker-time-item>small{line-height:1.45;}
 @media(max-width:560px){.worker-time-grid.machine-worker-time-grid{grid-template-columns:minmax(0,1fr);}}
+
+
+/* GC machine time row must span the complete machine-data grid, not just one parent column. */
+.machine-data-grid > .worker-time-grid.machine-worker-time-grid{grid-column:1 / -1;justify-self:stretch;width:100%;min-width:0;}
+.machine-data-grid > .machine-section-title{grid-column:1 / -1;}
+.machine-data-grid > .machine-quantity-section{grid-column:1 / -1;min-width:0;}
