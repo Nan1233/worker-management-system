@@ -117,36 +117,23 @@ test('GC real-data integration: physical machine time and deductions match TiDB 
         const key = eventId ? `EVENT:${eventId}` : `LINE:${Number(line.id) || index}`;
         if (seenDeductionKeys.has(key)) continue;
         seenDeductionKeys.add(key);
-        expectedDeduction += Math.max(0, Number(line.deduction_time_hours) || 0);
-      }
-
-      let legacyDeductions = [];
-      if (expectedDeduction <= 0) {
-        const [legacy] = await db.promise().query(
-          `SELECT deduction_type_id, hours
-             FROM production_report_deductions
-            WHERE report_id = ?`,
-          [Number(report.id)]
+        let details = [];
+        try {
+          const parsed = typeof line.deductions_json === 'string' ? JSON.parse(line.deductions_json) : line.deductions_json;
+          details = Array.isArray(parsed) ? parsed : [];
+        } catch (_) {}
+        const detailHours = details.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
+        expectedDeduction += Math.max(
+          0,
+          Number(line.deduction_time_hours) || 0,
+          (Number(line.adjustment_minutes) || 0) / 60,
+          detailHours
         );
-        legacyDeductions = legacy.map((row) => ({
-          deduction_type_id: Number(row.deduction_type_id) || undefined,
-          hours: Math.max(0, Number(row.hours) || 0)
-        }));
-        expectedDeduction = legacyDeductions.reduce((sum, row) => sum + row.hours, 0);
-      }
-
-      if (expectedDeduction <= 0 && Number(report.deduction_time) > 0) {
-        expectedDeduction = Math.max(0, Number(report.deduction_time) || 0);
-      }
-
-      if (!reportLines.length) {
-        expectedGross = Math.max(0, Number(report.total_time) || 0);
       }
 
       const result = buildGiaCongMachineAccounting(
         {
           machineLines: reportLines,
-          deductions: legacyDeductions,
           total_time: report.total_time,
           actual_time: report.actual_time,
           deduction_time: report.deduction_time
