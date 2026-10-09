@@ -808,13 +808,18 @@ function normalizeGcDefectHeaders(sheet, headerRow) {
   const expected = Object.values(GC_FORM_DEFECT_COLUMN_BY_CODE);
   const existing = new Set(defectColumns.map((column) => headerText(column)));
   if (expected.every((label) => existing.has(normalize(label)))) return false;
-  if (defectColumns.length !== 18 && defectColumns.length !== 19) {
-    throw new Error(`GC template cần 18 cột NG (hoặc 19 cột cũ để thay thế), nhưng tìm thấy ${defectColumns.length}. Dừng để tránh sửa nhầm template.`);
+  if (defectColumns.length < 18) {
+    throw new Error(`GC template cần tối thiểu 18 cột NG để thay thế, nhưng tìm thấy ${defectColumns.length}. Dừng để tránh sửa nhầm template.`);
   }
+  // The current company template may contain more than 18 legacy NG columns.
+  // Reuse the first 18 columns in place, then remove surplus columns from the
+  // end of the NG block so no old defect columns remain beside the new catalogue.
   for (let index = 0; index < expected.length; index += 1) {
     row.getCell(defectColumns[index]).value = expected[index];
   }
-  if (defectColumns.length === 19) sheet.spliceColumns(defectColumns[18], 1);
+  for (let index = defectColumns.length - 1; index >= expected.length; index -= 1) {
+    sheet.spliceColumns(defectColumns[index], 1);
+  }
   return true;
 }
 
