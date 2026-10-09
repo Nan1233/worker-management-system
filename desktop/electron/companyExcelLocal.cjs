@@ -545,6 +545,31 @@ function getMetrics(report) {
   const totalTime = isGiaCongMachine
     ? grossMachineTime
     : (num(report.total_time) || (actualTime + sumDetails(report.deductions, 'hours')));
+  const isGiaCongMachine = normalizeCode(report.process_code) === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE';
+  const machineAccounting = report.machineAccounting || null;
+  const eventLines = Array.isArray(report.eventLines) ? report.eventLines : [];
+  const machineLines = Array.isArray(report.machineLines) ? report.machineLines : [];
+  const uniqueEventIds = new Set();
+  let machineGrossTime = 0;
+  if (isGiaCongMachine) {
+    for (const event of eventLines) {
+      const eventId = Number(event?.id) || 0;
+      if (eventId && uniqueEventIds.has(eventId)) continue;
+      if (eventId) uniqueEventIds.add(eventId);
+      machineGrossTime += Math.max(0, num(event?.machine_time_hours));
+    }
+    if (!eventLines.length) {
+      machineGrossTime = machineLines.reduce((sum, line) => sum + Math.max(0, num(line?.machine_time_hours)), 0);
+    }
+  }
+  const grossMachineTime = machineAccounting ? num(machineAccounting.grossHours) : machineGrossTime;
+  const machineDeductionTime = machineAccounting ? num(machineAccounting.deductionHours) : sumDetails(report.deductions, 'hours');
+  const actualTime = isGiaCongMachine
+    ? Math.max(0, grossMachineTime - machineDeductionTime)
+    : num(report.actual_time ?? report.working_time ?? report.work_time);
+  const totalTime = isGiaCongMachine
+    ? grossMachineTime
+    : (num(report.total_time) || (actualTime + sumDetails(report.deductions, 'hours')));
   const rawTraining = report.training_percent === null || report.training_percent === undefined || (typeof report.training_percent === 'string' && report.training_percent.trim() === '')
     ? 100
     : num(report.training_percent);
@@ -562,6 +587,7 @@ function getMetrics(report) {
   const outputPerHour = actualTime > 0 ? actualOutput / actualTime : 0;
   const achievement = standardOutput > 0 ? outputPerHour / standardOutput : 0;
   const ngRate = (ok + totalNg) > 0 ? totalNg / (ok + totalNg) : 0;
+  const deductionTotal = isGiaCongMachine ? machineDeductionTime : sumDetails(report.deductions, 'hours');
   const deductionTotal = isGiaCongMachine ? machineDeductionTime : sumDetails(report.deductions, 'hours');
   const changeCount = (report.deductions || []).filter((item) =>
     normalizeCode(item.deduction_type_code || item.deduction_code || item.code || item.deduction_name) === 'CHUYEN_MA' && num(item.hours) > 0
