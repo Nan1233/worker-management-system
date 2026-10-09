@@ -52,15 +52,31 @@ function report(overrides = {}) {
       deductionTypes: [{ id: 1, code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', name: '5S database name', deduction_name: '5S database name', sort_order: 1 }],
       defectTypes: [
         { id: 1, code: 'DEF_KQD_DB', defect_code: 'DEF_KQD_DB', name: 'KQD database name', defect_name: 'KQD database name', sort_order: 1 },
-        { id: 2, code: 'DEF_VCS_DB', defect_code: 'DEF_VCS_DB', name: 'Vỡ cao su database name', defect_name: 'Vỡ cao su database name', sort_order: 2 }
+        { id: 2, code: 'DEF_VCS_DB', defect_code: 'DEF_VCS_DB', name: 'Vỡ cao su database name', defect_name: 'Vỡ cao su database name', sort_order: 2 },
+        { id: 11, code: 'CAT01', defect_code: 'CAT01', name: 'Cao su không đứt', defect_name: 'Cao su không đứt', sort_order: 11 },
+        { id: 12, code: 'CAT03', defect_code: 'CAT03', name: 'Cắt phạm', defect_name: 'Cắt phạm', sort_order: 12 },
+        { id: 20, code: 'CAT10', defect_code: 'CAT10', name: 'Khác', defect_name: 'Khác', sort_order: 20 },
+        { id: 28, code: 'LONG08', defect_code: 'LONG08', name: 'Khác', defect_name: 'Khác', sort_order: 28 }
       ],
-      reports: [report({ id: 1, worker_code: '599' }), report({ id: 2, worker_code: '600', work_date: '2026-08-02', actual_output: 0, training_percent: 0 })]
+      reports: [
+        report({ id: 1, worker_code: '599' }),
+        report({ id: 2, worker_code: '600', work_date: '2026-08-02', actual_output: 0, training_percent: 0 }),
+        report({
+          id: 3, worker_code: '601', work_date: '2026-08-03', tt_ng: 4, actual_output: 49,
+          defects: [
+            { defect_type_id: 11, defect_type_code: 'CAT01', defect_code: 'CAT01', defect_name: 'Cao su không đứt', quantity: 1 },
+            { defect_type_id: 12, defect_type_code: 'CAT03', defect_code: 'CAT03', defect_name: 'Cắt phạm', quantity: 1 },
+            { defect_type_id: 20, defect_type_code: 'CAT10', defect_code: 'CAT10', defect_name: 'Khác', quantity: 1 },
+            { defect_type_id: 28, defect_type_code: 'LONG08', defect_code: 'LONG08', defect_name: 'Khác', quantity: 1 }
+          ]
+        })
+      ]
     };
 
     const built = await buildWorkerProcessWorkbook({ appPath: path.resolve(__dirname, '..'), processCode: 'GC', processName: 'Gia công', date: '2026-08-01', processData });
     assert.equal(built.fileName, `${PROCESS_FILE_PREFIXES.GC}_08-2026.xlsx`);
     assert.equal(built.templateFile, TEMPLATE_NAME);
-    assert.equal(built.reportCount, 2);
+    assert.equal(built.reportCount, 3);
 
     const filePath = path.join(temp, built.fileName);
     await fs.writeFile(filePath, built.buffer);
@@ -109,7 +125,37 @@ function report(overrides = {}) {
     assert.ok(rowValues.some((value) => value === '0.5' || value === '0.50'), 'Chi tiết Trừ H không được đổ từ DB khi tên/code DB khác tên template');
     assert.ok(rowValues.some((value) => value === '1'), 'Chi tiết NG không được đổ từ DB khi tên/code DB khác tên template');
 
-    console.log('[PASS] Worker Excel smoke test: DB work_date + hidden submission timestamp + canonical template + STT + complete fields + DB detail alias mapping + Trừ H + NG');
+    const encodedRow = (() => {
+      for (let r = built.dataStartRow; r <= sheet.rowCount; r += 1) {
+        if (String(sheet.getRow(r).getCell(3).value ?? '') === '601') return r;
+      }
+      return null;
+    })();
+    assert.ok(encodedRow, 'Không tìm thấy báo cáo thử mã NG CAT/LONG');
+    const headerRow = sheet.getRow(built.headerRow);
+    const headerColumn = (expected) => {
+      const target = expected.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase();
+      for (let c = 1; c <= sheet.columnCount; c += 1) {
+        const value = String(headerRow.getCell(c).value ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase();
+        if (value === target) return c;
+      }
+      return null;
+    };
+    const cat01Column = headerColumn('Cắt không đứt');
+    const cat03Column = headerColumn('NG: Cắt phạm (CAT03)');
+    const cat10Column = headerColumn('NG: Khác (CAT10)');
+    const long08Column = headerColumn('NG: Khác (LONG08)');
+    assert.ok(cat01Column, 'CAT01 phải map đúng vào cột Cắt không đứt');
+    assert.ok(cat03Column, 'CAT03 không có cột tương đương phải được thêm riêng');
+    assert.ok(cat10Column && long08Column && cat10Column !== long08Column, 'CAT10 và LONG08 đều là Khác nhưng phải giữ riêng theo mã form');
+    assert.equal(Number(sheet.getRow(encodedRow).getCell(cat01Column).value), 1);
+    assert.equal(Number(sheet.getRow(encodedRow).getCell(cat03Column).value), 1);
+    assert.equal(Number(sheet.getRow(encodedRow).getCell(cat10Column).value), 1);
+    assert.equal(Number(sheet.getRow(encodedRow).getCell(long08Column).value), 1);
+    assert.ok(String(sheet.pageSetup.printArea).endsWith(String(sheet.rowCount)), 'Vùng in phải kết thúc tại dòng dữ liệu cuối');
+    assert.ok(!String(sheet.pageSetup.printArea).endsWith('2366'), 'Vùng in không được giữ dòng mẫu 2366');
+
+    console.log('[PASS] Worker Excel smoke test: submission timestamp + encoded CAT/LONG NG mapping + unmatched NG columns + print area + Trừ H');
   } finally {
     await fs.rm(temp, { recursive: true, force: true });
   }
