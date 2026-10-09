@@ -35,6 +35,21 @@ const DETAIL_ALIASES = Object.freeze({
 
 // DB detail name (as entered on the worker form) -> template column header.
 // Several DB types may share one template column; their values are summed.
+// Encoded GC form catalogue: CAT01-CAT10 (Cắt) and LONG01-LONG08 (Lồng).
+// Only codes with a clear one-to-one legacy column are mapped into the old template.
+// Other encoded categories stay distinct and are appended as NG columns with their code.
+const GC_FORM_DEFECT_COLUMN_BY_CODE = Object.freeze({
+  CAT01: 'Cắt không đứt',
+  CAT02: 'Cắt lẹm',
+  CAT06: 'bavia',
+  CAT07: 'ppcm',
+  CAT08: 'LCS',
+  CAT09: 'lẫn cs',
+  LONG01: 'KQD',
+  LONG02: 'Vỡ cao su',
+  LONG05: 'thiếu cao su'
+});
+
 const TEMPLATE_COLUMN_ALIASES = Object.freeze({
   // Trừ H (CAN/EP/XLBV/MAI/DO/K1/K2/SX3 catalogue -> worker template)
   'bat may, xet may, dau gio': 'bat may, xet may',
@@ -239,20 +254,28 @@ function detailColumn(map, type, kind) {
 // detail block, and each template column to at most one DB type. Exact header
 // matches win before partial matches, so "Chỉnh máy" can never steal
 // "Chờ chỉnh máy" and an unmatched type is never written into STT/Máy/Ca.
+function encodedGcDefectCode(type) {
+  const code = String(type?.defect_code || type?.defect_type_code || type?.code || '').trim().toUpperCase();
+  return /^(?:CAT(?:0[1-9]|10)|LONG(?:0[1-8]))$/.test(code) ? code : '';
+}
+
 function assignDetailColumns(rangeMap, types, kind) {
   const usedTypes = new Set();
   const aliasColumns = new Set();
   const assigned = [];
   const headerToColumn = new Map([...rangeMap.entries()].map(([column, header]) => [normalize(header), column]));
   for (const type of types) {
-    const target = TEMPLATE_COLUMN_ALIASES[normalize(typeLabel(type, kind))];
+    const encodedCode = kind === 'defect' ? encodedGcDefectCode(type) : '';
+    const target = encodedCode
+      ? GC_FORM_DEFECT_COLUMN_BY_CODE[encodedCode]
+      : TEMPLATE_COLUMN_ALIASES[normalize(typeLabel(type, kind))];
     const column = target ? headerToColumn.get(normalize(target)) : null;
     if (!column) continue;
     usedTypes.add(type);
     aliasColumns.add(column);
     assigned.push({ type, column });
   }
-  // Exact header matches may share a column (same name in several processes).
+  // Exact header matches are safe even for encoded form types.
   for (const type of types) {
     if (usedTypes.has(type)) continue;
     const candidates = typeCandidates(type, kind);
@@ -268,6 +291,9 @@ function assignDetailColumns(rangeMap, types, kind) {
   const pairs = [];
   for (const type of types) {
     if (usedTypes.has(type)) continue;
+    // Do not fuzzy-match CAT/LONG form codes to combined legacy labels such as
+    // "Chân ngắn dài" or "K xước cong gãy": that would merge distinct form errors.
+    if (kind === 'defect' && encodedGcDefectCode(type)) continue;
     const candidates = typeCandidates(type, kind);
     for (const [column, header] of rangeMap.entries()) {
       if (aliasColumns.has(column)) continue;
@@ -289,6 +315,9 @@ function assignDetailColumns(rangeMap, types, kind) {
   const columnByLabel = new Map(assigned.map((item) => [normalize(typeLabel(item.type, kind)), item.column]));
   for (const type of types) {
     if (usedTypes.has(type)) continue;
+    // Keep encoded CAT/LONG values distinct even when two codes share the
+    // same display label (notably CAT10 and LONG08 are both named "Khác").
+    if (kind === 'defect' && encodedGcDefectCode(type)) continue;
     const column = columnByLabel.get(normalize(typeLabel(type, kind)));
     if (!column) continue;
     usedTypes.add(type);
@@ -512,8 +541,21 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.shift, report.shift);
   set(contract.cols.operationType, report.operation_type);
   set(contract.cols.operationMode, report.operation_mode);
-  set(contract.cols.machine, report.machine_no ?? report.machine_code ?? report.machine);
-  set(contract.cols.product, report.product_name || report.product_code);
+  const machineLines = [
+    ...(Array.isArray(report.machineLines) ? report.machineLines : []),
+    ...(Array.isArray(report.machine_lines) ? report.machine_lines : []),
+    ...(Array.isArray(report.machines) ? report.machines : [])
+  ];
+  const machineValues = [
+    report.machine_no, report.machine_code, report.machine,
+    ...machineLines.map((line) => line?.machine_code || line?.machine_no || line?.machineCode || line?.code)
+  ].map((value) => String(value ?? '').trim()).filter(Boolean);
+  set(contract.cols.machine, [...new Set(machineValues)].join(', '));
+  const directProduct = String(report.product_name || report.product_code || '').trim();
+  const lineProducts = machineLines
+    .map((line) => String(line?.product_code || line?.product_name || line?.productCode || '').trim())
+    .filter(Boolean);
+  set(contract.cols.product, directProduct || [...new Set(lineProducts)].join(', '));
   if (contract.cols.submittedAt) {
     const cell = row.getCell(contract.cols.submittedAt);
     cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date);
@@ -552,8 +594,8 @@ function applyReportRow(row, report, contract, processData, index) {
 }
 
 // A DB type that has no column in the template must not silently disappear.
-// When at least one report of this file has a value for it, append a column
-// after the template's last column, labelled "Trừ H: <tên>" / "NG: <tên>".
+// Append unmatched CAT/LONG form categories even when their monthly total is zero,
+// so the exported sheet consistently reflects the 10 Cắt + 8 Lồng form catalogue.
 function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData) {
   let next = Number(contract.lastColumn || sheet.columnCount) + 1;
   const headerSource = sheet.getRow(headerRow).getCell(Number(contract.lastColumn || sheet.columnCount));
@@ -572,12 +614,16 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
     }
     const labels = types.map((type) => typeLabel(type, kind));
     for (const type of types) {
-      if (!used.has(type)) continue;
+      const encodedGcType = kind === 'defect' && Boolean(encodedGcDefectCode(type));
+      if (!used.has(type) && !encodedGcType) continue;
       const label = typeLabel(type, kind);
       const duplicate = labels.filter((x) => x === label).length > 1;
-      const code = kind === 'deduction' ? (type.deduction_code || type.code) : (type.defect_code || type.code);
+      const code = kind === 'deduction'
+        ? (type.deduction_code || type.code)
+        : (type.defect_code || type.defect_type_code || type.code);
+      const preserveEncodedCode = kind === 'defect' && Boolean(encodedGcDefectCode(type));
       const cell = sheet.getRow(headerRow).getCell(next);
-      cell.value = `${prefix}: ${label}${duplicate && code ? ` (${code})` : ''}`;
+      cell.value = `${prefix}: ${label}${(duplicate || preserveEncodedCode) && code ? ` (${code})` : ''}`;
       if (headerSource.style) cell.style = JSON.parse(JSON.stringify(headerSource.style));
       sheet.getColumn(next).width = Math.max(10, Math.min(24, String(cell.value).length + 2));
       target.push({ type, column: next });
@@ -672,6 +718,18 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
+            const totalMinutes = report.total_minutes !== null
+        && report.total_minutes !== undefined
+        && report.total_minutes !== ''
+        ? number(report.total_minutes)
+        : (
+          report.work_minutes !== null
+            && report.work_minutes !== undefined
+            && report.work_minutes !== ''
+            ? number(report.work_minutes) + number(report.deduction_time) * 60
+            : number(report.total_time ?? report.actual_time) * 60
+        );
+      writeValue(row, contract.cols.workTime, totalMinutes / 60);
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
         const { planned } = plannedOutputFor(report);
@@ -708,6 +766,18 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       ]
     });
   }
+
+  // The template carries an oversized legacy filter/print range (e.g. AV2366).
+  // Rebuild both from the actual output, including appended CAT/LONG defect columns.
+  const lastRow = Math.max(headerRow, rowNumber - 1);
+  const detailColumns = [
+    ...contract.deductions.map((item) => Number(item.column) || 0),
+    ...contract.defects.map((item) => Number(item.column) || 0)
+  ];
+  const fixedColumns = Object.values(contract.cols).map(Number).filter(Number.isFinite);
+  const lastColumn = Math.max(Number(contract.lastColumn) || 1, ...fixedColumns, ...detailColumns, 1);
+  sheet.autoFilter = `A${headerRow}:${columnLetter(lastColumn)}${lastRow}`;
+  sheet.pageSetup.printArea = `A1:${columnLetter(lastColumn)}${lastRow}`;
 }
 
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {

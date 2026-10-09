@@ -196,35 +196,45 @@ function sameNumber(a, b, tolerance = 0.01) {
 }
 
 // Same selection + normalisation the backend used to run (moved off the Worker).
+// Some export endpoints return already-hydrated details without rawDetail. Never
+// skip those reports: use their detail arrays, then reconcile against legacy and
+// machine-line sources so NG is not silently lost from the Excel export.
 function hydrateReportDetails(processData) {
   const types = Array.isArray(processData?.deductionTypes) ? processData.deductionTypes : [];
   for (const report of Array.isArray(processData?.reports) ? processData.reports : []) {
-    const raw = report?.rawDetail;
-    if (!raw) continue;
-    const deductionRows = raw.deductionRows || [];
-    const tempDeductionRows = raw.tempDeductionRows || [];
+    const raw = report?.rawDetail || {};
+    const hasRawDetail = Boolean(report?.rawDetail);
+    const deductionRows = Array.isArray(raw.deductionRows) && raw.deductionRows.length
+      ? raw.deductionRows
+      : (Array.isArray(report?.deductions) ? report.deductions : (Array.isArray(raw.deductionRows) ? raw.deductionRows : []));
+    const tempDeductionRows = Array.isArray(raw.tempDeductionRows) ? raw.tempDeductionRows : [];
     const expectedDeductionHours = Number(report.deduction_time) || 0;
-    const selectedDeductionRows = expectedDeductionHours > 0
+    const selectedDeductionRows = hasRawDetail && expectedDeductionHours > 0
       && !sameNumber(sumPositive(deductionRows, 'hours'), expectedDeductionHours)
       && sameNumber(sumPositive(tempDeductionRows, 'hours'), expectedDeductionHours)
       ? tempDeductionRows
       : deductionRows;
     report.deductions = normalizeDeductions(selectedDeductionRows, report, report.machineLines || [], types);
 
-    const defectRows = raw.defectRows || [];
-    const tempDefectRows = raw.tempDefectRows || [];
+    const defectRows = Array.isArray(raw.defectRows) && raw.defectRows.length
+      ? raw.defectRows
+      : (Array.isArray(report?.defects) ? report.defects : (Array.isArray(raw.defectRows) ? raw.defectRows : []));
+    const tempDefectRows = Array.isArray(raw.tempDefectRows) ? raw.tempDefectRows : [];
     const expectedDefects = Math.trunc(Number(report.tt_ng) || 0);
-    const selectedDefectRows = expectedDefects > 0
+    const selectedDefectRows = hasRawDetail && expectedDefects > 0
       && Math.trunc(sumPositive(defectRows, 'quantity')) !== expectedDefects
       && Math.trunc(sumPositive(tempDefectRows, 'quantity')) === expectedDefects
       ? tempDefectRows
       : defectRows;
     report.defects = mergeDefects(report, selectedDefectRows, report.machineLines || []);
-    report.excelDeductionsSource = selectedDeductionRows === tempDeductionRows
-      ? 'production_temp_deductions_fallback' : 'production_report_deductions';
-    report.excelDefectsSource = selectedDefectRows.length
-      ? (selectedDefectRows === tempDefectRows ? 'production_temp_defects_fallback' : 'production_report_defects')
-      : (report.defects.length ? 'legacy_columns_normalized' : 'none');
+    report.excelDeductionsSource = hasRawDetail && selectedDeductionRows === tempDeductionRows
+      ? 'production_temp_deductions_fallback'
+      : (hasRawDetail ? 'production_report_deductions' : 'api_payload_or_normalized');
+    report.excelDefectsSource = hasRawDetail && selectedDefectRows === tempDefectRows && selectedDefectRows.length
+      ? 'production_temp_defects_fallback'
+      : (selectedDefectRows.length
+        ? (hasRawDetail ? 'production_report_defects' : 'api_payload_or_normalized')
+        : (report.defects.length ? 'legacy_columns_normalized' : 'none'));
   }
 }
 
@@ -242,14 +252,42 @@ function mergeProcessData(rows) {
       merged.reports.push({ ...report, process_code: report.process_code || item.processCode });
     }
     for (const type of Array.isArray(data.deductionTypes) ? data.deductionTypes : []) {
-      if (seenDeduction.has(String(type?.id))) continue;
-      seenDeduction.add(String(type?.id));
+      const key = type?.id != null ? `ID:${type.id}` : `CODE:${type?.deduction_code || type?.code || type?.deduction_name || type?.name || ''}`;
+      if (seenDeduction.has(key)) continue;
+      seenDeduction.add(key);
       merged.deductionTypes.push(type);
     }
     for (const type of Array.isArray(data.defectTypes) ? data.defectTypes : []) {
-      if (seenDefect.has(String(type?.id))) continue;
-      seenDefect.add(String(type?.id));
+      const key = type?.id != null ? `ID:${type.id}` : `CODE:${type?.defect_code || type?.code || type?.defect_name || type?.name || ''}`;
+      if (seenDefect.has(key)) continue;
+      seenDefect.add(key);
       merged.defectTypes.push(type);
+    }
+  }
+
+  // Some export payloads include detail rows but omit the process-level type
+  // catalogue. Derive only the missing type definitions from the persisted
+  // detail rows so writeDetailBlock can resolve them by ID/code/name.
+  for (const report of merged.reports) {
+    for (const detail of Array.isArray(report.deductions) ? report.deductions : []) {
+      const id = detail?.deduction_type_id ?? detail?.id;
+      const code = detail?.deduction_type_code || detail?.deduction_code || detail?.code || '';
+      const name = detail?.deduction_type_name || detail?.deduction_name || detail?.name || '';
+      if (id == null && !code && !name) continue;
+      const key = id != null ? `ID:${id}` : `CODE:${code || name}`;
+      if (seenDeduction.has(key)) continue;
+      seenDeduction.add(key);
+      merged.deductionTypes.push({ id: id ?? undefined, deduction_code: code, code, deduction_name: name, name });
+    }
+    for (const detail of Array.isArray(report.defects) ? report.defects : []) {
+      const id = detail?.defect_type_id ?? detail?.id;
+      const code = detail?.defect_type_code || detail?.defect_code || detail?.code || '';
+      const name = detail?.defect_type_name || detail?.defect_name || detail?.name || detail?.label || '';
+      if (id == null && !code && !name) continue;
+      const key = id != null ? `ID:${id}` : `CODE:${code || name}`;
+      if (seenDefect.has(key)) continue;
+      seenDefect.add(key);
+      merged.defectTypes.push({ id: id ?? undefined, defect_code: code, code, defect_name: name, name });
     }
   }
   return merged;
