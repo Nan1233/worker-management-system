@@ -112,11 +112,6 @@ function writeReportRow(sheet, rowNumber, report, deductionTypes, defectTypes, d
   const totalTime = machineAccounting ? num(machineAccounting.grossHours) : num(report.total_time);
   const actualTime = machineAccounting ? num(machineAccounting.netHours) : num(report.actual_time || report.total_time);
   const deductionTime = machineAccounting ? num(machineAccounting.deductionHours) : num(report.deduction_time);
-  const isGiaCongMachine = String(report.process_code || '').toUpperCase() === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE';
-  const machineAccounting = isGiaCongMachine ? report.machineAccounting : null;
-  const totalTime = machineAccounting ? num(machineAccounting.grossHours) : num(report.total_time);
-  const actualTime = machineAccounting ? num(machineAccounting.netHours) : num(report.actual_time || report.total_time);
-  const deductionTime = machineAccounting ? num(machineAccounting.deductionHours) : num(report.deduction_time);
 
   // Business rule for Excel:
   //   Định mức = Định mức SP/h × số giờ thực tế
