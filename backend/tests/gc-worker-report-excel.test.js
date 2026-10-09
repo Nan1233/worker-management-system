@@ -202,3 +202,24 @@ test('GC machine report with no machine detail does not export worker hours as m
   assert.equal(rows[0].workedHours, 0);
   assert.ok(rows[0].warnings.includes('MACHINE_TIME_UNAVAILABLE_NO_MACHINE_LINES'));
 });
+
+test('GC Excel row flags a linked event with missing physical time', () => {
+  const rows = buildGcWorkerRows({
+    ...report2Machines,
+    machineLines: [{
+      id: 99,
+      machine_event_id: 900,
+      machine_code: 'GC01',
+      product_code: 'P1',
+      machine_time_hours: 7,
+      excel_machine_time_hours: 0,
+      standard_output: 100,
+      deductions_json: '[]',
+      ok_quantity: 5,
+      ng_quantity: 0,
+      defects: []
+    }]
+  });
+  assert.equal(rows[0].totalHours, 0);
+  assert.ok(rows[0].warnings.includes('PHYSICAL_MACHINE_EVENT_TIME_MISSING'));
+});
