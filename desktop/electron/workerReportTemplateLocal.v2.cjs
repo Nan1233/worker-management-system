@@ -1,6 +1,7 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
+const { resolveExportTimes } = require('./exportMachineTime.cjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
@@ -567,9 +568,12 @@ function plannedOutputFor(report) {
   let trainingPercent = 100;
   if (has(report.training_percent_snapshot)) trainingPercent = number(report.training_percent_snapshot);
   else if (has(report.training_percent)) trainingPercent = number(report.training_percent);
-  const effectiveTime = has(report.actual_time)
-    ? number(report.actual_time)
-    : (has(report.total_time) ? number(report.total_time) - number(report.deduction_time) : null);
+  const exportTimes = resolveExportTimes(report);
+  const effectiveTime = exportTimes.hasMachine
+    ? exportTimes.actualHours
+    : (has(report.actual_time)
+      ? number(report.actual_time)
+      : (has(report.total_time) ? number(report.total_time) - number(report.deduction_time) : null));
   const perHour = has(report.standard_output) ? number(report.standard_output) : null;
   const planned = perHour === null || effectiveTime === null
     ? null
@@ -579,6 +583,10 @@ function plannedOutputFor(report) {
 
 function applyReportRow(row, report, contract, processData, index) {
   const set = (column, value) => writeValue(row, column, value);
+  const exportTimes = resolveExportTimes(report);
+  const reportForDetails = exportTimes.hasMachine
+    ? { ...report, deductions: exportTimes.deductions }
+    : report;
   set(contract.cols.stt, index + 1);
   set(contract.cols.entryDate, asDate(report.entry_date || report.created_at));
   set(contract.cols.date, asDate(report.work_date || report.entry_date));
@@ -614,15 +622,15 @@ function applyReportRow(row, report, contract, processData, index) {
     cell.numFmt = '0%';
   }
   set(contract.cols.standard, planned);
-  set(contract.cols.time, number(report.actual_time ?? report.total_time));
-  if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, number(report.actual_time ?? report.total_time));
-  set(contract.cols.deductionTotal, number(report.deduction_time));
+  set(contract.cols.time, exportTimes.actualHours);
+  if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, exportTimes.actualHours);
+  set(contract.cols.deductionTotal, exportTimes.deductionHours);
   if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
     const tL = columnLetter(contract.cols.time);
     const dL = columnLetter(contract.cols.deductionTotal);
     row.getCell(contract.cols.workTime).value = {
       formula: `${tL}${row.number}+${dL}${row.number}`,
-      result: number(report.actual_time ?? report.total_time) + number(report.deduction_time)
+      result: exportTimes.totalHours
     };
   }
   set(contract.cols.ok, number(report.tt_ok ?? report.actual_output));
@@ -635,7 +643,7 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.note, report.note || report.review_note);
   set(contract.cols.id, Number(report.id) || null);
 
-  writeDetailBlock(row, report, processData, contract.deductions, 'deduction');
+  writeDetailBlock(row, reportForDetails, processData, contract.deductions, 'deduction');
   writeDetailBlock(row, report, processData, contract.defects, 'defect');
 }
 
@@ -771,16 +779,21 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
-            const totalMinutes = report.total_minutes !== null
-        && report.total_minutes !== undefined
-        && report.total_minutes !== ''
-        ? number(report.total_minutes)
+            const exportTimes = resolveExportTimes(report);
+      const totalMinutes = exportTimes.hasMachine
+        ? exportTimes.totalHours * 60
         : (
-          report.work_minutes !== null
-            && report.work_minutes !== undefined
-            && report.work_minutes !== ''
-            ? number(report.work_minutes) + number(report.deduction_time) * 60
-            : number(report.total_time ?? report.actual_time) * 60
+          report.total_minutes !== null
+            && report.total_minutes !== undefined
+            && report.total_minutes !== ''
+            ? number(report.total_minutes)
+            : (
+              report.work_minutes !== null
+                && report.work_minutes !== undefined
+                && report.work_minutes !== ''
+                ? number(report.work_minutes) + number(report.deduction_time) * 60
+                : number(report.total_time ?? report.actual_time) * 60
+            )
         );
       writeValue(row, contract.cols.workTime, totalMinutes / 60);
       if (percentColumn && outputLetter && standardLetter) {
