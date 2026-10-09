@@ -157,10 +157,18 @@ async function main() {
 if (require.main === module) {
   main()
     .catch((error) => {
+      const causes = Array.isArray(error?.errors)
+        ? error.errors.map((item) => ({
+            name: item?.name || 'Error',
+            code: item?.code || null,
+            message: item?.message || String(item)
+          }))
+        : [];
       process.stderr.write(JSON.stringify({
         success: false,
         read_only: true,
-        message: error?.message || String(error)
+        message: error?.message || String(error),
+        causes
       }, null, 2) + '\n');
       process.exitCode = 1;
     })
