@@ -4,6 +4,7 @@ const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
 const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
+const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -130,6 +131,9 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         pr.exclude_kqd_from_tt_snapshot,
         COALESCE(pr.exclude_kqd_from_tt_snapshot, 0) AS exclude_kqd_from_tt
        FROM production_reports pr
+       LEFT JOIN workers w ON w.id = pr.worker_id
+       LEFT JOIN users u ON u.id = w.user_id
+       LEFT JOIN processes p ON p.id = pr.process_id
        LEFT JOIN workers w ON w.id = pr.worker_id
        LEFT JOIN users u ON u.id = w.user_id
        LEFT JOIN processes p ON p.id = pr.process_id
@@ -297,6 +301,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     const p = eventIds.map(() => '?').join(',');
     eventRows = await query(
       `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status,machine_time_hours,maximum_output,standard_output
+      `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status,machine_time_hours,maximum_output,standard_output
          FROM machine_production_events
         WHERE id IN (${p})`,
       eventIds
@@ -335,11 +340,32 @@ async function loadBulkCompanyReports(yearMonth, actor) {
           machineAccounting.deductions.forEach((item) => machineDeductions.push(item));
           deductions = machineDeductions.length ? machineDeductions : deductions;
         }
+        const eventLines = (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean);
+        let deductions = tempDeductions.length ? tempDeductions : persistedDeductions;
+        let machineAccounting = null;
+        if (code === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE') {
+          const machineDeductions = [];
+          machineAccounting = buildGiaCongMachineAccounting(
+            {
+              machineLines,
+              deductions: tempDeductions.length ? tempDeductions : persistedDeductions,
+              total_time: report.total_time,
+              actual_time: report.actual_time,
+              deduction_time: report.deduction_time
+            },
+            eventMap
+          );
+          machineAccounting.deductions.forEach((item) => machineDeductions.push(item));
+          deductions = machineDeductions.length ? machineDeductions : deductions;
+        }
         return {
           ...report,
           deductions,
+          deductions,
           defects: tempDefects.length ? tempDefects : persistedDefects,
           machineLines,
+          eventLines,
+          machineAccounting
           eventLines,
           machineAccounting
         };
