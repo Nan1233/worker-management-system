@@ -16,6 +16,9 @@ test("machine line shows actual-time input and deduction input without rendering
   assert.match(basic, /label>Thời gian trừ/);
   assert.doesNotMatch(basic, /data-worker-time="machine-total"/);
   assert.doesNotMatch(basic, /data-worker-time-value="machine-total"/);
+  assert.match(basic, /worker-time-grid machine-worker-time-grid/);
+  assert.match(basic, /data-worker-time="machine-actual"/);
+  assert.match(basic, /data-worker-time="machine-deduction"/);
   assert.doesNotMatch(basic, /label>Tổng thời gian/);
   assert.match(basic, /machine-detail-values-row/);
   assert.match(basic, /Chi tiết trừ giờ/);
