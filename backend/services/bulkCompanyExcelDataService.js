@@ -318,8 +318,8 @@ async function loadBulkCompanyReports(yearMonth, actor) {
             return {
               ...line,
               // Export-only physical time; do not overwrite the worker participation field.
-              excel_machine_time_hours: event
-                ? Math.max(0, Number(event.machine_time_hours) || 0)
+              excel_machine_time_hours: Number(line.machine_event_id)
+                ? (event ? Math.max(0, Number(event.machine_time_hours) || 0) : 0)
                 : Math.max(0, Number(line.machine_time_hours) || 0)
             };
           });
