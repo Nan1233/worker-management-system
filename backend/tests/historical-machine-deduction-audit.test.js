@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { auditMachineDeductions } = require('../scripts/auditHistoricalMachineHoursRemote.cjs');
+const { auditMachineDeductions, classifyReport } = require('../scripts/auditHistoricalMachineHoursRemote.cjs');
 
 test('machine deduction audit recognizes persisted detail breakdown', () => {
   const result = auditMachineDeductions({
@@ -60,4 +60,24 @@ test('machine report without machine lines cannot infer machine deductions', () 
   assert.equal(result.status, 'REVIEW');
   assert.equal(result.reason, 'MACHINE_DEDUCTION_CANNOT_BE_AUDITED_WITHOUT_MACHINE_LINES');
   assert.equal(result.machine_deduction_hours, 0);
+});
+
+test('valid worker hours never make a missing machine time eligible for automatic backfill', () => {
+  const result = classifyReport({
+    id: 15,
+    work_date: '2026-09-01',
+    operation_mode: 'MACHINE',
+    machine_no: '5',
+    total_time: 8,
+    deduction_time: 1,
+    machineLines: [{
+      id: 16,
+      machine_code: '5',
+      machine_time_hours: 0,
+      deduction_time_hours: 0,
+      deductions_json: '[]'
+    }]
+  });
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'MISSING_MACHINE_TIME_CANNOT_BE_INFERRED_FROM_WORKER_TIME');
 });
