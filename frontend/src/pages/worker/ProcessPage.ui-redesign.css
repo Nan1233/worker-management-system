@@ -394,3 +394,37 @@
 .worker-form-page .machine-line .machine-data-grid>.machine-quantity-section{grid-column:1 / -1!important;width:100%!important;min-width:0!important;}
 .worker-form-page .machine-line .machine-worker-time-grid .worker-time-item{min-width:0!important;}
 @media(max-width:560px){.worker-form-page .machine-line .machine-data-grid>.worker-time-grid.machine-worker-time-grid{grid-template-columns:minmax(0,1fr)!important;}}
+
+
+/* FINAL GC machine-time layout override: only two time fields exist in this form. */
+/* The actual JSX nests the time row inside the first child of machine-data-grid. */
+.worker-form-page .machine-line .machine-data-grid{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr)!important;
+  width:100%!important;
+  min-width:0!important;
+}
+.worker-form-page .machine-line .machine-data-grid>div,
+.worker-form-page .machine-line .machine-data-grid>.machine-quantity-section{
+  grid-column:1/-1!important;
+  width:100%!important;
+  min-width:0!important;
+}
+.worker-form-page .machine-line .machine-data-grid .worker-time-grid.machine-worker-time-grid{
+  display:grid!important;
+  grid-template-columns:minmax(0,1.75fr) minmax(0,1fr)!important;
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  gap:10px!important;
+}
+.worker-form-page .machine-line .machine-data-grid .worker-time-grid.machine-worker-time-grid>.worker-time-item{
+  width:100%!important;
+  min-width:0!important;
+  grid-column:auto!important;
+}
+@media(max-width:560px){
+  .worker-form-page .machine-line .machine-data-grid .worker-time-grid.machine-worker-time-grid{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+}
