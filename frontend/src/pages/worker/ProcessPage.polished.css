@@ -320,10 +320,36 @@
 }
 
 
-/* Fix GC machine card: the title, time row and quantity row must span the entire card. */
-.worker-form-page .machine-line .machine-data-grid{grid-template-columns:minmax(0,1fr)!important;align-items:stretch!important;width:100%!important;}
-.worker-form-page .machine-line .machine-data-grid>.machine-section-title{grid-column:1 / -1!important;width:100%!important;}
-.worker-form-page .machine-line .machine-data-grid>.worker-time-grid.machine-worker-time-grid{grid-column:1 / -1!important;grid-template-columns:minmax(0,1.75fr) minmax(180px,1fr)!important;width:100%!important;max-width:none!important;justify-self:stretch!important;}
-.worker-form-page .machine-line .machine-data-grid>.machine-quantity-section{grid-column:1 / -1!important;width:100%!important;min-width:0!important;}
+/* GC machine layout: actual DOM nests title/time inside the first grid child.
+   Keep the time and quantity groups on separate full-width rows. */
+.worker-form-page .machine-line .machine-data-grid{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr)!important;
+  align-items:stretch!important;
+  width:100%!important;
+  min-width:0!important;
+}
+.worker-form-page .machine-line .machine-data-grid>div,
+.worker-form-page .machine-line .machine-data-grid>.machine-quantity-section{
+  grid-column:1 / -1!important;
+  width:100%!important;
+  min-width:0!important;
+}
+.worker-form-page .machine-line .machine-data-grid .machine-section-title{
+  width:100%!important;
+}
+.worker-form-page .machine-line .machine-data-grid .worker-time-grid.machine-worker-time-grid{
+  display:grid!important;
+  grid-template-columns:minmax(0,1.75fr) minmax(180px,1fr)!important;
+  width:100%!important;
+  max-width:none!important;
+  min-width:0!important;
+  justify-self:stretch!important;
+  align-items:stretch!important;
+}
 .worker-form-page .machine-line .machine-worker-time-grid .worker-time-item{min-width:0!important;}
-@media(max-width:560px){.worker-form-page .machine-line .machine-data-grid>.worker-time-grid.machine-worker-time-grid{grid-template-columns:minmax(0,1fr)!important;}}
+@media(max-width:560px){
+  .worker-form-page .machine-line .machine-data-grid .worker-time-grid.machine-worker-time-grid{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+}
