@@ -1774,6 +1774,7 @@ window.setTimeout(() => {
                     showNg={showNg}
                     setShowNg={setShowNg}
                     usesMultiMachineLines={usesMultiMachineLines}
+                    operationMode={operationMode}
                     formatIntegerDisplay={formatIntegerDisplay}
                     onTtOkChange={handleTtOkChange}
                     onNumberBlur={handleNumberBlur}
