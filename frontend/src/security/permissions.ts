@@ -43,7 +43,8 @@ function buildRoleDefaults(): Record<string, Set<PermissionCode>> {
 
     for (const code of roleAdditions[role] || []) permissions.add(code);
     if (role === 'admin_ops') {
-      for (const code of ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','MASTER_EDIT','GOVERNANCE_VIEW','SYSTEM_HEALTH_VIEW','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY','REPORT_PENDING_EDIT']) permissions.delete(code);
+      const denied: PermissionCode[] = ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','MASTER_EDIT','GOVERNANCE_VIEW','SYSTEM_HEALTH_VIEW','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY','REPORT_PENDING_EDIT'];
+      for (const code of denied) permissions.delete(code);
     }
     result[role] = permissions;
   }
