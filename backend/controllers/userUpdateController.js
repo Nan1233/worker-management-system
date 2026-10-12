@@ -12,7 +12,7 @@ const normalizeProcessIds = (value) => [...new Set((Array.isArray(value) ? value
 const buildUpdateSet = (payload) => { const entries = Object.entries(payload || {}); if (!entries.length) return null; return { sql: entries.map(([field]) => `\`${field.replace(/`/g,'``')}\`=?`).join(','), values: entries.map(([,value]) => value) }; };
 
 async function getActorProcessIds(connection, actor) {
-  if (actor?.role === 'admin') return null;
+  if (actor?.role === 'admin' || actor?.role === 'manager') return null;
   const [rows] = await connection.query('SELECT process_id FROM manager_processes WHERE manager_id=?',[actor?.id]);
   return rows.map(r => Number(r.process_id));
 }
