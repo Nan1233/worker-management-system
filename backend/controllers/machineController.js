@@ -1,6 +1,9 @@
 const machineModel = require("../models/machineModel");
 const { TTL, getOrLoadMasterData } = require("../utils/masterDataCache");
 
+// v2 forces a fresh DB read after machine master data is populated externally.
+const MACHINE_CACHE_VERSION = "v2";
+
 exports.getMachines = async (req, res) => {
   try {
     const processId = Number(req.query.process_id);
@@ -9,7 +12,7 @@ exports.getMachines = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_id không hợp lệ" });
     }
 
-    const cacheKey = `machines:${processId}`;
+    const cacheKey = `machines:${MACHINE_CACHE_VERSION}:${processId}`;
     const data = await getOrLoadMasterData(
       cacheKey,
       TTL.machines,
