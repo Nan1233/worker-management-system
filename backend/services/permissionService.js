@@ -42,12 +42,13 @@ const ROLE_PARENT = {
   worker: null,
   lead: 'worker',
   manager: 'lead',
+  admin_ops: 'lead',
   admin: 'manager'
 };
 
 function buildRoleCapabilities() {
   const result = {};
-  for (const role of ['worker','lead','manager','admin']) {
+  for (const role of ['worker','lead','manager','admin_ops','admin']) {
     const permissions = new Set();
     const parent = ROLE_PARENT[role];
 
@@ -58,6 +59,9 @@ function buildRoleCapabilities() {
     }
 
     for (const code of ROLE_ADDITIONS[role] || []) permissions.add(code);
+    if (role === 'admin_ops') {
+      for (const code of ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','USER_CREATE','USER_EDIT','MASTER_EDIT','GOVERNANCE_VIEW','SYSTEM_HEALTH_VIEW','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY']) permissions.delete(code);
+    }
     result[role] = permissions;
   }
 
@@ -68,6 +72,7 @@ function buildRoleCapabilities() {
 const CAPABILITIES = buildRoleCapabilities();
 const DEFAULTS = {
   admin: new Set(CAPABILITIES.admin),
+  admin_ops: new Set(CAPABILITIES.admin_ops),
   manager: new Set(CAPABILITIES.manager),
   lead: new Set(CAPABILITIES.lead),
   worker: new Set(CAPABILITIES.worker)
@@ -121,6 +126,7 @@ function clearPermissionCache(userId) { if (userId) cache.delete(Number(userId))
 async function getEffectivePermissions(user) {
   const role = normalizeRole(user?.role);
   if (role === 'admin') return new Set(ALL_CODES);
+  if (role === 'admin_ops') return new Set(CAPABILITIES.admin_ops);
   const userId = Number(user?.id || 0);
   const cached = cache.get(userId);
   if (userId && cached && cached.expiresAt > Date.now() && cached.role === role) return new Set(cached.permissions);
@@ -150,11 +156,12 @@ async function hasPermission(user, code) {
   const role = normalizeRole(user?.role);
   const normalized = normalizeCode(code);
   if (role === 'admin') return true;
+  if (role === 'admin_ops' && normalized === 'PERMISSION_MANAGE') return false;
   const set = await getEffectivePermissions(user);
   return set.has(normalized);
 }
 async function getAdminMatrix() {
-  const roles = ['admin','manager','lead','worker']; const roleOverrides = {}; const userOverrides = {};
+  const roles = ['admin','admin_ops','manager','lead','worker']; const roleOverrides = {}; const userOverrides = {};
   if (await ensureSchemaAvailable()) {
     const [r] = await db.promise().query('SELECT role,permission_code,allowed FROM role_permission_overrides');
     const [u] = await db.promise().query('SELECT user_id,permission_code,allowed FROM user_permission_overrides');
@@ -177,6 +184,7 @@ async function setUserPermission(userId, permissionCode, allowed) {
   const targetRole = normalizeRole(userRows?.[0]?.role);
   if (!targetRole) throw Object.assign(new Error('User không tồn tại'), { status: 404 });
 
+  if (targetRole === 'admin_ops' && code === 'PERMISSION_MANAGE' && allowed) throw Object.assign(new Error('Admin nghiệp vụ không được cấp quyền quản trị phân quyền'), { status: 403 });
   if (isMandatoryPermission(targetRole, code) && !allowed) {
     throw Object.assign(new Error('Không thể tắt quyền bắt buộc của role'), { status: 400 });
   }
