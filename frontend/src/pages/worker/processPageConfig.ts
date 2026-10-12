@@ -210,7 +210,7 @@ export const decimalHoursToText = (value: string): string => {
 export const initialForm: FormState = {
     workDate: getCurrentLocalDate(), shift: "A", workerCode: "", workerName: "", trainingPercent: "",
     machineNo: "", totalTime: "", actualTime: "", actualHours: "", actualMinutes: "", deductionTime: "",
-    productName: "", standardOutput: "", actualOutput: "", ttOk: "", ttNg: "", kqdDapLai: "", kqdTuot: "",
+    productName: "", standardOutput: "", actualOutput: "", ttOk: "", ttNg: "", k1DeductionWork: "", kqdDapLai: "", kqdTuot: "",
     voDoLong: "", xuocDoLong: "", congGay: "", xoay: "", khongDut: "", baviaHut: "", ppcm: "", loiCaoSu: "",
     ngKichThuoc: "", catLem: "", note: "", executionMethod: "AUTO",
 };
