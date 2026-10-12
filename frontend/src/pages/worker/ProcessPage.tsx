@@ -263,7 +263,7 @@ const machineAutocompleteOptions =
     const usesMultiMachineLines = resolveUsesMultiMachineLines(processCapabilities, operationMode);
     const usesSingleMachine = resolveUsesSingleMachine(processCapabilities, operationMode);
     const usesAnyMachine = usesMultiMachineLines || usesSingleMachine;
-    const usesGiaCongMachineAccounting = isCutLongProcess && usesMultiMachineLines;
+    const usesMachineLineAccounting = usesMultiMachineLines;
 
     const productAutocompleteOptions = useMemo<AutocompleteOption[]>(() => {
         const effectiveMode: OperationMode = usesAnyMachine ? "MACHINE" : "MANUAL";
@@ -1315,7 +1315,7 @@ const updateDeductionValue = (
         }
 
 
-        if (!usesGiaCongMachineAccounting) {
+        if (!usesMachineLineAccounting) {
             if (parseFlexibleTime(form.actualTime) <= 0) {
                 return "Thời gian làm việc thực tế phải lớn hơn 0";
             }
