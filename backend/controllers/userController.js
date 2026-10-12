@@ -9,6 +9,7 @@ const { assertUserManagementScope } = require('../services/processAuthorizationS
 const ROLE_CREATE_RULES = {
   admin: ['manager', 'lead', 'worker'],
   admin_ops: ['manager', 'lead', 'worker'],
+  admin_ops: ['manager', 'lead', 'worker'],
   manager: ['lead', 'worker'],
   lead: ['worker']
 };
