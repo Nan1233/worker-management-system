@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const DIST = path.resolve(__dirname, "../dist");
-const VERSION = "1.9.29";
+const VERSION = "1.9.30";
 const LEGACY_VERSIONS = ["1.5.0", "1.8.20", "1.8.21", "1.8.22"];
 
 if (!fs.existsSync(DIST)) {
