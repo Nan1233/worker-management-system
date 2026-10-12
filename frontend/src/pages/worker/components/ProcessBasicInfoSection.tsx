@@ -20,7 +20,7 @@ const normalizeDefectCode = (value: unknown): string => String(value ?? "").trim
 type CutExecutionMode = "AUTO" | "NON_AUTO";
 type LongExecutionMode = "MANUAL" | "MACHINE";
 
-export default function ProcessBasicInfoSection({ form, setForm, onFormChange, isCutLongProcess, isInspectionProcess, isCvkMode, setIsCvkMode, operationType, setOperationType, operationMode, setOperationMode, usesMultiMachineLines, usesSingleMachine, productAutocompleteOptions, getMachineProductAutocompleteOptions, productOptions, machineAutocompleteOptions, loadingMasterData, machineCount, maxMachineCount, machineLines, resizeMachineLines, updateMachineLine, refreshMachineLineStandard, getMachineNgTotal, activeNgOptions, activeDeductionOptions, toggleMachineDefect, updateMachineDefectValue }: Props) {
+export default function ProcessBasicInfoSection({ form, setForm, onFormChange, isCutLongProcess, isInspectionProcess, isCvkMode, setIsCvkMode, operationType, setOperationType, operationMode, setOperationMode, usesMultiMachineLines, usesSingleMachine, productAutocompleteOptions, getMachineProductAutocompleteOptions, productOptions, machineAutocompleteOptions, machineOptions, loadingMasterData, machineCount, maxMachineCount, machineLines, resizeMachineLines, updateMachineLine, refreshMachineLineStandard, getMachineNgTotal, activeNgOptions, activeDeductionOptions, toggleMachineDefect, updateMachineDefectValue }: Props) {
     const [longExecutionMode, setLongExecutionMode] = useState<LongExecutionMode>(operationMode === "MACHINE" ? "MACHINE" : "MANUAL");
     const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");
     const [openMachineDeductionIndex, setOpenMachineDeductionIndex] = useState<number | null>(null);
