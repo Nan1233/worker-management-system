@@ -10,9 +10,10 @@ const TTL_MS = 30 * 60 * 1000;
 // GC Long Tay zero-standard work codes (XUATNHAP, KTCD, TAIPP).
 // v13: invalidate browser/session and offline product snapshots after adding GC alias C7236 -> R7236 and C13 machine standard.
 // v14: invalidate stale empty machine lists after machine master data was populated in DB.
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v14";
-const DEDUCTION_MASTER_VERSION = "v8";
-const DEFECT_MASTER_VERSION = "v8";
+// v15: invalidate stale process-scoped NG/Tru H snapshots after correcting DO process ID mapping and DB catalogues.
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v15";
+const DEDUCTION_MASTER_VERSION = "v9";
+const DEFECT_MASTER_VERSION = "v9";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
 type DeductionOptions = Awaited<ReturnType<typeof getDeductionOptionsByProcess>>;
