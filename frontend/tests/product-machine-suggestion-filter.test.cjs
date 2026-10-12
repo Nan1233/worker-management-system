@@ -104,6 +104,8 @@ test('Mài worker master only exposes the approved time deductions and NG types'
   assert.ok(!mai.deductions.includes('Mất điện'));
   assert.ok(hook.includes('MAI_ALLOWED_DEDUCTION_NAMES'));
   assert.ok(hook.includes('MAI_ALLOWED_DEFECT_NAMES'));
+  assert.ok(hook.includes('MAI_DISPLAY_LABELS'));
+  assert.ok(hook.includes('PPCM Mất điện'));
   assert.ok(hook.includes('filterMaiMasterOptions(normalizeDefectOptions'));
   assert.ok(hook.includes('filterMaiMasterOptions(normalizeDeductionOptions'));
 });
