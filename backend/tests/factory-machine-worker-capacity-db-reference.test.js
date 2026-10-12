@@ -97,3 +97,17 @@ test('GC manual machine C13 honors its DB capacity of one worker and product-bas
   assert.equal(rule.maxWorkersPerMachine, 1);
   assert.equal(rule.outputBasis, 'PRODUCT');
 });
+
+
+test('GC lồng machine ML12 allows shared reporting despite a legacy DB capacity of one', () => {
+  const { service } = loadWithFakeDb([]);
+  const rule = service.getProcessMachineRule('GC', 'ML12', {
+    is_automatic: 0,
+    max_workers_per_machine: 1,
+    output_basis: 'PRODUCT',
+  });
+
+  assert.equal(rule.maxWorkersPerMachine, 4);
+  assert.equal(rule.automatic, false);
+  assert.equal(rule.outputBasis, 'PRODUCT');
+});
