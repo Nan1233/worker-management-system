@@ -6,6 +6,7 @@ import { MAX_TOTAL_WORK_MINUTES, getDeductionMinutes, parseFlexibleTime } from "
 
 interface DeductionOption { key: DeductionKey; label: string; }
 interface Props {
+    processCode?: string;
     form: FormState;
     setForm: Dispatch<SetStateAction<FormState>>;
     deductions: DeductionState;
@@ -19,7 +20,7 @@ interface Props {
     onWarning: (message: string) => void;
 }
 
-export default function ProcessTimeDeductionSection({ form, setForm, deductions, activeDeductionOptions, selectedDeduction, showDeduction, setShowDeduction, onToggleDeduction, onUpdateDeduction, onNormalizeDeduction, onWarning }: Props) {
+export default function ProcessTimeDeductionSection({ processCode = "", form, setForm, deductions, activeDeductionOptions, selectedDeduction, showDeduction, setShowDeduction, onToggleDeduction, onUpdateDeduction, onNormalizeDeduction, onWarning }: Props) {
     const handleHoursChange = (rawValue: string) => {
         const value = rawValue.replace(/\D/g, "");
         if (value !== "" && Number(value) > 12) { onWarning("Thời gian tối đa là 12 giờ"); return; }
@@ -63,7 +64,7 @@ export default function ProcessTimeDeductionSection({ form, setForm, deductions,
                     <small>Nhập thời gian thực tế. Thời gian trừ cộng thêm để tính tổng, tổng không quá 12 giờ.</small>
                 </div>
                 <div className="worker-time-item worker-time-computed" data-worker-time="deduction">
-                    <label>Thời gian trừ</label>
+                    <label>{String(processCode).toUpperCase() === "K1" ? "Nhập giờ trừ" : "Thời gian trừ"}</label>
                     <input data-worker-time-value="deduction" value={form.deductionTime} readOnly aria-readonly="true" />
                     <small>{decimalHoursToText(form.deductionTime)}</small>
                 </div>
@@ -75,7 +76,7 @@ export default function ProcessTimeDeductionSection({ form, setForm, deductions,
             </div>
             <div className="worker-dropdown-box">
                 <button type="button" className="worker-dropdown-title" onClick={() => setShowDeduction((prev) => !prev)} aria-expanded={showDeduction} aria-controls="worker-deduction-options">
-                    <span className="worker-dropdown-title-main"><span>⏱ Thời gian trừ</span><small>{selectedDeduction.length > 0 ? `${selectedDeduction.length} loại · ${getDeductionMinutes(deductions)} phút` : "Không có thời gian trừ"}</small></span>
+                    <span className="worker-dropdown-title-main"><span>⏱ {String(processCode).toUpperCase() === "K1" ? "Nhập giờ trừ" : "Thời gian trừ"}</span><small>{selectedDeduction.length > 0 ? `${selectedDeduction.length} loại · ${getDeductionMinutes(deductions)} phút` : "Không có thời gian trừ"}</small></span>
                     <span aria-hidden="true">{showDeduction ? "▲" : "▼"}</span>
                 </button>
                 {showDeduction && <div id="worker-deduction-options" className="worker-dropdown-options">
