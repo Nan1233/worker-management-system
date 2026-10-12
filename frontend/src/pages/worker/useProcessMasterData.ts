@@ -22,7 +22,7 @@ const ZERO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 // These filter DB rows; they do not create fallback options or alter row IDs.
 const normalizeMasterLabel = (value: unknown): string => String(value ?? "")
   .normalize("NFD")
-  .replace(/[\\u0300-\\u036f]/g, "")
+  .replace(/[\u0300-\u036f]/g, "")
   .replace(/đ/gi, "d")
   .toLowerCase()
   .replace(/[^a-z0-9]/g, "");
