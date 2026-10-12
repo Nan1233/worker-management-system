@@ -80,6 +80,12 @@ test('machine-line payload does not duplicate worker-level time and OK/NG totals
   assert.ok(submission.includes('machine_lines:useMachineLinesPayload?lines:[]'));
 });
 
+test('basic info section destructures machineOptions before rendering machine labels', () => {
+  const basicInfo = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessBasicInfoSection.tsx'), 'utf8');
+  assert.match(basicInfo, /export default function ProcessBasicInfoSection\(\{[^}]*\\bmachineOptions\\b[^}]*\}: Props\)/s);
+  assert.ok(basicInfo.includes('machineOptions as Array<{ process_code?: string; process_name?: string }>'));
+});
+
 test('time deduction section does not reference an undeclared machineOptions identifier', () => {
   const timeSection = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessTimeDeductionSection.tsx'), 'utf8');
   assert.ok(!timeSection.includes('machineOptions'), 'time deduction component must not use machineOptions unless it is explicitly declared');
