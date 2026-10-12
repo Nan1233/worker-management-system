@@ -89,12 +89,16 @@ if (!isNativeCapacitor && "serviceWorker" in navigator && import.meta.env.PROD &
 
 console.info(`[KTC] frontendVersion=${FRONTEND_VERSION} commitSha=${FRONTEND_COMMIT_SHA}`);
 
+// A deployment can keep the same semantic frontend version while changing code.
+// Key the one-time reload guard by commit too, so an old session marker cannot
+// suppress controllerchange after a new build has taken control.
+const frontendBuildId = `${FRONTEND_VERSION}:${FRONTEND_COMMIT_SHA}`;
 let controllerReloaded = false;
 if (!isNativeCapacitor && "serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (controllerReloaded || sessionStorage.getItem("ktc_sw_reloaded") === FRONTEND_VERSION) return;
+    if (controllerReloaded || sessionStorage.getItem("ktc_sw_reloaded") === frontendBuildId) return;
     controllerReloaded = true;
-    sessionStorage.setItem("ktc_sw_reloaded", FRONTEND_VERSION);
+    sessionStorage.setItem("ktc_sw_reloaded", frontendBuildId);
     window.dispatchEvent(new CustomEvent("ktc:update-available"));
     window.location.reload();
   });
