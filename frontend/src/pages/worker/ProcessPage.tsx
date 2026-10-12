@@ -1731,6 +1731,7 @@ window.setTimeout(() => {
 
                 {!usesMachineLineAccounting && (
                     <ProcessTimeDeductionSection
+                        processCode={processCode}
                         form={form}
                         setForm={setForm}
                         deductions={deductions}
