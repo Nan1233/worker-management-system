@@ -17,6 +17,49 @@ import {
 } from "../../services/authRuntimeEvents";
 
 const ZERO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
+
+// Mài worker form uses only the approved time-deduction and NG categories.
+// These filter DB rows; they do not create fallback options or alter row IDs.
+const normalizeMasterLabel = (value: unknown): string => String(value ?? "")
+  .normalize("NFD")
+  .replace(/[\\u0300-\\u036f]/g, "")
+  .replace(/đ/gi, "d")
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, "");
+
+const MAI_ALLOWED_DEDUCTION_NAMES = new Set([
+  "Bật máy, xét máy, đầu giờ",
+  "Chuyển mã",
+  "Chỉnh máy",
+  "Chờ chỉnh máy",
+  "Mài đá",
+  "Ko có KHSX, Dừng máy ko HT",
+  "Chờ hàng, hết hàng",
+  "Nghỉ giải lao",
+  "Dừng máy đi hỗ trợ",
+  "5s, đổ bụi,xì bụi,lấy bụi",
+  "Học việc",
+].map(normalizeMasterLabel));
+
+const MAI_ALLOWED_DEFECT_NAMES = new Set([
+  "KQD ĐẢO",
+  "Xô cs",
+  "PPCM Mất điện",
+  "Hàng rơi",
+  "K- coleet",
+  "Thiếu - lẫn cs CSH",
+  "Lỗi cao su",
+].map(normalizeMasterLabel));
+
+function filterMaiMasterOptions(
+  options: WorkerMasterOption[],
+  processCode: string,
+  processId: number,
+  allowedNames: Set<string>,
+): WorkerMasterOption[] {
+  const isMai = String(processCode || "").trim().toUpperCase() === "MAI" || Number(processId) === 2;
+  return isMai ? options.filter((option) => allowedNames.has(normalizeMasterLabel(option.label))) : options;
+}
 const PROCESS_ID_BY_CODE: Record<string, number> = {
   GC: 1,
   MAI: 2,
@@ -112,14 +155,14 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const [defects, deductions] = optionalResults;
 
       if (defects.status === "fulfilled") {
-        setActiveNgOptions(normalizeDefectOptions(defects.value, resolvedProcessId));
+        setActiveNgOptions(filterMaiMasterOptions(normalizeDefectOptions(defects.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES));
       } else {
         setActiveNgOptions([]);
       }
 
       if (deductions.status === "fulfilled") {
         setActiveDeductionOptions(
-          normalizeDeductionOptions(deductions.value, resolvedProcessId),
+          filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES),
         );
       } else {
         setActiveDeductionOptions([]);
