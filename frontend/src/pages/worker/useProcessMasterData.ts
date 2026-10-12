@@ -57,25 +57,6 @@ const MAI_ALLOWED_DEFECT_NAMES = new Set([
   "Lỗi cao su",
 ].map(normalizeMasterLabel));
 
-function dedupeMasterOptions(options: WorkerMasterOption[]): WorkerMasterOption[] {
-  const unique = new Map<string, WorkerMasterOption>();
-  const priority = (option: WorkerMasterOption): number => {
-    const code = String(option.code || "").trim().toUpperCase();
-    return code.startsWith("KTC_") ? 0 : 1;
-  };
-
-  for (const option of options) {
-    const normalizedLabel = normalizeMasterLabel(option.label);
-    if (!normalizedLabel) continue;
-    const current = unique.get(normalizedLabel);
-    if (!current || priority(option) < priority(current)) {
-      unique.set(normalizedLabel, option);
-    }
-  }
-
-  return Array.from(unique.values());
-}
-
 function filterMaiMasterOptions(
   options: WorkerMasterOption[],
   processCode: string,
@@ -110,6 +91,84 @@ function filterMaiMasterOptions(
 
   return Array.from(unique.values());
 }
+const K2_ALLOWED_DEDUCTION_NAMES = new Set([
+  "Nghỉ giải lao",
+  "5s",
+  "chuyển mã",
+  "lau ố, lau gót chống",
+  "lăn mốc",
+  "hỗ trợ",
+  "Xem MGH, mất điện",
+  "lấy hàng và cất hàng",
+].map(normalizeMasterLabel));
+
+const K2_ALLOWED_DEFECT_NAMES = new Set([
+  "Nứt vỡ, CSN, KĐĐ",
+  "Cắt lẹm, CP, 502",
+  "cs bẩn (hủy)",
+  "Bavia do cắt, không chân số",
+  "Lõm csu",
+  "Đảo, BD, HV",
+  "Mặt mài",
+  "Lẫn csu, thiếu cs",
+  "Không ĐT",
+  "Lồng-mài ngược",
+  "Coleet, K gót",
+  "K rãnh",
+  "K do gia lưu",
+  "K do gá",
+  "K va vào đá",
+  "Trục xước, bv trục",
+  "Dập trục",
+  "Bẩn Trục",
+  "Trục sét, lớp mạ",
+  "KNCC",
+  "BV đầu vào",
+  "Rỗ khí",
+  "Lỗ rách",
+  "Rách lòng trong",
+  "Rách cs non",
+  "Dị vật",
+  "Mài sót",
+  "MM Loang-sần, lõm",
+  "Mẻ cạnh, mẻ bánh răng",
+  "Nứt đường phân khuôn",
+  "lẫn NVL",
+  "Bẩn NCC",
+  "Mốc cs",
+  "Chân bánh răng ngắn-dài, Cao su ngắn",
+  "Cao su dài",
+  "CHÂN BV SÂU, thiếu gate, chân gate cao",
+  "mm thô",
+  "NDPK",
+  "hằn cs,nhăn",
+  "LBM",
+  "rách ngang",
+  "CS BÓNG",
+  "NG-bàn đá",
+  "CS móp",
+  "Bavia bánh răng",
+  "KHOẢNG SÁNG",
+  "Lỗi rót",
+  "Khác",
+  "Tên lỗi khác(KĐTâm)",
+  "hckt",
+  "Tái đi CVN",
+  "THIẾU LIỆU",
+  "CHỜ XLBV",
+  "KQD",
+].map(normalizeMasterLabel));
+
+function filterK2MasterOptions(
+  options: WorkerMasterOption[],
+  processCode: string,
+  allowedNames: Set<string>,
+): WorkerMasterOption[] {
+  if (String(processCode || "").trim().toUpperCase() !== "K2") return options;
+  // Keep only DB-backed options in the approved K2 list; preserve each DB code/ID.
+  return options.filter((option) => allowedNames.has(normalizeMasterLabel(option.label)));
+}
+
 const PROCESS_ID_BY_CODE: Record<string, number> = {
   GC: 1,
   MAI: 2,
@@ -205,14 +264,20 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const [defects, deductions] = optionalResults;
 
       if (defects.status === "fulfilled") {
-        setActiveNgOptions(dedupeMasterOptions(filterMaiMasterOptions(normalizeDefectOptions(defects.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_")));
+        const normalized = normalizeDefectOptions(defects.value, resolvedProcessId);
+        const maiFiltered = filterMaiMasterOptions(normalized, processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_");
+        setActiveNgOptions(filterK2MasterOptions(maiFiltered, processCode, K2_ALLOWED_DEFECT_NAMES));
       } else {
         setActiveNgOptions([]);
       }
 
       if (deductions.status === "fulfilled") {
         setActiveDeductionOptions(
-          dedupeMasterOptions(filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_")),
+          filterK2MasterOptions(
+            filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
+            processCode,
+            K2_ALLOWED_DEDUCTION_NAMES,
+          ),
         );
       } else {
         setActiveDeductionOptions([]);
