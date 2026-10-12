@@ -21,6 +21,9 @@ if (process.argv.some((arg) => arg.startsWith('--') && arg !== '--apply' && arg 
 if (apply && (process.env.KTC_DB_ENV !== 'TEST' || process.env.KTC_ALLOW_MAI_MASTER_SYNC !== '1')) {
   throw new Error('Apply is blocked. Set KTC_DB_ENV=TEST and KTC_ALLOW_MAI_MASTER_SYNC=1 explicitly.');
 }
+if (apply && !/(test|staging|stage|dev)/i.test(String(process.env.DB_NAME || ''))) {
+  throw new Error('Apply is blocked because DB_NAME does not look like a test/staging/dev database. Verify the TiDB database name before running.');
+}
 
 const dbConfig = {
   host: process.env.DB_HOST || '127.0.0.1',
