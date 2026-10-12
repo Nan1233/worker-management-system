@@ -16,6 +16,7 @@ const roleAdditions: Record<string, PermissionCode[]> = {
   worker: ['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','STATISTICS_VIEW','PROFILE_VIEW'],
   lead: ['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_PENDING_EDIT','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','MASTER_EDIT' ,'AUDIT_VIEW'],
   manager: ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','USER_CREATE','USER_EDIT','GOVERNANCE_VIEW'],
+  admin_ops: ['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_PENDING_EDIT','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','STATISTICS_VIEW','NOTIFICATION_VIEW','AUDIT_VIEW','PROFILE_VIEW'],
   admin: all
 };
 
@@ -23,13 +24,14 @@ const roleParent: Record<string, string | null> = {
   worker: null,
   lead: 'worker',
   manager: 'lead',
+  admin_ops: 'lead',
   admin: 'manager'
 };
 
 function buildRoleDefaults(): Record<string, Set<PermissionCode>> {
   const result: Record<string, Set<PermissionCode>> = {};
 
-  for (const role of ['worker','lead','manager','admin']) {
+  for (const role of ['worker','lead','manager','admin_ops','admin']) {
     const permissions = new Set<PermissionCode>();
     const parent = roleParent[role];
 
@@ -40,6 +42,7 @@ function buildRoleDefaults(): Record<string, Set<PermissionCode>> {
     }
 
     for (const code of roleAdditions[role] || []) permissions.add(code);
+    if (role === 'admin_ops') for (const code of ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','USER_CREATE','USER_EDIT','MASTER_EDIT','GOVERNANCE_VIEW','SYSTEM_HEALTH_VIEW','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY']) permissions.delete(code);
     result[role] = permissions;
   }
 
@@ -57,6 +60,7 @@ export async function loadMyPermissions(force=false): Promise<Set<PermissionCode
   const user=getStoredUser(); if(!user) return new Set();
   const userId=Number(user.id);
   if(user.role==='admin') return new Set(all);
+  if(user.role==='admin_ops') return defaultPermissionsForRole('admin_ops');
   if(!force && cache && cache.userId===userId && cache.expiresAt>Date.now()) return new Set(cache.values);
   if(inFlight?.userId===userId) return new Set(await inFlight.promise);
   const request = (async () => {
