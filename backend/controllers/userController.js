@@ -8,6 +8,7 @@ const { assertUserManagementScope } = require('../services/processAuthorizationS
 
 const ROLE_CREATE_RULES = {
   admin: ['manager', 'lead', 'worker'],
+  admin_ops: ['manager', 'lead', 'worker'],
   manager: ['lead', 'worker'],
   lead: ['worker']
 };
@@ -33,7 +34,7 @@ function publicError(res, error, fallback) {
 }
 
 async function getActorProcessIds(connection, actor) {
-  if (actor?.role === 'admin' || actor?.role === 'manager') return null;
+  if (actor?.role === 'admin' || actor?.role === 'admin_ops' || actor?.role === 'manager') return null;
   const [rows] = await connection.query('SELECT process_id FROM manager_processes WHERE manager_id=?', [actor?.id]);
   return rows.map((row) => Number(row.process_id));
 }
