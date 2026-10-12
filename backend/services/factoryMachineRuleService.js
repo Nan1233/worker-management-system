@@ -65,7 +65,9 @@ const getProcessMachineRule = (processCode, machineCode, dbRow = null) => {
   if (MULTI_MACHINE_PROCESS_CODES.has(code)) {
     return {
       maxMachinesPerWorker: MAX_MACHINES_PER_WORKER,
-      maxWorkersPerMachine: DEFAULT_SHARED_WORKERS_PER_MACHINE,
+      maxWorkersPerMachine: dbRow?.max_workers_per_machine != null
+        ? Math.max(1, Number(dbRow.max_workers_per_machine) || 1)
+        : DEFAULT_SHARED_WORKERS_PER_MACHINE,
       automatic: dbRow?.is_automatic != null
         ? Number(dbRow.is_automatic) === 1
         : code === "GC" ? GC_AUTOMATIC_MACHINE_NUMBERS.includes(canonicalMachineNumber(machineCode)) : false,
