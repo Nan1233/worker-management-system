@@ -9,7 +9,7 @@ exports.getDeductionsByProcess = async (req, res) => {
     }
 
     const isCVK = processId === 60006 || processId === 30002;
-    const cacheKey = `deductions:v4:${processId}`;
+    const cacheKey = `deductions:v5:${processId}`;
     let data;
 
     // CVK master data is self-healed from TiDB on every request. Never serve a
