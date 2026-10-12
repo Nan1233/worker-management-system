@@ -7,7 +7,7 @@ const cfg={host:process.env.DB_HOST||'127.0.0.1',port:Number(process.env.DB_PORT
 const OUT=path.resolve(process.env.KTC_VALIDATION_DIR||'validation-artifacts','fixture.json');
 const ids={GC:1,MAI:2,K1:3,K2:4,DO:60001,CAN:60002,EP:60003,XLBV:60004,SX3:60005};
 const procNames={GC:'Cắt/Lồng',MAI:'Mài',K1:'Kiểm 1',K2:'Kiểm 2',DO:'Đo',CAN:'Cán',EP:'Ép',XLBV:'Xử lý Bavia',SX3:'Sản xuất 3'};
-const machines={GC:['5','6','7','11','1'],MAI:['MAI-1','MAI-2','MAI-3','MAI-4'],K1:['K1-1'],K2:['K2-1'],DO:['DO-1'],CAN:['CAN-1'],EP:['EP-1']};
+const machines={GC:['5','6','7','11','1','C13'],MAI:['MAI-1','MAI-2','MAI-3','MAI-4'],K1:['K1-1'],K2:['K2-1'],DO:['DO-1'],CAN:['CAN-1'],EP:['EP-1']};
 async function main(){
  if(process.env.KTC_RUNTIME_ENV_CLASS!=='STAGING'||process.env.DB_NAME!=='worker_management_staging_local'||!['127.0.0.1','localhost'].includes(process.env.DB_HOST)) throw new Error('UNSAFE_LOCAL_TARGET');
  const db=await mysql.createConnection(cfg); const today=new Date().toISOString().slice(0,10);
