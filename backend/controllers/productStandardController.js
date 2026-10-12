@@ -85,7 +85,7 @@ exports.getProductStandards = async (req, res) => {
     // work items cannot be lost by alias/standard filters in the generic model.
     // Only the three explicitly configured no-standard jobs are allowed at 0.
     const cacheKey = resolvedProcessCode === 'GC'
-      ? `product-standards:v6:gc:${processId > 0 ? processId : resolvedProcessCode}`
+      ? `product-standards:v7:gc:${processId > 0 ? processId : resolvedProcessCode}`
       : processCode
         ? `product-standards:v6:code:${processCode}`
         : `product-standards:v6:id:${processId}`;
