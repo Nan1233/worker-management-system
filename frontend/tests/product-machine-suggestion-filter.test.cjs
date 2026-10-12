@@ -93,7 +93,7 @@ test('time deduction section does not reference an undeclared machineOptions ide
 
 
 test('Mài worker master only exposes the approved time deductions and NG types', () => {
-  const master = require(path.join(root, '..', '..', 'backend/config/ktcTemplateMasterData.js'));
+  const master = require(path.join(root, '..', 'backend/config/ktcTemplateMasterData.js'));
   const mai = master.MAI;
   const hook = fs.readFileSync(path.join(root, 'src/pages/worker/useProcessMasterData.ts'), 'utf8');
 
