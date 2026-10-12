@@ -155,6 +155,32 @@ async function ensureCanonicalDeductionTypes(processId) {
 const Deduction = {
     async getByProcess(process_id) {
         const requestedId = Number(process_id);
+        const [processRows] = await db.promise().query(
+            `SELECT id, UPPER(TRIM(COALESCE(process_code, ''))) AS process_code
+               FROM processes WHERE id = ? LIMIT 1`,
+            [requestedId],
+        );
+        const processCode = String(processRows?.[0]?.process_code || '').trim().toUpperCase();
+
+        // GC/CVK have explicit canonical catalogues that self-heal their rows.
+        // Other processes (including DO/MÀI/K1/K2/XLBV/ÉP/CÁN) must read the
+        // active per-process catalogue configured in deduction_types directly.
+        if (!['GC', 'CVK'].includes(processCode)) {
+            const [rows] = await db.promise().query(
+                `SELECT d.id, d.deduction_code, d.deduction_name, d.sort_order
+                   FROM deduction_types d
+                  WHERE d.process_id = ? AND d.status = 'active'
+                  ORDER BY d.sort_order ASC, d.id ASC`,
+                [requestedId],
+            );
+            console.info("[KTC][DEDUCTION] process catalogue", JSON.stringify({
+                requestedProcessId: requestedId,
+                processCode,
+                returned: Array.isArray(rows) ? rows.length : 0,
+            }));
+            return rows;
+        }
+
         const process = await ensureCanonicalDeductionTypes(requestedId);
         const effectiveProcessId = process?.id ?? requestedId;
         const catalogue = catalogueFor(process?.code);
