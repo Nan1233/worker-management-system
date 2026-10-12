@@ -55,3 +55,24 @@ jobs:
         run: npm ci --prefix frontend
       - name: Typecheck and build production bundle
         run: npm run build --prefix frontend
+
+  baseline-test-branch:
+    name: Check existing failures on test baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout unchanged test branch
+        uses: actions/checkout@v4
+        with:
+          ref: test
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+      - name: Run previously failing audit and Excel tests on test baseline
+        working-directory: backend
+        run: node --test --test-timeout=60000 tests/audit-historical-machine-hours.test.js tests/auditHistoricalMachineHoursRemote.test.js tests/excel-monthly-business-rules.test.js tests/excel-template-loader.test.js tests/gc-worker-report-excel.test.js
