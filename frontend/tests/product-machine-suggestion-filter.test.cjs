@@ -46,3 +46,36 @@ test('changing a machine clears the previous product so stale machine products c
   assert.ok(basic.includes('machineCode: value, productCode: ""'));
   assert.ok(basic.includes('machineCode: option.value, productCode: ""'));
 });
+
+test('worker process crash regression: accounting identifiers stay declared and consistent', () => {
+  const accountingRefs = page.match(/\\busesMachineLineAccounting\\b/g) || [];
+  assert.equal(accountingRefs.length, 3);
+  assert.ok(page.includes('const usesMachineLineAccounting = usesMultiMachineLines;'));
+  assert.ok(!page.includes('usesGiaCongMachineAccounting'));
+});
+
+test('worker quality section runs hooks before mode-dependent early returns', () => {
+  const quality = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessQualitySection.tsx'), 'utf8');
+  const stateHook = quality.indexOf('useState<');
+  const layoutEffectHook = quality.indexOf('useLayoutEffect(');
+  const effectHook = quality.indexOf('useEffect(');
+  const hiddenReturn = quality.indexOf('if (shouldHide) return null;');
+  assert.ok(stateHook >= 0 && layoutEffectHook > stateHook && effectHook > layoutEffectHook);
+  assert.ok(hiddenReturn > effectHook);
+  assert.ok(!quality.includes('if (usesMultiMachineLines) return null;'));
+});
+
+test('DO and EP remain limited to one machine and mode helpers cannot both be true', () => {
+  const machineLines = fs.readFileSync(path.join(root, 'src/pages/worker/processMachineLines.ts'), 'utf8');
+  assert.ok(machineLines.includes('if (["DO", "EP"].includes(processCode)) return 1;'));
+  assert.ok(domain.includes('return !resolveUsesMultiMachineLines(c, mode);'));
+});
+
+test('machine-line payload does not duplicate worker-level time and OK/NG totals', () => {
+  const submission = fs.readFileSync(path.join(root, 'src/pages/worker/processReportSubmission.ts'), 'utf8');
+  assert.ok(submission.includes('total_time:isMachineLineAccounting ? 0 : totalTime'));
+  assert.ok(submission.includes('actual_time:isMachineLineAccounting ? 0 : actualTime'));
+  assert.ok(submission.includes('deduction_time:isMachineLineAccounting ? 0 : deductionTime'));
+  assert.ok(submission.includes('tt_ok:(noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttOk)'));
+  assert.ok(submission.includes('machine_lines:useMachineLinesPayload?lines:[]'));
+});
