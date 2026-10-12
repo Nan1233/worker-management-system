@@ -57,6 +57,25 @@ const MAI_ALLOWED_DEFECT_NAMES = new Set([
   "Lỗi cao su",
 ].map(normalizeMasterLabel));
 
+function dedupeMasterOptions(options: WorkerMasterOption[]): WorkerMasterOption[] {
+  const unique = new Map<string, WorkerMasterOption>();
+  const priority = (option: WorkerMasterOption): number => {
+    const code = String(option.code || "").trim().toUpperCase();
+    return code.startsWith("KTC_") ? 0 : 1;
+  };
+
+  for (const option of options) {
+    const normalizedLabel = normalizeMasterLabel(option.label);
+    if (!normalizedLabel) continue;
+    const current = unique.get(normalizedLabel);
+    if (!current || priority(option) < priority(current)) {
+      unique.set(normalizedLabel, option);
+    }
+  }
+
+  return Array.from(unique.values());
+}
+
 function filterMaiMasterOptions(
   options: WorkerMasterOption[],
   processCode: string,
@@ -186,14 +205,14 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const [defects, deductions] = optionalResults;
 
       if (defects.status === "fulfilled") {
-        setActiveNgOptions(filterMaiMasterOptions(normalizeDefectOptions(defects.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_"));
+        setActiveNgOptions(dedupeMasterOptions(filterMaiMasterOptions(normalizeDefectOptions(defects.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_")));
       } else {
         setActiveNgOptions([]);
       }
 
       if (deductions.status === "fulfilled") {
         setActiveDeductionOptions(
-          filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
+          dedupeMasterOptions(filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_")),
         );
       } else {
         setActiveDeductionOptions([]);
