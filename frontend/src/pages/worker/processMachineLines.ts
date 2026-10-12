@@ -32,7 +32,9 @@ export function aggregateMachineLines(lines: MachineLineState[], activeNgOptions
 export const getMachineNgTotal = (line: MachineLineState): number => Number(line.ngQuantity) || 0;
 
 export function getMaxMachineCount(processCodeOrLines: string | MachineLineState[], linesOrMax?: MachineLineState[] | number, machineOptions?: unknown[]): number {
+  const processCode = Array.isArray(processCodeOrLines) ? "" : String(processCodeOrLines || "").trim().toUpperCase();
   const lines = Array.isArray(processCodeOrLines) ? processCodeOrLines : (Array.isArray(linesOrMax) ? linesOrMax : []);
+  if (["DO", "EP"].includes(processCode)) return 1;
   const optionCount = Array.isArray(machineOptions) ? machineOptions.length : 0;
   const requested = Math.max(lines.length, optionCount, 1);
   return Math.min(4, requested);
