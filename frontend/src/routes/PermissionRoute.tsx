@@ -10,7 +10,7 @@ const fallbackOrder: Array<[PermissionCode,string]> = [
 export default function PermissionRoute({permission,children}:{permission:PermissionCode;children:ReactNode}){
  const [allowed,setAllowed]=useState<boolean|null>(null); const user=getStoredUser();
  const base=useMemo(()=>{
-  return user?.role==='admin'?'/admin':user?.role==='manager'?'/manager':user?.role==='lead'?'/lead':'/worker';
+  return (user?.role==='admin'||user?.role==='admin_ops')?'/admin':user?.role==='manager'?'/manager':user?.role==='lead'?'/lead':'/worker';
  },[user?.role]);
  const [fallback,setFallback]=useState(base);
  useEffect(()=>{let active=true; loadMyPermissions().then(set=>{
