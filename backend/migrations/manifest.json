@@ -1,6 +1,6 @@
 {
-  "latestVersion": 34,
-  "latestMigration": "056_gc_shared_capacity_all_machines.sql",
+  "latestVersion": 35,
+  "latestMigration": "057_gc_c7236_product_for_c13.sql",
   "migrations": [
     "001_core_master_schema.sql",
     "002_production_schema.sql",
@@ -35,6 +35,7 @@
     "053_restore_gc_deduction_types_16_20261007.sql",
     "054_add_gc_c13_manual_cutting_machine.sql",
     "055_gc_shared_long_machines_capacity.sql",
-    "056_gc_shared_capacity_all_machines.sql"
+    "056_gc_shared_capacity_all_machines.sql",
+    "057_gc_c7236_product_for_c13.sql"
   ]
 }
