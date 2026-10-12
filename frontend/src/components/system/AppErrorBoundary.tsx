@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "../../config/version";
 interface Props {
     children: ReactNode;
 }
@@ -35,10 +36,21 @@ export default class AppErrorBoundary extends Component<Props, State> {
 
     componentDidCatch(error: Error, info: ErrorInfo): void {
         if (isStaleSessionCancellation(error)) return;
+
+        // Keep the production UI friendly, but make runtime reports actionable.
+        // HashRouter keeps the active route in location.hash; omit query values
+        // so accidental URL parameters are not copied into diagnostic logs.
+        const route = String(window.location.hash || window.location.pathname)
+            .split("?")[0]
+            .slice(0, 160);
+
         console.error("KTC_FRONTEND_UNHANDLED_ERROR", {
-            message: error.message,
-            stack: error.stack,
-            componentStack: info.componentStack,
+            message: error?.message || "Unknown frontend error",
+            stack: error?.stack || null,
+            componentStack: info?.componentStack || null,
+            frontendVersion: FRONTEND_VERSION,
+            commitSha: FRONTEND_COMMIT_SHA,
+            route,
         });
     }
 
