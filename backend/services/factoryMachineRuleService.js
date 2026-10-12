@@ -65,10 +65,9 @@ const getProcessMachineRule = (processCode, machineCode, dbRow = null) => {
   if (MULTI_MACHINE_PROCESS_CODES.has(code)) {
     return {
       maxMachinesPerWorker: MAX_MACHINES_PER_WORKER,
-      // Lồng machines (ML1..ML20) are shared-use machines in GC.
-      // Older DB rows may still have capacity=1; do not block another worker
-      // solely because that legacy value has not yet been migrated.
-      maxWorkersPerMachine: code === "GC" && /^ML\d+$/i.test(String(machineCode || "").trim())
+      // All machines in Gia công (GC) may be shared by workers in the same day/shift.
+      // Keep the existing 4-worker cap consistently across C* and ML* machines.
+      maxWorkersPerMachine: code === "GC"
         ? DEFAULT_SHARED_WORKERS_PER_MACHINE
         : (dbRow?.max_workers_per_machine != null
           ? Math.max(1, Number(dbRow.max_workers_per_machine) || 1)
