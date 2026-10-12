@@ -1294,6 +1294,7 @@ const updateDeductionValue = (
         if (usesMultiMachineLines) {
             const machineLinesError = validateMachineLines({
                 machineLines,
+                maxMachines: maxMachineCount,
                 isMachineValid: (machineCode) => machineOptions.some(
                     (item) => item.machine_code.trim().toLowerCase() === machineCode.trim().toLowerCase()
                 ),
