@@ -12,6 +12,7 @@
     "db:indexes": "node scripts/ensureIndexes.js",
     "db:analyze": "node scripts/analyzeTables.js",
     "db:sync-template-master": "node scripts/syncKtcTemplateMasterData.js",
+    "db:sync-mai-master": "node scripts/syncMaiMasterData.js",
     "db:ensure-gc-defects": "node scripts/ensureGcDefectMasterData.js",
     "db:ensure-gc-long-2801-lt": "node scripts/ensureGcLong2801Lt.js",
     "db:migrate": "node scripts/runPendingMigrations.js",
