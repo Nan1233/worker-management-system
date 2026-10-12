@@ -85,7 +85,7 @@ test('validateMachineWorkerCapacity still rejects when a machine is already at c
 });
 
 
-test('GC manual machine C13 honors its DB capacity of one worker and product-based accounting', () => {
+test('GC manual machine C13 allows shared reporting while remaining non-automatic and product-based', () => {
   const { service } = loadWithFakeDb([]);
   const rule = service.getProcessMachineRule('GC', 'C13', {
     is_automatic: 0,
@@ -94,7 +94,7 @@ test('GC manual machine C13 honors its DB capacity of one worker and product-bas
   });
 
   assert.equal(rule.automatic, false);
-  assert.equal(rule.maxWorkersPerMachine, 1);
+  assert.equal(rule.maxWorkersPerMachine, 4);
   assert.equal(rule.outputBasis, 'PRODUCT');
 });
 
