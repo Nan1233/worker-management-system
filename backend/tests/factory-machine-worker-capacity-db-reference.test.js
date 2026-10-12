@@ -83,3 +83,17 @@ test('validateMachineWorkerCapacity still rejects when a machine is already at c
   assert.equal(result.valid, false);
   assert.match(result.errors.machine_lines, /chỉ cho phép tối đa 1 người/);
 });
+
+
+test('GC manual machine C13 honors its DB capacity of one worker and product-based accounting', () => {
+  const { service } = loadWithFakeDb([]);
+  const rule = service.getProcessMachineRule('GC', 'C13', {
+    is_automatic: 0,
+    max_workers_per_machine: 1,
+    output_basis: 'PRODUCT',
+  });
+
+  assert.equal(rule.automatic, false);
+  assert.equal(rule.maxWorkersPerMachine, 1);
+  assert.equal(rule.outputBasis, 'PRODUCT');
+});
