@@ -10,30 +10,13 @@ const {
 } = require("../middleware/rateLimiters");
 const authMiddleware = require("../middleware/authMiddleware");
 
-async function ensureCloudflareTestMigrationsBeforeLogin(req, res, next) {
-    const isCloudflareWorker = String(process.env.KTC_CLOUDFLARE_WORKER || "").toLowerCase() === "true";
-    const migrationsEnabled = String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || "").toLowerCase() === "true";
-
-    if (!isCloudflareWorker || !migrationsEnabled) return next();
-
-    try {
-        const complete = await runPendingMigrations();
-        if (complete === false) {
-            return res.status(503).json({
-                success: false,
-                code: "TEST_DB_MIGRATION_IN_PROGRESS",
-                message: "Cơ sở dữ liệu test đang chạy migration. Vui lòng thử đăng nhập lại sau vài giây."
-            });
-        }
-        return next();
-    } catch (error) {
-        console.error("[KTC][MIGRATION] login bootstrap failed", error?.message || String(error), error);
-        return res.status(503).json({
-            success: false,
-            code: "TEST_DB_MIGRATION_FAILED",
-            message: "Cơ sở dữ liệu test chưa sẵn sàng. Migration thất bại, vui lòng thử lại."
-        });
-    }
+// Never run schema migrations inside an interactive login request.
+// TiDB DDL/network latency can exceed the Cloudflare request lifetime and leave
+// every login Pending until the Worker cancels it. Apply migrations through the
+// reviewed deployment/migration workflow, and use /api/health/ready to diagnose
+// schema/database readiness instead.
+function ensureCloudflareTestMigrationsBeforeLogin(_req, _res, next) {
+    return next();
 }
 
 // Login uses two bounded buckets: account identity prevents IP rotation bypass;
