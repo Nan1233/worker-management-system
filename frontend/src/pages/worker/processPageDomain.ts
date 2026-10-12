@@ -48,7 +48,7 @@ export function resolveUsesMultiMachineLines(c: ProcessCapabilities, mode: Opera
 
 export function resolveUsesSingleMachine(c: ProcessCapabilities, mode: OperationMode): boolean {
   if (mode !== "MACHINE") return false;
-  return ["DO", "EP"].includes(c.processCode) || !resolveUsesMultiMachineLines(c, mode);
+  return !resolveUsesMultiMachineLines(c, mode);
 }
 
 export const usesMultiMachineLines = resolveUsesMultiMachineLines;
