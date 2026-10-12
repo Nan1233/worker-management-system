@@ -308,7 +308,8 @@ exports.createTempReport = async (req, res) => {
                 actualOutput: validation.normalized.actual_output,
                 allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
                 operationMode,
-                workDate: req.body.work_date
+                workDate: req.body.work_date,
+                workType: req.body.work_type
             });
 
 
