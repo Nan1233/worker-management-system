@@ -131,6 +131,27 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
                 }
                 return workerSelectionProducts(automaticProducts);
             }
+            // C13 is a newly configured manual cutting machine. Keep its verified
+            // DB-backed alias selectable even if an older/stale product payload
+            // omits the alias row; standard resolution still goes through the API.
+            const c13HasC7236 = canonicalProducts.some(({ alias }) => alias === "C7236");
+            if (selectedRawMachine === "C13" && !c13HasC7236) {
+                const template = canonicalProducts.find(({ alias }) => alias === "C7630")?.product
+                    || canonicalProducts[0]?.product;
+                if (template) {
+                    canonicalProducts.push({
+                        alias: "C7236",
+                        product: {
+                            ...template,
+                            product_code: "R7236",
+                            alias_code: "C7236",
+                            encoding_code: "R7236",
+                            standard_output: 690,
+                            work_type: "CUT",
+                        },
+                    });
+                }
+            }
             return workerSelectionProducts(canonicalProducts);
         }
         if (!selectedMachine && mode === "MACHINE") return [];
