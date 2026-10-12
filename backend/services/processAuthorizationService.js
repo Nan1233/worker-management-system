@@ -63,8 +63,10 @@ async function rows(executor, sql, params = []) {
 
 async function getActorProcessScope(actor, executor = null) {
   const role = normalizeRole(actor);
-  if (role === 'admin') return { type: 'ALL', processIds: null };
-  if (!['manager', 'lead'].includes(role)) {
+  // Role inheritance: admins and managers can access every process.
+  // Leads retain their explicitly assigned process scope.
+  if (role === 'admin' || role === 'manager') return { type: 'ALL', processIds: null };
+  if (role !== 'lead') {
     throw scopeError('Tài khoản không có phạm vi quản lý công đoạn');
   }
   const id = actorId(actor);
@@ -84,7 +86,7 @@ async function assertActorProcessAccess(actor, processId, options = {}) {
   const id = normalizeProcessId(processId);
   if (!id) throw scopeError('Không xác định được công đoạn của tài nguyên');
   const role = normalizeRole(actor);
-  if (role === 'admin') return true;
+  if (role === 'admin' || role === 'manager') return true;
   const actorIdValue = role === 'worker' ? normalizeProcessId(actor?.worker_id) : actorId(actor);
   if (!actorIdValue) throw scopeError('Không xác định được tài khoản');
   if (!['worker','manager','lead'].includes(role)) {
@@ -129,7 +131,7 @@ async function assertUserManagementScope(actor, target, options = {}) {
       ? ['lead','worker']
       : ['worker'];
   if (!allowed.includes(targetRole)) throw scopeError('Vai trò tài khoản nằm ngoài phạm vi quản lý');
-  if (role === 'admin') return true;
+  if (role === 'admin' || role === 'manager') return true;
 
   const targetId = targetRole === 'worker'
     ? normalizeProcessId(target?.worker_id)
