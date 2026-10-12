@@ -4,6 +4,7 @@
 // Focused Mài master-data sync. Safe by default: read-only dry run.
 // Apply only against the TEST database with:
 //   KTC_DB_ENV=TEST KTC_ALLOW_MAI_MASTER_SYNC=1 node backend/scripts/syncMaiMasterData.js --apply
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const mysql = require('mysql2/promise');
 const template = require('../config/ktcTemplateMasterData');
 
@@ -115,6 +116,7 @@ async function main() {
   if (!dbConfig.user || !dbConfig.password || !dbConfig.database) {
     throw new Error('DB_USER, DB_PASSWORD, and DB_NAME must be provided via environment variables.');
   }
+  console.log(JSON.stringify({ mode: apply ? 'APPLY' : 'DRY_RUN', dbHost: dbConfig.host, dbPort: dbConfig.port, dbName: dbConfig.database, processId: Number(config.id), processCode: PROCESS_CODE }));
   const db = await mysql.createConnection(dbConfig);
   try {
     const [processRows] = await db.execute(
