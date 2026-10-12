@@ -213,6 +213,7 @@ export function ManagerApprovedReportsWorkspaceFix() {
 }
 
 function installApprovedNavigationFix(navigate: (to: string) => void) {
+  const basePath = window.location.pathname.startsWith("/admin-ops") ? "/admin-ops" : "/manager";
   let disposed = false;
   let timer: number | undefined;
   let busy = false;
