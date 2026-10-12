@@ -8,6 +8,8 @@ const { assertUserManagementScope } = require('../services/processAuthorizationS
 
 const ROLE_CREATE_RULES = {
   admin: ['manager', 'lead', 'worker'],
+  admin_ops: ['manager', 'lead', 'worker'],
+  admin_ops: ['manager', 'lead', 'worker'],
   manager: ['lead', 'worker'],
   lead: ['worker']
 };
@@ -33,7 +35,7 @@ function publicError(res, error, fallback) {
 }
 
 async function getActorProcessIds(connection, actor) {
-  if (actor?.role === 'admin') return null;
+  if (actor?.role === 'admin' || actor?.role === 'admin_ops' || actor?.role === 'manager') return null;
   const [rows] = await connection.query('SELECT process_id FROM manager_processes WHERE manager_id=?', [actor?.id]);
   return rows.map((row) => Number(row.process_id));
 }
@@ -92,7 +94,7 @@ exports.getProcessOptions = async (req, res) => {
   try {
     const params = [];
     let scope = '';
-    if (req.user?.role !== 'admin') {
+    if (!['admin', 'manager'].includes(req.user?.role)) {
       scope = 'AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.manager_id=? AND mp.process_id=p.id)';
       params.push(req.user.id);
     }
@@ -119,7 +121,7 @@ exports.getAllUsers = async (req, res) => {
     const placeholders = roles.map(() => '?').join(',');
     const params = [...roles];
     let scope = '';
-    if (req.user.role !== 'admin') {
+    if (req.user.role === 'lead') {
       scope = `AND EXISTS (SELECT 1 FROM manager_processes actor_mp WHERE actor_mp.manager_id=? AND actor_mp.process_id IN (SELECT wp2.process_id FROM worker_processes wp2 WHERE u.role='worker' AND wp2.worker_id=w.id UNION SELECT mp2.process_id FROM manager_processes mp2 WHERE u.role IN ('manager','lead') AND mp2.manager_id=u.id))`;
       params.push(req.user.id);
     }

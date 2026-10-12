@@ -13,7 +13,7 @@ const permission = require('../middleware/permissionMiddleware');
 const processAssignmentCapacity = require('../middleware/processAssignmentCapacityMiddleware');
 const db = require('../config/db');
 
-router.use(verifyToken, checkRole('admin','manager','lead'));
+router.use(verifyToken, checkRole('admin','admin_ops','manager','lead'));
 const runUserHandler = (name) => (req, res, next) => {
   const handler = controllerExtras?.[name] || controller?.[name];
   if (typeof handler !== 'function') return res.status(500).json({ success: false, code: 'USER_HANDLER_MISSING', message: `Thiếu bộ xử lý ${name} của quản lý người dùng` });

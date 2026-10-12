@@ -13,6 +13,7 @@ interface PrivateRouteProps {
 
 const homeByRole: Record<Role, string> = {
     admin: "/admin",
+    admin_ops: "/admin",
     manager: "/manager",
     lead: "/lead",
     worker: "/worker"
