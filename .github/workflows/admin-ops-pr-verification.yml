@@ -31,9 +31,12 @@ jobs:
         run: npm ci --prefix backend
       - name: Check backend source
         run: npm run check --prefix backend
-      - name: Run backend JavaScript and contract tests
+      - name: Run critical permission and authorization tests
         working-directory: backend
-        run: node --test tests/*.test.js tests/*.test.cjs
+        run: node --test tests/admin-ops-scope.contract.test.js tests/permission-matrix.test.cjs tests/scope-ownership-escalation.test.cjs tests/authorization-process-scope.test.js tests/authorization-f09-scope.test.js
+      - name: Run remaining backend tests with per-test timeout
+        working-directory: backend
+        run: node --test --test-timeout=60000 tests/*.test.js tests/*.test.cjs
 
   frontend:
     name: Frontend typecheck and production build
