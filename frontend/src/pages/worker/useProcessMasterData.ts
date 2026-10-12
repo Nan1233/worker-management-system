@@ -20,14 +20,13 @@ const ZERO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 const PROCESS_ID_BY_CODE: Record<string, number> = {
   GC: 1,
   MAI: 2,
-  DO: 60001,
-  K1: 3,
-  K2: 4,
-  CAN: 60002,
-  EP: 60003,
-  XLBV: 60004,
-  SX3: 60005,
-  CVK: 60006,
+  DO: 3,
+  K1: 4,
+  K2: 5,
+  XLBV: 6,
+  EP: 7,
+  CAN: 8,
+  SX3: 9,
 };
 
 /**
