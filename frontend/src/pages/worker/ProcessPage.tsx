@@ -1729,7 +1729,7 @@ window.setTimeout(() => {
                     setExtraData={setExtraData}
                 />
 
-                {!usesGiaCongMachineAccounting && (
+                {!usesMachineLineAccounting && (
                     <ProcessTimeDeductionSection
                         form={form}
                         setForm={setForm}
