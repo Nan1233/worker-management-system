@@ -7,6 +7,7 @@ const { revokeAllUserFamilies } = require('../services/refreshSessionService');
 
 const ROLE_CREATE_RULES = {
   admin: ['manager', 'lead', 'worker'],
+  admin_ops: ['manager', 'lead', 'worker'],
   manager: ['lead', 'worker'],
   lead: ['worker'],
 };
@@ -33,7 +34,7 @@ function publicError(res, error, fallback) {
 }
 
 async function getActorProcessIds(connection, actor) {
-  if (actor?.role === 'admin' || actor?.role === 'manager') return null;
+  if (actor?.role === 'admin' || actor?.role === 'admin_ops' || actor?.role === 'manager') return null;
   const [rows] = await connection.query(
     'SELECT process_id FROM manager_processes WHERE manager_id=?',
     [actor?.id],
@@ -43,7 +44,7 @@ async function getActorProcessIds(connection, actor) {
 
 async function canManageTarget(connection, actor, target) {
   if (!manageableRoles(actor?.role).includes(target.role)) return false;
-  if (actor.role === 'admin' || actor.role === 'manager') return true;
+  if (actor.role === 'admin' || actor.role === 'admin_ops' || actor.role === 'manager') return true;
   const actorProcessIds = await getActorProcessIds(connection, actor);
   if (!actorProcessIds?.length) return false;
   const table = target.role === 'worker' ? 'worker_processes' : 'manager_processes';
