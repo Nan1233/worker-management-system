@@ -14,16 +14,15 @@ const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase
 const CVK_WORK_TYPES = new Set(["CVK", "XUATNHAP", "KTCD", "TAIPP"]);
 
 export default function ProcessQualitySection({ form, activeNgOptions, selectedNg, showNg, setShowNg, usesMultiMachineLines, operationMode, qualityLocked: qualityLockedProp, formatIntegerDisplay, onTtOkChange, onNumberBlur, onToggleNg, onNgValue }: Props) {
-    // CVK là công việc không có định mức: không có SL OK/NG/TT và không có chi tiết NG.
-    if (CVK_WORK_TYPES.has(String(form.workType ?? "").trim().toUpperCase())) return null;
-    if (isNoStandardLongWork(form.productName)) return null;
-    // Với form nhiều máy, OK/NG nhập và chi tiết lỗi phải nằm theo từng máy; không hiển thị tổng chung ở đây.
-    if (usesMultiMachineLines) return null;
+    // Keep hook order stable when the process or execution mode changes in-place.
+    const shouldHide = CVK_WORK_TYPES.has(String(form.workType ?? "").trim().toUpperCase())
+        || isNoStandardLongWork(form.productName)
+        || usesMultiMachineLines;
     const qualityLocked = qualityLockedProp ?? usesMultiMachineLines;
     const hasCanonicalGcDefects = activeNgOptions.some((item) => /^(CAT|LONG)\d+$/.test(normalizeCode(item.code)));
     const [gcOperation, setGcOperation] = useState<"CUT" | "LONG">("CUT");
     useLayoutEffect(() => {
-        if (!hasCanonicalGcDefects || typeof document === "undefined") return;
+        if (shouldHide || !hasCanonicalGcDefects || typeof document === "undefined") return;
         const activeOperationButton = document.querySelector<HTMLElement>(".worker-mode-panel .worker-mode-group:first-child .worker-choice-row button.active");
         const nextOperation = activeOperationButton?.textContent?.trim() === "Lồng" ? "LONG" : "CUT";
         setGcOperation((current) => current === nextOperation ? current : nextOperation);
@@ -33,10 +32,11 @@ export default function ProcessQualitySection({ form, activeNgOptions, selectedN
         return gcOperation === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG");
     }) : activeNgOptions;
     useEffect(() => {
-        if (qualityLocked || !hasCanonicalGcDefects) return;
+        if (shouldHide || qualityLocked || !hasCanonicalGcDefects) return;
         const visibleKeys = new Set(visibleNgOptions.map((item) => item.key));
         selectedNg.filter((key) => !visibleKeys.has(key)).forEach((key) => onToggleNg(key, false));
-    }, [gcOperation, hasCanonicalGcDefects, qualityLocked, visibleNgOptions, selectedNg, onToggleNg]);
+    }, [gcOperation, hasCanonicalGcDefects, qualityLocked, visibleNgOptions, selectedNg, onToggleNg, shouldHide]);
+    if (shouldHide) return null;
     const getDisplayLabel = (item: NgOption) => {
         const code = normalizeCode(item.code); const label = String(item.label ?? "").trim();
         if (!code) return label;
