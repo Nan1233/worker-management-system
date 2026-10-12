@@ -38,8 +38,7 @@ const MAI_ALLOWED_DEDUCTION_NAMES = new Set([
   "Nghỉ giải lao",
   "Dừng máy đi hỗ trợ",
   "5s, đổ bụi,xì bụi,lấy bụi",
-  "Học việc",
-].map(normalizeMasterLabel));
+ ].map(normalizeMasterLabel));
 
 const MAI_DISPLAY_LABELS = new Map<string, string>([
   ["chohanghethang", "Chờ hàng, hết hàng"],
@@ -63,9 +62,34 @@ function filterMaiMasterOptions(
   processCode: string,
   processId: number,
   allowedNames: Set<string>,
+  preferredCodePrefix: string,
 ): WorkerMasterOption[] {
   const isMai = String(processCode || "").trim().toUpperCase() === "MAI" || Number(processId) === 2;
-  return isMai ? options.filter((option) => allowedNames.has(normalizeMasterLabel(option.label))).map((option) => ({ ...option, label: MAI_DISPLAY_LABELS.get(normalizeMasterLabel(option.label)) || option.label })) : options;
+  if (!isMai) return options;
+
+  // Keep one DB row per normalized label. Prefer the canonical MAI_* code so
+  // duplicate legacy/KTC rows do not render as separate checkboxes.
+  const unique = new Map<string, WorkerMasterOption>();
+  const priority = (option: WorkerMasterOption): number => {
+    const code = String(option.code || "").trim().toUpperCase();
+    if (code.startsWith(preferredCodePrefix)) return 0;
+    if (code.startsWith("KTC_")) return 2;
+    return 1;
+  };
+
+  for (const option of options) {
+    const normalizedLabel = normalizeMasterLabel(option.label);
+    if (!allowedNames.has(normalizedLabel)) continue;
+    const current = unique.get(normalizedLabel);
+    if (!current || priority(option) < priority(current)) {
+      unique.set(normalizedLabel, {
+        ...option,
+        label: MAI_DISPLAY_LABELS.get(normalizedLabel) || option.label,
+      });
+    }
+  }
+
+  return Array.from(unique.values());
 }
 const PROCESS_ID_BY_CODE: Record<string, number> = {
   GC: 1,
@@ -162,14 +186,14 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const [defects, deductions] = optionalResults;
 
       if (defects.status === "fulfilled") {
-        setActiveNgOptions(filterMaiMasterOptions(normalizeDefectOptions(defects.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES));
+        setActiveNgOptions(filterMaiMasterOptions(normalizeDefectOptions(defects.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_"));
       } else {
         setActiveNgOptions([]);
       }
 
       if (deductions.status === "fulfilled") {
         setActiveDeductionOptions(
-          filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES),
+          filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
         );
       } else {
         setActiveDeductionOptions([]);
