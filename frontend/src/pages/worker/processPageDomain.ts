@@ -43,7 +43,7 @@ export function getInitialOperationMode(c: ProcessCapabilities): OperationMode {
 }
 
 export function resolveUsesMultiMachineLines(c: ProcessCapabilities, mode: OperationMode): boolean {
-  return ["GC", "MAI", "CAN"].includes(c.processCode) && mode === "MACHINE";
+  return ["GC", "MAI", "CAN", "DO", "EP"].includes(c.processCode) && mode === "MACHINE";
 }
 
 export function resolveUsesSingleMachine(c: ProcessCapabilities, mode: OperationMode): boolean {
