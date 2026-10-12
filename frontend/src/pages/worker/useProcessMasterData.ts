@@ -41,6 +41,13 @@ const MAI_ALLOWED_DEDUCTION_NAMES = new Set([
   "Học việc",
 ].map(normalizeMasterLabel));
 
+const MAI_DISPLAY_LABELS = new Map<string, string>([
+  ["chohanghethang", "Chờ hàng, hết hàng"],
+  ["kqddao", "KQD ĐẢO"],
+  ["ppcmmatdien", "PPCM Mất điện"],
+  ["thieulancscsh", "Thiếu - lẫn cs CSH"],
+]);
+
 const MAI_ALLOWED_DEFECT_NAMES = new Set([
   "KQD ĐẢO",
   "Xô cs",
@@ -58,7 +65,7 @@ function filterMaiMasterOptions(
   allowedNames: Set<string>,
 ): WorkerMasterOption[] {
   const isMai = String(processCode || "").trim().toUpperCase() === "MAI" || Number(processId) === 2;
-  return isMai ? options.filter((option) => allowedNames.has(normalizeMasterLabel(option.label))) : options;
+  return isMai ? options.filter((option) => allowedNames.has(normalizeMasterLabel(option.label))).map((option) => ({ ...option, label: MAI_DISPLAY_LABELS.get(normalizeMasterLabel(option.label)) || option.label })) : options;
 }
 const PROCESS_ID_BY_CODE: Record<string, number> = {
   GC: 1,
