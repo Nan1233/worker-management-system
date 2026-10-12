@@ -8,7 +8,8 @@ import { normalizeProcessId } from "../utils/processAccess";
 const TTL_MS = 30 * 60 * 1000;
 // v12: invalidate all browser/session product-master snapshots after adding
 // GC Long Tay zero-standard work codes (XUATNHAP, KTCD, TAIPP).
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v12";
+// v13: invalidate browser/session and offline product snapshots after adding GC alias C7236 -> R7236 and C13 machine standard.
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v13";
 const DEDUCTION_MASTER_VERSION = "v8";
 const DEFECT_MASTER_VERSION = "v8";
 
