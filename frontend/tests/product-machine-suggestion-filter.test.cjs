@@ -91,6 +91,23 @@ test('time deduction section does not reference an undeclared machineOptions ide
   assert.ok(!timeSection.includes('machineOptions'), 'time deduction component must not use machineOptions unless it is explicitly declared');
 });
 
+
+test('Mài worker master only exposes the approved time deductions and NG types', () => {
+  const master = require(path.join(root, '..', '..', 'backend/config/ktcTemplateMasterData.js'));
+  const mai = master.MAI;
+  const hook = fs.readFileSync(path.join(root, 'src/pages/worker/useProcessMasterData.ts'), 'utf8');
+
+  assert.equal(mai.deductions.length, 11);
+  assert.equal(mai.defects.length, 7);
+  assert.ok(!mai.deductions.includes('Thiếu sản lượng'));
+  assert.ok(!mai.deductions.includes('Bảo dưỡng máy'));
+  assert.ok(!mai.deductions.includes('Mất điện'));
+  assert.ok(hook.includes('MAI_ALLOWED_DEDUCTION_NAMES'));
+  assert.ok(hook.includes('MAI_ALLOWED_DEFECT_NAMES'));
+  assert.ok(hook.includes('filterMaiMasterOptions(normalizeDefectOptions'));
+  assert.ok(hook.includes('filterMaiMasterOptions(normalizeDeductionOptions'));
+});
+
 test('production bundle version replacement matches the frontend and service-worker version', () => {
   const version = fs.readFileSync(path.join(root, 'src/config/version.ts'), 'utf8');
   const serviceWorker = fs.readFileSync(path.join(root, 'public/sw.js'), 'utf8');
