@@ -6,7 +6,7 @@ export interface AuthUser {
     worker_code?: string | null;
     username: string;
     full_name: string;
-    role: "admin" | "manager" | "lead" | "worker";
+    role: "admin" | "admin_ops" | "manager" | "lead" | "worker";
 }
 
 const ACCESS_TOKEN_KEY = "accessToken";
@@ -154,7 +154,7 @@ export function recoverUserFromAccessToken(): AuthUser | null {
     const payload = decodeJwtPayload(token);
     if (!payload) return null;
     const role = String(payload.role || "");
-    if (!["admin", "manager", "lead", "worker"].includes(role)) return null;
+    if (!["admin", "admin_ops", "manager", "lead", "worker"].includes(role)) return null;
     const id = Number(payload.id);
     if (!Number.isInteger(id) || id <= 0) return null;
     const username = String(payload.username || "").trim();

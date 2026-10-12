@@ -14,7 +14,7 @@ const CROSS_TAB_LOGIN_MARKER_KEY = "ktcCrossTabAuthInvalidated";
 const REMEMBERED_CODE_KEY = "ktc_login_code";
 const LOGIN_LOGO_URL = "/ktc-hanoi-logo.png";
 const LOGIN_LOGO_FALLBACK_URL = "https://raw.githubusercontent.com/Nan1233/worker-management-system/main/frontend/public/ktc-hanoi-logo.png";
-const homeByRole: Record<UserRole, string> = { admin: "/admin", manager: "/manager", lead: "/lead", worker: "/worker" };
+const homeByRole: Record<UserRole, string> = { admin: "/admin", admin_ops: "/admin-ops", manager: "/manager", lead: "/lead", worker: "/worker" };
 const normalizeWorkerLoginCode = (value: string): string => { const trimmed = value.trim(); if (!/^\d+$/.test(trimmed)) return trimmed; const stripped = trimmed.replace(/^0+(?=\d)/, ""); return stripped || "0"; };
 
 function Login() {

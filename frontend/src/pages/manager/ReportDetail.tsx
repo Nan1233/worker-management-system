@@ -22,7 +22,7 @@ export default function ReportDetail() {
   const reportId = Number(id);
   const role = useMemo(() => getStoredUser()?.role || "manager", []);
   const { can } = usePermissions();
-  const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
+  const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : role === "admin_ops" ? "/admin-ops" : "/manager";
   const canEdit = source === "pending" ? can("REPORT_PENDING_EDIT") : can("REPORT_APPROVED_EDIT");
   // Backend contract: a lead edits approved reports, but may only edit pending reports that are
   // their own edit proposals (PUT /production-temp/:id answers 403 otherwise) - so no button.

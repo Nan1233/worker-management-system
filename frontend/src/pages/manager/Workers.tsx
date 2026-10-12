@@ -17,6 +17,7 @@ import api from "../../services/api";
 import { getActivities, type ActivityItem } from "../../services/systemService";
 import { useToast } from "../../components/feedback/toastContext";
 import { usePermissions } from "../../hooks/usePermissions";
+import { getStoredUser } from "../../utils/authStorage";
 import "./Workers.css";
 
 type Person = {
@@ -85,6 +86,7 @@ export default function Workers() {
   const { showToast } = useToast();
   const canCreate = can("USER_CREATE");
   const canEdit = can("USER_EDIT");
+  const isAdminOps = String(getStoredUser()?.role || "").toLowerCase() === "admin_ops";
 
   const [people, setPeople] = useState<Person[]>([]);
   const [processes, setProcesses] = useState<Process[]>([]);
@@ -189,8 +191,10 @@ export default function Workers() {
         username: modal.username,
         full_name: modal.full_name,
         status: modal.status,
-        process_ids: modal.process_ids,
       };
+      // Existing process assignments may include scopes this admin_ops account
+      // does not manage. Do not submit a replacement list when editing users.
+      if (!(isAdminOps && modal.id)) body.process_ids = modal.process_ids;
       if (modal.password) body.password = modal.password;
       if (modal.role === "worker") {
         Object.assign(body, {
@@ -341,7 +345,7 @@ export default function Workers() {
               {processes.map((process) => <option key={process.id} value={process.id}>{process.process_name}</option>)}
             </select>
             <button className="personnel-secondary" disabled={transferBusy} onClick={() => void exportExcel()}><Download size={15} /> Xuất Excel</button>
-            {canCreate && <button className="personnel-primary" disabled={transferBusy} onClick={() => fileInputRef.current?.click()}><Upload size={15} /> Nhập Excel</button>}
+            {canCreate && !isAdminOps && <button className="personnel-primary" disabled={transferBusy} onClick={() => fileInputRef.current?.click()}><Upload size={15} /> Nhập Excel</button>}
             <input ref={fileInputRef} type="file" accept=".xlsx" hidden onChange={(e) => void handleImportFile(e.target.files?.[0] || null)} />
           </div>
 
@@ -349,7 +353,7 @@ export default function Workers() {
 
           {loading ? <div className="personnel-state">Đang tải dữ liệu nhân sự...</div> : <section className="personnel-card personnel-directory-card">
             <div className="card-head"><div><h2>{tab === "lead" ? `Tổ trưởng (${filteredPeople.length})` : tab === "worker" ? `Công nhân (${filteredPeople.length})` : `Danh sách nhân sự (${filteredPeople.length})`}</h2><p>Danh sách được phân quyền theo các công đoạn quản lý phụ trách</p></div></div>
-            <PersonTable rows={filteredPeople} canEdit={canEdit} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} promotingId={promotingId} />
+            <PersonTable rows={filteredPeople} canEdit={canEdit} canPromote={!isAdminOps} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} promotingId={promotingId} />
           </section>}
         </>
       ) : (
@@ -373,10 +377,17 @@ export default function Workers() {
             <label>% học việc<input type="number" min="0" max="100" value={modal.training_percent} onChange={(e) => setModal({ ...modal, training_percent: e.target.value })} /></label>
           </>}
           <label>Trạng thái<select value={modal.status} onChange={(e) => setModal({ ...modal, status: e.target.value as "active" | "inactive" })}><option value="active">Đang hoạt động</option><option value="inactive">Ngừng hoạt động</option></select></label>
-          <div className="modal-processes"><span>Công đoạn phụ trách</span><div>{processes.map((process) => <label key={process.id}><input type="checkbox" checked={modal.process_ids.includes(process.id)} onChange={(e) => setModal({ ...modal, process_ids: e.target.checked ? [...modal.process_ids, process.id] : modal.process_ids.filter((id) => id !== process.id) })} />{process.process_name}</label>)}</div></div>
+          {isAdminOps && modal.id ? (
+            <div className="modal-processes">
+              <span>Công đoạn phụ trách</span>
+              <p>Admin vận hành không được thay đổi phân công công đoạn của tài khoản hiện có. Các phân công hiện tại sẽ được giữ nguyên.</p>
+            </div>
+          ) : (
+            <div className="modal-processes"><span>Công đoạn phụ trách</span><div>{processes.map((process) => <label key={process.id}><input type="checkbox" checked={modal.process_ids.includes(process.id)} onChange={(e) => setModal({ ...modal, process_ids: e.target.checked ? [...modal.process_ids, process.id] : modal.process_ids.filter((id) => id !== process.id) })} />{process.process_name}</label>)}</div></div>
+          )}
         </div>
         <div className="modal-actions">
-          {modal.role === "worker" && modal.id && canEdit && <button type="button" className="personnel-secondary" disabled={saving || promotingId !== null} onClick={() => { const person = people.find((p) => p.id === modal.id); if (person) void promoteWorkerToLead(person); }}><ShieldCheck size={15} /> {promotingId === modal.id ? "Đang nâng..." : "Nâng lên Tổ trưởng"}</button>}
+          {modal.role === "worker" && modal.id && canEdit && !isAdminOps && <button type="button" className="personnel-secondary" disabled={saving || promotingId !== null} onClick={() => { const person = people.find((p) => p.id === modal.id); if (person) void promoteWorkerToLead(person); }}><ShieldCheck size={15} /> {promotingId === modal.id ? "Đang nâng..." : "Nâng lên Tổ trưởng"}</button>}
           <button type="button" onClick={() => setModal(null)}>Hủy</button>
           <button type="button" className="personnel-primary" disabled={saving || promotingId !== null} onClick={() => void save()}>{saving ? "Đang lưu..." : "Lưu thay đổi"}</button>
         </div>
@@ -385,7 +396,7 @@ export default function Workers() {
   );
 }
 
-function PersonTable({ rows, canEdit, onEdit, onDelete, onPromote, promotingId }: { rows: Person[]; canEdit: boolean; onEdit: (p: Person) => void; onDelete: (p: Person) => void; onPromote: (p: Person) => void; promotingId: number | null }) {
+function PersonTable({ rows, canEdit, canPromote, onEdit, onDelete, onPromote, promotingId }: { rows: Person[]; canEdit: boolean; canPromote: boolean; onEdit: (p: Person) => void; onDelete: (p: Person) => void; onPromote: (p: Person) => void; promotingId: number | null }) {
   return <div className="personnel-table-wrap"><table className="personnel-table"><thead><tr><th>#</th><th>Nhân sự</th><th>Mã</th><th>Vai trò</th><th>Công đoạn phụ trách</th><th>% học việc</th><th>SĐT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
     {rows.length ? rows.map((person, index) => <tr key={person.id}>
       <td>{index + 1}</td>
@@ -396,7 +407,7 @@ function PersonTable({ rows, canEdit, onEdit, onDelete, onPromote, promotingId }
       <td>{person.role === "worker" ? <span className={`training-pill ${Number(person.training_percent ?? 100) >= 100 ? "complete" : "learning"}`}>{Number(person.training_percent ?? 100)}%</span> : "—"}</td>
       <td>{person.phone || "—"}</td>
       <td><span className={`person-status ${person.status}`}>{statusText(person.status)}</span></td>
-      <td><div className="row-actions">{canEdit && <><button type="button" title="Sửa" onClick={() => onEdit(person)} disabled={promotingId !== null}><Pencil size={14} /></button>{person.role === "worker" && <button type="button" title="Nâng lên Tổ trưởng" onClick={() => void onPromote(person)} disabled={promotingId !== null}><ShieldCheck size={14} /></button>}<button type="button" className="danger" title="Xóa" onClick={() => void onDelete(person)} disabled={promotingId !== null}><Trash2 size={14} /></button></>}</div></td>
+      <td><div className="row-actions">{canEdit && <><button type="button" title="Sửa" onClick={() => onEdit(person)} disabled={promotingId !== null}><Pencil size={14} /></button>{canPromote && person.role === "worker" && <button type="button" title="Nâng lên Tổ trưởng" onClick={() => void onPromote(person)} disabled={promotingId !== null}><ShieldCheck size={14} /></button>}<button type="button" className="danger" title="Xóa" onClick={() => void onDelete(person)} disabled={promotingId !== null}><Trash2 size={14} /></button></>}</div></td>
     </tr>) : <tr><td colSpan={9} className="empty">Không có dữ liệu</td></tr>}
   </tbody></table></div>;
 }

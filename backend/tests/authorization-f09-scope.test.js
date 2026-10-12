@@ -128,8 +128,8 @@ test('audit, system health and notification endpoints enforce role and scope con
   const permissions = read('services/permissionService.js');
 
   assert.match(routes, /\/observability[\s\S]*role\('admin',\s*'manager'\)[\s\S]*permission\('SYSTEM_HEALTH_VIEW'\)/);
-  assert.match(routes, /\/activities[\s\S]*role\(\s*'admin'\s*,\s*'manager'\s*,\s*'lead'\s*\)[\s\S]*permission\(\s*'AUDIT_VIEW'\s*\)/);
-  assert.match(routes, /\/deleted-reports[\s\S]*role\(\s*'admin'\s*,\s*'manager'\s*,\s*'lead'\s*\)[\s\S]*permission\(\s*'AUDIT_VIEW'\s*\)/);
+  assert.match(routes, /\/activities[\s\S]*role\(\s*'admin'\s*,\s*'admin_ops'\s*,\s*'manager'\s*,\s*'lead'\s*\)[\s\S]*permission\(\s*'AUDIT_VIEW'\s*\)/);
+  assert.match(routes, /\/deleted-reports[\s\S]*role\(\s*'admin'\s*,\s*'admin_ops'\s*,\s*'manager'\s*,\s*'lead'\s*\)[\s\S]*permission\(\s*'AUDIT_VIEW'\s*\)/);
   assert.match(routes, /\/notifications(?:\/unread-count)?[\s\S]*permission\(\s*'NOTIFICATION_VIEW'\s*\)/);
   assert.match(controller, /a\.user_id=\?/);
   assert.match(controller, /mp\.manager_id=\?/);
@@ -176,9 +176,9 @@ test('approved edit/delete/restore use permission, role, scope and audit contrac
   const routes = read('routes/productionRoutes.js');
   const controller = read('controllers/productionController.js');
   const service = read('services/approvedReportEditService.js');
-  assert.match(routes, /router\.put\("\/:id"[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
-  assert.match(routes, /versions\/:versionNo\/restore[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
-  assert.match(routes, /router\.delete\("\/:id"[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_DELETE"\)/);
+  assert.match(routes, /router\.put\("\/:id"[\s\S]*checkRole\("admin","admin_ops","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
+  assert.match(routes, /versions\/:versionNo\/restore[\s\S]*checkRole\("admin","admin_ops","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
+  assert.match(routes, /router\.delete\("\/:id"[\s\S]*checkRole\("admin","admin_ops","manager","lead"\)[\s\S]*permission\("REPORT_DELETE"\)/);
   assert.match(service, /hasPermission\(actor, 'REPORT_APPROVED_EDIT'\)/);
   assert.match(service, /assertProcessScope\(actor, lockedRows\[0\]\.process_id/);
   assert.match(service, /assertProcessScope\(actor, currentRow\.process_id/);

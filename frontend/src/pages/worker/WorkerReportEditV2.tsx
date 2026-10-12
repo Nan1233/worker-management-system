@@ -313,7 +313,7 @@ function WorkerReportEditV2() {
       setSaving(true);
       if (managerRoute) {
         await updateReport(Number(report.id), payload as ProductionReport, source, report.updated_at || null);
-        const roleBasePath = storedRole === "lead" ? "/lead" : storedRole === "admin" ? "/admin" : "/manager";
+        const roleBasePath = storedRole === "lead" ? "/lead" : storedRole === "admin" ? "/admin" : storedRole === "admin_ops" ? "/admin-ops" : "/manager";
         navigate(source === "pending" ? `${roleBasePath}/report/${report.id}?source=pending` : `${roleBasePath}/report/${report.id}?source=approved`, { replace: true });
       } else {
         await updateTempReport(Number(report.id), payload);

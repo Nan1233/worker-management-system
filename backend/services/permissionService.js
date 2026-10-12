@@ -34,6 +34,7 @@ const ROLE_ADDITIONS = {
   worker: ['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','STATISTICS_VIEW','PROFILE_VIEW'],
   lead: ['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_PENDING_EDIT','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','MASTER_EDIT','AUDIT_VIEW'],
   manager: ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','USER_CREATE','USER_EDIT','GOVERNANCE_VIEW','SYSTEM_HEALTH_VIEW'],
+  admin_ops: ['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','USER_CREATE','USER_EDIT','MASTER_VIEW','STATISTICS_VIEW','NOTIFICATION_VIEW','AUDIT_VIEW','PROFILE_VIEW'],
   admin: ALL_CODES
 };
 
@@ -41,12 +42,13 @@ const ROLE_PARENT = {
   worker: null,
   lead: 'worker',
   manager: 'lead',
+  admin_ops: 'lead',
   admin: 'manager'
 };
 
 function buildRoleCapabilities() {
   const result = {};
-  for (const role of ['worker','lead','manager','admin']) {
+  for (const role of ['worker','lead','manager','admin_ops','admin']) {
     const permissions = new Set();
     const parent = ROLE_PARENT[role];
 
@@ -57,6 +59,9 @@ function buildRoleCapabilities() {
     }
 
     for (const code of ROLE_ADDITIONS[role] || []) permissions.add(code);
+    if (role === 'admin_ops') {
+      for (const code of ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','MASTER_EDIT','GOVERNANCE_VIEW','SYSTEM_HEALTH_VIEW','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY','REPORT_PENDING_EDIT']) permissions.delete(code);
+    }
     result[role] = permissions;
   }
 
@@ -67,6 +72,7 @@ function buildRoleCapabilities() {
 const CAPABILITIES = buildRoleCapabilities();
 const DEFAULTS = {
   admin: new Set(CAPABILITIES.admin),
+  admin_ops: new Set(CAPABILITIES.admin_ops),
   manager: new Set(CAPABILITIES.manager),
   lead: new Set(CAPABILITIES.lead),
   worker: new Set(CAPABILITIES.worker)
@@ -142,6 +148,10 @@ async function getEffectivePermissions(user) {
     }
   }
   applyMandatoryRolePermissions(role, result);
+  if (role === 'admin_ops') {
+    // Role/user overrides may revoke operational rights, but cannot grant beyond this hard ceiling.
+    for (const code of [...result]) if (!CAPABILITIES.admin_ops.has(code)) result.delete(code);
+  }
   if (userId) cache.set(userId,{ role, permissions:[...result], expiresAt:Date.now()+CACHE_TTL_MS });
   return result;
 }
@@ -149,11 +159,12 @@ async function hasPermission(user, code) {
   const role = normalizeRole(user?.role);
   const normalized = normalizeCode(code);
   if (role === 'admin') return true;
+  if (role === 'admin_ops' && normalized === 'PERMISSION_MANAGE') return false;
   const set = await getEffectivePermissions(user);
   return set.has(normalized);
 }
 async function getAdminMatrix() {
-  const roles = ['admin','manager','lead','worker']; const roleOverrides = {}; const userOverrides = {};
+  const roles = ['admin','admin_ops','manager','lead','worker']; const roleOverrides = {}; const userOverrides = {};
   if (await ensureSchemaAvailable()) {
     const [r] = await db.promise().query('SELECT role,permission_code,allowed FROM role_permission_overrides');
     const [u] = await db.promise().query('SELECT user_id,permission_code,allowed FROM user_permission_overrides');

@@ -13,14 +13,14 @@ const permission = require('../middleware/permissionMiddleware');
 const processAssignmentCapacity = require('../middleware/processAssignmentCapacityMiddleware');
 const db = require('../config/db');
 
-router.use(verifyToken, checkRole('admin','manager','lead'));
+router.use(verifyToken, checkRole('admin','admin_ops','manager','lead'));
 const runUserHandler = (name) => (req, res, next) => {
   const handler = controllerExtras?.[name] || controller?.[name];
   if (typeof handler !== 'function') return res.status(500).json({ success: false, code: 'USER_HANDLER_MISSING', message: `Thiếu bộ xử lý ${name} của quản lý người dùng` });
   return handler(req, res, next);
 };
 router.get('/export/excel', permission('USER_VIEW'), runUserHandler('exportUsersExcel'));
-router.post('/import/excel', permission('USER_CREATE','USER_EDIT'), runUserHandler('importUsersExcel'));
+router.post('/import/excel', (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được nhập Excel hàng loạt'}) : next(), permission('USER_CREATE','USER_EDIT'), runUserHandler('importUsersExcel'));
 router.get('/', permission('USER_VIEW'), controller.getAllUsers);
 router.get('/options/processes', permission('USER_VIEW','MASTER_VIEW'), (req, res, next) => {
   const originalJson = res.json.bind(res);
@@ -36,6 +36,7 @@ const ensureWorkerTechnicalPassword = (req, _res, next) => {
   next();
 };
 const permanentDeleteLeadFromLegacyRemove = async (req, res, next) => {
+  if (req.user?.role === 'admin_ops') return next();
   if (String(req.body?.status || '').trim() !== 'inactive') return next();
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return next();
@@ -46,8 +47,8 @@ const permanentDeleteLeadFromLegacyRemove = async (req, res, next) => {
   return next();
 };
 router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, processAssignmentCapacity, createUserController.createUser);
-router.post('/:id/promote-lead', permission('USER_EDIT'), promotionController.promoteWorkerToLead);
-router.post('/:id/promote-manager', permission('USER_EDIT'), promotionController.promoteWorkerToManager);
-router.delete('/:id/permanent', permission('USER_EDIT'), permanentDeletionController.deleteLeadPermanently);
+router.post('/:id/promote-lead', (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được nâng cấp vai trò tài khoản'}) : next(), permission('USER_EDIT'), promotionController.promoteWorkerToLead);
+router.post('/:id/promote-manager', (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được nâng cấp vai trò tài khoản'}) : next(), permission('USER_EDIT'), promotionController.promoteWorkerToManager);
+router.delete('/:id/permanent', (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được xóa vĩnh viễn tài khoản'}) : next(), permission('USER_EDIT'), permanentDeletionController.deleteLeadPermanently);
 router.put('/:id', permission('USER_EDIT'), permanentDeleteLeadFromLegacyRemove, processAssignmentCapacity, updateUserController.updateUser);
 module.exports = router;

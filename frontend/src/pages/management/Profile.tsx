@@ -7,6 +7,7 @@ import ChangePasswordCard from "../../components/system/ChangePasswordCard";
 
 const roleLabels: Record<string, string> = {
   admin: "Quản trị viên",
+  admin_ops: "Quản trị vận hành",
   manager: "Quản lý",
   lead: "Tổ trưởng",
 };

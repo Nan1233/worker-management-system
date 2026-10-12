@@ -1,5 +1,6 @@
 export type UserRole =
     | "admin"
+    | "admin_ops"
     | "manager"
     | "lead"
     | "worker";

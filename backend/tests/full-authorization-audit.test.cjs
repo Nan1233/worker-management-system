@@ -22,7 +22,7 @@ test('full authorization audit: sensitive routes have authentication + role/perm
     events: read('routes/machineProductionEventRoutes.js'),
   };
 
-  assert.match(routes.users, /router\.use\(verifyToken,\s*checkRole\('admin','manager','lead'\)\)/);
+  assert.match(routes.users, /router\.use\(verifyToken,\s*checkRole\('admin','admin_ops','manager','lead'\)\)/);
   assert.match(routes.workers, /permission\("USER_VIEW"\)/);
   assert.match(routes.workers, /permission\("USER_EDIT"\)/);
   assert.match(routes.production, /REPORT_APPROVED_VIEW/);
