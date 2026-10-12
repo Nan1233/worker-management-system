@@ -79,3 +79,17 @@ test('machine-line payload does not duplicate worker-level time and OK/NG totals
   assert.ok(submission.includes('tt_ok:(noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttOk)'));
   assert.ok(submission.includes('machine_lines:useMachineLinesPayload?lines:[]'));
 });
+
+test('production bundle version replacement matches the frontend and service-worker version', () => {
+  const version = fs.readFileSync(path.join(root, 'src/config/version.ts'), 'utf8');
+  const serviceWorker = fs.readFileSync(path.join(root, 'public/sw.js'), 'utf8');
+  const forceVersion = fs.readFileSync(path.join(root, 'scripts/forceFrontendVersion.cjs'), 'utf8');
+  const frontendVersion = version.match(/FRONTEND_VERSION = "([^"]+)"/)?.[1];
+  const forcedVersion = forceVersion.match(/const VERSION = "([^"]+)"/)?.[1];
+  const workerVersion = serviceWorker.match(/const BUILD_VERSION = "([^"]+)"/)?.[1];
+  assert.ok(frontendVersion);
+  assert.ok(forcedVersion);
+  assert.ok(workerVersion);
+  assert.equal(forcedVersion, frontendVersion);
+  assert.ok(workerVersion.startsWith(frontendVersion));
+});
