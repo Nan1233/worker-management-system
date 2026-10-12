@@ -13,7 +13,7 @@ type Resource='users'|'processes'|'defects'|'deductions'|'machines'|'standards';
 type Field={key:string;label:string;type?:'text'|'number'|'select';required?:boolean;min?:number;step?:number;options?:{value:string;label:string}[]};
 type ProcessOption={id:number;process_code:string;process_name:string};
 const allTabs:{key:Resource;label:string;description:string;roles:string[]}[]=[
-{key:'users',label:'Người dùng',description:'Tài khoản, hồ sơ công nhân và phân công công đoạn',roles:['lead','manager','admin']},
+{key:'users',label:'Người dùng',description:'Tài khoản, hồ sơ công nhân và phân công công đoạn',roles:['lead','manager','admin','admin_ops']},
 {key:'processes',label:'Công đoạn',description:'Gia công và các công đoạn sản xuất',roles:['manager','admin']},
 {key:'machines',label:'Máy',description:'Máy theo từng công đoạn',roles:['lead','manager','admin']},
 {key:'standards',label:'Sản phẩm & định mức',description:'Mã sản phẩm và sản lượng chuẩn',roles:['lead','manager','admin']},
