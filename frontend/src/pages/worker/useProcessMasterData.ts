@@ -17,6 +17,77 @@ import {
 } from "../../services/authRuntimeEvents";
 
 const ZERO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
+
+const normalizeMasterLabel = (value: unknown): string => String(value ?? "")
+  .normalize("NFD")
+  .replace(/[\\u0300-\\u036f]/g, "")
+  .replace(/đ/gi, "d")
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, "");
+
+const MAI_ALLOWED_DEDUCTION_NAMES = new Set([
+  "Bật máy, xét máy, đầu giờ",
+  "Chuyển mã",
+  "Chỉnh máy",
+  "Chờ chỉnh máy",
+  "Mài đá",
+  "Ko có KHSX, Dừng máy ko HT",
+  "Chờ hàng, hết hàng",
+  "Nghỉ giải lao",
+  "Dừng máy đi hỗ trợ",
+  "5s, đổ bụi,xì bụi,lấy bụi",
+].map(normalizeMasterLabel));
+
+const MAI_DISPLAY_LABELS = new Map<string, string>([
+  ["chohanghethang", "Chờ hàng, hết hàng"],
+  ["kqddao", "KQD ĐẢO"],
+  ["ppcmmatdien", "PPCM Mất điện"],
+  ["thieulancscsh", "Thiếu - lẫn cs CSH"],
+]);
+
+const MAI_ALLOWED_DEFECT_NAMES = new Set([
+  "KQD ĐẢO",
+  "Xô cs",
+  "PPCM Mất điện",
+  "Hàng rơi",
+  "K- coleet",
+  "Thiếu - lẫn cs CSH",
+  "Lỗi cao su",
+].map(normalizeMasterLabel));
+
+function filterMaiMasterOptions(
+  options: WorkerMasterOption[],
+  processCode: string,
+  processId: number,
+  allowedNames: Set<string>,
+  preferredCodePrefix: string,
+): WorkerMasterOption[] {
+  const isMai = String(processCode || "").trim().toUpperCase() === "MAI" || Number(processId) === 2;
+  if (!isMai) return options;
+
+  const unique = new Map<string, WorkerMasterOption>();
+  const priority = (option: WorkerMasterOption): number => {
+    const code = String(option.code || "").trim().toUpperCase();
+    if (code.startsWith(preferredCodePrefix)) return 0;
+    if (code.startsWith("KTC_")) return 2;
+    return 1;
+  };
+
+  for (const option of options) {
+    const normalizedLabel = normalizeMasterLabel(option.label);
+    if (!allowedNames.has(normalizedLabel)) continue;
+    const current = unique.get(normalizedLabel);
+    if (!current || priority(option) < priority(current)) {
+      unique.set(normalizedLabel, {
+        ...option,
+        label: MAI_DISPLAY_LABELS.get(normalizedLabel) || option.label,
+      });
+    }
+  }
+
+  return Array.from(unique.values());
+}
+
 const PROCESS_ID_BY_CODE: Record<string, number> = {
   GC: 1,
   MAI: 2,
@@ -113,14 +184,14 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const [defects, deductions] = optionalResults;
 
       if (defects.status === "fulfilled") {
-        setActiveNgOptions(normalizeDefectOptions(defects.value, resolvedProcessId));
+        setActiveNgOptions(filterMaiMasterOptions(normalizeDefectOptions(defects.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_"));
       } else {
         setActiveNgOptions([]);
       }
 
       if (deductions.status === "fulfilled") {
         setActiveDeductionOptions(
-          normalizeDeductionOptions(deductions.value, resolvedProcessId),
+          filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
         );
       } else {
         setActiveDeductionOptions([]);
