@@ -11,9 +11,9 @@ const TTL_MS = 30 * 60 * 1000;
 // v13: invalidate browser/session and offline product snapshots after adding GC alias C7236 -> R7236 and C13 machine standard.
 // v14: invalidate stale empty machine lists after machine master data was populated in DB.
 // v15: invalidate stale process-scoped NG/Tru H snapshots after correcting DO process ID mapping and DB catalogues.
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v16";
-const DEDUCTION_MASTER_VERSION = "v10";
-const DEFECT_MASTER_VERSION = "v9";
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v17";
+const DEDUCTION_MASTER_VERSION = "v11";
+const DEFECT_MASTER_VERSION = "v10";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
 type DeductionOptions = Awaited<ReturnType<typeof getDeductionOptionsByProcess>>;
