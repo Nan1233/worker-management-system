@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.9.27-machine-options-crash-fix-20261012";
+const BUILD_VERSION = "1.9.28-machineOptions-destructure-fix-20261012";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];
