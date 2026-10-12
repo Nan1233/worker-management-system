@@ -264,7 +264,7 @@ exports.getReportVersions = async (req,res) => {
   const reportId=Number(req.params.id); const type=req.query.type==='temp'?'temp':'approved';
   const table=type==='temp'?'production_reports_temp':'production_reports';
   const [access]=await db.promise().query(
-   `SELECT r.id, r.worker_id FROM ${table} r WHERE r.id=? AND (\n      ?='admin' OR\n      (?='worker' AND r.worker_id=?) OR\n      (? IN ('manager','lead') AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.manager_id=? AND mp.process_id=r.process_id))\n    ) LIMIT 1`,
+   `SELECT r.id, r.worker_id FROM ${table} r WHERE r.id=? AND (\n      ? IN ('admin','manager') OR\n      (?='worker' AND r.worker_id=?) OR\n      (?='lead' AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.manager_id=? AND mp.process_id=r.process_id))\n    ) LIMIT 1`,
    [reportId,req.user.role,req.user.role,req.user.worker_id||0,req.user.role,req.user.id]
   );
   if(!access.length) return res.status(404).json({success:false,message:'Không tìm thấy báo cáo hoặc bạn không có quyền truy cập'});
