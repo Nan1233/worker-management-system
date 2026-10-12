@@ -10,7 +10,7 @@ const normalizeText = (value) => String(value ?? "").trim();
 const uniquePositiveIds = (items, key) => [...new Set((Array.isArray(items) ? items : []).map((item) => Number(item?.[key])).filter((id) => Number.isInteger(id) && id > 0))];
 const ZERO_STANDARD_GC_LONG_MANUAL_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
-const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, allowEmptyMachine = false, operationMode = null, workDate }) => {
+const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, allowEmptyMachine = false, operationMode = null, workDate, workType = null }) => {
     const errors = {};
     const normalizedMachineNo = normalizeText(machineNo);
     const normalizedProductName = normalizeText(productName);
@@ -37,7 +37,18 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             [processId, normalizedProductName, normalizedProductName, normalizedProductName, normalizedProductName, normalizedProductName]
         ) : Promise.resolve([]),
         defectIds.length ? query(`SELECT DISTINCT id, defect_code, defect_name FROM defect_types WHERE process_id = ? AND status = 'active' AND id IN (${defectIds.map(() => "?").join(",")})`, [processId, ...defectIds]) : Promise.resolve([]),
-        deductionIds.length ? query(`SELECT DISTINCT d.id FROM deduction_types d LEFT JOIN processes dp ON dp.id = d.process_id WHERE d.status = 'active' AND d.id IN (${deductionIds.map(() => "?").join(",")}) AND (d.process_id = ? OR (? = 60006 AND UPPER(TRIM(COALESCE(dp.process_code, ''))) = 'CVK'))`, [...deductionIds, processId, processId]) : Promise.resolve([]),
+        deductionIds.length ? query(`SELECT DISTINCT d.id
+             FROM deduction_types d
+             LEFT JOIN processes dp ON dp.id = d.process_id
+            WHERE d.status = 'active'
+              AND d.id IN (${deductionIds.map(() => "?").join(",")})
+              AND (
+                d.process_id = ?
+                OR (? = 60006 AND UPPER(TRIM(COALESCE(dp.process_code, ''))) = 'CVK')
+                OR (? IN (30002, 60006)
+                    AND UPPER(TRIM(COALESCE(dp.process_code, ''))) = 'GC'
+                    AND UPPER(TRIM(COALESCE(?, ''))) IN ('XUATNHAP', 'KTCD', 'TAIPP'))
+              )`, [...deductionIds, processId, processId, processId, workType]) : Promise.resolve([]),
         query(`SELECT process_code FROM processes WHERE id = ? LIMIT 1`, [processId])
     ]);
 
