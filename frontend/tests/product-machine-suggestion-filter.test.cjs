@@ -80,6 +80,11 @@ test('machine-line payload does not duplicate worker-level time and OK/NG totals
   assert.ok(submission.includes('machine_lines:useMachineLinesPayload?lines:[]'));
 });
 
+test('time deduction section does not reference an undeclared machineOptions identifier', () => {
+  const timeSection = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessTimeDeductionSection.tsx'), 'utf8');
+  assert.ok(!timeSection.includes('machineOptions'), 'time deduction component must not use machineOptions unless it is explicitly declared');
+});
+
 test('production bundle version replacement matches the frontend and service-worker version', () => {
   const version = fs.readFileSync(path.join(root, 'src/config/version.ts'), 'utf8');
   const serviceWorker = fs.readFileSync(path.join(root, 'public/sw.js'), 'utf8');
