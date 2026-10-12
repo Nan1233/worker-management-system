@@ -82,7 +82,7 @@ test('machine-line payload does not duplicate worker-level time and OK/NG totals
 
 test('basic info section destructures machineOptions before rendering machine labels', () => {
   const basicInfo = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessBasicInfoSection.tsx'), 'utf8');
-  assert.match(basicInfo, /export default function ProcessBasicInfoSection\(\{[^}]*\\bmachineOptions\\b[^}]*\}: Props\)/s);
+  assert.ok(basicInfo.includes('productOptions, machineAutocompleteOptions, machineOptions, loadingMasterData'), 'machineOptions must be destructured from Props before JSX uses it');
   assert.ok(basicInfo.includes('machineOptions as Array<{ process_code?: string; process_name?: string }>'));
 });
 
