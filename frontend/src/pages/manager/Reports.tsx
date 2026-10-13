@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { approveTempReport, approveSelectedTempReports, getPendingReports, getTempReportDetail } from "../../services/productionService";
+import { approveTempReport, getPendingReports, getTempReportDetail } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import "./ReportsSplitReference.css";
@@ -103,17 +103,32 @@ export default function Reports() {
     const toggleSelected = (id: number) => setSelectedIds(previous => previous.includes(id) ? previous.filter(x => x !== id) : [...previous, id]);
     const toggleVisibleSelection = () => setSelectedIds(previous => allVisibleSelected ? previous.filter(id => !visibleIds.includes(id)) : [...new Set([...previous, ...visibleIds])]);
     const approveBulk = async () => {
-        const targets = reports.filter(r => selectedIds.includes(Number(r.id))).map(r => ({ id: Number(r.id), expected_updated_at: r.updated_at || null }));
+        const targets = reports.filter(r => selectedIds.includes(Number(r.id)));
         if (!targets.length || bulkApproving) return;
-        if (!window.confirm(`Bạn chắc chắn muốn duyệt ${targets.length} báo cáo đã chọn?`)) return;
+        if (!window.confirm(`Duyệt lần lượt ${targets.length} báo cáo đã chọn? Báo cáo lỗi sẽ được giữ lại để xử lý sau.`)) return;
         setBulkApproving(true); setError("");
+        const failedIds: number[] = [];
+        const failures: string[] = [];
+        let succeeded = 0;
         try {
-            await approveSelectedTempReports(targets);
-            setSelectedIds([]); setDetail(null);
+            // Process each report independently: one invalid report must not block others.
+            for (const report of targets) {
+                const id = Number(report.id);
+                try {
+                    await approveTempReport(id);
+                    succeeded += 1;
+                } catch (e: any) {
+                    failedIds.push(id);
+                    const code = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || id}`;
+                    const message = e?.response?.data?.message || e?.message || "Không thể duyệt";
+                    failures.push(`${code} (#${id}): ${message}`);
+                }
+            }
+            setSelectedIds(failedIds);
+            if (detail && succeeded > 0 && !failedIds.includes(Number(detail.id))) setDetail(null);
             await load();
-            window.alert(`Đã duyệt thành công ${targets.length} báo cáo.`);
-        } catch (e: any) {
-            window.alert(e?.response?.data?.message || e?.message || "Không thể duyệt các báo cáo đã chọn. Vui lòng thử lại.");
+            const summary = `Duyệt thành công ${succeeded}/${targets.length} báo cáo.${failedIds.length ? `\\n\\nGiữ lại ${failedIds.length} báo cáo chưa duyệt để xử lý tiếp:${`\\n• ${failures.join("\\n• ")}`}` : ""}`;
+            window.alert(summary);
         } finally { setBulkApproving(false); }
     };
 
