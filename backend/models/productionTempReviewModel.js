@@ -112,15 +112,30 @@ async function linkMatchingApprovedMachineEvents(targets) {
     const productCode = String(line.product_code || line.product_name || '').split(",")[0].trim();
     if (!machineCode || !productCode) continue;
 
-    const [events] = await db.promise().query(
+    // Prefer an index-friendly exact lookup. Wrapping machine_code/product_code
+    // in UPPER(TRIM()) forces a scan on large event tables and can exceed the
+    // Cloudflare Worker 30s request budget. Only use the legacy normalized
+    // lookup when no canonical exact match exists.
+    const eventParams = [Number(line.process_id),machineCode,productCode,String(line.work_date).slice(0,10),String(line.shift || '').trim()];
+    let [events] = await db.promise().query(
       `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
          FROM machine_production_events
         WHERE status='approved' AND process_id=?
-          AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
-          AND UPPER(TRIM(product_code))=UPPER(TRIM(?))
-          AND work_date=? AND UPPER(TRIM(shift))=UPPER(TRIM(?))
+          AND machine_code=? AND product_code=?
+          AND work_date=? AND shift=?
         ORDER BY id DESC LIMIT 2`,
-      [Number(line.process_id),machineCode,productCode,String(line.work_date).slice(0,10),String(line.shift || '').trim()]);
+      eventParams);
+    if (!events?.length) {
+      [events] = await db.promise().query(
+        `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
+           FROM machine_production_events
+          WHERE status='approved' AND process_id=?
+            AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
+            AND UPPER(TRIM(product_code))=UPPER(TRIM(?))
+            AND work_date=? AND UPPER(TRIM(shift))=UPPER(TRIM(?))
+          ORDER BY id DESC LIMIT 2`,
+        eventParams);
+    }
     if (events?.length === 1) {
       await db.promise().query(
         `UPDATE production_temp_machine_lines
