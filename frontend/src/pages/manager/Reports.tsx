@@ -195,18 +195,18 @@ export default function Reports() {
                 <div style={{ marginTop: 5, color: "#6f89a8", fontSize: 13 }}>Xem các báo cáo sản xuất đang chờ duyệt.</div>
             </div>
 
-            <div className="pending-filter-card" style={{ display: "grid", gap: 10, alignItems: "end", padding: 14, border: "1px solid #dbe6f2", borderRadius: 12, background: "#fff", boxShadow: "0 4px 14px rgba(35,76,125,.045)" }}>
-                <label className="pending-search"><span>Tìm kiếm</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
-                <label className="pending-date-filter"><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setRange(null); }} /></label>
-                <div className="pending-quick-filters">
+            <div className="pending-filter-card" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(140px, .9fr)", gridTemplateAreas: '"search date process shift" "quick quick quick quick"', gap: "10px 12px", alignItems: "end", padding: 14, border: "1px solid #dbe6f2", borderRadius: 12, background: "#fff", boxShadow: "0 4px 14px rgba(35,76,125,.045)" }}>
+                <label className="pending-search" style={{ gridArea: "search", display: "flex", flexDirection: "column", alignSelf: "end", gap: 4, minWidth: 0, position: "relative" }}><span style={{ position: "static", display: "block", width: "auto", height: "auto", border: 0, fontSize: 12, lineHeight: "16px", color: "#526b88", zIndex: "auto" }}>Tìm kiếm</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
+                <label className="pending-date-filter" style={{ gridArea: "date", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setRange(null); }} /></label>
+                <div className="pending-quick-filters" style={{ gridArea: "quick", minWidth: 0 }}>
                     {(["Hôm nay", "Tuần này", "Tháng này", "Năm này"] as const).map(label => {
                         const type = label === "Hôm nay" ? "day" : label === "Tuần này" ? "week" : label === "Tháng này" ? "month" : "year";
                         const active = type === "day" ? !range : Boolean(range && range.dateFrom === rangeFor(date, type).dateFrom && range.dateTo === rangeFor(date, type).dateTo);
                         return <button key={label} type="button" className={active ? "active" : ""} onClick={() => quick(type)}>{label}</button>;
                     })}
                 </div>
-                <label className="pending-process-filter"><span>Công đoạn</span><select value={process} onChange={e => setProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p} value={p}>{p}</option>)}</select></label>
-                <label className="pending-shift-filter"><span>Ca làm việc</span><select value={shift} onChange={e => setShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
+                <label className="pending-process-filter" style={{ gridArea: "process", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}><span>Công đoạn</span><select value={process} onChange={e => setProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p} value={p}>{p}</option>)}</select></label>
+                <label className="pending-shift-filter" style={{ gridArea: "shift", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}><span>Ca làm việc</span><select value={shift} onChange={e => setShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
             </div>
 
             <div className={`pending-workspace ${detail ? "" : "list-only"}`} style={{ marginTop: 12 }}>
