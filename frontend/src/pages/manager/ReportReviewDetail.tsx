@@ -213,10 +213,15 @@ export default function ReportReviewDetail() {
   };
 
   const approve = async () => {
+    const reportId = Number(report?.id);
     if (!report || !canReview || actionLoading) return;
+    if (!Number.isSafeInteger(reportId) || reportId <= 0) {
+      setError("ID báo cáo không hợp lệ. Vui lòng quay lại danh sách và mở lại báo cáo.");
+      return;
+    }
     setActionLoading(true); setError("");
     try {
-      await approveSelectedTempReports([{ id: Number(report.id), expected_updated_at: report.updated_at || null }]);
+      await approveSelectedTempReports([{ id: reportId, expected_updated_at: report.updated_at || null }]);
       await advanceAfterAction(Number(report.id));
     } catch (err: unknown) {
       setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể duyệt báo cáo." : "Không thể duyệt báo cáo.");
@@ -314,7 +319,7 @@ export default function ReportReviewDetail() {
       {nonStandard && <div className="review-info">ℹ Công việc <strong>{report.product_name || report.process_name}</strong> không có định mức sản lượng: không áp dụng các chỉ tiêu OK/NG, % đạt, năng suất và chi tiết lỗi.</div>}
 
       <section className="review-actions">
-        {source === "pending" && canReview && <button ref={approveRef} className="review-btn approve" type="button" onClick={() => void approve()} disabled={actionLoading}>{actionLoading ? "Đang xử lý..." : "✓ Duyệt"}</button>}
+        {source === "pending" && canReview && <button ref={approveRef} className="review-btn approve" type="button" onClick={() => void approve()} disabled={actionLoading || !Number.isSafeInteger(Number(report?.id)) || Number(report?.id) <= 0}>{actionLoading ? "Đang xử lý..." : "✓ Duyệt"}</button>}
         {source === "pending" && canReview && <button className="review-btn reject" type="button" onClick={() => setRejectOpen(true)} disabled={actionLoading}>✕ Từ chối</button>}
         {canEdit && <button className="review-btn edit" type="button" onClick={() => void beginEdit()} disabled={editing}>✎ Sửa báo cáo</button>}
         <span className="review-key-hint">← → hoặc ↑ ↓ để chuyển báo cáo · Esc để đóng</span>
