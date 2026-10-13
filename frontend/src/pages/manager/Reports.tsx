@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { useNavigate } from "react-router-dom";
 import { approveSelectedTempReports, getPendingReports, getTempReportDetail } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
@@ -44,7 +43,6 @@ const metricStyle = (type: "productivity" | "pp", value: number, ngTypeCount = 0
 };
 
 export default function Reports() {
-    const navigate = useNavigate();
     const [date, setDate] = useState(getToday());
     const [range, setRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
     const [search, setSearch] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
