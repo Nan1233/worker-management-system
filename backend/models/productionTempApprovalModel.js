@@ -180,6 +180,23 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
     standardVersionId: item.standard_version_id,
     machineStandardId: item.machine_standard_id,
   });
+  // CVK "Công việc khác" reports intentionally have no product standard.
+  // Their valid snapshot is zero output with no product/machine standard IDs.
+  if (resolved?.nonProductWork) {
+    const savedOutput = Number(item.standard_output || 0);
+    const savedVersionId = Number(item.standard_version_id || 0);
+    const savedMachineStandardId = Number(item.machine_standard_id || 0);
+    const savedKqdPolicy = Number(item.exclude_kqd_from_tt_snapshot || 0);
+    if (savedOutput !== 0 || savedVersionId !== 0 || savedMachineStandardId !== 0 || savedKqdPolicy !== 0) {
+      const error = new Error("Ảnh chụp công việc khác không hợp lệ; cần kiểm tra lại báo cáo");
+      error.status = 422;
+      error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
+      error.isPublic = true;
+      throw error;
+    }
+    return;
+  }
+
   assertStandardSnapshotConsistency({
     resolved,
     standardOutput: item.standard_output,
