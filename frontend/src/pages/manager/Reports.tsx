@@ -63,7 +63,7 @@ export default function Reports() {
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
     const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false);
-    const [rejectReason, setRejectReason] = useState("Thiếu công đoạn hoặc sản phẩm để tra định mức"); const [rejectNote, setRejectNote] = useState(""); const [rejecting, setRejecting] = useState(false);
+    const [rejectReason, setRejectReason] = useState(""); const [rejectNote, setRejectNote] = useState(""); const [rejecting, setRejecting] = useState(false); const [rejectDialogOpen, setRejectDialogOpen] = useState(false); const [rejectTargetIds, setRejectTargetIds] = useState<number[]>([]);
 
     const load = useCallback(async () => {
         try {
@@ -112,20 +112,40 @@ export default function Reports() {
         }
     };
 
-    const rejectDetail = async () => {
-        if (!detail || rejecting || detailLoading) return;
-        const reason = rejectReason === "Khác" ? rejectNote.trim() : rejectReason;
-        if (!reason) { window.alert("Vui lòng nhập lý do từ chối."); return; }
-        if (!window.confirm(`Từ chối báo cáo #${detail.id}? Lý do: ${reason}`)) return;
+    const openRejectDialog = (ids: number[]) => {
+        const validIds = [...new Set(ids.map(Number).filter(id => Number.isInteger(id) && id > 0))];
+        if (!validIds.length || rejecting) return;
+        setRejectTargetIds(validIds);
+        setRejectReason("");
+        setRejectNote("");
+        setRejectDialogOpen(true);
+    };
+
+    const rejectTargets = async () => {
+        if (rejecting || !rejectTargetIds.length) return;
+        const reason = rejectReason === "Khác" ? rejectNote.trim() : rejectReason.trim();
+        if (!reason) { window.alert("Vui lòng chọn lý do từ chối."); return; }
+        const targets = reports.filter(report => rejectTargetIds.includes(Number(report.id)));
+        if (targets.length !== rejectTargetIds.length) {
+            window.alert("Một số báo cáo không còn trong danh sách hiện tại. Hãy tải lại danh sách rồi thử lại.");
+            return;
+        }
+        if (!window.confirm(`Từ chối ${targets.length} báo cáo đã chọn? Lý do: ${reason}`)) return;
         setRejecting(true);
         try {
-            await rejectSelectedTempReports([Number(detail.id)], reason);
-            setSelectedIds(previous => previous.filter(id => id !== Number(detail.id)));
-            setDetail(null);
+            const failedIds: number[] = [];
+            const failures: string[] = [];
+            let succeeded = 0;
+            for (const report of targets) {
+                try { await rejectSelectedTempReports([Number(report.id)], reason); succeeded += 1; }
+                catch (e: any) { failedIds.push(Number(report.id)); failures.push(`#${report.id}: ${e?.response?.data?.message || e?.message || "Không thể từ chối"}`); }
+            }
+            setSelectedIds(previous => [...new Set([...previous.filter(id => !rejectTargetIds.includes(id)), ...failedIds])]);
+            if (detail && rejectTargetIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) setDetail(null);
+            setRejectDialogOpen(false);
+            setRejectTargetIds([]);
             await load();
-            window.alert("Đã từ chối báo cáo và lưu lý do.");
-        } catch (e: any) {
-            window.alert(e?.response?.data?.message || e?.message || "Không thể từ chối báo cáo.");
+            window.alert(`Đã từ chối ${succeeded}/${targets.length} báo cáo.${failures.length ? `\\n\\nCác báo cáo chưa từ chối:\\n• ${failures.join("\\n• ")}` : ""}`);
         } finally { setRejecting(false); }
     };
 
@@ -196,6 +216,7 @@ export default function Reports() {
                     </div>
                     <div className="pending-bulk-toolbar">
                         <span style={{ color: "#526b88", fontSize: 13 }}>Đã chọn <strong>{selectedIds.length}</strong> báo cáo trên trang này</span>
+                        <button type="button" onClick={() => openRejectDialog(selectedIds)} disabled={selectedIds.length === 0 || rejecting || loading} style={{ border: "1px solid #dc5656", borderRadius: 8, padding: "9px 14px", background: selectedIds.length ? "#fff1f1" : "#f1f5f9", color: selectedIds.length ? "#b42323" : "#94a3b8", fontWeight: 700 }}>{rejecting ? "Đang từ chối..." : `✕ Từ chối ${selectedIds.length} báo cáo đã chọn`}</button>
                         <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading} style={{ border: 0, borderRadius: 8, padding: "9px 14px", background: selectedIds.length ? "#1769aa" : "#b7c7d8", color: "#fff", fontWeight: 700, cursor: selectedIds.length && !bulkApproving ? "pointer" : "not-allowed" }}>{bulkApproving ? "Đang duyệt..." : `✓ Duyệt ${selectedIds.length} báo cáo đã chọn`}</button>
                     </div>
                     <div className="pending-table-wrap" style={{ overflowX: "auto" }}>
@@ -253,26 +274,35 @@ export default function Reports() {
                         <section className="pending-detail-section"><h3>Chi tiết lỗi NG</h3>{detailDefects.length ? <div className="pending-defect-list">{detailDefects.map((x: any, i: number) => <span className="pending-defect" key={i}>{text(x.defect_name, x.defect_code)}: {fmt(x.quantity)} sản phẩm</span>)}</div> : detailKpi.ng > 0 ? <div className="pending-history-empty" style={{ background: "#fff8e1", border: "1px solid #f0c36d", color: "#7a5b00" }}>NG {fmt(detailKpi.ng)} sản phẩm — chưa phân loại lỗi.</div> : <div className="pending-history-empty">Không có lỗi NG.</div>}</section>
                         <section className="pending-detail-section"><h3>Ghi chú</h3><div className="pending-detail-field"><span>Ghi chú</span><strong>{text(detail.note || (detail as any).notes, "Không có ghi chú")}</strong></div></section>
                     </div>}
-                    <div style={{ padding: "10px 14px", borderTop: "1px solid #e5edf6", background: "#fbfdff" }}>
-                        <label style={{ display: "block", fontSize: 12, color: "#526b88", marginBottom: 6, fontWeight: 700 }}>Lý do từ chối</label>
-                        <select value={rejectReason} onChange={e => setRejectReason(e.target.value)} disabled={rejecting} style={{ width: "100%", minHeight: 36, border: "1px solid #cbd9e8", borderRadius: 7, padding: "6px 9px", background: "#fff", color: "#244564" }}>
-                            <option>Thiếu công đoạn hoặc sản phẩm để tra định mức</option>
-                            <option>Sai công đoạn hoặc sản phẩm</option>
-                            <option>Sai số lượng OK/NG</option>
-                            <option>Thiếu thông tin báo cáo</option>
-                            <option>Sai ngày báo cáo hoặc ca làm việc</option>
-                            <option>Báo cáo bị trùng</option>
-                            <option>Khác</option>
-                        </select>
-                        {rejectReason === "Khác" && <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Nhập lý do từ chối cụ thể..." rows={2} disabled={rejecting} style={{ width: "100%", boxSizing: "border-box", marginTop: 7, border: "1px solid #cbd9e8", borderRadius: 7, padding: 8, resize: "vertical" }} />}
-                    </div>
                     <div className="pending-detail-actions pending-detail-actions-compact">
                         <button type="button" className="pending-detail-cancel" onClick={() => setDetail(null)}>Đóng</button>
-                        <button type="button" onClick={() => void rejectDetail()} disabled={rejecting || detailLoading} style={{ border: "1px solid #dc5656", background: "#fff1f1", color: "#b42323", borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: rejecting || detailLoading ? "not-allowed" : "pointer" }}>{rejecting ? "Đang từ chối..." : "Từ chối báo cáo"}</button>
+                        <button type="button" onClick={() => openRejectDialog([Number(detail.id)]) disabled={rejecting || detailLoading} style={{ border: "1px solid #dc5656", background: "#fff1f1", color: "#b42323", borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: rejecting || detailLoading ? "not-allowed" : "pointer" }}>{rejecting ? "Đang từ chối..." : "Từ chối báo cáo"}</button>
                         <button type="button" className="pending-detail-approve" onClick={() => void approveDetail()} disabled={approving || detailLoading || rejecting}>{approving ? "Đang duyệt..." : "Duyệt báo cáo"}</button>
                     </div>
                 </aside>}
             </div>
+        {rejectDialogOpen && <div role="presentation" onClick={e => { if (e.target === e.currentTarget && !rejecting) setRejectDialogOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,35,60,.42)", display: "grid", placeItems: "center", padding: 16 }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="reject-dialog-title" style={{ width: "min(100%, 480px)", background: "#fff", borderRadius: 14, boxShadow: "0 20px 60px rgba(15,35,60,.25)", padding: 22 }}>
+                <h2 id="reject-dialog-title" style={{ margin: "0 0 6px", color: "#12385f", fontSize: 20 }}>Từ chối báo cáo</h2>
+                <p style={{ margin: "0 0 16px", color: "#526b88", fontSize: 13 }}>Đang chọn <strong>{rejectTargetIds.length}</strong> báo cáo. Chọn lý do trước khi xác nhận.</p>
+                <label style={{ display: "block", fontSize: 13, color: "#244564", marginBottom: 6, fontWeight: 700 }}>Lý do từ chối <span style={{ color: "#b42323" }}>*</span></label>
+                <select value={rejectReason} onChange={e => setRejectReason(e.target.value)} disabled={rejecting} style={{ width: "100%", minHeight: 40, border: "1px solid #cbd9e8", borderRadius: 8, padding: "8px 10px", background: "#fff", color: "#244564" }}>
+                    <option value="">-- Chọn lý do --</option>
+                    <option value="Thiếu công đoạn hoặc sản phẩm để tra định mức">Thiếu công đoạn hoặc sản phẩm để tra định mức</option>
+                    <option value="Sai công đoạn hoặc sản phẩm">Sai công đoạn hoặc sản phẩm</option>
+                    <option value="Sai số lượng OK/NG">Sai số lượng OK/NG</option>
+                    <option value="Thiếu thông tin báo cáo">Thiếu thông tin báo cáo</option>
+                    <option value="Sai ngày báo cáo hoặc ca làm việc">Sai ngày báo cáo hoặc ca làm việc</option>
+                    <option value="Báo cáo bị trùng">Báo cáo bị trùng</option>
+                    <option value="Khác">Khác</option>
+                </select>
+                {rejectReason === "Khác" && <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Nhập lý do từ chối cụ thể..." rows={3} disabled={rejecting} style={{ width: "100%", boxSizing: "border-box", marginTop: 10, border: "1px solid #cbd9e8", borderRadius: 8, padding: 10, resize: "vertical" }} />}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+                    <button type="button" onClick={() => setRejectDialogOpen(false)} disabled={rejecting} style={{ border: "1px solid #cbd9e8", borderRadius: 8, padding: "9px 14px", background: "#fff", color: "#526b88" }}>Hủy</button>
+                    <button type="button" onClick={() => void rejectTargets()} disabled={rejecting || !rejectReason || (rejectReason === "Khác" && !rejectNote.trim())} style={{ border: 0, borderRadius: 8, padding: "9px 14px", background: rejecting || !rejectReason || (rejectReason === "Khác" && !rejectNote.trim()) ? "#cbd5e1" : "#b42323", color: "#fff", fontWeight: 700 }}>{rejecting ? "Đang từ chối..." : `Xác nhận từ chối ${rejectTargetIds.length} báo cáo`}</button>
+                </div>
+            </section>
+        </div>}
         </div>
     );
 }
