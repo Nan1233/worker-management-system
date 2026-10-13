@@ -181,7 +181,7 @@ export function buildProductionReportPayload(args: {
     machine_no:submittedMachineNo,
     product_name:submittedProductName,
     work_type:(isCvk || isNonProductWorkWithinProcess) ? cvkWorkType : undefined,
-    operation_type:args.operationType, operation_mode:submittedOperationMode,
+    operation_type:isNonProductWorkWithinProcess ? null : args.operationType, operation_mode:submittedOperationMode,
     total_time:isMachineLineAccounting ? 0 : totalTime,
     actual_time:isMachineLineAccounting ? 0 : actualTime,
     deduction_time:isMachineLineAccounting ? 0 : deductionTime,
