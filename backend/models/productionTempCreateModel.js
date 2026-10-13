@@ -8,6 +8,13 @@ const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReport
 const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
 const DAILY_HOURS_LIMIT = 12;
+const getStoredWorkType = (value) => {
+    if (value && typeof value === "object") return String(value.work_type || "").trim();
+    if (typeof value === "string") {
+        try { return String(JSON.parse(value)?.work_type || "").trim(); } catch {}
+    }
+    return "";
+};
 
 const enforceDailyHoursLocked = async (executor, data) => {
     const workerId = Number(data?.worker_id);
@@ -146,7 +153,7 @@ module.exports = {
     async findSimilarApprovedReport({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) {
         if (!logicalDuplicateKey) return null;
         const rows = await query(executor,
-            `SELECT id, worker_id, process_id, work_date, shift, operation_mode, machine_no, product_name, status, created_at, updated_at
+            `SELECT id, worker_id, process_id, work_date, shift, operation_mode, machine_no, product_name, extra_data, status, created_at, updated_at
              FROM production_reports
              WHERE worker_id=? AND process_id=? AND work_date=? AND shift=? AND status <> 'deleted'
              ORDER BY id DESC
@@ -177,6 +184,7 @@ module.exports = {
                 operationMode: row.operation_mode,
                 machineNo: row.machine_no,
                 productName: row.product_name,
+                workType: getStoredWorkType(row.extra_data),
                 machineLines: byReport.get(Number(row.id)) || [],
             });
             if (key === logicalDuplicateKey) return { ...row, report_type: 'approved' };
