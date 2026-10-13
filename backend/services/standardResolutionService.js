@@ -17,7 +17,18 @@ function normalizeRequestedWorkType({processId,processCode,machineCode,workType,
 
 function createStandardResolver({query=defaultQuery}={}) {
   const productCache=new Map(), standardCache=new Map();
-  async function findProductRows(pid,product,workType=null,{includeInactive=false}={}){const normalizedWorkType=normalizeWorkType(workType);const workTypeSql=normalizedWorkType==='LONG'?` AND UPPER(TRIM(ps.work_type))='LỒNG'`:normalizedWorkType==='CUT'?` AND UPPER(TRIM(ps.work_type))='CẮT'`:'';const statusSql=includeInactive?'':` AND ps.status='active'`;return query(`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=?${statusSql}${workTypeSql} AND (product_code=? OR encoding_code=? OR EXISTS(SELECT 1 FROM product_aliases pa WHERE pa.process_id=ps.process_id AND UPPER(TRIM(pa.product_code))=UPPER(TRIM(ps.product_code)) AND pa.status='active' AND UPPER(TRIM(pa.alias_code))=UPPER(TRIM(?)))) ORDER BY CASE WHEN UPPER(TRIM(encoding_code))=UPPER(TRIM(?)) THEN 0 WHEN UPPER(TRIM(product_code))=UPPER(TRIM(?)) THEN 1 ELSE 2 END,id LIMIT 2`,[pid,product,product,product,product,product]);}
+  async function findProductRows(pid,product,workType=null,{includeInactive=false}={}){
+    const normalizedWorkType=normalizeWorkType(workType);
+    const workTypeSql=normalizedWorkType==='LONG'?` AND UPPER(TRIM(ps.work_type))='LỒNG'`:normalizedWorkType==='CUT'?` AND UPPER(TRIM(ps.work_type))='CẮT'`:'';
+    const statusSql=includeInactive?'':` AND ps.status='active'`;
+    const fields=`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=?${statusSql}${workTypeSql}`;
+    // Exact master code/encoding always takes precedence over an alias pointing
+    // at a different base product. This is essential for GC automatic products
+    // such as C2556-AUTO when C2556 also has an active alias.
+    const exactRows=await query(`${fields} AND (UPPER(TRIM(product_code))=UPPER(TRIM(?)) OR UPPER(TRIM(encoding_code))=UPPER(TRIM(?))) ORDER BY CASE WHEN UPPER(TRIM(product_code))=UPPER(TRIM(?)) THEN 0 ELSE 1 END,id LIMIT 2`,[pid,product,product,product]);
+    if(exactRows.length)return exactRows;
+    return query(`${fields} AND EXISTS(SELECT 1 FROM product_aliases pa WHERE pa.process_id=ps.process_id AND UPPER(TRIM(pa.product_code))=UPPER(TRIM(ps.product_code)) AND pa.status='active' AND UPPER(TRIM(pa.alias_code))=UPPER(TRIM(?))) ORDER BY id LIMIT 2`,[pid,product]);
+  }
   function pickEquivalentRow(rows){if(!Array.isArray(rows)||rows.length<2)return null;const out=Number(rows[0]?.standard_output),kqd=Number(rows[0]?.exclude_kqd_from_tt||0);if(!Number.isFinite(out)||out<=0)return null;const allSame=rows.every(row=>sameDecimal(Number(row?.standard_output),out)&&Number(row?.exclude_kqd_from_tt||0)===kqd);return allSame?rows[0]:null;}
   function pickExactRow(rows,product){if(!Array.isArray(rows)||rows.length<2)return null;const wanted=normalizeCode(product);const exact=rows.filter(row=>normalizeCode(row?.product_code)===wanted||normalizeCode(row?.encoding_code)===wanted);return exact.length===1?exact[0]:null;}
   function normalizeCode(value){return String(value||'').trim().toUpperCase();}
