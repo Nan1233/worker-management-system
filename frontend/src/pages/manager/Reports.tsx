@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import { getPendingReports } from "../../services/productionService";
+import { getPendingReports, getTempReportDetail } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import "./ReportsSplitReference.css";
+import "./ReportsDetailCompact.css";
 
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const text = (v: unknown, fallback = "—") => v === null || v === undefined || v === "" ? fallback : String(v);
@@ -49,6 +50,7 @@ export default function Reports() {
     const [search, setSearch] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
+    const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false);
 
     const load = useCallback(async () => {
         try {
@@ -62,11 +64,29 @@ export default function Reports() {
     }, [date, range, process, shift, search, page]);
 
     useEffect(() => { void load(); }, [load]);
-    useEffect(() => { setPage(1); }, [date, range, process, shift, search]);
+    useEffect(() => { setPage(1); setDetail(null); }, [date, range, process, shift, search]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
     const shifts = useMemo(() => Array.from(new Set(reports.map(r => r.shift).filter(Boolean))).sort(), [reports]);
     const quick = (type: "day" | "week" | "month" | "year") => { const today = getToday(); setDate(today); setRange(type === "day" ? null : rangeFor(today, type)); };
+
+    const openDetail = async (report: ProductionReport) => {
+        setDetail(report);
+        setDetailLoading(true);
+        try {
+            const full = await getTempReportDetail(Number(report.id));
+            setDetail(full || report);
+        } catch {
+            setDetail(report);
+        } finally {
+            setDetailLoading(false);
+        }
+    };
+
+    const detailKpi = detail ? kpi(detail) : null;
+    const detailAny = detail as (ProductionReport & Record<string, unknown>) | null;
+    const detailDeductions = Array.isArray(detailAny?.deductions) ? (detailAny?.deductions as any[]).filter(x => num(x.hours) > 0) : [];
+    const detailDefects = Array.isArray(detailAny?.defects) ? (detailAny?.defects as any[]).filter(x => num(x.quantity) > 0) : [];
 
     return (
         <div className="pending-reference-page">
@@ -89,7 +109,7 @@ export default function Reports() {
                 <label><span>Ca làm việc</span><select value={shift} onChange={e => setShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
             </div>
 
-            <div className="pending-workspace list-only" style={{ marginTop: 12 }}>
+            <div className={`pending-workspace ${detail ? "" : "list-only"}`} style={{ marginTop: 12 }}>
                 <section className="pending-list-card">
                     <div className="pending-list-tabs">
                         <button type="button" className="pending-list-tab active">Danh sách chờ duyệt <span className="tab-badge" style={{ background: "#fff0d8", color: "#a56a00" }}>{total}</span></button>
@@ -101,8 +121,8 @@ export default function Reports() {
                                 {loading ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={14} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}>{error}</td></tr> : reports.length === 0 ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
                                     const x = kpi(r);
                                     const code = `PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`;
-                                    return <tr key={r.id ?? i} onClick={() => navigate(`/manager/report/${r.id}?source=pending`)} style={{ cursor: "pointer" }}>
-                                        <td style={{ textAlign: "center" }}><button type="button" className="pending-detail-edit" aria-label={`Xem báo cáo ${r.id}`} onClick={e => { e.stopPropagation(); navigate(`/manager/report/${r.id}?source=pending`); }}>⌕</button></td>
+                                    return <tr key={r.id ?? i} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => void openDetail(r)} style={{ cursor: "pointer" }}>
+                                        <td style={{ textAlign: "center" }}><button type="button" className="pending-detail-edit" aria-label={`Xem báo cáo ${r.id}`} onClick={e => { e.stopPropagation(); void openDetail(r); }}>⌕</button></td>
                                         <td>{code}</td><td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td><td>{text(r.process_name || r.process_code)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(r.actual_time || r.total_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
                                         <td style={metricStyle("productivity", x.nangSuat, x.ngTypeCount)}>{pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td style={metricStyle("pp", x.pp, x.ngTypeCount)}>{pct(x.pp)}{x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}</td><td><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span></td>
                                     </tr>;
@@ -115,6 +135,45 @@ export default function Reports() {
                         <div style={{ display: "flex", gap: 6 }}><button type="button" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button><button type="button" disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button></div>
                     </div>
                 </section>
+                {detail && <aside className="pending-detail-card pending-detail-card-compact">
+                    <div className="pending-detail-head">
+                        <div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span><span className="pending-detail-code">#{detail.id}</span></div>
+                        <button type="button" className="pending-detail-close" onClick={() => setDetail(null)} aria-label="Đóng">×</button>
+                    </div>
+                    {detailLoading ? <div className="pending-detail-loading">Đang tải chi tiết...</div> : detailKpi && <div className="pending-detail-body">
+                        <section className="pending-detail-section"><h3>Thông tin chung</h3><div className="pending-detail-grid">
+                            {[
+                                ["Công nhân", `${text(detail.full_name || detail.worker_name)} (${text(detail.worker_code)})`],
+                                ["Ngày báo cáo", dateText(detail.work_date)],
+                                ["Công đoạn", text(detail.process_name || detail.process_code)],
+                                ["Ca làm việc", text(detail.shift)],
+                                ["Máy móc", text(detail.machine_no)],
+                                ["Sản phẩm", text(detail.product_name)],
+                                ["Thời gian", `${fmt(detail.actual_time || detail.total_time)} giờ`],
+                                ["Học việc", pct(detailKpi.hv)]
+                            ].map(([label, value]) => <div className="pending-detail-field" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}
+                        </div></section>
+                        <section className="pending-detail-section"><h3>Kết quả sản xuất</h3><div className="pending-result-grid">
+                            <div className="pending-result-item"><span>Sản lượng OK</span><strong>{fmt(detailKpi.ok)}</strong></div>
+                            <div className="pending-result-item ng"><span>Sản lượng NG</span><strong>{fmt(detailKpi.ng)}</strong></div>
+                            <div className="pending-result-item total"><span>Tổng sản lượng</span><strong>{fmt(detailKpi.actual)}</strong></div>
+                            <div className="pending-result-item rate"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div>
+                        </div></section>
+                        <section className="pending-detail-section"><h3>Chỉ số KPI</h3><div className="pending-detail-info-grid">
+                            <div className="pending-detail-field"><span>TT định mức</span><strong>{fmt(detailKpi.ttDinhMuc)}</strong></div>
+                            <div className="pending-detail-field" style={metricStyle("productivity", detailKpi.nangSuat, detailKpi.ngTypeCount)}><span>% năng suất</span><strong>{pct(detailKpi.nangSuat)}</strong></div>
+                            <div className="pending-detail-field"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div>
+                            <div className="pending-detail-field" style={metricStyle("pp", detailKpi.pp, detailKpi.ngTypeCount)}><span>% PP (NG)</span><strong>{pct(detailKpi.pp)}{detailKpi.pp === 0 || detailKpi.ngTypeCount === 1 ? " ⚠" : ""}</strong></div>
+                        </div></section>
+                        <section className="pending-detail-section"><h3>Chi tiết thời gian trừ</h3>{detailDeductions.length ? <div className="pending-defect-list">{detailDeductions.map((x: any, i: number) => <span className="pending-defect" key={i}>{text(x.deduction_name, x.deduction_code)}: {fmt(num(x.hours) * 60)} phút</span>)}</div> : <div className="pending-history-empty">Không có thời gian trừ.</div>}</section>
+                        <section className="pending-detail-section"><h3>Chi tiết lỗi NG</h3>{detailDefects.length ? <div className="pending-defect-list">{detailDefects.map((x: any, i: number) => <span className="pending-defect" key={i}>{text(x.defect_name, x.defect_code)}: {fmt(x.quantity)} sản phẩm</span>)}</div> : detailKpi.ng > 0 ? <div className="pending-history-empty" style={{ background: "#fff8e1", border: "1px solid #f0c36d", color: "#7a5b00" }}>NG {fmt(detailKpi.ng)} sản phẩm — chưa phân loại lỗi.</div> : <div className="pending-history-empty">Không có lỗi NG.</div>}</section>
+                        <section className="pending-detail-section"><h3>Ghi chú</h3><div className="pending-detail-field"><span>Ghi chú</span><strong>{text(detail.note || (detail as any).notes, "Không có ghi chú")}</strong></div></section>
+                    </div>}
+                    <div className="pending-detail-actions pending-detail-actions-compact">
+                        <button type="button" className="pending-detail-cancel" onClick={() => setDetail(null)}>Đóng</button>
+                        <button type="button" className="pending-detail-approve" onClick={() => navigate(`/manager/report/${detail.id}?source=pending`)}>Mở duyệt</button>
+                    </div>
+                </aside>}
             </div>
         </div>
     );
