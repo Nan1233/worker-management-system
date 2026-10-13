@@ -93,8 +93,7 @@ exports.createTempReport = async (req, res) => {
             ? req.body.extra_data
             : {};
         const isNonProductWorkWithinProcess = extraDataInput.non_product_work === true
-            && processId !== 30002 && processId !== 60006
-            && String(extraDataInput.process_code || "").trim().toUpperCase() !== "CVK";
+            && processId !== 30002 && processId !== 60006;
 
 
         if (!workerId) {
