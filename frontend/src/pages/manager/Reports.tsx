@@ -48,7 +48,8 @@ export default function Reports() {
     const [search, setSearch] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
-    const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);\n    const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false);
+    const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false);
 
     const load = useCallback(async () => {
         try {
@@ -62,7 +63,8 @@ export default function Reports() {
     }, [date, range, process, shift, search, page]);
 
     useEffect(() => { void load(); }, [load]);
-    useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, search]);\n    useEffect(() => { setSelectedIds([]); }, [page]);
+    useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, search]);
+    useEffect(() => { setSelectedIds([]); }, [page]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
     const shifts = useMemo(() => Array.from(new Set(reports.map(r => r.shift).filter(Boolean))).sort(), [reports]);
@@ -96,7 +98,26 @@ export default function Reports() {
         }
     };
 
-    const visibleIds = reports.map(r => Number(r.id)).filter(id => Number.isInteger(id) && id > 0);\n    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));\n    const toggleSelected = (id: number) => setSelectedIds(previous => previous.includes(id) ? previous.filter(x => x !== id) : [...previous, id]);\n    const toggleVisibleSelection = () => setSelectedIds(previous => allVisibleSelected ? previous.filter(id => !visibleIds.includes(id)) : [...new Set([...previous, ...visibleIds])]);\n    const approveBulk = async () => {\n        const targets = reports.filter(r => selectedIds.includes(Number(r.id))).map(r => ({ id: Number(r.id), expected_updated_at: r.updated_at || null }));\n        if (!targets.length || bulkApproving) return;\n        if (!window.confirm(\`Bạn chắc chắn muốn duyệt ${targets.length} báo cáo đã chọn?\`)) return;\n        setBulkApproving(true); setError(\"\");\n        try {\n            await approveSelectedTempReports(targets);\n            setSelectedIds([]); setDetail(null);\n            await load();\n            window.alert(\`Đã duyệt thành công ${targets.length} báo cáo.\`);\n        } catch (e: any) {\n            window.alert(e?.response?.data?.message || e?.message || \"Không thể duyệt các báo cáo đã chọn. Vui lòng thử lại.\");\n        } finally { setBulkApproving(false); }\n    };\n\n    const detailKpi = detail ? kpi(detail) : null;
+    const visibleIds = reports.map(r => Number(r.id)).filter(id => Number.isInteger(id) && id > 0);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
+    const toggleSelected = (id: number) => setSelectedIds(previous => previous.includes(id) ? previous.filter(x => x !== id) : [...previous, id]);
+    const toggleVisibleSelection = () => setSelectedIds(previous => allVisibleSelected ? previous.filter(id => !visibleIds.includes(id)) : [...new Set([...previous, ...visibleIds])]);
+    const approveBulk = async () => {
+        const targets = reports.filter(r => selectedIds.includes(Number(r.id))).map(r => ({ id: Number(r.id), expected_updated_at: r.updated_at || null }));
+        if (!targets.length || bulkApproving) return;
+        if (!window.confirm(\`Bạn chắc chắn muốn duyệt ${targets.length} báo cáo đã chọn?\`)) return;
+        setBulkApproving(true); setError(\"\");
+        try {
+            await approveSelectedTempReports(targets);
+            setSelectedIds([]); setDetail(null);
+            await load();
+            window.alert(\`Đã duyệt thành công ${targets.length} báo cáo.\`);
+        } catch (e: any) {
+            window.alert(e?.response?.data?.message || e?.message || \"Không thể duyệt các báo cáo đã chọn. Vui lòng thử lại.\");
+        } finally { setBulkApproving(false); }
+    };
+
+    const detailKpi = detail ? kpi(detail) : null;
     const detailAny = detail as (ProductionReport & Record<string, unknown>) | null;
     const detailDeductions = Array.isArray(detailAny?.deductions) ? (detailAny?.deductions as any[]).filter(x => num(x.hours) > 0) : [];
     const detailDefects = Array.isArray(detailAny?.defects) ? (detailAny?.defects as any[]).filter(x => num(x.quantity) > 0) : [];
@@ -127,7 +148,11 @@ export default function Reports() {
                     <div className="pending-list-tabs">
                         <button type="button" className="pending-list-tab active">Danh sách chờ duyệt <span className="tab-badge" style={{ background: "#fff0d8", color: "#a56a00" }}>{total}</span></button>
                     </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid #e5edf6" }}>\n                        <span style={{ color: "#526b88", fontSize: 13 }}>Đã chọn <strong>{selectedIds.length}</strong> báo cáo trên trang này</span>\n                        <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading} style={{ border: 0, borderRadius: 8, padding: "9px 14px", background: selectedIds.length ? "#1769aa" : "#b7c7d8", color: "#fff", fontWeight: 700, cursor: selectedIds.length && !bulkApproving ? "pointer" : "not-allowed" }}>{bulkApproving ? "Đang duyệt..." : `✓ Duyệt ${selectedIds.length} báo cáo đã chọn`}</button>\n                    </div>\n                    <div className="pending-table-wrap" style={{ overflowX: "auto" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid #e5edf6" }}>
+                        <span style={{ color: "#526b88", fontSize: 13 }}>Đã chọn <strong>{selectedIds.length}</strong> báo cáo trên trang này</span>
+                        <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading} style={{ border: 0, borderRadius: 8, padding: "9px 14px", background: selectedIds.length ? "#1769aa" : "#b7c7d8", color: "#fff", fontWeight: 700, cursor: selectedIds.length && !bulkApproving ? "pointer" : "not-allowed" }}>{bulkApproving ? "Đang duyệt..." : `✓ Duyệt ${selectedIds.length} báo cáo đã chọn`}</button>
+                    </div>
+                    <div className="pending-table-wrap" style={{ overflowX: "auto" }}>
                         <table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                             <thead><tr><th className="management-checkbox-column"><input type="checkbox" aria-label="Chọn tất cả báo cáo trên trang này" checked={allVisibleSelected} onChange={toggleVisibleSelection} disabled={loading || reports.length === 0} /></th><th className="management-checkbox-column">Xem</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian</th><th>% HV</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% đạt</th><th>% PP</th><th>Trạng thái</th></tr></thead>
                             <tbody>
