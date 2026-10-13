@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { approveTempReport, getPendingReports, getTempReportDetail } from "../../services/productionService";
+import { approveTempReport, approveSelectedTempReports, getPendingReports, getTempReportDetail } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import "./ReportsSplitReference.css";
@@ -48,7 +48,7 @@ export default function Reports() {
     const [search, setSearch] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
-    const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);
+    const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);\n    const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false);
 
     const load = useCallback(async () => {
         try {
@@ -62,7 +62,7 @@ export default function Reports() {
     }, [date, range, process, shift, search, page]);
 
     useEffect(() => { void load(); }, [load]);
-    useEffect(() => { setPage(1); setDetail(null); }, [date, range, process, shift, search]);
+    useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, search]);\n    useEffect(() => { setSelectedIds([]); }, [page]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
     const shifts = useMemo(() => Array.from(new Set(reports.map(r => r.shift).filter(Boolean))).sort(), [reports]);
@@ -96,7 +96,7 @@ export default function Reports() {
         }
     };
 
-    const detailKpi = detail ? kpi(detail) : null;
+    const visibleIds = reports.map(r => Number(r.id)).filter(id => Number.isInteger(id) && id > 0);\n    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));\n    const toggleSelected = (id: number) => setSelectedIds(previous => previous.includes(id) ? previous.filter(x => x !== id) : [...previous, id]);\n    const toggleVisibleSelection = () => setSelectedIds(previous => allVisibleSelected ? previous.filter(id => !visibleIds.includes(id)) : [...new Set([...previous, ...visibleIds])]);\n    const approveBulk = async () => {\n        const targets = reports.filter(r => selectedIds.includes(Number(r.id))).map(r => ({ id: Number(r.id), expected_updated_at: r.updated_at || null }));\n        if (!targets.length || bulkApproving) return;\n        if (!window.confirm(\`Bạn chắc chắn muốn duyệt ${targets.length} báo cáo đã chọn?\`)) return;\n        setBulkApproving(true); setError(\"\");\n        try {\n            await approveSelectedTempReports(targets);\n            setSelectedIds([]); setDetail(null);\n            await load();\n            window.alert(\`Đã duyệt thành công ${targets.length} báo cáo.\`);\n        } catch (e: any) {\n            window.alert(e?.response?.data?.message || e?.message || \"Không thể duyệt các báo cáo đã chọn. Vui lòng thử lại.\");\n        } finally { setBulkApproving(false); }\n    };\n\n    const detailKpi = detail ? kpi(detail) : null;
     const detailAny = detail as (ProductionReport & Record<string, unknown>) | null;
     const detailDeductions = Array.isArray(detailAny?.deductions) ? (detailAny?.deductions as any[]).filter(x => num(x.hours) > 0) : [];
     const detailDefects = Array.isArray(detailAny?.defects) ? (detailAny?.defects as any[]).filter(x => num(x.quantity) > 0) : [];
@@ -127,15 +127,15 @@ export default function Reports() {
                     <div className="pending-list-tabs">
                         <button type="button" className="pending-list-tab active">Danh sách chờ duyệt <span className="tab-badge" style={{ background: "#fff0d8", color: "#a56a00" }}>{total}</span></button>
                     </div>
-                    <div className="pending-table-wrap" style={{ overflowX: "auto" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid #e5edf6" }}>\n                        <span style={{ color: "#526b88", fontSize: 13 }}>Đã chọn <strong>{selectedIds.length}</strong> báo cáo trên trang này</span>\n                        <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading} style={{ border: 0, borderRadius: 8, padding: "9px 14px", background: selectedIds.length ? "#1769aa" : "#b7c7d8", color: "#fff", fontWeight: 700, cursor: selectedIds.length && !bulkApproving ? "pointer" : "not-allowed" }}>{bulkApproving ? "Đang duyệt..." : `✓ Duyệt ${selectedIds.length} báo cáo đã chọn`}</button>\n                    </div>\n                    <div className="pending-table-wrap" style={{ overflowX: "auto" }}>
                         <table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-                            <thead><tr><th className="management-checkbox-column">Xem</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian</th><th>% HV</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% đạt</th><th>% PP</th><th>Trạng thái</th></tr></thead>
+                            <thead><tr><th className="management-checkbox-column"><input type="checkbox" aria-label="Chọn tất cả báo cáo trên trang này" checked={allVisibleSelected} onChange={toggleVisibleSelection} disabled={loading || reports.length === 0} /></th><th className="management-checkbox-column">Xem</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian</th><th>% HV</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% đạt</th><th>% PP</th><th>Trạng thái</th></tr></thead>
                             <tbody>
-                                {loading ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={14} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}>{error}</td></tr> : reports.length === 0 ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
+                                {loading ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={14} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}>{error}</td></tr> : reports.length === 0 ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
                                     const x = kpi(r);
                                     const code = `PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`;
                                     return <tr key={r.id ?? i} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => void openDetail(r)} style={{ cursor: "pointer" }}>
-                                        <td style={{ textAlign: "center" }}><button type="button" className="pending-detail-edit" aria-label={`Xem báo cáo ${r.id}`} onClick={e => { e.stopPropagation(); void openDetail(r); }}>⌕</button></td>
+                                        <td style={{ textAlign: "center" }}><input type="checkbox" aria-label={`Chọn báo cáo ${r.id}`} checked={selectedIds.includes(Number(r.id))} onChange={() => toggleSelected(Number(r.id))} onClick={e => e.stopPropagation()} /></td><td style={{ textAlign: "center" }}><button type="button" className="pending-detail-edit" aria-label={`Xem báo cáo ${r.id}`} onClick={e => { e.stopPropagation(); void openDetail(r); }}>⌕</button></td>
                                         <td>{code}</td><td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td><td>{text(r.process_name || r.process_code)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(r.actual_time || r.total_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
                                         <td style={metricStyle("productivity", x.nangSuat, x.ngTypeCount)}>{pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td style={metricStyle("pp", x.pp, x.ngTypeCount)}>{pct(x.pp)}{x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}</td><td><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span></td>
                                     </tr>;
