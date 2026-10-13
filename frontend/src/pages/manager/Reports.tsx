@@ -276,7 +276,7 @@ export default function Reports() {
                     </div>}
                     <div className="pending-detail-actions pending-detail-actions-compact">
                         <button type="button" className="pending-detail-cancel" onClick={() => setDetail(null)}>Đóng</button>
-                        <button type="button" onClick={() => openRejectDialog([Number(detail.id)]) disabled={rejecting || detailLoading} style={{ border: "1px solid #dc5656", background: "#fff1f1", color: "#b42323", borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: rejecting || detailLoading ? "not-allowed" : "pointer" }}>{rejecting ? "Đang từ chối..." : "Từ chối báo cáo"}</button>
+                        <button type="button" onClick={() => openRejectDialog([Number(detail.id)])} disabled={rejecting || detailLoading} style={{ border: "1px solid #dc5656", background: "#fff1f1", color: "#b42323", borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: rejecting || detailLoading ? "not-allowed" : "pointer" }}>{rejecting ? "Đang từ chối..." : "Từ chối báo cáo"}</button>
                         <button type="button" className="pending-detail-approve" onClick={() => void approveDetail()} disabled={approving || detailLoading || rejecting}>{approving ? "Đang duyệt..." : "Duyệt báo cáo"}</button>
                     </div>
                 </aside>}
