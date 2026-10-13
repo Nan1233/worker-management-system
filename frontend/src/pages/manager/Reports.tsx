@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { approveSelectedTempReports, getPendingReports, getTempReportDetail } from "../../services/productionService";
+import { approveTempReport, getPendingReports, getTempReportDetail } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import "./ReportsSplitReference.css";
@@ -85,7 +85,7 @@ export default function Reports() {
         if (!detail || approving) return;
         setApproving(true);
         try {
-            await approveSelectedTempReports([detail.id]);
+            await approveTempReport(Number(detail.id));
             setDetail(null);
             await load();
             window.alert("Đã duyệt báo cáo thành công.");
