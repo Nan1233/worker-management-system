@@ -148,11 +148,9 @@ function getExtraDataObject(value) {
 
 function isParentProcessNonProductWork(item) {
   const extra = getExtraDataObject(item?.extra_data);
-  const processCode = String(extra.process_code || "").trim().toUpperCase();
   return extra.non_product_work === true
     && Number(item?.process_id) !== 30002
-    && Number(item?.process_id) !== 60006
-    && processCode !== "CVK";
+    && Number(item?.process_id) !== 60006;
 }
 
 function assertNonProductWorkSnapshot(item) {
