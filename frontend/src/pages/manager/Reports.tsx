@@ -105,13 +105,13 @@ export default function Reports() {
     const approveBulk = async () => {
         const targets = reports.filter(r => selectedIds.includes(Number(r.id))).map(r => ({ id: Number(r.id), expected_updated_at: r.updated_at || null }));
         if (!targets.length || bulkApproving) return;
-        if (!window.confirm(\`Bạn chắc chắn muốn duyệt ${targets.length} báo cáo đã chọn?\`)) return;
+        if (!window.confirm(`Bạn chắc chắn muốn duyệt ${targets.length} báo cáo đã chọn?`)) return;
         setBulkApproving(true); setError("");
         try {
             await approveSelectedTempReports(targets);
             setSelectedIds([]); setDetail(null);
             await load();
-            window.alert(\`Đã duyệt thành công ${targets.length} báo cáo.\`);
+            window.alert(`Đã duyệt thành công ${targets.length} báo cáo.`);
         } catch (e: any) {
             window.alert(e?.response?.data?.message || e?.message || "Không thể duyệt các báo cáo đã chọn. Vui lòng thử lại.");
         } finally { setBulkApproving(false); }
