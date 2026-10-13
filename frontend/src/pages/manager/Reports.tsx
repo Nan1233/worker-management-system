@@ -106,14 +106,14 @@ export default function Reports() {
         const targets = reports.filter(r => selectedIds.includes(Number(r.id))).map(r => ({ id: Number(r.id), expected_updated_at: r.updated_at || null }));
         if (!targets.length || bulkApproving) return;
         if (!window.confirm(\`Bạn chắc chắn muốn duyệt ${targets.length} báo cáo đã chọn?\`)) return;
-        setBulkApproving(true); setError(\"\");
+        setBulkApproving(true); setError("");
         try {
             await approveSelectedTempReports(targets);
             setSelectedIds([]); setDetail(null);
             await load();
             window.alert(\`Đã duyệt thành công ${targets.length} báo cáo.\`);
         } catch (e: any) {
-            window.alert(e?.response?.data?.message || e?.message || \"Không thể duyệt các báo cáo đã chọn. Vui lòng thử lại.\");
+            window.alert(e?.response?.data?.message || e?.message || "Không thể duyệt các báo cáo đã chọn. Vui lòng thử lại.");
         } finally { setBulkApproving(false); }
     };
 
@@ -156,7 +156,7 @@ export default function Reports() {
                         <table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                             <thead><tr><th className="management-checkbox-column"><input type="checkbox" aria-label="Chọn tất cả báo cáo trên trang này" checked={allVisibleSelected} onChange={toggleVisibleSelection} disabled={loading || reports.length === 0} /></th><th className="management-checkbox-column">Xem</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian</th><th>% HV</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% đạt</th><th>% PP</th><th>Trạng thái</th></tr></thead>
                             <tbody>
-                                {loading ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={14} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}>{error}</td></tr> : reports.length === 0 ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
+                                {loading ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={15} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}>{error}</td></tr> : reports.length === 0 ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
                                     const x = kpi(r);
                                     const code = `PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`;
                                     return <tr key={r.id ?? i} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => void openDetail(r)} style={{ cursor: "pointer" }}>
