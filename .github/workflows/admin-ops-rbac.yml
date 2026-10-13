@@ -47,3 +47,39 @@ jobs:
         run: npm run typecheck
       - name: Permissions UI contract test
         run: node --test tests/permissions-ui.test.cjs
+
+  backend-full-suite:
+    name: Backend full test suite (informational — no live TiDB in CI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - name: Full backend suite (node --test tests/*.test.js)
+        timeout-minutes: 8
+        run: npm test
+
+  frontend-full-suite-and-build:
+    name: Frontend full tests (informational) + production build (blocking)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - name: Full frontend test suite (informational — known pre-existing failures tracked outside this PR)
+        continue-on-error: true
+        run: npm test
+      - name: Production build (must pass)
+        run: npm run build
