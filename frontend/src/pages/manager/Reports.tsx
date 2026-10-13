@@ -148,7 +148,7 @@ export default function Reports() {
                     <div className="pending-list-tabs">
                         <button type="button" className="pending-list-tab active">Danh sách chờ duyệt <span className="tab-badge" style={{ background: "#fff0d8", color: "#a56a00" }}>{total}</span></button>
                     </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid #e5edf6" }}>
+                    <div className="pending-bulk-toolbar">
                         <span style={{ color: "#526b88", fontSize: 13 }}>Đã chọn <strong>{selectedIds.length}</strong> báo cáo trên trang này</span>
                         <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading} style={{ border: 0, borderRadius: 8, padding: "9px 14px", background: selectedIds.length ? "#1769aa" : "#b7c7d8", color: "#fff", fontWeight: 700, cursor: selectedIds.length && !bulkApproving ? "pointer" : "not-allowed" }}>{bulkApproving ? "Đang duyệt..." : `✓ Duyệt ${selectedIds.length} báo cáo đã chọn`}</button>
                     </div>
