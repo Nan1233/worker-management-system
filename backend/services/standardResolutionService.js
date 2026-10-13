@@ -32,11 +32,28 @@ function createStandardResolver({query=defaultQuery}={}) {
     // An explicitly saved version is authoritative for an existing report. Permit
     // resolving its product row even if the current master row was deactivated;
     // new lookups without a saved version still require an active product.
-    let selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias,workType:normalizedWorkType,includeInactive:historicalSnapshotLookup});
+    let selectedProduct=null;
     let fallbackToProcessProduct=false;
-    if(!selectedProduct && normalizedWorkType){
-      selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias,workType:null,includeInactive:historicalSnapshotLookup});
-      fallbackToProcessProduct=Boolean(selectedProduct);
+
+    // For new AUTO reports, resolve the explicit "-AUTO" master row first.
+    // Looking up the base code first can incorrectly select a different standard
+    // (e.g. C2556=875) even when C2556-AUTO=5000 exists and is the intended rule.
+    // Existing reports with a saved version keep their historical snapshot path.
+    if(allowAutoAlias && !requestedVersionId && !/-AUTO$/i.test(product)){
+      const autoProduct=`${product}-AUTO`;
+      selectedProduct=await selectProductRow(pid,autoProduct,date,{allowAutoAlias:false,workType:normalizedWorkType,includeInactive:false});
+      if(!selectedProduct && normalizedWorkType){
+        selectedProduct=await selectProductRow(pid,autoProduct,date,{allowAutoAlias:false,workType:null,includeInactive:false});
+        fallbackToProcessProduct=Boolean(selectedProduct);
+      }
+    }
+
+    if(!selectedProduct){
+      selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutoAlias&&!requestedVersionId,workType:normalizedWorkType,includeInactive:historicalSnapshotLookup});
+      if(!selectedProduct && normalizedWorkType){
+        selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutoAlias&&!requestedVersionId,workType:null,includeInactive:historicalSnapshotLookup});
+        fallbackToProcessProduct=Boolean(selectedProduct);
+      }
     }
     if(!selectedProduct)throw businessError('HISTORICAL_STANDARD_NOT_FOUND',`Không xác định duy nhất định mức sản phẩm ${product}${normalizedWorkType?` / ${normalizedWorkType}`:''} trong công đoạn`,{process_id:pid,product_code:product,work_type:normalizedWorkType||null});
     const canonicalProduct=String(selectedProduct.product_code||'').trim();
