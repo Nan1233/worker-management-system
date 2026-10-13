@@ -178,7 +178,7 @@ exports.createTempReport = async (req, res) => {
         // machine_lines chỉ lưu thời gian chạy riêng của từng máy.
         const operationType = String(req.body?.operation_type || "").trim().toUpperCase() || null;
         const operationMode = String(req.body?.operation_mode || req.body?.execution_method || "").trim().toUpperCase() || null;
-        const rawMachineLines = Array.isArray(req.body?.machine_lines)
+        const submittedMachineLines = Array.isArray(req.body?.machine_lines)
             ? req.body.machine_lines
             : Array.isArray(req.body?.machines)
                 ? req.body.machines.map((item) => ({
@@ -186,10 +186,19 @@ exports.createTempReport = async (req, res) => {
                     product_code: item.product_code || validation.normalized.product_name,
                     machine_time_hours: item.machine_time_hours ??
                         ((Number(item.running_hours || 0) * 60 + Number(item.running_minutes || 0)) / 60),
-                    ok_quantity: item.ok_quantity || 0,
-                    ng_quantity: item.ng_quantity || 0
+                    ok_quantity: item.ok_quantity ?? item.okQuantity ?? 0,
+                    ng_quantity: item.ng_quantity ?? item.ngQuantity ?? 0
                 }))
                 : [];
+
+        // Accept both API snake_case and frontend camelCase quantity keys.
+        // Nullish fallback is intentional: a valid numeric 0 must remain 0,
+        // while a missing snake_case key can still use the camelCase value.
+        const rawMachineLines = submittedMachineLines.map((line) => ({
+            ...line,
+            ok_quantity: line?.ok_quantity ?? line?.okQuantity ?? 0,
+            ng_quantity: line?.ng_quantity ?? line?.ngQuantity ?? 0
+        }));
 
         const machinePolicy = getProcessMachinePolicy(processId);
         const normalizedMachineNo = String(validation.normalized.machine_no || req.body?.machine_no || "").trim();
