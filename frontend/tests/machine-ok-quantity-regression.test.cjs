@@ -23,3 +23,14 @@ test('single-machine payload does not overwrite line OK/NG with stale parent tot
   assert.match(submission, /ok_quantity:selectedMachineLine \? num\(selectedMachineLine\.ok_quantity\) : num\(args\.form\.ttOk\)/);
   assert.match(submission, /ng_quantity:selectedMachineLine \? num\(selectedMachineLine\.ng_quantity\) : num\(args\.form\.ttNg\)/);
 });
+
+test('backend accepts camelCase machine quantities without defaulting submitted OK to zero', () => {
+  const controller = fs.readFileSync(
+    path.join(root, '..', '..', 'backend', 'controllers', 'productionTempWorkerController.js'),
+    'utf8'
+  );
+
+  assert.match(controller, /ok_quantity:\s*line\?\.ok_quantity\s*\?\?\s*line\?\.okQuantity\s*\?\?\s*0/);
+  assert.match(controller, /ng_quantity:\s*line\?\.ng_quantity\s*\?\?\s*line\?\.ngQuantity\s*\?\?\s*0/);
+  assert.match(controller, /Number\(machineValidation\.totals\?\.totalOk\s*\|\|\s*0\)/);
+});
