@@ -81,6 +81,14 @@ test('saved historical version still resolves when the current product master is
   assert.match(resolved.source, /^PRODUCT_VERSION_SNAPSHOT/);
 });
 
+test('inactive product without a saved version remains unavailable for new lookup', async () => {
+  const resolver = createStandardResolver({ query: createFixtureQuery({ inactiveProduct: true }) });
+  await assert.rejects(
+    () => resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-10' }),
+    (error) => error.code === 'HISTORICAL_STANDARD_NOT_FOUND'
+  );
+});
+
 test('missing historical product standard fails closed', async () => {
   const resolver = createStandardResolver({ query: createFixtureQuery({ missing: true }) });
   await assert.rejects(
