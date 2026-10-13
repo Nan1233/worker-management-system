@@ -237,7 +237,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         const existingBefore = await findExistingClientRequest(data);
         if (existingBefore) return idempotent(existingBefore);
 
-        data.logical_duplicate_key = buildLogicalDuplicateKey({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, operationMode: data.operation_mode ?? data.operationMode, machineNo: data.machine_no, productName: data.product_name, machineLines });
+        data.logical_duplicate_key = buildLogicalDuplicateKey({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, operationMode: data.operation_mode ?? data.operationMode, machineNo: data.machine_no, productName: data.product_name, workType: data.work_type || data.extra_data?.work_type, machineLines });
 
         const tempDuplicate = await createModel.findSimilarTempReport({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, machineNo: data.machine_no, productName: data.product_name, logicalDuplicateKey: data.logical_duplicate_key });
         const approvedDuplicate = tempDuplicate ? null : await createModel.findSimilarApprovedReport({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, logicalDuplicateKey: data.logical_duplicate_key });
