@@ -40,6 +40,7 @@ export const getApprovedReportsByDate=async(date:string):Promise<ProductionRepor
 export const exportApprovedExcel=async(date:string)=>{const res=await api.get(`/reports/export-excel?date=${date}&type=approved`,{responseType:"blob"});downloadExcel(res.data,`BaoCaoDaDuyet_${date}.xlsx`);};
 export type TempReviewTarget={id:number;expected_updated_at?:string|null};
 const normalizeTempReviewTargets=(items:Array<number|TempReviewTarget>)=>items.map(item=>typeof item==="number"?{id:item}:{id:Number(item.id)});
+export const approveTempReport=async(id:number)=>{if(!Number.isInteger(Number(id))||Number(id)<=0)throw new Error("ID báo cáo không hợp lệ");const res=await api.post("/production-temp/approve",{ids:[Number(id)]});invalidateManagerReportCaches();return res.data;};
 export const approveSelectedTempReports=async(items:Array<number|TempReviewTarget>)=>{const targets=normalizeTempReviewTargets(items);const res=await api.post("/production-temp/approve-selected",{ids:targets.map(item=>item.id),targets});invalidateManagerReportCaches();return res.data;};
 export const rejectSelectedTempReports=async(items:Array<number|TempReviewTarget>,reason:string)=>{const ids=items.map(item=>typeof item==="number"?item:Number(item.id));const res=await api.post("/production-temp/reject-selected",{ids,reason});invalidateManagerReportCaches();invalidatePendingReportCache();return res.data;};
 export interface MachineProductionEventDefectInput{defect_type_id?:number;defect_code?:string;quantity:number;responsible_worker_id:number;}
