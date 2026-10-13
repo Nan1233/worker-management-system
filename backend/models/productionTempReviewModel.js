@@ -70,38 +70,34 @@ async function repairMachineLineReferences(targets) {
     .filter((id) => Number.isInteger(id) && id > 0))];
   if (!ids.length) return;
   const placeholders = ids.map(() => "?").join(",");
-  const [lines] = await db.promise().query(
-    `SELECT ml.id,ml.machine_id,ml.machine_code,r.process_id,r.machine_no
-       FROM production_temp_machine_lines ml
+  // Resolve only unambiguous active machines in one joined UPDATE. The previous
+  // implementation performed SELECT + UPDATE for every line, exhausting Worker
+  // subrequests when a report contained multiple machine lines.
+  await db.promise().query(
+    `UPDATE production_temp_machine_lines ml
        JOIN production_reports_temp r ON r.id=ml.temp_report_id
+       JOIN (
+         SELECT process_id, UPPER(TRIM(machine_code)) AS normalized_code,
+                MIN(id) AS machine_id, MIN(machine_code) AS machine_code
+           FROM machines
+          WHERE status='active'
+          GROUP BY process_id, UPPER(TRIM(machine_code))
+         HAVING COUNT(*)=1
+       ) m
+         ON m.process_id=r.process_id
+        AND m.normalized_code=UPPER(TRIM(
+          COALESCE(NULLIF(TRIM(ml.machine_code),''), SUBSTRING_INDEX(r.machine_no,',',1))
+        ))
+      SET ml.machine_id=m.machine_id,
+          ml.machine_code=m.machine_code
       WHERE r.id IN (${placeholders})
-        AND r.status IN ('pending','need_fix')`,
+        AND r.status IN ('pending','need_fix')
+        AND (
+          ml.machine_id IS NULL OR ml.machine_id<>m.machine_id
+          OR TRIM(COALESCE(ml.machine_code,''))<>TRIM(m.machine_code)
+        )`,
     ids,
   );
-
-  for (const line of lines || []) {
-    const machineCode = String(line.machine_code || line.machine_no || "").split(",")[0].trim();
-    if (!machineCode) continue;
-    const [machines] = await db.promise().query(
-      `SELECT id,machine_code
-         FROM machines
-        WHERE process_id=?
-          AND status='active'
-          AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
-        LIMIT 2`,
-      [Number(line.process_id), machineCode],
-    );
-    if (machines?.length !== 1) continue;
-    const machine = machines[0];
-    if (Number(line.machine_id) !== Number(machine.id) || String(line.machine_code || "").trim() !== String(machine.machine_code || "").trim()) {
-      await db.promise().query(
-        `UPDATE production_temp_machine_lines
-            SET machine_id=?, machine_code=?
-          WHERE id=?`,
-        [Number(machine.id), machine.machine_code, Number(line.id)],
-      );
-    }
-  }
 }
 
 async function linkMatchingApprovedMachineEvents(targets) {
@@ -243,9 +239,9 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
 module.exports = {
   ...approvalModel,
   async approveSelected(targets, reviewerId, isAdmin = false) {
-    await ensureLegacyMachineLines(targets);
-    await repairMachineLineReferences(targets);
-    await linkMatchingApprovedMachineEvents(targets);
-    return approveSelectedSerialized(targets, reviewerId, isAdmin);
+    await approvalStage("ensureLegacyMachineLines", () => ensureLegacyMachineLines(targets));
+    await approvalStage("repairMachineLineReferences", () => repairMachineLineReferences(targets));
+    await approvalStage("linkMatchingApprovedMachineEvents", () => linkMatchingApprovedMachineEvents(targets));
+    return approvalStage("approveSelectedSerialized", () => approveSelectedSerialized(targets, reviewerId, isAdmin));
   },
 };
