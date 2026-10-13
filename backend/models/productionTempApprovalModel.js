@@ -27,7 +27,18 @@ function serializeExtraData(value) {
 const { createApprovedReportVersion } = require("../services/approvedVersionSnapshotService");
 const { assertReviewBatchSize } = require("../services/managerReportPaginationService");
 
-const qRows = async (executor, sql, params = []) => await query(executor, sql, params);
+const qRows = async (executor, sql, params = []) => {
+  const started = Date.now();
+  try {
+    const result = await query(executor, sql, params);
+    const elapsed = Date.now() - started;
+    if (elapsed >= 750) console.warn(`[KTC][APPROVAL_QUERY] ms=${elapsed} sql=${String(sql).replace(/\s+/g, " ").slice(0, 260)}`);
+    return result;
+  } catch (error) {
+    console.error(`[KTC][APPROVAL_QUERY_ERROR] ms=${Date.now() - started} code=${error?.code || ""} sql=${String(sql).replace(/\s+/g, " ").slice(0, 260)} message=${String(error?.message || error).slice(0, 200)}`);
+    throw error;
+  }
+};
 
 async function getTempMachineLines(tempReportId, connection) {
   const lines = await qRows(
