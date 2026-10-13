@@ -42,6 +42,21 @@ function createFixtureQuery({ overlap = false, missing = false, machine = false,
   };
 }
 
+test('canonical CVK process ID resolves non-product work without requiring a product standard', async () => {
+  const resolver = createStandardResolver({ query: async () => {
+    throw new Error('Non-product CVK work must not query product standards');
+  }});
+  const resolved = await resolver.resolveStandard({
+    processId: 30002,
+    productCode: '',
+    workDate: '2026-10-08',
+  });
+  assert.equal(resolved.nonProductWork, true);
+  assert.equal(resolved.source, 'NON_PRODUCT_WORK');
+  assert.equal(resolved.standardOutput, 0);
+  assert.equal(resolved.productCode, null);
+});
+
 test('historical product standard resolves strictly by work_date boundary', async () => {
   const resolver = createStandardResolver({ query: createFixtureQuery() });
   const v1 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-10' });
