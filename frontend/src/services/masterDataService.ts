@@ -143,17 +143,33 @@ const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProd
     const normalizedCanonical = String(canonicalProduct || "").trim().toUpperCase();
     const normalizedInput = String(normalizedProduct || "").trim().toUpperCase();
     const workType = inferGcWorkType(machineCode);
-    const matchesProduct = (row: ProductStandardOption) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedInput)
-        || String(row?.product_code || "").trim().toUpperCase() === normalizedCanonical;
-    const positive = rows.filter((row) => matchesProduct(row) && Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0);
-    if (workType) {
-        const typed = positive.filter((row) => {
+    const isPositive = (row: ProductStandardOption) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0;
+    const hasExactCode = (row: ProductStandardOption) => [row?.product_code, row?.alias_code]
+        .some((value) => String(value || "").trim().toUpperCase() === normalizedInput);
+    const byWorkType = (candidates: ProductStandardOption[]) => {
+        if (!workType) return candidates;
+        return candidates.filter((row) => {
             const type = String(row?.work_type || "").trim().toUpperCase();
-            return workType === "LONG" ? type === "LỒNG" || type === "LONG" : type === "CẮT" || type === "CUT" || type === "CAT";
+            return workType === "LONG"
+                ? type === "LỒNG" || type === "LONG"
+                : type === "CẮT" || type === "CUT" || type === "CAT";
         });
-        if (typed.length === 1) return typed[0];
+    };
+
+    // AUTO code must win over a canonical/base-product fallback. Otherwise C2556
+    // can be considered alongside C2556-AUTO and create a false ambiguity.
+    const exactCandidates = byWorkType(rows.filter((row) => hasExactCode(row) && isPositive(row)));
+    if (exactCandidates.length === 1) return exactCandidates[0];
+    if (exactCandidates.length > 1) return undefined;
+
+    const canonicalCandidates = byWorkType(rows.filter((row) =>
+        String(row?.product_code || "").trim().toUpperCase() === normalizedCanonical && isPositive(row)
+    ));
+    if (canonicalCandidates.length === 1) return canonicalCandidates[0];
+    if (canonicalCandidates.length > 1) {
+        const outputs = new Set(canonicalCandidates.map((row) => Number(row.standard_output)));
+        if (outputs.size === 1) return canonicalCandidates[0];
     }
-    if (positive.length === 1) return positive[0];
     return undefined;
 };
 
