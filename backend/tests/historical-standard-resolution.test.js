@@ -5,7 +5,7 @@ const {
   assertStandardSnapshotConsistency
 } = require('../services/standardResolutionService');
 
-function createFixtureQuery({ overlap = false, missing = false, machine = false } = {}) {
+function createFixtureQuery({ overlap = false, missing = false, machine = false, inactiveProduct = false } = {}) {
   const productVersions = missing ? [] : [
     { id: 11, process_id: 1, product_code: 'P1', standard_output: overlap ? 100 : 100, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: '2026-08-10' },
     { id: 12, process_id: 1, product_code: 'P1', standard_output: 120, exclude_kqd_from_tt: 0, version_no: 2, effective_from: '2026-08-11', effective_to: null }
@@ -19,8 +19,16 @@ function createFixtureQuery({ overlap = false, missing = false, machine = false 
 
   return async (sql, params = []) => {
     const text = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
-    if (text.includes('from product_standards')) return [{ product_standard_id: 101, product_code: 'P1' }];
+    if (text.includes('from product_standards')) {
+      if (inactiveProduct && text.includes("ps.status='active'")) return [];
+      return [{ product_standard_id: 101, product_code: 'P1', status: inactiveProduct ? 'inactive' : 'active' }];
+    }
     if (text.includes('from product_standard_versions')) {
+      if (text.includes('where id=?')) {
+        return productVersions.filter((row) => Number(row.id) === Number(params[0])
+          && Number(row.process_id) === Number(params[1])
+          && String(row.product_code) === String(params[2]));
+      }
       const date = String(params[2]);
       return productVersions.filter((row) => row.effective_from <= date && (!row.effective_to || row.effective_to >= date));
     }
@@ -57,6 +65,20 @@ test('resolver is submit-date independent and rejected/resubmitted report keeps 
   const changedDate = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-11' });
   assert.equal(changedDate.standardOutput, 120);
   assert.equal(changedDate.standardVersionId, 12);
+});
+
+test('saved historical version still resolves when the current product master is inactive', async () => {
+  const resolver = createStandardResolver({ query: createFixtureQuery({ inactiveProduct: true }) });
+  const resolved = await resolver.resolveStandard({
+    processId: 1,
+    productCode: 'P1',
+    workDate: '2026-08-10',
+    standardVersionId: 11,
+  });
+  assert.equal(resolved.productCode, 'P1');
+  assert.equal(resolved.standardOutput, 100);
+  assert.equal(resolved.standardVersionId, 11);
+  assert.match(resolved.source, /^PRODUCT_VERSION_SNAPSHOT/);
 });
 
 test('missing historical product standard fails closed', async () => {
