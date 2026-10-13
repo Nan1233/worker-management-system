@@ -39,8 +39,20 @@ export const getApprovedDates=async()=>{const res=await api.get("/production/dat
 export const getApprovedReportsByDate=async(date:string):Promise<ProductionReport[]> =>(await getApprovedReports({dateFrom:date,dateTo:date})).data;
 export const exportApprovedExcel=async(date:string)=>{const res=await api.get(`/reports/export-excel?date=${date}&type=approved`,{responseType:"blob"});downloadExcel(res.data,`BaoCaoDaDuyet_${date}.xlsx`);};
 export type TempReviewTarget={id:number;expected_updated_at?:string|null};
-const normalizeTempReviewTargets=(items:Array<number|TempReviewTarget>)=>items.map(item=>typeof item==="number"?{id:item}:{id:Number(item.id)});
-export const approveTempReport=async(id:number)=>{if(!Number.isInteger(Number(id))||Number(id)<=0)throw new Error("ID báo cáo không hợp lệ");const res=await api.post("/production-temp/approve",{ids:[Number(id)]});invalidateManagerReportCaches();return res.data;};
+const normalizeTempReviewTargets=(items:Array<number|TempReviewTarget>)=>{
+  if(!Array.isArray(items)||items.length===0)throw new Error("Vui lòng chọn ít nhất một báo cáo hợp lệ.");
+  const targets=items.map((item)=>{
+    const rawId=typeof item==="number"?item:item?.id;
+    const id=typeof rawId==="number"?rawId:Number(rawId);
+    if(!Number.isSafeInteger(id)||id<=0)throw new Error("ID báo cáo không hợp lệ. Vui lòng tải lại danh sách rồi thử lại.");
+    return {id,expected_updated_at:typeof item==="number"?undefined:item.expected_updated_at??null};
+  });
+  const uniqueIds=new Set(targets.map(item=>item.id));
+  if(uniqueIds.size!==targets.length)throw new Error("Danh sách có báo cáo bị trùng. Vui lòng tải lại danh sách.");
+  if(targets.length>100)throw new Error("Chỉ có thể duyệt tối đa 100 báo cáo mỗi lần.");
+  return targets;
+};
+export const approveTempReport=async(id:number)=>{const normalizedId=Number(id);if(!Number.isSafeInteger(normalizedId)||normalizedId<=0)throw new Error("ID báo cáo không hợp lệ");const res=await api.post("/production-temp/approve",{ids:[normalizedId]});invalidateManagerReportCaches();return res.data;};
 export const approveSelectedTempReports=async(items:Array<number|TempReviewTarget>)=>{const targets=normalizeTempReviewTargets(items);const res=await api.post("/production-temp/approve-selected",{ids:targets.map(item=>item.id),targets});invalidateManagerReportCaches();return res.data;};
 export const rejectSelectedTempReports=async(items:Array<number|TempReviewTarget>,reason:string)=>{const ids=items.map(item=>typeof item==="number"?item:Number(item.id));const res=await api.post("/production-temp/reject-selected",{ids,reason});invalidateManagerReportCaches();invalidatePendingReportCache();return res.data;};
 export interface MachineProductionEventDefectInput{defect_type_id?:number;defect_code?:string;quantity:number;responsible_worker_id:number;}
