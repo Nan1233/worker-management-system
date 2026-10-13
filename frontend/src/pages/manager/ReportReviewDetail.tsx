@@ -224,7 +224,7 @@ export default function ReportReviewDetail() {
       await approveSelectedTempReports([{ id: reportId, expected_updated_at: report.updated_at || null }]);
       await advanceAfterAction(Number(report.id));
     } catch (err: unknown) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể duyệt báo cáo." : "Không thể duyệt báo cáo.");
+      setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể duyệt báo cáo." : err instanceof Error ? err.message : "Không thể duyệt báo cáo.");
     } finally { setActionLoading(false); }
   };
 
