@@ -1455,6 +1455,7 @@ const updateDeductionValue = (
                     extraData,
                     operationType,
                     isCutLongProcess,
+                    isCvkMode,
                     usesAnyMachine,
                     usesMultiMachineLines,
                     usesSingleMachine,
