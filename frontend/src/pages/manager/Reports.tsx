@@ -49,7 +49,8 @@ export default function Reports() {
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
     const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);
-    const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false);\n    const [rejectReason, setRejectReason] = useState("Thiếu công đoạn hoặc sản phẩm để tra định mức"); const [rejectNote, setRejectNote] = useState(""); const [rejecting, setRejecting] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false);
+    const [rejectReason, setRejectReason] = useState("Thiếu công đoạn hoặc sản phẩm để tra định mức"); const [rejectNote, setRejectNote] = useState(""); const [rejecting, setRejecting] = useState(false);
 
     const load = useCallback(async () => {
         try {
