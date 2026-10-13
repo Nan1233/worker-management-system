@@ -127,3 +127,32 @@
 @media(max-width:1000px){.pending-filter-card{grid-template-columns:1fr 1fr;grid-template-areas:"search search" "date process" "shift shift" "quick quick"}}
 @media(max-width:720px){.pending-page-title h1{font-size:18px!important}.pending-filter-card{grid-template-columns:1fr;grid-template-areas:"search" "date" "process" "shift" "quick"}.pending-detail-grid,.pending-detail-info-grid,.pending-edit-grid{grid-template-columns:1fr}.pending-result-grid{grid-template-columns:1fr 1fr}.pending-result-item:nth-child(2){border-right:0}.pending-result-item:nth-child(-n+2){border-bottom:1px solid #e0e8f1}.pending-detail-actions{grid-template-columns:1fr}.pending-detail-actions:has(.pending-detail-cancel){grid-template-columns:1fr 1fr}.pending-table-wrap{overflow-x:auto}}
 @media(max-width:520px){.pending-page-title{align-items:flex-start}.pending-filter-card{padding:9px}.pending-detail-actions{padding:9px}.pending-bulk-actions{justify-content:stretch}.pending-bulk-actions>span{margin-right:auto}}
+
+/* Bulk approval layout corrections: explicit filter placement and stable table columns. */
+.pending-reference-page .pending-filter-card > .pending-search{grid-area:search!important}
+.pending-reference-page .pending-filter-card > .pending-date-filter{grid-area:date!important}
+.pending-reference-page .pending-filter-card > .pending-process-filter{grid-area:process!important}
+.pending-reference-page .pending-filter-card > .pending-shift-filter{grid-area:shift!important}
+.pending-reference-page .pending-filter-card > .pending-quick-filters{grid-area:quick!important}
+.pending-reference-page .pending-filter-card[style]{grid-template-columns:minmax(220px,1.8fr) minmax(145px,1fr) minmax(170px,1fr) minmax(140px,.9fr)!important;grid-template-areas:"search date process shift" "quick quick quick quick"!important}
+.pending-reference-page .pending-reference-table{min-width:1240px!important;table-layout:fixed}
+.pending-reference-page .pending-reference-table th.select-col,.pending-reference-page .pending-reference-table td.select-col{width:38px!important;min-width:38px!important;max-width:38px!important;text-align:center!important;padding:0 5px!important}
+.pending-reference-page .pending-reference-table .select-col input{display:inline-block;width:16px;height:16px;margin:0;accent-color:#1769d2;cursor:pointer;vertical-align:middle}
+.pending-reference-page .pending-reference-table th:nth-child(2),.pending-reference-page .pending-reference-table td:nth-child(2){width:54px!important}
+.pending-reference-page .pending-reference-table th:nth-child(3),.pending-reference-page .pending-reference-table td:nth-child(3){width:160px!important}
+.pending-reference-page .pending-reference-table th:nth-child(4),.pending-reference-page .pending-reference-table td:nth-child(4){width:165px!important}
+.pending-reference-page .pending-reference-table th:nth-child(5),.pending-reference-page .pending-reference-table td:nth-child(5){width:135px!important}
+.pending-reference-page .pending-reference-table th:nth-child(6),.pending-reference-page .pending-reference-table td:nth-child(6){width:58px!important}
+.pending-reference-page .pending-reference-table th:nth-child(7),.pending-reference-page .pending-reference-table td:nth-child(7){width:105px!important}
+.pending-reference-page .pending-reference-table th:nth-child(8),.pending-reference-page .pending-reference-table td:nth-child(8){width:95px!important}
+.pending-reference-page .pending-reference-table th:nth-child(9),.pending-reference-page .pending-reference-table td:nth-child(9){width:70px!important}
+.pending-reference-page .pending-reference-table th:nth-child(10),.pending-reference-page .pending-reference-table td:nth-child(10){width:85px!important}
+.pending-reference-page .pending-reference-table th:nth-child(11),.pending-reference-page .pending-reference-table td:nth-child(11){width:75px!important}
+.pending-reference-page .pending-reference-table th:nth-child(12),.pending-reference-page .pending-reference-table td:nth-child(12){width:105px!important}
+.pending-reference-page .pending-reference-table th:nth-child(13),.pending-reference-page .pending-reference-table td:nth-child(13){width:75px!important}
+.pending-reference-page .pending-reference-table th:nth-child(14),.pending-reference-page .pending-reference-table td:nth-child(14){width:75px!important}
+.pending-reference-page .pending-reference-table th:nth-child(15),.pending-reference-page .pending-reference-table td:nth-child(15){width:100px!important}
+.pending-reference-page .pending-bulk-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:9px 14px;border-bottom:1px solid #e5edf6;background:#fbfdff}
+.pending-reference-page .pending-bulk-toolbar button{min-height:34px;padding:0 13px;border-radius:8px;font-size:11px;font-weight:600;white-space:nowrap}
+.pending-reference-page .pending-bulk-toolbar button:disabled{opacity:.65}
+@media(max-width:720px){.pending-reference-page .pending-filter-card[style]{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"search" "date" "process" "shift" "quick"!important}.pending-reference-page .pending-bulk-toolbar{align-items:stretch}.pending-reference-page .pending-bulk-toolbar button{width:100%}}
