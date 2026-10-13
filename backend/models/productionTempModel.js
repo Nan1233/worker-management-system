@@ -87,7 +87,7 @@ const enforceDailyWorkerHours = async (data, executor = db) => {
 createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) => {
     if (!logicalDuplicateKey) return null;
     const rows = await query(executor,
-        `SELECT id, worker_id, process_id, work_date, shift, operation_mode, machine_no, product_name, status, created_at, updated_at
+        `SELECT id, worker_id, process_id, work_date, shift, operation_mode, machine_no, product_name, extra_data, status, created_at, updated_at
          FROM production_reports WHERE worker_id=? AND process_id=? AND work_date=? AND shift=? AND status <> 'deleted' ORDER BY id DESC`,
         [workerId, processId, workDate, shift]);
     if (!rows.length) return null;
@@ -105,7 +105,7 @@ createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, 
         const key = buildLogicalDuplicateKey({
             workerId: row.worker_id, processId: row.process_id, workDate: row.work_date,
             shift: row.shift, operationMode: row.operation_mode, machineNo: row.machine_no,
-            productName: row.product_name, machineLines: byReport.get(Number(row.id)) || []
+            productName: row.product_name, workType: (() => { try { const extra = typeof row.extra_data === "string" ? JSON.parse(row.extra_data) : row.extra_data; return String(extra?.work_type || "").trim(); } catch { return ""; } })(), machineLines: byReport.get(Number(row.id)) || []
         });
         if (key === logicalDuplicateKey) return { ...row, report_type: "approved" };
     }
