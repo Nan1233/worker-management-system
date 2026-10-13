@@ -10,7 +10,7 @@ const normalizeText = (value) => String(value ?? "").trim();
 const uniquePositiveIds = (items, key) => [...new Set((Array.isArray(items) ? items : []).map((item) => Number(item?.[key])).filter((id) => Number.isInteger(id) && id > 0))];
 const ZERO_STANDARD_GC_LONG_MANUAL_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
-const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, allowEmptyMachine = false, operationMode = null, workDate, workType = null }) => {
+const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, allowEmptyMachine = false, operationMode = null, workDate, workType = null, nonProductWork = false }) => {
     const errors = {};
     const normalizedMachineNo = normalizeText(machineNo);
     const normalizedProductName = normalizeText(productName);
@@ -53,11 +53,12 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     ]);
 
     const processCode = normalizeText(processRows?.[0]?.process_code).toUpperCase();
-    const isNonProductWork = Number(processId) === 60006 || processCode === "CVK";
+    const isStandaloneNonProductProcess = Number(processId) === 60006 || Number(processId) === 30002 || processCode === "CVK";
+    const isNonProductWork = isStandaloneNonProductProcess || nonProductWork === true;
     const canonicalDefectsById = new Map(validDefectRows.map((row) => [Number(row.id), row]));
     const authoritativeDefects = (defects || []).map((item) => ({ ...item, defect_code: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_code || null, defect_name: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_name || null }));
 
-    if (!isNonProductWork && !assignments.length) errors.process_id = "Công nhân chưa được phân công công đoạn này";
+    if (!isStandaloneNonProductProcess && !assignments.length) errors.process_id = "Công nhân chưa được phân công công đoạn này";
 
     let legacyApprovedWithoutMachine = false;
     if (!normalizedMachineNo && !allowEmptyMachine && Number(workerId) > 0 && Number(processId) > 0 && workDate && normalizedProductName) {
