@@ -81,7 +81,7 @@ async function assertGcMachineCode(processId, machineCode, executor = db.promise
     "SELECT process_code FROM processes WHERE id=? LIMIT 1",
     [Number(processId)]
   );
-  if (String(processRows[0]?.process_code || '').trim().toUpperCase() === 'GC' && /^\\d+$/.test(code)) {
+  if (String(processRows[0]?.process_code || '').trim().toUpperCase() === 'GC' && /^\d+$/.test(code)) {
     throw Object.assign(
       new Error('Mã máy công đoạn GC phải có tiền tố C hoặc ML; không chấp nhận mã số thuần như 2 hoặc 15'),
       { status: 400, code: 'GC_MACHINE_CODE_INVALID' }
