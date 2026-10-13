@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
 const { deleteCachedAuthUser } = require('../utils/authUserCache');
+const { assertProcessesScope } = require('../services/processAuthorizationService');
 
 const normalizeProcessIds = (value) => [...new Set((Array.isArray(value) ? value : []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
 const buildInsert = (table, payload) => {
@@ -121,6 +122,7 @@ exports.createUser = async (req, res) => {
     const body = req.body || {};
     const role = String(body.role || '').trim().toLowerCase();
     if (!['manager', 'lead', 'worker'].includes(role)) return res.status(400).json({ success: false, message: 'Vai trò không hợp lệ' });
+    if (req.user?.role === 'admin_ops' && !['lead', 'worker'].includes(role)) return res.status(403).json({ success:false, code:'ROLE_SCOPE_FORBIDDEN', message:'Admin vận hành chỉ được tạo Tổ trưởng hoặc Công nhân trong phạm vi phụ trách' });
 
     const username = String(body.username || '').trim().toLowerCase();
     const fullName = String(body.full_name || '').trim();
@@ -129,6 +131,7 @@ exports.createUser = async (req, res) => {
 
     const processIds = normalizeProcessIds(body.process_ids);
     await validateProcessIds(connection, processIds);
+    await assertProcessesScope(req.user, processIds, { executor: connection, action:'USER_CREATE' });
 
     const workerCode = String(body.worker_code || '').trim();
     const existingUser = await validateUniqueUser(connection, username, role, workerCode);

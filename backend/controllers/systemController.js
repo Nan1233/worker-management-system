@@ -210,7 +210,7 @@ exports.getActivities = async (req,res) => {
   const params=[]; let where='1=1';
   if(req.user.role==='worker'){
    where+=' AND a.user_id=?'; params.push(req.user.id);
-  } else if(req.user.role==='manager' || req.user.role==='lead'){
+  } else if(['manager','lead','admin_ops'].includes(req.user.role)){
    where+=` AND (a.user_id=? OR (
      a.entity_type IN ('approved_report','production_report') AND EXISTS (
        SELECT 1 FROM production_reports pr JOIN manager_processes mp ON mp.process_id=pr.process_id
@@ -261,10 +261,10 @@ exports.getActivities = async (req,res) => {
 exports.getReportVersions = async (req,res) => {
  try {
   await AuditService.ensureSchema();
-  const reportId=Number(req.params.id); const type=req.query.type==='temp'?'temp':'approved';
+  const reportId=Number(req.params.id); const type=String(req.query?.type||'').trim().toLowerCase()==='temp'?'temp':'approved';
   const table=type==='temp'?'production_reports_temp':'production_reports';
   const [access]=await db.promise().query(
-   `SELECT r.id, r.worker_id FROM ${table} r WHERE r.id=? AND (\n      ?='admin' OR\n      (?='worker' AND r.worker_id=?) OR\n      (? IN ('manager','lead') AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.manager_id=? AND mp.process_id=r.process_id))\n    ) LIMIT 1`,
+   `SELECT r.id, r.worker_id FROM ${table} r WHERE r.id=? AND (\n      ?='admin' OR\n      (?='worker' AND r.worker_id=?) OR\n      (? IN ('manager','lead','admin_ops') AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.manager_id=? AND mp.process_id=r.process_id))\n    ) LIMIT 1`,
    [reportId,req.user.role,req.user.role,req.user.worker_id||0,req.user.role,req.user.id]
   );
   if(!access.length) return res.status(404).json({success:false,message:'Không tìm thấy báo cáo hoặc bạn không có quyền truy cập'});
@@ -289,7 +289,7 @@ exports.getDeletedReports = async (req,res) => {
  try {
   const params=[];
   let scope='1=1';
-  if(req.user.role==='manager' || req.user.role==='lead'){
+  if(['manager','lead','admin_ops'].includes(req.user.role)){
    scope=`EXISTS (
      SELECT 1 FROM manager_processes mp
      WHERE mp.manager_id=? AND mp.process_id=pr.process_id

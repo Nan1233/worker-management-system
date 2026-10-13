@@ -19,6 +19,10 @@ const matrix = {
     allow: ['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_PENDING_EDIT','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','MASTER_EDIT','AUDIT_VIEW','NOTIFICATION_VIEW','STATISTICS_VIEW','PROFILE_VIEW'],
     deny: ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','USER_CREATE','USER_EDIT','GOVERNANCE_VIEW','SYSTEM_HEALTH_VIEW','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY']
   },
+  admin_ops: {
+    allow: ['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','USER_CREATE','USER_EDIT','MASTER_VIEW','STATISTICS_VIEW','NOTIFICATION_VIEW','AUDIT_VIEW','PROFILE_VIEW'],
+    deny: ['REPORT_PENDING_EDIT','REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','MASTER_EDIT','GOVERNANCE_VIEW','SYSTEM_HEALTH_VIEW','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY']
+  },
   manager: {
     allow: ['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_PENDING_EDIT','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_DELETE','REPORT_EXPORT','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','USER_VIEW','USER_CREATE','USER_EDIT','MASTER_VIEW','MASTER_EDIT','GOVERNANCE_VIEW','AUDIT_VIEW','NOTIFICATION_VIEW','STATISTICS_VIEW','PROFILE_VIEW'],
     deny: ['PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY']
@@ -29,7 +33,7 @@ const matrix = {
   }
 };
 
-test('permission matrix is complete for Worker/Lead/Manager/Admin', async () => {
+test('permission matrix is complete for Worker/Lead/AdminOps/Manager/Admin', async () => {
   for (const [role, expected] of Object.entries(matrix)) {
     const permissions = await permissionService.getEffectivePermissions({ id: 900000 + Object.keys(matrix).indexOf(role), role });
     for (const code of expected.allow) assert.equal(permissions.has(code), true, `${role} must allow ${code}`);

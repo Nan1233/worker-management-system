@@ -5,7 +5,7 @@ const { deleteCachedAuthUser } = require('../utils/authUserCache');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
 const { assertUserManagementScope } = require('../services/processAuthorizationService');
 
-const ROLE_CREATE_RULES = { admin: ['manager','lead','worker'], manager: ['lead','worker'], lead: ['worker'] };
+const ROLE_CREATE_RULES = { admin: ['manager','lead','worker'], admin_ops: ['lead','worker'], manager: ['lead','worker'], lead: ['worker'] };
 const manageableRoles = (role) => ROLE_CREATE_RULES[role] || [];
 const normalizeStatus = (value) => value === 'inactive' ? 'inactive' : 'active';
 const normalizeProcessIds = (value) => [...new Set((Array.isArray(value) ? value : []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
@@ -77,6 +77,9 @@ exports.updateUser = async (req,res) => {
     const processIdsProvided=Array.isArray(body.process_ids);
     const processIds=processIdsProvided?normalizeProcessIds(body.process_ids):[];
     if(!Object.keys(payload).length&&!Object.keys(workerPayload).length&&!processIdsProvided)return res.status(400).json({success:false,message:'Không có dữ liệu cập nhật'});
+    if(processIdsProvided && req.user?.role === 'admin_ops') {
+      return res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được thay đổi phân công công đoạn của tài khoản hiện có'});
+    }
     if(processIdsProvided)await validateProcessAssignment(connection,req.user,processIds);
     if(Object.keys(payload).length){const update=buildUpdateSet(payload);await connection.query(`UPDATE users SET ${update.sql} WHERE id=?`,[...update.values,id]);}
     if(found[0].role==='worker'&&'status'in payload)workerPayload.status=payload.status;

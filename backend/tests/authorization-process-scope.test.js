@@ -94,7 +94,7 @@ test('approved collection/date/by-date controllers apply backend process scope',
 test('approved detail manager/lead asserts report process scope; worker keeps ownership rule', () => {
   const src = fs.readFileSync(path.join(__dirname,'../controllers/productionController.js'),'utf8');
   assert.match(src, /role==='worker'[\s\S]*assertWorkerOwnership\(req\.user,minimal\.worker_id\)/);
-  assert.match(src, /(?:\['manager','lead'\]|\[\s*'manager'\s*,\s*'lead'\s*\])[\s\S]*assertProcessScope\(req\.user\s*,\s*minimal\.process_id/);
+  assert.match(src, /\['manager','lead','admin_ops'\]\.includes\(role\)[\s\S]*assertProcessScope\(req\.user,minimal\.process_id/);
 });
 
 test('web edit, delete and restore all guard process before approved mutation', () => {

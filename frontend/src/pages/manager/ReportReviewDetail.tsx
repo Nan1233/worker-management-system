@@ -64,7 +64,8 @@ export default function ReportReviewDetail() {
   const source = params.get("source") === "approved" ? "approved" : "pending";
   const requestedDate = params.get("date") || "";
   const requestedKey = params.get("key") || "";
-  const basePath = String(getStoredUser()?.role || "manager").toLowerCase() === "lead" ? "/lead" : "/manager";
+  const currentRole = String(getStoredUser()?.role || "manager").toLowerCase();
+  const basePath = currentRole === "lead" ? "/lead" : currentRole === "admin_ops" ? "/admin-ops" : "/manager";
   const { can } = usePermissions();
   const { showToast } = useToast();
   const canReview = can("REPORT_APPROVE");

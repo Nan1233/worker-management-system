@@ -8,6 +8,7 @@ const { assertUserManagementScope } = require('../services/processAuthorizationS
 
 const ROLE_CREATE_RULES = {
   admin: ['manager', 'lead', 'worker'],
+  admin_ops: ['lead', 'worker'],
   manager: ['lead', 'worker'],
   lead: ['worker']
 };
@@ -117,19 +118,27 @@ exports.getAllUsers = async (req, res) => {
     const roles = manageableRoles(req.user?.role);
     if (!roles.length) return res.status(403).json({ success: false, message: 'Bạn không có quyền quản lý người dùng' });
     const placeholders = roles.map(() => '?').join(',');
-    const params = [...roles];
+    const actorRole = String(req.user?.role || '').toLowerCase();
+    const actorId = Number(req.user?.id);
+    const params = [actorRole, actorId, actorRole, actorId, actorRole, actorId, actorRole, actorId, ...roles];
     let scope = '';
-    if (req.user.role !== 'admin') {
+    if (actorRole !== 'admin') {
       scope = `AND EXISTS (SELECT 1 FROM manager_processes actor_mp WHERE actor_mp.manager_id=? AND actor_mp.process_id IN (SELECT wp2.process_id FROM worker_processes wp2 WHERE u.role='worker' AND wp2.worker_id=w.id UNION SELECT mp2.process_id FROM manager_processes mp2 WHERE u.role IN ('manager','lead') AND mp2.manager_id=u.id))`;
-      params.push(req.user.id);
+      params.push(actorId);
     }
     const [rows] = await db.promise().query(
       `SELECT u.id,u.username,u.full_name,u.role,w.position AS position,u.status,u.created_at,w.id AS worker_id,w.worker_code,w.phone,w.department,w.training_percent,w.status AS worker_status,
-       CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(wp2.process_id ORDER BY wp2.process_id) FROM worker_processes wp2 WHERE wp2.worker_id=w.id) ELSE (SELECT GROUP_CONCAT(mp2.process_id ORDER BY mp2.process_id) FROM manager_processes mp2 WHERE mp2.manager_id=u.id) END AS process_ids,
-       CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(p2.process_name ORDER BY wp2.process_id SEPARATOR ', ') FROM worker_processes wp2 JOIN processes p2 ON p2.id=wp2.process_id WHERE wp2.worker_id=w.id) ELSE (SELECT GROUP_CONCAT(p2.process_name ORDER BY mp2.process_id SEPARATOR ', ') FROM manager_processes mp2 JOIN processes p2 ON p2.id=mp2.process_id WHERE mp2.manager_id=u.id) END AS process_names
+       CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(wp2.process_id ORDER BY wp2.process_id) FROM worker_processes wp2 WHERE wp2.worker_id=w.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=wp2.process_id))) ELSE (SELECT GROUP_CONCAT(mp2.process_id ORDER BY mp2.process_id) FROM manager_processes mp2 WHERE mp2.manager_id=u.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=mp2.process_id))) END AS process_ids,
+       CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(p2.process_name ORDER BY wp2.process_id SEPARATOR ', ') FROM worker_processes wp2 JOIN processes p2 ON p2.id=wp2.process_id WHERE wp2.worker_id=w.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=wp2.process_id))) ELSE (SELECT GROUP_CONCAT(p2.process_name ORDER BY mp2.process_id SEPARATOR ', ') FROM manager_processes mp2 JOIN processes p2 ON p2.id=mp2.process_id WHERE mp2.manager_id=u.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=mp2.process_id))) END AS process_names
        FROM users u LEFT JOIN workers w ON w.user_id=u.id WHERE u.role IN (${placeholders}) ${scope} ORDER BY FIELD(u.role,'manager','lead','worker'),u.full_name,u.username`, params
     );
-    const [[managerCountRow]] = await db.promise().query(`SELECT COUNT(*) AS manager_count FROM users WHERE role='manager'`);
+    let managerCountSql = "SELECT COUNT(DISTINCT u.id) AS manager_count FROM users u JOIN manager_processes mp ON mp.manager_id=u.id WHERE u.role='manager'";
+    const managerCountParams = [];
+    if (req.user.role !== 'admin') {
+      managerCountSql += ' AND mp.process_id IN (SELECT process_id FROM manager_processes WHERE manager_id=?)';
+      managerCountParams.push(req.user.id);
+    }
+    const [[managerCountRow]] = await db.promise().query(managerCountSql, managerCountParams);
     return res.json({ success:true, data:rows, allowed_roles:roles, manager_count:Number(managerCountRow?.manager_count || 0) });
   } catch (error) { return publicError(res, error, 'Không thể lấy danh sách người dùng'); }
 };
@@ -139,11 +148,13 @@ exports.getUserById = async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ success:false, message:'ID người dùng không hợp lệ' });
+    const actorRole = String(req.user?.role || '').toLowerCase();
+    const actorId = Number(req.user?.id);
     const [rows] = await connection.query(
       `SELECT u.id,u.username,u.full_name,u.role,w.position AS position,u.status,w.id worker_id,w.worker_code,w.phone,w.department,w.training_percent,
-       CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(wp2.process_id ORDER BY wp2.process_id) FROM worker_processes wp2 WHERE wp2.worker_id=w.id) ELSE (SELECT GROUP_CONCAT(mp2.process_id ORDER BY mp2.process_id) FROM manager_processes mp2 WHERE mp2.manager_id=u.id) END AS process_ids,
-       CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(p2.process_name ORDER BY wp2.process_id SEPARATOR ', ') FROM worker_processes wp2 JOIN processes p2 ON p2.id=wp2.process_id WHERE wp2.worker_id=w.id) ELSE (SELECT GROUP_CONCAT(p2.process_name ORDER BY mp2.process_id SEPARATOR ', ') FROM manager_processes mp2 JOIN processes p2 ON p2.id=mp2.process_id WHERE mp2.manager_id=u.id) END AS process_names
-       FROM users u LEFT JOIN workers w ON w.user_id=u.id WHERE u.id=? LIMIT 1`, [id]
+       CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(wp2.process_id ORDER BY wp2.process_id) FROM worker_processes wp2 WHERE wp2.worker_id=w.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=wp2.process_id))) ELSE (SELECT GROUP_CONCAT(mp2.process_id ORDER BY mp2.process_id) FROM manager_processes mp2 WHERE mp2.manager_id=u.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=mp2.process_id))) END AS process_ids,
+       CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(p2.process_name ORDER BY wp2.process_id SEPARATOR ', ') FROM worker_processes wp2 JOIN processes p2 ON p2.id=wp2.process_id WHERE wp2.worker_id=w.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=wp2.process_id))) ELSE (SELECT GROUP_CONCAT(p2.process_name ORDER BY mp2.process_id SEPARATOR ', ') FROM manager_processes mp2 JOIN processes p2 ON p2.id=mp2.process_id WHERE mp2.manager_id=u.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=mp2.process_id))) END AS process_names
+       FROM users u LEFT JOIN workers w ON w.user_id=u.id WHERE u.id=? LIMIT 1`, [actorRole,actorId,actorRole,actorId,actorRole,actorId,actorRole,actorId,id]
     );
     if (!rows.length) return res.status(404).json({ success:false, message:'Người dùng không tồn tại' });
     if (!await canManageTarget(connection, req.user, rows[0])) return res.status(403).json({ success:false, message:'Bạn không có quyền xem người dùng này' });

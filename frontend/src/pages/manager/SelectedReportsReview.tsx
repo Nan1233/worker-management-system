@@ -80,7 +80,7 @@ function SelectedReportsReview() {
     const role = getStoredUser()?.role || "manager";
     const { can } = usePermissions();
 
-    const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
+    const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : role === "admin_ops" ? "/admin-ops" : "/manager";
     const canEdit = source === "pending" ? can("REPORT_PENDING_EDIT") : can("REPORT_APPROVED_EDIT");
     const canReview = can("REPORT_APPROVE");
     const storageKey = source === "approved"

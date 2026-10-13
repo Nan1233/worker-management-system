@@ -9,12 +9,12 @@ import { getStoredUser } from '../../utils/authStorage';
  * allows (adminMasterRoutes.js): defects are manager/admin only, processes are
  * admin-only (create/edit/disable).
  */
-type MasterRole = 'admin' | 'manager' | 'lead';
+type MasterRole = 'admin' | 'admin_ops' | 'manager' | 'lead';
 const MASTER_TABS: { key: string; label: string; roles: MasterRole[] }[] = [
-  { key: 'machines', label: 'Máy', roles: ['admin', 'manager', 'lead'] },
-  { key: 'standards', label: 'Sản phẩm & định mức', roles: ['admin', 'manager', 'lead'] },
+  { key: 'machines', label: 'Máy', roles: ['admin', 'admin_ops', 'manager', 'lead'] },
+  { key: 'standards', label: 'Sản phẩm & định mức', roles: ['admin', 'admin_ops', 'manager', 'lead'] },
   { key: 'defects', label: 'Lỗi NG', roles: ['admin', 'manager'] },
-  { key: 'deductions', label: 'Trừ giờ', roles: ['admin', 'manager', 'lead'] },
+  { key: 'deductions', label: 'Trừ giờ', roles: ['admin', 'admin_ops', 'manager', 'lead'] },
   { key: 'processes', label: 'Công đoạn', roles: ['admin'] },
 ];
 

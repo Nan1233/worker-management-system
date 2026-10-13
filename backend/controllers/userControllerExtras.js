@@ -7,6 +7,7 @@ const { revokeAllUserFamilies } = require('../services/refreshSessionService');
 
 const ROLE_CREATE_RULES = {
   admin: ['manager', 'lead', 'worker'],
+  admin_ops: ['lead', 'worker'],
   manager: ['lead', 'worker'],
   lead: ['worker'],
 };
@@ -184,9 +185,11 @@ async function loadUsersForTransfer(connection, actor) {
   const roles = manageableRoles(actor?.role);
   if (!roles.length) return [];
   const placeholders = roles.map(() => '?').join(',');
-  const params = [...roles];
+  const actorRole = String(actor?.role || '').toLowerCase();
+  const actorId = Number(actor?.id);
+  const params = [actorRole,actorId,actorRole,actorId,...roles];
   let scope = '';
-  if (actor.role !== 'admin') {
+  if (actorRole !== 'admin') {
     scope = `AND EXISTS (
       SELECT 1 FROM manager_processes actor_mp
       WHERE actor_mp.manager_id=? AND actor_mp.process_id IN (
@@ -195,7 +198,7 @@ async function loadUsersForTransfer(connection, actor) {
         SELECT mp2.process_id FROM manager_processes mp2 WHERE u.role IN ('manager','lead') AND mp2.manager_id=u.id
       )
     )`;
-    params.push(actor.id);
+    params.push(actorId);
   }
   const [rows] = await connection.query(
     `SELECT u.id,u.username,u.full_name,u.role,u.status,u.created_at,
@@ -203,9 +206,9 @@ async function loadUsersForTransfer(connection, actor) {
             GROUP_CONCAT(DISTINCT COALESCE(pw.process_name,pm.process_name) ORDER BY COALESCE(wp.process_id,mp.process_id) SEPARATOR ', ') process_names
      FROM users u
      LEFT JOIN workers w ON w.user_id=u.id
-     LEFT JOIN worker_processes wp ON u.role='worker' AND wp.worker_id=w.id
+     LEFT JOIN worker_processes wp ON u.role='worker' AND wp.worker_id=w.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=wp.process_id))
      LEFT JOIN processes pw ON pw.id=wp.process_id
-     LEFT JOIN manager_processes mp ON u.role IN ('manager','lead') AND mp.manager_id=u.id
+     LEFT JOIN manager_processes mp ON u.role IN ('manager','lead') AND mp.manager_id=u.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=mp.process_id))
      LEFT JOIN processes pm ON pm.id=mp.process_id
      WHERE u.role IN (${placeholders}) ${scope}
      GROUP BY u.id,u.username,u.full_name,u.role,u.status,u.created_at,w.id,w.worker_code,w.phone,w.department,w.position,w.training_percent

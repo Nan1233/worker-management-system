@@ -347,7 +347,7 @@ exports.login = async (req, res) => {
 
         if (accessType === "management") {
             if (
-                !["admin", "manager", "lead"].includes(
+                !["admin", "admin_ops", "manager", "lead"].includes(
                     user.role
                 )
             ) {

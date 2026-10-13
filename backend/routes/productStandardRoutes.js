@@ -34,6 +34,6 @@ const processAccess=async(req,res,next)=>{
   }
 };
 
-router.get("/resolve",verifyToken,checkRole("admin","manager","lead","worker"),permission("MASTER_VIEW","WORKER_ENTRY"),processAccess,controller.resolveProductStandard);
-router.get("/",verifyToken,checkRole("admin","manager","lead","worker"),permission("MASTER_VIEW","WORKER_ENTRY"),processAccess,controller.getProductStandards);
+router.get("/resolve",verifyToken,checkRole("admin","admin_ops","manager","lead","worker"),permission("MASTER_VIEW","WORKER_ENTRY"),processAccess,controller.resolveProductStandard);
+router.get("/",verifyToken,checkRole("admin","admin_ops","manager","lead","worker"),permission("MASTER_VIEW","WORKER_ENTRY"),processAccess,controller.getProductStandards);
 module.exports=router;
