@@ -125,9 +125,17 @@ export function buildProductionReportPayload(args: {
       defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     }));
     const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions);
+    // For machine reports, the per-machine fields are the source of truth. The
+    // parent form totals may lag behind the machine-line state (or be stale),
+    // so do not overwrite a valid line quantity with form.ttOk/form.ttNg.
+    const selectedMachineLine = lines.find((line) =>
+      String(line.machine_code || "").trim().toUpperCase() === args.form.machineNo.trim().toUpperCase()
+    );
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, actual_time_hours:parseHours(args.form.actualTime), machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
-      adjustment_count:num(args.form.adjustmentCount), deduction_time_hours:0, deductions:[], ok_quantity:num(args.form.ttOk), ng_quantity:num(args.form.ttNg),
+      adjustment_count:num(args.form.adjustmentCount), deduction_time_hours:0, deductions:[],
+      ok_quantity:selectedMachineLine ? num(selectedMachineLine.ok_quantity) : num(args.form.ttOk),
+      ng_quantity:selectedMachineLine ? num(selectedMachineLine.ng_quantity) : num(args.form.ttNg),
       standard_output:resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput), standard_time_seconds:null, standard_source:"DEFAULT", defects:singleLineDefects,
     });
   }
