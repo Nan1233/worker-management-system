@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import { getPendingReports, getTempReportDetail } from "../../services/productionService";
+import { approveSelectedTempReports, getPendingReports, getTempReportDetail } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import "./ReportsSplitReference.css";
@@ -50,7 +50,7 @@ export default function Reports() {
     const [search, setSearch] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
-    const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false);
+    const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);
 
     const load = useCallback(async () => {
         try {
@@ -80,6 +80,21 @@ export default function Reports() {
             setDetail(report);
         } finally {
             setDetailLoading(false);
+        }
+    };
+
+    const approveDetail = async () => {
+        if (!detail || approving) return;
+        setApproving(true);
+        try {
+            await approveSelectedTempReports([detail.id]);
+            setDetail(null);
+            await load();
+            window.alert("Đã duyệt báo cáo thành công.");
+        } catch (e: any) {
+            window.alert(e?.response?.data?.message || e?.message || "Không thể duyệt báo cáo. Vui lòng thử lại.");
+        } finally {
+            setApproving(false);
         }
     };
 
@@ -171,7 +186,7 @@ export default function Reports() {
                     </div>}
                     <div className="pending-detail-actions pending-detail-actions-compact">
                         <button type="button" className="pending-detail-cancel" onClick={() => setDetail(null)}>Đóng</button>
-                        <button type="button" className="pending-detail-approve" onClick={() => navigate(`/manager/report/${detail.id}?source=pending`)}>Mở duyệt</button>
+                        <button type="button" className="pending-detail-approve" onClick={() => void approveDetail()} disabled={approving || detailLoading}>{approving ? "Đang duyệt..." : "Duyệt báo cáo"}</button>
                     </div>
                 </aside>}
             </div>
