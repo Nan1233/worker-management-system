@@ -137,8 +137,44 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
   return approvedIds;
 }
 
+function getExtraDataObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}; }
+    catch { return {}; }
+  }
+  return {};
+}
+
+function isParentProcessNonProductWork(item) {
+  const extra = getExtraDataObject(item?.extra_data);
+  const processCode = String(extra.process_code || "").trim().toUpperCase();
+  return extra.non_product_work === true
+    && Number(item?.process_id) !== 30002
+    && Number(item?.process_id) !== 60006
+    && processCode !== "CVK";
+}
+
+function assertNonProductWorkSnapshot(item) {
+  const output = Number(item?.standard_output || 0);
+  const versionId = Number(item?.standard_version_id || 0);
+  const machineStandardId = Number(item?.machine_standard_id || 0);
+  const kqdPolicy = Number(item?.exclude_kqd_from_tt_snapshot || 0);
+  if (output !== 0 || versionId !== 0 || machineStandardId !== 0 || kqdPolicy !== 0) {
+    const error = new Error("Ảnh chụp công việc khác trong công đoạn không hợp lệ; cần kiểm tra lại báo cáo");
+    error.status = 422;
+    error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
+    error.isPublic = true;
+    throw error;
+  }
+}
+
 async function validateApprovalSnapshot(item, connection, standardResolver) {
   const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
+  if (!isMachineReport && isParentProcessNonProductWork(item)) {
+    assertNonProductWorkSnapshot(item);
+    return;
+  }
   if (isMachineReport) {
     const tempLines = await getTempMachineLines(item.id, connection);
     if (!tempLines.length) {
