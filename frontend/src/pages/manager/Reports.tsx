@@ -36,10 +36,32 @@ const kpi = (r: ProductionReport) => {
     const x = r as ProductionReport & Record<string, unknown>;
     const ok = num(x.tt_ok); const ng = num(x.tt_ng);
     const actual = num(x.actual_output) || ok + ng;
-    const standard = num(x.standard_output) || num(x.target_output);
-    const actualTime = num(x.actual_time);
-    const ttDinhMuc = num(x.tt_dinh_muc) || (standard > 0 && actualTime > 0 ? standard * actualTime : 0);
-    const nangSuat = num(x.nang_suat_percent) || (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0);
+    const extra = getStoredExtraData(x.extra_data);
+    const standard = num(x.standard_output)
+        || num(x.target_output)
+        || num(x.standard_output_per_hour)
+        || num(x.standardOutput)
+        || num(extra.standard_output)
+        || num(extra.target_output);
+    const actualTime = num(x.actual_time)
+        || num(x.actual_hours)
+        || num(x.working_hours)
+        || num(x.total_working_hours)
+        || num(x.tt_gio)
+        || num(extra.actual_time)
+        || num(extra.actual_hours)
+        || num(extra.working_hours);
+    // Prefer the persisted KPI snapshot when present; otherwise calculate only
+    // when both inputs are available. Do not silently turn missing fields into
+    // a fabricated zero when the pending detail uses legacy field names.
+    const storedTtDinhMuc = x.tt_dinh_muc ?? x.tt_dinh_muc_snapshot ?? x.standard_time_total ?? x.standardTimeTotal;
+    const ttDinhMuc = storedTtDinhMuc !== null && storedTtDinhMuc !== undefined && storedTtDinhMuc !== ""
+        ? num(storedTtDinhMuc)
+        : (standard > 0 && actualTime > 0 ? standard * actualTime : 0);
+    const storedNangSuat = x.nang_suat_percent ?? x.nang_suat_percent_snapshot ?? x.productivity_percent;
+    const nangSuat = storedNangSuat !== null && storedNangSuat !== undefined && storedNangSuat !== ""
+        ? num(storedNangSuat)
+        : (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0);
     const dat = actual > 0 ? ok / actual * 100 : 0;
     const pp = num(x.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
     // Pending API returns the snapshot as training_percent_snapshot (the
