@@ -7,6 +7,19 @@ import "./ReportsDetailCompact.css";
 
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const text = (v: unknown, fallback = "—") => v === null || v === undefined || v === "" ? fallback : String(v);
+const getStoredExtraData = (value: unknown): Record<string, unknown> => {
+    if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+    if (typeof value === "string") { try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {}; } catch {} }
+    return {};
+};
+const processLabel = (report: ProductionReport) => {
+    const x = report as ProductionReport & Record<string, unknown>;
+    const extra = getStoredExtraData(x.extra_data);
+    const workType = String(extra.work_type || x.work_type || "").trim();
+    return extra.non_product_work === true && workType
+        ? `${text(x.process_name || x.process_code)} · Công việc khác (${workType})`
+        : text(x.process_name || x.process_code);
+};
 const fmt = (v: unknown) => num(v).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
 const pct = (v: unknown) => `${fmt(v)}%`;
 const dateText = (v: unknown) => { const s = String(v || "").slice(0, 10); const [y, m, d] = s.split("-"); return y && m && d ? `${d}/${m}/${y}` : s || "—"; };
@@ -194,7 +207,7 @@ export default function Reports() {
                                     const code = `PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`;
                                     return <tr key={r.id ?? i} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => void openDetail(r)} style={{ cursor: "pointer" }}>
                                         <td className="select-col"><input type="checkbox" aria-label={`Chọn báo cáo ${r.id}`} checked={selectedIds.includes(Number(r.id))} onChange={() => toggleSelected(Number(r.id))} onClick={e => e.stopPropagation()} /></td><td className="view-col" style={{ textAlign: "center" }}><button type="button" className="pending-detail-edit" aria-label={`Xem báo cáo ${r.id}`} onClick={e => { e.stopPropagation(); void openDetail(r); }}>⌕</button></td>
-                                        <td>{code}</td><td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td><td>{text(r.process_name || r.process_code)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(r.actual_time || r.total_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
+                                        <td>{code}</td><td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td><td>{processLabel(r)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(r.actual_time || r.total_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
                                         <td style={metricStyle("productivity", x.nangSuat, x.ngTypeCount)}>{pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td style={metricStyle("pp", x.pp, x.ngTypeCount)}>{pct(x.pp)}{x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}</td><td><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span></td>
                                     </tr>;
                                 })}
@@ -216,7 +229,7 @@ export default function Reports() {
                             {[
                                 ["Công nhân", `${text(detail.full_name || detail.worker_name)} (${text(detail.worker_code)})`],
                                 ["Ngày báo cáo", dateText(detail.work_date)],
-                                ["Công đoạn", text(detail.process_name || detail.process_code)],
+                                ["Công đoạn", processLabel(detail)],
                                 ["Ca làm việc", text(detail.shift)],
                                 ["Máy móc", text(detail.machine_no)],
                                 ["Sản phẩm", text(detail.product_name)],
