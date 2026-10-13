@@ -1,6 +1,19 @@
 const db = require("../config/db");
 const approvalModel = require("./productionTempApprovalModel");
 
+const approvalStage = async (name, task) => {
+  const started = Date.now();
+  console.log(`[KTC][APPROVAL_TRACE] START ${name}`);
+  try {
+    const result = await task();
+    console.log(`[KTC][APPROVAL_TRACE] END ${name} ms=${Date.now() - started}`);
+    return result;
+  } catch (error) {
+    console.error(`[KTC][APPROVAL_TRACE] ERROR ${name} ms=${Date.now() - started} code=${error?.code || ''} message=${String(error?.message || error).slice(0, 300)}`);
+    throw error;
+  }
+};
+
 async function ensureLegacyMachineLines(targets) {
   const normalized = (Array.isArray(targets) ? targets : [])
     .map((item) => typeof item === "object" ? item : { id: item })
