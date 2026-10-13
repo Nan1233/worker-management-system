@@ -193,24 +193,24 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
 }
 
 async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection) {
-  const [snapshotDefects, snapshotDeductions] = await Promise.all([
-    qRows(
-      connection,
-      `SELECT dt.defect_code, dt.defect_name, d.quantity
-         FROM production_report_defects d
-         LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
-        WHERE d.report_id=? ORDER BY d.id`,
-      [approvedReportId],
-    ),
-    qRows(
-      connection,
-      `SELECT dt.deduction_code, dt.deduction_name, d.hours
-         FROM production_report_deductions d
-         LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
-        WHERE d.report_id=? ORDER BY d.id`,
-      [approvedReportId],
-    ),
-  ]);
+  // TiDB Serverless transaction connections must not run concurrent queries.
+  // Keep these snapshot reads sequential on the same transaction connection.
+  const snapshotDefects = await qRows(
+    connection,
+    `SELECT dt.defect_code, dt.defect_name, d.quantity
+       FROM production_report_defects d
+       LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+      WHERE d.report_id=? ORDER BY d.id`,
+    [approvedReportId],
+  );
+  const snapshotDeductions = await qRows(
+    connection,
+    `SELECT dt.deduction_code, dt.deduction_name, d.hours
+       FROM production_report_deductions d
+       LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+      WHERE d.report_id=? ORDER BY d.id`,
+    [approvedReportId],
+  );
   const machineLines = await qRows(
     connection,
     `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
