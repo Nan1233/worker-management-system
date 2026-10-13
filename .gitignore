@@ -72,3 +72,6 @@ frontend/android/.gradle/
 frontend/android/build/
 frontend/android/app/build/
 frontend/android/capacitor-cordova-android-plugins/build/
+
+# Local test output
+/test-result.txt
