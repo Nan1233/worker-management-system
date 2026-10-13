@@ -156,3 +156,14 @@
 .pending-reference-page .pending-bulk-toolbar button{min-height:34px;padding:0 13px;border-radius:8px;font-size:11px;font-weight:600;white-space:nowrap}
 .pending-reference-page .pending-bulk-toolbar button:disabled{opacity:.65}
 @media(max-width:720px){.pending-reference-page .pending-filter-card[style]{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"search" "date" "process" "shift" "quick"!important}.pending-reference-page .pending-bulk-toolbar{align-items:stretch}.pending-reference-page .pending-bulk-toolbar button{width:100%}}
+
+/* Explicitly separate row selection from the magnifier/detail action. */
+.pending-reference-page .pending-reference-table th.select-col,
+.pending-reference-page .pending-reference-table td.select-col{display:table-cell!important}
+.pending-reference-page .pending-reference-table th.view-col,
+.pending-reference-page .pending-reference-table td.view-col{display:none!important}
+.pending-reference-page .pending-reference-table .select-col input[type="checkbox"]{appearance:auto!important;-webkit-appearance:checkbox!important;display:inline-block!important;visibility:visible!important;opacity:1!important;width:16px!important;height:16px!important;min-width:16px!important;padding:0!important;margin:0!important;border:1px solid #9ab6d7!important;accent-color:#1769d2!important;cursor:pointer}
+.pending-reference-page .pending-reference-table th.select-col{position:sticky;left:0;z-index:2;background:#f7faff}
+.pending-reference-page .pending-reference-table td.select-col{position:sticky;left:0;z-index:1;background:#fff}
+.pending-reference-page .pending-reference-table tbody tr:hover td.select-col,
+.pending-reference-page .pending-reference-table tbody tr.pending-row-active td.select-col{background:#f2f7ff!important}
