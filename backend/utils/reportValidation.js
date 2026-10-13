@@ -94,7 +94,8 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const workDate = String(payload.work_date || '').slice(0, 10);
     const parsedDate = DATE_PATTERN.test(workDate) ? new Date(`${workDate}T00:00:00`) : null;
     const isNonProductWork = Number(payload.process_id) === 60006 || Number(payload.process_id) === 30002 ||
-        String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK';
+        String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK' ||
+        payload.extra_data?.non_product_work === true || payload.non_product_work === true;
     const productCodeForPolicy = String(payload.product_name || '').split(',')[0].trim().toUpperCase();
     const isZeroStandardLongWork = ZERO_STANDARD_LONG_WORK_CODES.has(productCodeForPolicy) &&
         String(payload.operation_type || '').trim().toUpperCase() === 'LONG' &&
