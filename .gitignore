@@ -75,3 +75,4 @@ frontend/android/capacitor-cordova-android-plugins/build/
 
 # Local test output
 /test-result.txt
+/dump.txt
