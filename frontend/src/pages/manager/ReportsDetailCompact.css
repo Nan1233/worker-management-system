@@ -1,21 +1,32 @@
-/* Pending report detail: size the detail card to its content instead of stretching it to the list height. */
+/* Pending report detail: keep the selected report in a compact side panel. */
 .pending-reference-page .pending-detail-card {
   min-height: 0 !important;
   height: fit-content !important;
   align-self: start !important;
 }
-
-.pending-reference-page .pending-detail-body {
-  overflow: visible !important;
+.pending-reference-page .pending-detail-card-compact {
+  max-height: calc(100vh - 235px);
 }
-
-.pending-reference-page .pending-detail-loading,
-.pending-reference-page .pending-detail-empty {
-  min-height: 180px !important;
+.pending-reference-page .pending-detail-card-compact .pending-detail-body {
+  max-height: min(58vh, 620px);
+  overflow: auto !important;
 }
-
+.pending-reference-page .pending-detail-card-compact .pending-detail-loading,
+.pending-reference-page .pending-detail-card-compact .pending-detail-empty {
+  min-height: 120px !important;
+}
+.pending-reference-page .pending-detail-actions-compact {
+  grid-template-columns: 1fr 1fr;
+  flex: 0 0 auto;
+}
 @media (max-width: 1280px) {
   .pending-reference-page .pending-detail-card {
     min-height: 0 !important;
+  }
+  .pending-reference-page .pending-detail-card-compact {
+    max-height: none;
+  }
+  .pending-reference-page .pending-detail-card-compact .pending-detail-body {
+    max-height: 50vh;
   }
 }
