@@ -67,13 +67,13 @@ const recoverAfter1205 = async (data) => {
 const enforceDailyWorkerHours = async (data, executor = db) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
-    const incoming = Number(data?.actual_time) || 0;
+    const incoming = Number(data?.total_time) || 0;
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
     const rows = await query(executor, `
-        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports
+        SELECT COALESCE(SUM(total_time),0) AS counted_hours FROM production_reports
         WHERE worker_id=? AND work_date=? AND status='approved'
         UNION ALL
-        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports_temp
+        SELECT COALESCE(SUM(total_time),0) AS counted_hours FROM production_reports_temp
         WHERE worker_id=? AND work_date=? AND status IN ('pending','need_fix')`,
         [workerId, workDate, workerId, workDate]);
     const existing = (rows || []).reduce((sum, row) => sum + Number(row?.counted_hours || 0), 0);
@@ -81,7 +81,7 @@ const enforceDailyWorkerHours = async (data, executor = db) => {
         const error = new Error(`Tổng giờ làm trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ.`);
         error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true; throw error;
     }
-    return { existingHours: existing, incomingActualHours: incoming, projectedHours: existing + incoming, limitHours: DAILY_HOURS_LIMIT };
+    return { existingHours: existing, incomingTotalHours: incoming, projectedHours: existing + incoming, limitHours: DAILY_HOURS_LIMIT };
 };
 
 createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) => {
