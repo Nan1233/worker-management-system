@@ -91,6 +91,30 @@ function filterMaiMasterOptions(
 
   return Array.from(unique.values());
 }
+// GC master data may contain legacy and canonical rows with the same label.
+// Keep one selectable checkbox per normalized label without deleting DB records.
+const dedupeGcDeductionOptions = (options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] => {
+  if (String(processCode || "").trim().toUpperCase() !== "GC") return options;
+  const normalizeLabel = (value: unknown): string => String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  const priority = (option: WorkerMasterOption): number => {
+    const code = String(option.code || "").trim().toUpperCase();
+    return code && !code.startsWith("KTC_") ? 0 : code.startsWith("KTC_") ? 2 : 1;
+  };
+  const unique = new Map<string, WorkerMasterOption>();
+  for (const option of options) {
+    const key = normalizeLabel(option.label);
+    if (!key) continue;
+    const existing = unique.get(key);
+    if (!existing || priority(option) < priority(existing)) unique.set(key, option);
+  }
+  return Array.from(unique.values());
+};
+
 const K2_ALLOWED_DEDUCTION_NAMES = new Set([
   "Nghỉ giải lao",
   "5s",
@@ -273,10 +297,13 @@ export function useProcessMasterData(processId: number, processCode: string) {
 
       if (deductions.status === "fulfilled") {
         setActiveDeductionOptions(
-          filterK2MasterOptions(
-            filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
+          dedupeGcDeductionOptions(
+            filterK2MasterOptions(
+              filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
+              processCode,
+              K2_ALLOWED_DEDUCTION_NAMES,
+            ),
             processCode,
-            K2_ALLOWED_DEDUCTION_NAMES,
           ),
         );
       } else {
