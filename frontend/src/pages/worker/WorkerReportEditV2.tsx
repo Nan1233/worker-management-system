@@ -143,13 +143,30 @@ function WorkerReportEditV2() {
         if (!data) throw new Error("Không tìm thấy báo cáo.");
         if (!alive) return;
         setReport(data);
-        const actual = hm(data.actual_time);
-        const total = hm(data.total_time);
-        const deduction = hm(data.deduction_time);
         const rawMachineLines = Array.isArray(data.machine_lines) ? data.machine_lines : Array.isArray(data.machineLines) ? data.machineLines : [];
+        const isMachineReport = String(data.operation_mode || "").toUpperCase() === "MACHINE" || rawMachineLines.length > 0;
         const legacyMachine = s(data.machine_no).split(",").map((v) => v.trim()).filter(Boolean)[0] || "";
         const legacyProduct = s(data.product_name).split(",").map((v) => v.trim()).filter(Boolean)[0] || "";
         const editMachineLines = rawMachineLines.length ? rawMachineLines : (legacyMachine || legacyProduct ? [{ machine_code: legacyMachine, product_code: legacyProduct, machine_time_hours: data.actual_time, ok_quantity: data.tt_ok, ng_quantity: data.tt_ng, standard_output: data.standard_output }] : []);
+        // Với báo cáo theo máy, machine_time_hours là tổng thời gian (thực tế + trừ giờ).
+        // Các cột tổng hợp phải được tính lại từ từng dòng máy, không lấy các trường legacy
+        // ở cấp báo cáo vì các trường đó có thể bằng 0 hoặc mang ý nghĩa gross khác nhau.
+        const lineTimeTotals = rawMachineLines.reduce((totals: { gross: number; deduction: number }, line: any) => {
+          const gross = Math.max(0, n(line.machine_time_hours));
+          let deduction = Number(line.deduction_time_hours);
+          if (!Number.isFinite(deduction) || deduction < 0) {
+            const rawDeductions = Array.isArray(line.deductions_json) ? line.deductions_json
+              : Array.isArray(line.deductions) ? line.deductions
+              : (() => { try { return JSON.parse(line.deductions_json || "[]"); } catch { return []; } })();
+            deduction = rawDeductions.reduce((sum: number, item: any) => sum + Math.max(0, n(item.minutes ?? item.deduction_minutes ?? n(item.hours) * 60)) / 60, 0);
+          }
+          totals.gross += gross;
+          totals.deduction += Math.min(gross, Math.max(0, deduction));
+          return totals;
+        }, { gross: 0, deduction: 0 });
+        const actual = hm(isMachineReport && rawMachineLines.length ? lineTimeTotals.gross - lineTimeTotals.deduction : data.actual_time);
+        const total = hm(isMachineReport && rawMachineLines.length ? lineTimeTotals.gross : data.total_time);
+        const deduction = hm(isMachineReport && rawMachineLines.length ? lineTimeTotals.deduction : data.deduction_time);
         const firstLine = editMachineLines[0];
         const nextForm: FormState = {
           ...initialForm,
