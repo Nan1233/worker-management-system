@@ -97,7 +97,7 @@ const dedupeGcDeductionOptions = (options: WorkerMasterOption[], processCode: st
   if (String(processCode || "").trim().toUpperCase() !== "GC") return options;
   const normalizeLabel = (value: unknown): string => String(value ?? "")
     .normalize("NFD")
-    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/đ/gi, "d")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
