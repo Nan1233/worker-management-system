@@ -39,9 +39,14 @@ const buildGiaCongMachineAccounting = (report, machineLines, eventMap) => {
                 seenEvents.add(eventId);
                 grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
             }
-        } else {
+        } else if (!eventId) {
+            // No linked physical event at all: machine_time_hours on the line is
+            // the only source, so use it as-is (legacy/manual line).
             grossHours += Math.max(0, Number(line.machine_time_hours) || 0);
         }
+        // eventId set but the event is missing or not approved: contribute 0.
+        // Never substitute the worker-participation machine_time_hours column
+        // for physical machine time (see giaCongMachineAccounting.js).
         const lineDeductionHours = Math.max(0, Number(line.deduction_time_hours) || 0);
         let lineDeductions = [];
         try {
@@ -200,7 +205,7 @@ const loadMonthReports = async (yearMonth) => {
     if (machineEventIds.length) {
         const eventPlaceholders = machineEventIds.map(() => '?').join(',');
         machineEventRows = await query(
-            `SELECT id,machine_time_hours FROM machine_production_events WHERE id IN (${eventPlaceholders})`,
+            `SELECT id,machine_time_hours FROM machine_production_events WHERE status='approved' AND id IN (${eventPlaceholders})`,
             machineEventIds
         );
     }

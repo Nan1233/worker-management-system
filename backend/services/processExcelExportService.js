@@ -200,8 +200,20 @@ async function loadProcessMonthReports(value, processId, options = {}) {
     quantity: Number(row.quantity) || 0
   }));
 
-  const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({ ...row }));
   const physicalEventsById = new Map((reports.physicalMachineEvents || []).map((event) => [Number(event.id), event]));
+  const machineLines = mapDetails(machineLineRows, reportIds, (row) => {
+    const eventId = Number(row.machine_event_id) || 0;
+    const event = eventId ? physicalEventsById.get(eventId) : null;
+    return {
+      ...row,
+      // Export-only physical time; mirrors bulkCompanyExcelDataService so every
+      // Excel export path sources GC machine hours from the same approved
+      // event, not from the worker-participation time column.
+      excel_machine_time_hours: eventId
+        ? (event ? Math.max(0, Number(event.machine_time_hours) || 0) : 0)
+        : Math.max(0, Number(row.machine_time_hours) || 0)
+    };
+  });
   reports.forEach((report) => {
     const id = Number(report.id);
     report.deductions = deductions.get(id) || [];
