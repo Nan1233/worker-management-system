@@ -36,41 +36,37 @@ export default function WorkerHome() {
   const navigate = useNavigate();
   const [worker, setWorker] = useState<WorkerProfile | null>(null);
   const [reports, setReports] = useState<ProductionReport[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   useEffect(() => {
     let alive = true;
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const user = getStoredUser();
-        if (!user || user.role !== "worker") {
-          clearAuthSession({ bumpEpoch: false });
-          navigate("/login", { replace: true });
-          return;
-        }
-        const [workerData, reportData] = await Promise.all([getCurrentWorker(true), getMyTempReports()]);
-        if (!alive) return;
-        setWorker(workerData);
-        setReports(Array.isArray(reportData) ? reportData : []);
-      } catch (err: unknown) {
-        if (!alive) return;
-        if (axios.isAxiosError(err) && err.response?.status === 401) {
-          clearAuthSession({ bumpEpoch: false });
-          navigate("/login", { replace: true });
-          return;
-        }
-        setError(axios.isAxiosError(err) ? (err.response?.data?.message || "Không thể tải dữ liệu trang chủ") : "Không thể tải dữ liệu trang chủ");
-      } finally {
-        if (alive) setLoading(false);
+    const user = getStoredUser();
+    if (!user || user.role !== "worker") {
+      clearAuthSession({ bumpEpoch: false });
+      navigate("/login", { replace: true });
+      return () => { alive = false; };
+    }
+
+    // Render the home shell immediately; profile and report data load independently.
+    void getCurrentWorker().then((workerData) => {
+      if (alive) setWorker(workerData);
+    }).catch((err: unknown) => {
+      if (!alive) return;
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        clearAuthSession({ bumpEpoch: false });
+        navigate("/login", { replace: true });
       }
-    };
-    void load();
+    });
+
+    void getMyTempReports().then((reportData) => {
+      if (alive) setReports(Array.isArray(reportData) ? reportData : []);
+    }).catch(() => {
+      // Keep the home page usable if the recent-report endpoint is slow or unavailable.
+      if (alive) setReports([]);
+    });
+
     return () => { alive = false; };
   }, [navigate]);
 
@@ -89,9 +85,6 @@ export default function WorkerHome() {
   const trainingPercent = Number(worker?.training_percent ?? 0);
   const displayReports = todayReports.length ? todayReports : reports.slice(0, 4);
   const greetingName = worker?.full_name || "Công nhân";
-
-  if (loading) return <main className="worker-home-page"><div className="worker-home-state">Đang tải dữ liệu...</div></main>;
-  if (error) return <main className="worker-home-page"><div className="worker-home-state error"><strong>Không thể tải trang chủ</strong><span>{error}</span><button type="button" onClick={() => window.location.reload()}>Thử lại</button></div></main>;
 
   return (
     <main className="worker-home-page">
