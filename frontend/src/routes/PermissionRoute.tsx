@@ -13,13 +13,13 @@ export default function PermissionRoute({permission,children}:{permission:Permis
   return user?.role==='admin'?'/admin':user?.role==='admin_ops'?'/admin-ops':user?.role==='manager'?'/manager':user?.role==='lead'?'/lead':'/worker';
  },[user?.role]);
  const [fallback,setFallback]=useState(base);
- useEffect(()=>{let active=true; loadMyPermissions().then(set=>{
+ useEffect(()=>{let active=true; setAllowed(roleDefaults.has(permission)); loadMyPermissions().then(set=>{
    if(!active)return;
    const effective=set;
    setAllowed(effective.has(permission));
    const item=fallbackOrder.find(([code])=>effective.has(code));
    setFallback(item ? `${base}${item[1]?`/${item[1]}`:''}` : base);
- }); return()=>{active=false};},[permission,base]);
+ }); return()=>{active=false};},[permission,base,user?.role]);
  if(allowed===null) return <RouteLoading/>;
  return allowed ? <>{children}</> : <Navigate to={fallback} replace/>;
 }
