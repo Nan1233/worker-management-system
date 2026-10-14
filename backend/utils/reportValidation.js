@@ -93,9 +93,11 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const errors = {};
     const workDate = String(payload.work_date || '').slice(0, 10);
     const parsedDate = DATE_PATTERN.test(workDate) ? new Date(`${workDate}T00:00:00`) : null;
+    const submittedProcessCode = String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase();
+    const submittedIsGcProcess = submittedProcessCode === 'GC' || getProcessMachinePolicy(payload.process_id).code === 'GC';
     const isNonProductWork = Number(payload.process_id) === 60006 || Number(payload.process_id) === 30002 ||
-        String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK' ||
-        payload.extra_data?.non_product_work === true || payload.non_product_work === true;
+        submittedProcessCode === 'CVK' ||
+        (submittedIsGcProcess && (payload.extra_data?.non_product_work === true || payload.non_product_work === true));
     const productCodeForPolicy = String(payload.product_name || '').split(',')[0].trim().toUpperCase();
     const normalizeWorkCode = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const processCodeForPolicy = String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase();
