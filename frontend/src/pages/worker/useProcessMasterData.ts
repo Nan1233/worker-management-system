@@ -25,6 +25,30 @@ const normalizeMasterLabel = (value: unknown): string => String(value ?? "")
   .toLowerCase()
   .replace(/[^a-z0-9]/g, "");
 
+// GC master data can contain legacy and canonical rows with the same label.
+// Deduplicate selectable labels in the UI only; do not mutate database records.
+const dedupeGcDeductionOptions = (options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] => {
+  if (String(processCode || "").trim().toUpperCase() !== "GC") return options;
+  const normalizeLabel = (value: unknown): string => String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  const priority = (option: WorkerMasterOption): number => {
+    const code = String(option.code || "").trim().toUpperCase();
+    return code && !code.startsWith("KTC_") ? 0 : code.startsWith("KTC_") ? 2 : 1;
+  };
+  const unique = new Map<string, WorkerMasterOption>();
+  for (const option of options) {
+    const key = normalizeLabel(option.label);
+    if (!key) continue;
+    const existing = unique.get(key);
+    if (!existing || priority(option) < priority(existing)) unique.set(key, option);
+  }
+  return Array.from(unique.values());
+};
+
 const MAI_ALLOWED_DEDUCTION_NAMES = new Set([
   "Bật máy, xét máy, đầu giờ",
   "Chuyển mã",
@@ -191,7 +215,10 @@ export function useProcessMasterData(processId: number, processCode: string) {
 
       if (deductions.status === "fulfilled") {
         setActiveDeductionOptions(
-          filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
+          dedupeGcDeductionOptions(
+            filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
+            processCode,
+          ),
         );
       } else {
         setActiveDeductionOptions([]);
