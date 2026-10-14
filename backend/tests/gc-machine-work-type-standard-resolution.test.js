@@ -163,7 +163,7 @@ test('exact product code wins over another product using the same value as encod
     const text = String(sql).replace(/\\s+/g, ' ').trim().toLowerCase();
     queries.push(text);
     if (text.includes('from product_standards')) {
-      if (/binary trim\\(product_code\\)=binary trim\\(\\?\\)/.test(text)) {
+      if (text.includes('binary trim(product_code)=binary trim(?)')) {
         return [{
           product_standard_id: 5770,
           product_code: '5770',
@@ -173,7 +173,7 @@ test('exact product code wins over another product using the same value as encod
           exclude_kqd_from_tt: 0
         }];
       }
-      if (/binary trim\\(encoding_code\\)=binary trim\\(\\?\\)/.test(text)) {
+      if (text.includes('binary trim(encoding_code)=binary trim(?)')) {
         return [{
           product_standard_id: 8800,
           product_code: 'OTHER-PRODUCT',
@@ -197,5 +197,5 @@ test('exact product code wins over another product using the same value as encod
   assert.equal(resolved.productStandardId, 5770);
   assert.equal(resolved.productCode, '5770');
   assert.equal(resolved.standardOutput, 200);
-  assert.equal(queries.filter(q => /binary trim\\(encoding_code\\)/.test(q)).length, 0);
+  assert.equal(queries.filter(q => q.includes('binary trim(encoding_code)')).length, 0);
 });
