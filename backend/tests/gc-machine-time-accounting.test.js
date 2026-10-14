@@ -109,3 +109,31 @@ test('H2: two lines share machine_event_id but event not in map — grossHours c
   assert.equal(result.netHours, 8);
   assert.equal(result.source, 'MACHINE_LINE');
 });
+
+
+test('GC machine accounting does not fall back to worker time when linked physical event is unavailable', () => {
+  const result = buildGiaCongMachineAccounting({
+    machineLines: [
+      {
+        id: 501,
+        machine_event_id: 7777,
+        machine_time_hours: 3,
+        excel_machine_time_hours: 0,
+        deduction_time_hours: 0,
+        deductions_json: '[]'
+      },
+      {
+        id: 502,
+        machine_event_id: 7777,
+        machine_time_hours: 5,
+        excel_machine_time_hours: 0,
+        deduction_time_hours: 0,
+        deductions_json: '[]'
+      }
+    ]
+  }, new Map());
+
+  assert.equal(result.grossHours, 0);
+  assert.equal(result.netHours, 0);
+  assert.equal(result.source, 'MACHINE_LINE');
+});

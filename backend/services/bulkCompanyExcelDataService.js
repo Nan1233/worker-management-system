@@ -298,21 +298,59 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     eventRows = await query(
       `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status,machine_time_hours,maximum_output,standard_output
          FROM machine_production_events
-        WHERE id IN (${p})`,
+        WHERE status='approved' AND id IN (${p})`,
       eventIds
     );
   }
   const eventMap = new Map(eventRows.map((row) => [Number(row.id), row]));
 
+  // Group once instead of scanning every report/event/type list for each process.
+  // This keeps bulk export work close to O(rows + processes), even for large months.
+  const reportsByProcess = new Map(PROCESS_CODES.map((code) => [code, []]));
+  for (const report of reports) {
+    const bucket = reportsByProcess.get(String(report.process_code || '').toUpperCase());
+    if (bucket) bucket.push(report);
+  }
+
+  const physicalEventsByProcess = new Map();
+  for (const event of physicalMachineEvents) {
+    const key = String(event.process_id);
+    if (!physicalEventsByProcess.has(key)) physicalEventsByProcess.set(key, []);
+    physicalEventsByProcess.get(key).push(event);
+  }
+
+  const deductionTypesByProcess = new Map();
+  for (const item of deductionTypes) {
+    const key = String(item.process_id);
+    if (!deductionTypesByProcess.has(key)) deductionTypesByProcess.set(key, []);
+    deductionTypesByProcess.get(key).push(item);
+  }
+
+  const defectTypesByProcess = new Map();
+  for (const item of defectTypes) {
+    const key = String(item.process_id);
+    if (!defectTypesByProcess.has(key)) defectTypesByProcess.set(key, []);
+    defectTypesByProcess.get(key).push(item);
+  }
+
   for (const [code, data] of Object.entries(processData)) {
     const process = processes.find((row) => String(row.process_code).toUpperCase() === code);
     data.processId = process ? Number(process.id) : null;
     data.processName = process?.process_name || code;
-    data.reports = reports
-      .filter((row) => String(row.process_code).toUpperCase() === code)
+    data.reports = (reportsByProcess.get(code) || [])
       .map((report) => {
         const reportId = Number(report.id);
-        const machineLines = hydrateMachineLineDefects(machineLinesByReport.get(reportId) || [], machineDefectsByLine, eventDefectsByEvent);
+        const machineLines = hydrateMachineLineDefects(machineLinesByReport.get(reportId) || [], machineDefectsByLine, eventDefectsByEvent)
+          .map((line) => {
+            const event = eventMap.get(Number(line.machine_event_id));
+            return {
+              ...line,
+              // Export-only physical time; do not overwrite the worker participation field.
+              excel_machine_time_hours: Number(line.machine_event_id)
+                ? (event ? Math.max(0, Number(event.machine_time_hours) || 0) : 0)
+                : Math.max(0, Number(line.machine_time_hours) || 0)
+            };
+          });
         const tempDeductions = tempDeductionByReport.get(reportId) || [];
         const tempDefects = tempDefectByReport.get(reportId) || [];
         const persistedDeductions = deductionByReport.get(reportId) || [];
@@ -344,9 +382,10 @@ async function loadBulkCompanyReports(yearMonth, actor) {
           machineAccounting
         };
       });
-    data.physicalMachineEvents = physicalMachineEvents.filter((row) => String(row.process_id) === String(data.processId));
-    data.deductionTypes = deductionTypes.filter((row) => String(row.process_id) === String(data.processId));
-    data.defectTypes = defectTypes.filter((row) => String(row.process_id) === String(data.processId));
+    const processKey = String(data.processId);
+    data.physicalMachineEvents = physicalEventsByProcess.get(processKey) || [];
+    data.deductionTypes = deductionTypesByProcess.get(processKey) || [];
+    data.defectTypes = defectTypesByProcess.get(processKey) || [];
   }
 
   return { processData, processIds, scope };
