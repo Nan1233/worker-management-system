@@ -743,7 +743,7 @@ useLayoutEffect(() => {
 
 
                     const workerData =
-                        await getCurrentWorker(true);
+                        await getCurrentWorker();
 
                     const schema = getProcessFormSchema(process);
                     if (!workerCanAccessProcess(workerData, schema.processId, schema.processCode)) {
