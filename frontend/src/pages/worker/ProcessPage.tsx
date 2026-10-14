@@ -1234,7 +1234,7 @@ const updateDeductionValue = (
 
     const validateForm = (): string => {
         const cvkWorkType = String(form.workType || "").trim().toUpperCase();
-        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);
+        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType) || Boolean(isCvkMode);
 
         if (
             loadingWorker
@@ -1275,7 +1275,7 @@ const updateDeductionValue = (
         }
 
 
-        if (!isCvkMode && !usesMultiMachineLines) {
+        if (!isCvkEntry && !usesMultiMachineLines) {
             if (!form.productName.trim()) {
                 return "Vui lòng chọn sản phẩm";
             }
@@ -1337,7 +1337,7 @@ const updateDeductionValue = (
 
 
 
-        if (!isCvkMode && (
+        if (!isCvkEntry && (
             Number(
                 form.standardOutput
                 ||
@@ -1455,7 +1455,7 @@ const updateDeductionValue = (
                     extraData,
                     operationType,
                     isCutLongProcess,
-                    isCvkMode,
+                    isCvkMode: isCvkEntry,
                     processCode,
                     usesAnyMachine,
                     usesMultiMachineLines,
