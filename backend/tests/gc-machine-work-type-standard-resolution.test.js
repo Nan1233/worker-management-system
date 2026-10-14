@@ -11,9 +11,30 @@ function createGcFixtureQuery() {
       return [{ id: 16, machine_code: machineCode || 'ML4', process_code: 'GC' }];
     }
 
-    if (text.includes('from product_aliases')) return [];
+    if (text.includes('from product_aliases')) {
+      const aliasCode = String(params[1] || '').trim().toUpperCase();
+      if (aliasCode === '2801') return [{ product_code: 'QC3-2801' }];
+      return [];
+    }
 
-    if (text.includes('from product_machine_standards')) return [];
+    if (text.includes('from product_machine_standards')) {
+      const lookupProduct = String(params[2] || '').trim().toUpperCase();
+      if (lookupProduct === 'QC3-2801') {
+        return [{
+          id: 8801,
+          process_id: 1,
+          product_code: 'QC3-2801',
+          machine_id: 16,
+          standard_output: 180,
+          calculated_output_per_hour: 180,
+          standard_time_seconds: null,
+          effective_from: '2026-01-01',
+          effective_to: null,
+          is_active: 1
+        }];
+      }
+      return [];
+    }
 
     if (text.includes('from product_standards')) {
       const isLong = /upper\(trim\(ps\.work_type\)\)\s*=\s*'lồng'/.test(text);
@@ -49,6 +70,31 @@ function createGcFixtureQuery() {
     throw new Error(`Unhandled SQL: ${text}; params=${JSON.stringify(params)}`);
   };
 }
+
+test('GC resolves machine standard through product alias 2801 -> QC3-2801', async () => {
+  const queries = [];
+  const baseQuery = createGcFixtureQuery();
+  const query = async (sql, params = []) => {
+    queries.push({ sql: String(sql), params: [...params] });
+    return baseQuery(sql, params);
+  };
+  const resolver = createStandardResolver({ query });
+  const resolved = await resolver.resolveStandard({
+    processId: 1,
+    productCode: '2801',
+    machineCode: 'ML4',
+    workDate: '2026-10-04'
+  });
+
+  const machineLookup = queries.find(q =>
+    /from\\s+product_machine_standards/i.test(q.sql) &&
+    /product_code/i.test(q.sql)
+  );
+  assert.ok(machineLookup, 'Expected machine-standard lookup');
+  assert.equal(String(machineLookup.params[2]).trim(), 'QC3-2801');
+  assert.equal(resolved.machineStandardId, 8801);
+  assert.equal(resolved.standardOutput, 180);
+});
 
 test('GC ML4 resolves 15U-T to Lồng standard 180 instead of treating Cắt/Lồng rows as ambiguous', async () => {
   const resolver = createStandardResolver({ query: createGcFixtureQuery() });
