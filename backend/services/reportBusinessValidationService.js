@@ -42,7 +42,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     ]);
 
     const processCode = normalizeText(processRows?.[0]?.process_code).toUpperCase();
-    const normalizeWorkCode = (value) => String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const normalizeWorkCode = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     const normalizedWorkType = normalizeWorkCode(workType);
     const isKnownNonProductWorkType = new Set(["XUATNHAP", "KTCD", "TAIPP"]).has(normalizedWorkType);
     // GC/Cắt-Lồng can contain sibling non-product work types such as Xuất nhập.
