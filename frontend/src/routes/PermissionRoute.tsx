@@ -8,7 +8,7 @@ const fallbackOrder: Array<[PermissionCode,string]> = [
  ['DASHBOARD_VIEW',''],['REPORT_PENDING_VIEW','reports'],['REPORT_APPROVED_VIEW','approved'],['REPORT_EXPORT','export'],['STATISTICS_VIEW','statistics'],['USER_VIEW','workers'],['MASTER_VIEW','master/machines'],['NOTIFICATION_VIEW','notifications'],['PROFILE_VIEW','profile']
 ];
 export default function PermissionRoute({permission,children}:{permission:PermissionCode;children:ReactNode}){
- const [allowed,setAllowed]=useState<boolean|null>(null); const user=getStoredUser();
+ const user=getStoredUser(); const roleDefaults=defaultPermissionsForRole(user?.role); const [allowed,setAllowed]=useState<boolean|null>(()=>roleDefaults.has(permission));
  const base=useMemo(()=>{
   return user?.role==='admin'?'/admin':user?.role==='admin_ops'?'/admin-ops':user?.role==='manager'?'/manager':user?.role==='lead'?'/lead':'/worker';
  },[user?.role]);
