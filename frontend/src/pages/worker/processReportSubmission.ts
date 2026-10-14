@@ -47,7 +47,7 @@ const resolveSubmittedProductCode = (
 
 export function buildProductionReportPayload(args: {
   clientRequestId: string|null; processId: number; form: FormState; extraData: Record<string,string>; operationType: OperationType;
-  isCutLongProcess: boolean; usesAnyMachine: boolean; usesMultiMachineLines: boolean; usesSingleMachine: boolean;
+  isCutLongProcess: boolean; isCvkMode?: boolean; processCode?: string; usesAnyMachine: boolean; usesMultiMachineLines: boolean; usesSingleMachine: boolean;
   machineLines: MachineLineState[]; machineOptions: MachineOption[]; productOptions: ProductStandardOption[];
   activeNgOptions: Option[]; deductions: DeductionState; activeDeductionOptions: Option[]; excludeKqdFromTt: boolean;
 }): ProductionReport {
@@ -125,9 +125,17 @@ export function buildProductionReportPayload(args: {
       defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     }));
     const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions);
+    // For machine reports, the per-machine fields are the source of truth. The
+    // parent form totals may lag behind the machine-line state (or be stale),
+    // so do not overwrite a valid line quantity with form.ttOk/form.ttNg.
+    const selectedMachineLine = lines.find((line) =>
+      String(line.machine_code || "").trim().toUpperCase() === args.form.machineNo.trim().toUpperCase()
+    );
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, actual_time_hours:parseHours(args.form.actualTime), machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
-      adjustment_count:num(args.form.adjustmentCount), deduction_time_hours:0, deductions:[], ok_quantity:num(args.form.ttOk), ng_quantity:num(args.form.ttNg),
+      adjustment_count:num(args.form.adjustmentCount), deduction_time_hours:0, deductions:[],
+      ok_quantity:selectedMachineLine ? num(selectedMachineLine.ok_quantity) : num(args.form.ttOk),
+      ng_quantity:selectedMachineLine ? num(selectedMachineLine.ng_quantity) : num(args.form.ttNg),
       standard_output:resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput), standard_time_seconds:null, standard_source:"DEFAULT", defects:singleLineDefects,
     });
   }
@@ -135,8 +143,8 @@ export function buildProductionReportPayload(args: {
   const deductions=args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(args.deductions[String(o.key||"")])/60 })).filter(x=>x.hours>0);
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
-  const isGiaCongMachine = args.isCutLongProcess && useMachineLinesPayload;
-  if (isGiaCongMachine && lines.length && deductions.length) {
+  const isMachineLineAccounting = useMachineLinesPayload;
+  if (isMachineLineAccounting && lines.length && deductions.length) {
     const hasLineDeductions = lines.some((line) => Array.isArray(line.deductions) && line.deductions.length);
     if (!hasLineDeductions) {
       const machineDeductionHours = deductions.reduce((sum, item) => sum + num(item.hours), 0);
@@ -157,21 +165,29 @@ export function buildProductionReportPayload(args: {
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT" ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO") : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE") ? args.form.executionMethod : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
   const cvkWorkType = String(args.form.workType || args.extraData?.work_type || "").trim();
-  const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || args.extraData?.processCode || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());
+  const isDedicatedCvkProcess = Number(args.processId) === 30002 || Number(args.processId) === 60006;
+  // In a parent process (e.g. GC/Cắt-Lồng), "Công việc khác" is a work type,
+  // not a separate process. Preserve the parent process_id and mark the report
+  // as non-product work so validation skips only product-standard requirements.
+  const isNonProductWorkWithinProcess = Boolean(args.isCvkMode) && !isDedicatedCvkProcess;
+  const isCvk = isDedicatedCvkProcess;
   const effectiveProcessId = isCvk ? 30002 : args.processId;
+  const submittedMachineNo = isCvk || isNonProductWorkWithinProcess ? null : (useMachineLinesPayload ? lines.map(l=>l.machine_code).join(", ") : args.form.machineNo);
+  const submittedProductName = isCvk || isNonProductWorkWithinProcess ? "" : (useMachineLinesPayload ? [...new Set(lines.map(l=>l.product_code).filter(Boolean))].join(", ") : resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions));
+  const submittedOperationMode = isCvk || isNonProductWorkWithinProcess ? "MANUAL" : (useMachineLinesPayload ? "MACHINE" : (args.usesAnyMachine&&!args.isCutLongProcess ? "MACHINE" : "MANUAL"));
 
   return {
-    process_id: effectiveProcessId, work_date:args.form.workDate, shift:args.form.shift,
-    machine_no:useMachineLinesPayload?lines.map(l=>l.machine_code).join(", "):args.form.machineNo,
-    product_name:useMachineLinesPayload?[...new Set(lines.map(l=>l.product_code).filter(Boolean))].join(", "):resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions),
-    work_type:isCvk ? cvkWorkType : undefined,
-    operation_type:args.operationType, operation_mode:useMachineLinesPayload?"MACHINE":(args.usesAnyMachine&&!args.isCutLongProcess?"MACHINE":"MANUAL"),
-    total_time:isGiaCongMachine ? 0 : totalTime,
-    actual_time:isGiaCongMachine ? 0 : actualTime,
-    deduction_time:isGiaCongMachine ? 0 : deductionTime,
-    standard_output:noStandardLongWork ? 0 : (useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput)),
-    actual_output:actualOutput, tt_ok:noStandardLongWork ? 0 : num(args.form.ttOk), tt_ng:noStandardLongWork ? 0 : num(args.form.ttNg),
-    kqd_dap_lai:num(args.form.kqdDapLai), kqd_tuot:num(args.form.kqdTuot), vo_do_long:num(args.form.voDoLong), xuoc_do_long:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay), khong_dut:num(args.form.khongDut), bavia_hut:num(args.form.baviaHut), ppcm:num(args.form.ppcm), loi_cao_su:num(args.form.loiCaoSu), ng_kich_thuoc:num(args.form.ngKichThuoc), cat_lem:num(args.form.catLem),
-    note:args.form.note||"", extra_data:{...args.extraData, ...(isCvk && cvkWorkType ? { work_type: cvkWorkType } : {}), adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod}, defects:noStandardLongWork ? [] : defects, deductions:isGiaCongMachine ? [] : deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined, exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
+    process_id: effectiveProcessId, process_code: isDedicatedCvkProcess ? "CVK" : args.processCode, work_date:args.form.workDate, shift:args.form.shift,
+    machine_no:submittedMachineNo,
+    product_name:submittedProductName,
+    work_type:(isCvk || isNonProductWorkWithinProcess) ? cvkWorkType : undefined,
+    operation_type:isNonProductWorkWithinProcess ? null : args.operationType, operation_mode:submittedOperationMode,
+    total_time:isMachineLineAccounting ? 0 : totalTime,
+    actual_time:isMachineLineAccounting ? 0 : actualTime,
+    deduction_time:isMachineLineAccounting ? 0 : deductionTime,
+    standard_output:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork) ? 0 : (useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput)),
+    actual_output:(isCvk || isNonProductWorkWithinProcess || isMachineLineAccounting) ? 0 : actualOutput, tt_ok:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttOk), tt_ng:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttNg),
+    kqd_dap_lai:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.kqdDapLai), kqd_tuot:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.kqdTuot), vo_do_long:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.voDoLong), xuoc_do_long:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.xuocDoLong), cong_gay:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.congGay), xoay:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.xoay), khong_dut:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.khongDut), bavia_hut:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.baviaHut), ppcm:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.ppcm), loi_cao_su:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.loiCaoSu), ng_kich_thuoc:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.ngKichThuoc), cat_lem:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.catLem),
+    note:args.form.note||"", extra_data:{...args.extraData, ...(isCvk && cvkWorkType ? { work_type: cvkWorkType, non_product_work: true, process_code: "CVK" } : {}), ...(isNonProductWorkWithinProcess ? { work_type: cvkWorkType || "CÔNG VIỆC KHÁC", non_product_work: true, parent_process_id: args.processId, process_code: args.processCode || args.extraData?.process_code } : {}), ...(Number(args.processId) === 4 && String(args.form.k1DeductionWork || "").trim() ? { k1_deduction_work: String(args.form.k1DeductionWork).trim() } : {}), adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod}, defects:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork) ? [] : defects, deductions:isMachineLineAccounting ? [] : deductions, machine_lines:(isCvk || isNonProductWorkWithinProcess) ? [] : (useMachineLinesPayload?lines:[]), client_request_id:args.clientRequestId||undefined, exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
   } as ProductionReport;
 }
