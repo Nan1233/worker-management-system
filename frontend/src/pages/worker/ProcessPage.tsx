@@ -242,6 +242,7 @@ const machineAutocompleteOptions =
     );
     const [operationType, setOperationType] = useState<OperationType>("CUT");
     const [isCvkMode, setIsCvkMode] = useState(false);
+    const [cutExecutionMode, setCutExecutionMode] = useState<"AUTO" | "NON_AUTO">("AUTO");
     const [operationMode, setOperationMode] = useState<OperationMode>(
         () => getInitialOperationMode(processCapabilities)
     );
@@ -637,7 +638,8 @@ useLayoutEffect(() => {
         );
         setMachineCount(Math.max(1, draft.machineCount));
         setOperationType(draft.operationType);
-        setIsCvkMode(["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(String(draft.form?.workType || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "")));
+        setIsCvkMode(Boolean(draft.isCvkMode || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(String(draft.form?.workType || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, ""))));
+        setCutExecutionMode(draft.cutExecutionMode === "NON_AUTO" ? "NON_AUTO" : "AUTO");
         setOperationMode(draft.operationMode);
         setExtraData(draft.extraData || {});
 
@@ -662,6 +664,8 @@ useLayoutEffect(() => {
             machineCount,
             operationType,
             operationMode,
+            isCvkMode,
+            cutExecutionMode,
             extraData,
         };
 
@@ -690,6 +694,8 @@ useLayoutEffect(() => {
         machineCount,
         operationType,
         operationMode,
+        isCvkMode,
+        cutExecutionMode,
         extraData,
         loadingWorker,
         loadingMasterData,
@@ -1707,6 +1713,8 @@ window.setTimeout(() => {
                     setOperationType={setOperationType}
                     operationMode={operationMode}
                     setOperationMode={setOperationMode}
+                    cutExecutionMode={cutExecutionMode}
+                    setCutExecutionMode={setCutExecutionMode}
                     usesMultiMachineLines={usesMultiMachineLines}
                     usesSingleMachine={usesSingleMachine}
                     productAutocompleteOptions={productAutocompleteOptions}
