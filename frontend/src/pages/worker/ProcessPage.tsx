@@ -1241,7 +1241,7 @@ const updateDeductionValue = (
 
     const validateForm = (): string => {
         const cvkWorkType = String(form.workType || "").trim().toUpperCase();
-        const normalizeWorkType = (value: string) => value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const normalizeWorkType = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
         const normalizedCvkWorkType = normalizeWorkType(cvkWorkType);
         const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(normalizedCvkWorkType) || Boolean(isCvkMode);
 
