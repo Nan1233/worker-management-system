@@ -637,6 +637,7 @@ useLayoutEffect(() => {
         );
         setMachineCount(Math.max(1, draft.machineCount));
         setOperationType(draft.operationType);
+        setIsCvkMode(["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(String(draft.form?.workType || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "")));
         setOperationMode(draft.operationMode);
         setExtraData(draft.extraData || {});
 
