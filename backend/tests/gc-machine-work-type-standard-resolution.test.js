@@ -87,7 +87,7 @@ test('GC resolves machine standard through product alias 2801 -> QC3-2801', asyn
   });
 
   const machineLookup = queries.find(q =>
-    /from\\s+product_machine_standards/i.test(q.sql) &&
+    /from\s+product_machine_standards/i.test(q.sql) &&
     /product_code/i.test(q.sql)
   );
   assert.ok(machineLookup, 'Expected machine-standard lookup');
