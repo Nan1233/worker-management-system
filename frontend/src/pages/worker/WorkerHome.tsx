@@ -14,7 +14,35 @@ const formatPercent = (value: unknown) => `${Math.max(0, Math.min(100, Number(va
 const formatHours = (value: unknown) => {
   const hours = Number(value ?? 0);
   if (!Number.isFinite(hours) || hours <= 0) return "0 giờ";
-  return `${hours.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} giờ`;
+  return hours.toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " giờ";
+};
+
+// GC/Cắt-Lồng can have legacy top-level time fields equal to 0 while the
+// machine-line data contains the real gross time and deductions.
+const getReportActualHours = (report: ProductionReport) => {
+  const actual = Number(report.actual_time ?? 0);
+  if (Number.isFinite(actual) && actual > 0) return actual;
+
+  const lines = Array.isArray((report as any).machine_lines)
+    ? (report as any).machine_lines
+    : Array.isArray((report as any).machineLines) ? (report as any).machineLines : [];
+  if (lines.length) {
+    const totals = lines.reduce((sum: { gross: number; deduction: number }, line: any) => {
+      const gross = Math.max(0, Number(line.machine_time_hours ?? line.machineTimeHours ?? 0) || 0);
+      let deduction = Number(line.deduction_time_hours ?? line.deductionTimeHours);
+      if (!Number.isFinite(deduction) || deduction < 0) {
+        const raw = Array.isArray(line.deductions_json) ? line.deductions_json
+          : Array.isArray(line.deductions) ? line.deductions
+          : (() => { try { return JSON.parse(line.deductions_json || "[]"); } catch { return []; } })();
+        deduction = raw.reduce((n: number, item: any) => n + Math.max(0, Number(item.minutes ?? item.deduction_minutes ?? (Number(item.hours) || 0) * 60) || 0) / 60, 0);
+      }
+      return { gross: sum.gross + gross, deduction: sum.deduction + Math.min(gross, Math.max(0, deduction)) };
+    }, { gross: 0, deduction: 0 });
+    if (totals.gross > 0) return Math.max(0, totals.gross - totals.deduction);
+  }
+
+  const total = Number(report.total_time ?? 0);
+  return Number.isFinite(total) && total > 0 ? total : 0;
 };
 const formatDate = (value?: string) => {
   if (!value) return "--/--/----";
@@ -78,7 +106,7 @@ export default function WorkerHome() {
   const todayStats = useMemo(() => {
     const ok = todayReports.reduce((sum, report) => sum + Number(report.tt_ok ?? 0), 0);
     const ng = todayReports.reduce((sum, report) => sum + Number((report.defects || []).reduce((defectSum, defect) => defectSum + Number(defect.quantity ?? 0), 0)), 0);
-    const time = todayReports.reduce((sum, report) => sum + Number(report.actual_time ?? report.total_time ?? 0), 0);
+    const time = todayReports.reduce((sum, report) => sum + getReportActualHours(report), 0);
     return { ok, ng, time, reportCount: todayReports.length };
   }, [todayReports]);
 
@@ -144,11 +172,7 @@ export default function WorkerHome() {
           <div className="worker-home-report-list">
             {displayReports.length ? displayReports.map((report) => {
               const status = statusMeta(report.status);
-              // Some legacy/API rows send actual_time=0 while total_time is populated.
-              // Prefer a positive value instead of letting zero mask the fallback.
-              const actualTime = Number(report.actual_time ?? 0);
-              const totalTime = Number(report.total_time ?? 0);
-              const reportTime = actualTime > 0 ? actualTime : Math.max(0, totalTime);
+              const reportTime = getReportActualHours(report);
               return (
                 <button type="button" className="worker-home-report" key={report.id ?? `${report.work_date}-${report.machine_no}-${report.product_name}`} onClick={() => report.id && navigate(`/worker/history/${report.id}`)}>
                   <span className="worker-home-report-date"><strong>{formatDate(report.work_date).slice(0, 5)}</strong><small>{formatDate(report.work_date).slice(6)}</small></span>
