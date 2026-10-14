@@ -102,14 +102,16 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const isGcProcessForPolicy = processCodeForPolicy === 'GC' || getProcessMachinePolicy(payload.process_id).code === 'GC';
     const workTypeForPolicy = normalizeWorkCode(payload.work_type || payload.workType || payload.extra_data?.work_type || payload.extra_data?.workType);
     const productWorkCode = normalizeWorkCode(productCodeForPolicy);
+    // Non-product work such as Xuất nhập can be selected inside a parent
+    // process (e.g. GC/Cắt-Lồng), so process_code may identify the parent
+    // rather than CVK. Recognize the explicit work-type code independently
+    // from the parent process policy; otherwise standard_output=0 is rejected.
     const isZeroStandardLongWork = (
         ZERO_STANDARD_LONG_WORK_CODES.has(productCodeForPolicy) ||
-        (isGcProcessForPolicy && (
-            ZERO_STANDARD_LONG_WORK_CODES.has(productWorkCode) ||
-            ZERO_STANDARD_LONG_WORK_CODES.has(workTypeForPolicy)
-        ))
+        ZERO_STANDARD_LONG_WORK_CODES.has(productWorkCode) ||
+        ZERO_STANDARD_LONG_WORK_CODES.has(workTypeForPolicy)
     ) &&
-        (String(payload.operation_type || '').trim().toUpperCase() === 'LONG' || isGcProcessForPolicy) &&
+        (String(payload.operation_type || '').trim().toUpperCase() === 'LONG' || isGcProcessForPolicy || ZERO_STANDARD_LONG_WORK_CODES.has(workTypeForPolicy)) &&
         Number(payload.process_id) !== 60006;
     const isMachineReport = String(payload.operation_mode || payload.execution_method || '').trim().toUpperCase() === 'MACHINE' ||
         (Array.isArray(payload.machine_lines) && payload.machine_lines.length > 0);
