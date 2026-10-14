@@ -28,8 +28,7 @@ const newOperation = `const normalizedOperation = s(data.operation_type || data.
 if (!source.includes(newOperation) && source.includes(oldOperation)) { source = source.replace(oldOperation, newOperation); changed = true; }
 
 const oldTimeFields = "totalTime: `" + "${total.hours}:${total.minutes}" + "`, actualTime: `" + "${actual.hours}:${actual.minutes}" + "`, actualHours: actual.hours, actualMinutes: actual.minutes,\n          deductionTime: `" + "${deduction.hours}:${deduction.minutes}" + "`,";
-const newTimeFields = `totalTime: String(data.total_time ?? 0), actualTime: String(data.actual_time ?? 0), actualHours: actual.hours, actualMinutes: actual.minutes,
-          deductionTime: String(data.deduction_time ?? 0),`;
+const newTimeFields = "totalTime: `" + "${total.hours}:${total.minutes}" + "`, actualTime: `" + "${actual.hours}:${actual.minutes}" + "`, actualHours: actual.hours, actualMinutes: actual.minutes,\n          deductionTime: `" + "${deduction.hours}:${deduction.minutes}" + "`,";
 if (!source.includes(newTimeFields) && source.includes(oldTimeFields)) { source = source.replace(oldTimeFields, newTimeFields); changed = true; }
 
 const oldProcessId = `const processId = Number(report?.process_id) > 0 ? Number(report.process_id) : (capabilities.processCode === "CVK" ? 60006 : 0);`;
