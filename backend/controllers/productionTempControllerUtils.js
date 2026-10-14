@@ -69,7 +69,14 @@ const normalizeReviewTargets = (body = {}) => {
             }))
             .filter((item) => item.id && !seen.has(item.id) && seen.add(item.id));
     }
-    return normalizeIds(body?.ids).map((id) => ({ id, expected_updated_at: null }));
+    const ids = normalizeIds(body?.ids);
+    // Legacy single-report review clients call POST /approve with { id }.
+    // Keep that contract compatible while the current frontend sends { ids }.
+    if (ids.length === 0) {
+        const legacyId = toPositiveInteger(body?.id ?? body?.report_id);
+        if (legacyId) ids.push(legacyId);
+    }
+    return ids.map((id) => ({ id, expected_updated_at: null }));
 };
 
 const requestMeta = (req) => ({

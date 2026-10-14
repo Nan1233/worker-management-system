@@ -11,7 +11,30 @@ function createGcFixtureQuery() {
       return [{ id: 16, machine_code: machineCode || 'ML4', process_code: 'GC' }];
     }
 
-    if (text.includes('from product_machine_standards')) return [];
+    if (text.includes('from product_aliases')) {
+      const aliasCode = String(params[1] || '').trim().toUpperCase();
+      if (aliasCode === '2801') return [{ product_code: 'QC3-2801' }];
+      return [];
+    }
+
+    if (text.includes('from product_machine_standards')) {
+      const lookupProduct = String(params[2] || '').trim().toUpperCase();
+      if (lookupProduct === 'QC3-2801') {
+        return [{
+          id: 8801,
+          process_id: 1,
+          product_code: 'QC3-2801',
+          machine_id: 16,
+          standard_output: 180,
+          calculated_output_per_hour: 180,
+          standard_time_seconds: null,
+          effective_from: '2026-01-01',
+          effective_to: null,
+          is_active: 1
+        }];
+      }
+      return [];
+    }
 
     if (text.includes('from product_standards')) {
       const isLong = /upper\(trim\(ps\.work_type\)\)\s*=\s*'lồng'/.test(text);
@@ -47,6 +70,31 @@ function createGcFixtureQuery() {
     throw new Error(`Unhandled SQL: ${text}; params=${JSON.stringify(params)}`);
   };
 }
+
+test('GC resolves machine standard through product alias 2801 -> QC3-2801', async () => {
+  const queries = [];
+  const baseQuery = createGcFixtureQuery();
+  const query = async (sql, params = []) => {
+    queries.push({ sql: String(sql), params: [...params] });
+    return baseQuery(sql, params);
+  };
+  const resolver = createStandardResolver({ query });
+  const resolved = await resolver.resolveStandard({
+    processId: 1,
+    productCode: '2801',
+    machineCode: 'ML4',
+    workDate: '2026-10-04'
+  });
+
+  const machineLookup = queries.find(q =>
+    /from\s+product_machine_standards/i.test(q.sql) &&
+    /product_code/i.test(q.sql)
+  );
+  assert.ok(machineLookup, 'Expected machine-standard lookup');
+  assert.equal(String(machineLookup.params[2]).trim(), 'QC3-2801');
+  assert.equal(resolved.machineStandardId, 8801);
+  assert.equal(resolved.standardOutput, 180);
+});
 
 test('GC ML4 resolves 15U-T to Lồng standard 180 instead of treating Cắt/Lồng rows as ambiguous', async () => {
   const resolver = createStandardResolver({ query: createGcFixtureQuery() });
@@ -107,4 +155,73 @@ test('GC C1 falls back to the only process product standard when the machine has
   assert.equal(resolved.standardOutput, 250);
   assert.equal(resolved.machineCode, 'C1');
   assert.match(resolved.source, /PROCESS_FALLBACK/);
+});
+
+test('exact product code wins over another product using the same value as encoding_code', async () => {
+  const queries = [];
+  const query = async (sql, params = []) => {
+    const text = String(sql).replace(/\\s+/g, ' ').trim().toLowerCase();
+    queries.push(text);
+    if (text.includes('from product_standards')) {
+      if (text.includes('binary trim(product_code)=binary trim(?)')) {
+        return [{
+          product_standard_id: 5770,
+          product_code: '5770',
+          encoding_code: null,
+          work_type: 'Lồng',
+          standard_output: 200,
+          exclude_kqd_from_tt: 0
+        }];
+      }
+      if (text.includes('binary trim(encoding_code)=binary trim(?)')) {
+        return [{
+          product_standard_id: 8800,
+          product_code: 'OTHER-PRODUCT',
+          encoding_code: '5770',
+          work_type: 'Lồng',
+          standard_output: 900,
+          exclude_kqd_from_tt: 0
+        }];
+      }
+    }
+    if (text.includes('from product_standard_versions')) return [];
+    throw new Error(`Unexpected SQL: ${text}; params=${JSON.stringify(params)}`);
+  };
+  const resolver = createStandardResolver({ query });
+  const resolved = await resolver.resolveProduct({
+    processId: 1,
+    productCode: '5770',
+    workDate: '2026-10-14',
+    workType: 'LONG'
+  });
+  assert.equal(resolved.productStandardId, 5770);
+  assert.equal(resolved.productCode, '5770');
+  assert.equal(resolved.standardOutput, 200);
+  assert.equal(queries.filter(q => q.includes('binary trim(encoding_code)')).length, 0);
+});
+
+
+test('GC selects the highest active output when the same exact product/work type has conflicting rows', async () => {
+  const query = async (sql, params = []) => {
+    const text = String(sql).replace(/\\s+/g, ' ').trim().toLowerCase();
+    if (text.includes('from product_standards')) {
+      if (text.includes("upper(trim(ps.work_type))='lồng'") && text.includes('binary trim(product_code)=binary trim(?)')) {
+        return [
+          { product_standard_id: 11, product_code: '5770', encoding_code: null, work_type: 'Lồng', standard_output: 605, exclude_kqd_from_tt: 0 },
+          { product_standard_id: 180438, product_code: '5770', encoding_code: null, work_type: 'Lồng', standard_output: 365, exclude_kqd_from_tt: 0 }
+        ];
+      }
+    }
+    if (text.includes('from product_standard_versions')) return [];
+    throw new Error(`Unexpected SQL: ${text}; params=${JSON.stringify(params)}`);
+  };
+  const resolver = createStandardResolver({ query });
+  const resolved = await resolver.resolveProduct({
+    processId: 1,
+    productCode: '5770',
+    workDate: '2026-10-14',
+    workType: 'LONG'
+  });
+  assert.equal(resolved.productStandardId, 11);
+  assert.equal(resolved.standardOutput, 605);
 });

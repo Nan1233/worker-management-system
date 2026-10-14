@@ -14,7 +14,35 @@ const formatPercent = (value: unknown) => `${Math.max(0, Math.min(100, Number(va
 const formatHours = (value: unknown) => {
   const hours = Number(value ?? 0);
   if (!Number.isFinite(hours) || hours <= 0) return "0 giờ";
-  return `${hours.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} giờ`;
+  return hours.toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " giờ";
+};
+
+// GC/Cắt-Lồng can have legacy top-level time fields equal to 0 while the
+// machine-line data contains the real gross time and deductions.
+const getReportActualHours = (report: ProductionReport) => {
+  const actual = Number(report.actual_time ?? 0);
+  if (Number.isFinite(actual) && actual > 0) return actual;
+
+  const lines = Array.isArray((report as any).machine_lines)
+    ? (report as any).machine_lines
+    : Array.isArray((report as any).machineLines) ? (report as any).machineLines : [];
+  if (lines.length) {
+    const totals = lines.reduce((sum: { gross: number; deduction: number }, line: any) => {
+      const gross = Math.max(0, Number(line.machine_time_hours ?? line.machineTimeHours ?? 0) || 0);
+      let deduction = Number(line.deduction_time_hours ?? line.deductionTimeHours);
+      if (!Number.isFinite(deduction) || deduction < 0) {
+        const raw = Array.isArray(line.deductions_json) ? line.deductions_json
+          : Array.isArray(line.deductions) ? line.deductions
+          : (() => { try { return JSON.parse(line.deductions_json || "[]"); } catch { return []; } })();
+        deduction = raw.reduce((n: number, item: any) => n + Math.max(0, Number(item.minutes ?? item.deduction_minutes ?? (Number(item.hours) || 0) * 60) || 0) / 60, 0);
+      }
+      return { gross: sum.gross + gross, deduction: sum.deduction + Math.min(gross, Math.max(0, deduction)) };
+    }, { gross: 0, deduction: 0 });
+    if (totals.gross > 0) return Math.max(0, totals.gross - totals.deduction);
+  }
+
+  const total = Number(report.total_time ?? 0);
+  return Number.isFinite(total) && total > 0 ? total : 0;
 };
 const formatDate = (value?: string) => {
   if (!value) return "--/--/----";
@@ -36,41 +64,37 @@ export default function WorkerHome() {
   const navigate = useNavigate();
   const [worker, setWorker] = useState<WorkerProfile | null>(null);
   const [reports, setReports] = useState<ProductionReport[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   useEffect(() => {
     let alive = true;
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const user = getStoredUser();
-        if (!user || user.role !== "worker") {
-          clearAuthSession({ bumpEpoch: false });
-          navigate("/login", { replace: true });
-          return;
-        }
-        const [workerData, reportData] = await Promise.all([getCurrentWorker(true), getMyTempReports()]);
-        if (!alive) return;
-        setWorker(workerData);
-        setReports(Array.isArray(reportData) ? reportData : []);
-      } catch (err: unknown) {
-        if (!alive) return;
-        if (axios.isAxiosError(err) && err.response?.status === 401) {
-          clearAuthSession({ bumpEpoch: false });
-          navigate("/login", { replace: true });
-          return;
-        }
-        setError(axios.isAxiosError(err) ? (err.response?.data?.message || "Không thể tải dữ liệu trang chủ") : "Không thể tải dữ liệu trang chủ");
-      } finally {
-        if (alive) setLoading(false);
+    const user = getStoredUser();
+    if (!user || user.role !== "worker") {
+      clearAuthSession({ bumpEpoch: false });
+      navigate("/login", { replace: true });
+      return () => { alive = false; };
+    }
+
+    // Render the home shell immediately; profile and report data load independently.
+    void getCurrentWorker().then((workerData) => {
+      if (alive) setWorker(workerData);
+    }).catch((err: unknown) => {
+      if (!alive) return;
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        clearAuthSession({ bumpEpoch: false });
+        navigate("/login", { replace: true });
       }
-    };
-    void load();
+    });
+
+    void getMyTempReports().then((reportData) => {
+      if (alive) setReports(Array.isArray(reportData) ? reportData : []);
+    }).catch(() => {
+      // Keep the home page usable if the recent-report endpoint is slow or unavailable.
+      if (alive) setReports([]);
+    });
+
     return () => { alive = false; };
   }, [navigate]);
 
@@ -82,16 +106,13 @@ export default function WorkerHome() {
   const todayStats = useMemo(() => {
     const ok = todayReports.reduce((sum, report) => sum + Number(report.tt_ok ?? 0), 0);
     const ng = todayReports.reduce((sum, report) => sum + Number((report.defects || []).reduce((defectSum, defect) => defectSum + Number(defect.quantity ?? 0), 0)), 0);
-    const time = todayReports.reduce((sum, report) => sum + Number(report.actual_time ?? report.total_time ?? 0), 0);
+    const time = todayReports.reduce((sum, report) => sum + getReportActualHours(report), 0);
     return { ok, ng, time, reportCount: todayReports.length };
   }, [todayReports]);
 
   const trainingPercent = Number(worker?.training_percent ?? 0);
   const displayReports = todayReports.length ? todayReports : reports.slice(0, 4);
   const greetingName = worker?.full_name || "Công nhân";
-
-  if (loading) return <main className="worker-home-page"><div className="worker-home-state">Đang tải dữ liệu...</div></main>;
-  if (error) return <main className="worker-home-page"><div className="worker-home-state error"><strong>Không thể tải trang chủ</strong><span>{error}</span><button type="button" onClick={() => window.location.reload()}>Thử lại</button></div></main>;
 
   return (
     <main className="worker-home-page">
@@ -151,7 +172,7 @@ export default function WorkerHome() {
           <div className="worker-home-report-list">
             {displayReports.length ? displayReports.map((report) => {
               const status = statusMeta(report.status);
-              const reportTime = Number(report.actual_time ?? report.total_time ?? 0);
+              const reportTime = getReportActualHours(report);
               return (
                 <button type="button" className="worker-home-report" key={report.id ?? `${report.work_date}-${report.machine_no}-${report.product_name}`} onClick={() => report.id && navigate(`/worker/history/${report.id}`)}>
                   <span className="worker-home-report-date"><strong>{formatDate(report.work_date).slice(0, 5)}</strong><small>{formatDate(report.work_date).slice(6)}</small></span>

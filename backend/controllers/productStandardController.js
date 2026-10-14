@@ -7,6 +7,10 @@ const query = (sql, params = []) => db.promise().query(sql, params);
 
 const GC_NO_STANDARD_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
+// Cache-key versions deliberately invalidate stale master data after external DB updates.
+const MACHINE_CACHE_VERSION = "v2";
+const PRODUCT_STANDARD_CACHE_VERSION = "v2";
+
 const loadGcProductStandardsDirect = async (processId, processCode) => {
   const where = processCode
     ? `UPPER(TRIM(p.process_code)) = UPPER(TRIM(?))`
@@ -85,10 +89,10 @@ exports.getProductStandards = async (req, res) => {
     // work items cannot be lost by alias/standard filters in the generic model.
     // Only the three explicitly configured no-standard jobs are allowed at 0.
     const cacheKey = resolvedProcessCode === 'GC'
-      ? `product-standards:v6:gc:${processId > 0 ? processId : resolvedProcessCode}`
+      ? `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:gc:${processId > 0 ? processId : resolvedProcessCode}`
       : processCode
-        ? `product-standards:v6:code:${processCode}`
-        : `product-standards:v6:id:${processId}`;
+        ? `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:code:${processCode}`
+        : `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:id:${processId}`;
 
     const data = await getOrLoadMasterData(
       cacheKey,
@@ -122,8 +126,8 @@ exports.resolveProductStandard = async (req, res) => {
     }
 
     await Promise.all([
-      getOrLoadMasterData(`machines:${processId}`, TTL.machines, () => machineModel.findByProcess(processId)),
-      getOrLoadMasterData(`product-standards:${processId}`, TTL.productStandards, () => productStandardModel.findByProcess(processId))
+      getOrLoadMasterData(`machines:${MACHINE_CACHE_VERSION}:${processId}`, TTL.machines, () => machineModel.findByProcess(processId)),
+      getOrLoadMasterData(`product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:resolve:${processId}`, TTL.productStandards, () => productStandardModel.findByProcess(processId))
     ]);
 
     if (machineCode) {

@@ -150,47 +150,38 @@ async function createReportVersion(
   const changeReason = reason ? String(reason).slice(0, 500) : null;
   const createdBy = Number(userId) || null;
 
+  // Generate the next version and insert it in one SQL statement. On Cloudflare
+  // each TiDB Serverless execute consumes a Worker subrequest, so a separate
+  // SELECT MAX(version_no) followed by INSERT needlessly doubles this operation.
+  // Keep duplicate-key retries for concurrent writers.
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const rows = await query(
-      executor,
-      `SELECT version_no
-         FROM report_versions
-        WHERE report_type=? AND report_id=?
-        ORDER BY version_no DESC
-        LIMIT 1
-        FOR UPDATE`,
-      [normalizedType, normalizedReportId],
-    );
-
-    const currentVersion = Number(rows[0]?.version_no || 0);
-    const versionNo = currentVersion + 1;
-
     try {
-      await query(
+      const result = await query(
         executor,
         `INSERT INTO report_versions
           (report_type, report_id, version_no, snapshot_json, change_reason, created_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         SELECT ?, ?, COALESCE(MAX(version_no), 0) + 1, ?, ?, ?
+           FROM report_versions
+          WHERE report_type=? AND report_id=?`,
         [
           normalizedType,
           normalizedReportId,
-          versionNo,
           snapshotJson,
           changeReason,
           createdBy,
+          normalizedType,
+          normalizedReportId,
         ],
       );
-      return versionNo;
+      return Number(result?.insertId || result?.lastInsertId || 0) || true;
     } catch (error) {
       const message = String(error?.message || '');
       const duplicateVersion =
         error?.code === 'ER_DUP_ENTRY'
         || /duplicate entry|duplicate key|already exists/i.test(message);
-
       if (!duplicateVersion || attempt === 4) throw error;
     }
   }
-
   throw new Error('Không thể tạo report version sau nhiều lần thử');
 }
 

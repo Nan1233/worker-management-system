@@ -9,20 +9,22 @@ exports.getDeductionsByProcess = async (req, res) => {
     }
 
     const isCVK = processId === 60006 || processId === 30002;
-    const cacheKey = `deductions:v4:${processId}`;
+    const [processRows] = await require("../config/db").promise().query(
+      "SELECT UPPER(TRIM(COALESCE(process_code, ''))) AS process_code FROM processes WHERE id = ? LIMIT 1",
+      [processId],
+    );
+    const processCode = String(processRows?.[0]?.process_code || "").trim().toUpperCase();
+    const cacheKey = `deductions:v6:${processId}`;
     let data;
 
-    // CVK master data is self-healed from TiDB on every request. Never serve a
-    // stale isolate cache while repairing the catalogue.
-    if (isCVK) {
+    // GC/CVK have self-healing canonical catalogues. Other processes must read
+    // the active process-scoped DB rows directly, so changes made by admins are
+    // visible immediately and a stale isolate cache cannot hide Trừ H options.
+    if (isCVK || processCode === "GC") {
       masterDataCache.deleteByPrefix(cacheKey);
       data = await Deduction.getByProcess(processId);
     } else {
-      data = masterDataCache.get(cacheKey);
-      if (!data) {
-        data = await Deduction.getByProcess(processId);
-        masterDataCache.set(cacheKey, data, TTL.deductions);
-      }
+      data = await Deduction.getByProcess(processId);
     }
 
     console.info("[KTC][DEDUCTION_API]", JSON.stringify({
@@ -34,7 +36,7 @@ exports.getDeductionsByProcess = async (req, res) => {
     // Diagnostic only: lets the live deployment be verified from the browser
     // Network tab (Response Headers) without reading the payload.
     res.set("X-KTC-Deduction-Count", String(Array.isArray(data) ? data.length : 0));
-    res.set("X-KTC-Deduction-Catalogue", "gc16-v1");
+    res.set("X-KTC-Deduction-Catalogue", "process-active-v2");
     return res.json({ success: true, data });
   } catch (error) {
     console.error("GET DEDUCTIONS ERROR:", error);

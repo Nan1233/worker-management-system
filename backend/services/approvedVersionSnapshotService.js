@@ -57,30 +57,31 @@ async function loadApprovedAggregateSnapshot({ reportId, executor = null }) {
   if (!Number.isInteger(id) || id <= 0) return null;
   const activeExecutor = executor || require('../config/db');
 
-  const [[reports], [defects], [deductions], [machineLines], [machineDefects]] = await Promise.all([
-    query(activeExecutor, 'SELECT * FROM production_reports WHERE id=? LIMIT 1', [id]),
-    query(activeExecutor,
-      `SELECT defect_type_id, quantity
+  // A transaction-scoped TiDB Serverless connection cannot safely execute
+  // these reads concurrently. Keep them sequential; callers outside a transaction
+  // can optimize separately if needed.
+  const [reports] = await query(activeExecutor, 'SELECT * FROM production_reports WHERE id=? LIMIT 1', [id]);
+  const [defects] = await query(activeExecutor,
+    `SELECT defect_type_id, quantity
        FROM production_report_defects
        WHERE report_id=?
-       ORDER BY defect_type_id ASC, id ASC`, [id]),
-    query(activeExecutor,
-      `SELECT deduction_type_id, hours
+       ORDER BY defect_type_id ASC, id ASC`, [id]);
+  const [deductions] = await query(activeExecutor,
+    `SELECT deduction_type_id, hours
        FROM production_report_deductions
        WHERE report_id=?
-       ORDER BY deduction_type_id ASC, id ASC`, [id]),
-    query(activeExecutor,
-      `SELECT *
+       ORDER BY deduction_type_id ASC, id ASC`, [id]);
+  const [machineLines] = await query(activeExecutor,
+    `SELECT *
        FROM production_report_machine_lines
        WHERE report_id=?
-       ORDER BY sort_order ASC, id ASC`, [id]),
-    query(activeExecutor,
-      `SELECT md.machine_line_id, md.defect_type_id, md.defect_code, md.defect_name, md.quantity
+       ORDER BY sort_order ASC, id ASC`, [id]);
+  const [machineDefects] = await query(activeExecutor,
+    `SELECT md.machine_line_id, md.defect_type_id, md.defect_code, md.defect_name, md.quantity
        FROM production_report_machine_defects md
        INNER JOIN production_report_machine_lines ml ON ml.id=md.machine_line_id
        WHERE ml.report_id=?
-       ORDER BY ml.sort_order ASC, ml.id ASC, md.defect_code ASC, md.defect_type_id ASC, md.id ASC`, [id])
-  ]);
+       ORDER BY ml.sort_order ASC, ml.id ASC, md.defect_code ASC, md.defect_type_id ASC, md.id ASC`, [id]);
 
   if (!reports[0]) return null;
 

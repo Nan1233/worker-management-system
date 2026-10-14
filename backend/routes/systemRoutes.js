@@ -21,13 +21,23 @@ router.patch(
   c.markNotificationRead
 );
 router.get('/observability', auth, role('admin','manager'), permission('SYSTEM_HEALTH_VIEW'), c.getObservability);
-router.get('/activities', auth, role('admin','manager','lead'), permission('AUDIT_VIEW'), c.getActivities);
-router.get('/deleted-reports', auth, role('admin','manager','lead'), permission('AUDIT_VIEW'), c.getDeletedReports);
+router.get('/activities', auth, role('admin','admin_ops','manager','lead'), permission('AUDIT_VIEW'), c.getActivities);
+router.get('/deleted-reports', auth, role('admin','admin_ops','manager','lead'), permission('AUDIT_VIEW'), c.getDeletedReports);
+
+const reportVersionPermission = (req,res,next) => {
+  const role = String(req.user?.role || '').trim().toLowerCase();
+  const type = String(req.query?.type || '').trim().toLowerCase();
+  const requiredPermission = role === 'worker'
+    ? 'WORKER_HISTORY'
+    : type === 'temp' ? 'REPORT_PENDING_VIEW' : 'REPORT_APPROVED_VIEW';
+  return permission(requiredPermission)(req,res,next);
+};
 router.get(
   '/reports/:id/versions',
   auth,
-  role('admin', 'manager', 'lead', 'worker'),
+  role('admin', 'admin_ops', 'manager', 'lead', 'worker'),
   validate({ id: { in: 'params', type: 'positiveInt', required: true } }),
+  reportVersionPermission,
   c.getReportVersions
 );
 

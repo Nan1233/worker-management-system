@@ -28,15 +28,18 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
         seenEvents.add(eventId);
         grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
       }
-    } else {
-      if (!eventId || !seenEvents.has(eventId)) {
-        if (eventId) seenEvents.add(eventId);
-        grossHours += Math.max(0, Number(line.machine_time_hours) || 0);
-      }
+    } else if (!eventId) {
+      grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
     }
 
-    const lineDeductionHours = Math.max(0, Number(line.deduction_time_hours) || 0, (Number(line.adjustment_minutes) || 0) / 60);
     const lineDeductions = parseJsonArray(line.deductions_json);
+    const detailDeductionHours = lineDeductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
+    const lineDeductionHours = Math.max(
+      0,
+      Number(line.deduction_time_hours) || 0,
+      (Number(line.adjustment_minutes) || 0) / 60,
+      detailDeductionHours
+    );
     if (lineDeductionHours > 0 || lineDeductions.length) {
       const deductionKey = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || lineIndex);
       if (!seenDeductionKeys.has(deductionKey)) {
@@ -59,29 +62,14 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
     }
   });
 
-  if (deductionHours <= 0 && deductions.length === 0 && Array.isArray(report.deductions) && report.deductions.length) {
-    deductionHours = report.deductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
-    deductions.push(...report.deductions.map((item) => ({ ...item })));
-  }
-
-  const legacyDeductionHours = Math.max(0, Number(report.deduction_time) || 0);
-  if (deductionHours <= 0 && deductions.length === 0 && legacyDeductionHours > 0) {
-    deductionHours = legacyDeductionHours;
-  }
-
-  const legacyGrossHours = Math.max(0, Number(report.total_time) || 0);
   const hasMachineLines = lines.length > 0;
-  if (!hasMachineLines && grossHours <= 0 && legacyGrossHours > 0) {
-    grossHours = legacyGrossHours;
-    if (deductionHours <= 0 && deductions.length === 0 && legacyDeductionHours > 0) {
-      deductionHours = legacyDeductionHours;
-    }
-  }
-
-  let source = hasPhysicalEvent ? 'MACHINE_EVENT' : (hasMachineLines ? 'MACHINE_LINE' : 'LEGACY_REPORT');
-  if (source === 'LEGACY_REPORT' && grossHours <= 0 && Number(report.actual_time) > 0) {
-    grossHours = Math.max(0, Number(report.actual_time) || 0) + legacyDeductionHours;
-  }
+  const hasMissingLinkedEvent = lines.some((line) => {
+    const eventId = Number(line.machine_event_id) || 0;
+    return eventId > 0 && !events.has(eventId);
+  });
+  const source = hasPhysicalEvent
+    ? (hasMissingLinkedEvent ? 'MACHINE_EVENT_PARTIAL' : 'MACHINE_EVENT')
+    : (hasMissingLinkedEvent ? 'MACHINE_EVENT_MISSING' : (hasMachineLines ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING'));
 
   return {
     source,

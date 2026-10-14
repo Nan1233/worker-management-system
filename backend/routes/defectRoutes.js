@@ -8,5 +8,5 @@ const { assertActorProcessAccess }=require("../services/processAuthorizationServ
 
 const processAccess=(req,res,next)=>assertActorProcessAccess(req.user,req.params.id).then(()=>next()).catch(next);
 
-router.get("/processes/:id/defects",verifyToken,checkRole("admin","manager","lead","worker"),permission("MASTER_VIEW","WORKER_ENTRY"),processAccess,controller.getDefectsByProcess);
+router.get("/processes/:id/defects",verifyToken,checkRole("admin","admin_ops","manager","lead","worker"),permission("MASTER_VIEW","WORKER_ENTRY"),processAccess,controller.getDefectsByProcess);
 module.exports=router;

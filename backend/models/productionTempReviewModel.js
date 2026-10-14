@@ -1,6 +1,19 @@
 const db = require("../config/db");
 const approvalModel = require("./productionTempApprovalModel");
 
+const approvalStage = async (name, task) => {
+  const started = Date.now();
+  console.log(`[KTC][APPROVAL_TRACE] START ${name}`);
+  try {
+    const result = await task();
+    console.log(`[KTC][APPROVAL_TRACE] END ${name} ms=${Date.now() - started}`);
+    return result;
+  } catch (error) {
+    console.error(`[KTC][APPROVAL_TRACE] ERROR ${name} ms=${Date.now() - started} code=${error?.code || ''} message=${String(error?.message || error).slice(0, 300)}`);
+    throw error;
+  }
+};
+
 async function ensureLegacyMachineLines(targets) {
   const normalized = (Array.isArray(targets) ? targets : [])
     .map((item) => typeof item === "object" ? item : { id: item })
@@ -57,38 +70,34 @@ async function repairMachineLineReferences(targets) {
     .filter((id) => Number.isInteger(id) && id > 0))];
   if (!ids.length) return;
   const placeholders = ids.map(() => "?").join(",");
-  const [lines] = await db.promise().query(
-    `SELECT ml.id,ml.machine_id,ml.machine_code,r.process_id,r.machine_no
-       FROM production_temp_machine_lines ml
+  // Resolve only unambiguous active machines in one joined UPDATE. The previous
+  // implementation performed SELECT + UPDATE for every line, exhausting Worker
+  // subrequests when a report contained multiple machine lines.
+  await db.promise().query(
+    `UPDATE production_temp_machine_lines ml
        JOIN production_reports_temp r ON r.id=ml.temp_report_id
+       JOIN (
+         SELECT process_id, UPPER(TRIM(machine_code)) AS normalized_code,
+                MIN(id) AS machine_id, MIN(machine_code) AS machine_code
+           FROM machines
+          WHERE status='active'
+          GROUP BY process_id, UPPER(TRIM(machine_code))
+         HAVING COUNT(*)=1
+       ) m
+         ON m.process_id=r.process_id
+        AND m.normalized_code=UPPER(TRIM(
+          COALESCE(NULLIF(TRIM(ml.machine_code),''), SUBSTRING_INDEX(r.machine_no,',',1))
+        ))
+      SET ml.machine_id=m.machine_id,
+          ml.machine_code=m.machine_code
       WHERE r.id IN (${placeholders})
-        AND r.status IN ('pending','need_fix')`,
+        AND r.status IN ('pending','need_fix')
+        AND (
+          ml.machine_id IS NULL OR ml.machine_id<>m.machine_id
+          OR TRIM(COALESCE(ml.machine_code,''))<>TRIM(m.machine_code)
+        )`,
     ids,
   );
-
-  for (const line of lines || []) {
-    const machineCode = String(line.machine_code || line.machine_no || "").split(",")[0].trim();
-    if (!machineCode) continue;
-    const [machines] = await db.promise().query(
-      `SELECT id,machine_code
-         FROM machines
-        WHERE process_id=?
-          AND status='active'
-          AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
-        LIMIT 2`,
-      [Number(line.process_id), machineCode],
-    );
-    if (machines?.length !== 1) continue;
-    const machine = machines[0];
-    if (Number(line.machine_id) !== Number(machine.id) || String(line.machine_code || "").trim() !== String(machine.machine_code || "").trim()) {
-      await db.promise().query(
-        `UPDATE production_temp_machine_lines
-            SET machine_id=?, machine_code=?
-          WHERE id=?`,
-        [Number(machine.id), machine.machine_code, Number(line.id)],
-      );
-    }
-  }
 }
 
 async function linkMatchingApprovedMachineEvents(targets) {
@@ -112,15 +121,30 @@ async function linkMatchingApprovedMachineEvents(targets) {
     const productCode = String(line.product_code || line.product_name || '').split(",")[0].trim();
     if (!machineCode || !productCode) continue;
 
-    const [events] = await db.promise().query(
+    // Prefer an index-friendly exact lookup. Wrapping machine_code/product_code
+    // in UPPER(TRIM()) forces a scan on large event tables and can exceed the
+    // Cloudflare Worker 30s request budget. Only use the legacy normalized
+    // lookup when no canonical exact match exists.
+    const eventParams = [Number(line.process_id),machineCode,productCode,String(line.work_date).slice(0,10),String(line.shift || '').trim()];
+    let [events] = await db.promise().query(
       `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
          FROM machine_production_events
         WHERE status='approved' AND process_id=?
-          AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
-          AND UPPER(TRIM(product_code))=UPPER(TRIM(?))
-          AND work_date=? AND UPPER(TRIM(shift))=UPPER(TRIM(?))
+          AND machine_code=? AND product_code=?
+          AND work_date=? AND shift=?
         ORDER BY id DESC LIMIT 2`,
-      [Number(line.process_id),machineCode,productCode,String(line.work_date).slice(0,10),String(line.shift || '').trim()]);
+      eventParams);
+    if (!events?.length) {
+      [events] = await db.promise().query(
+        `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
+           FROM machine_production_events
+          WHERE status='approved' AND process_id=?
+            AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
+            AND UPPER(TRIM(product_code))=UPPER(TRIM(?))
+            AND work_date=? AND UPPER(TRIM(shift))=UPPER(TRIM(?))
+          ORDER BY id DESC LIMIT 2`,
+        eventParams);
+    }
     if (events?.length === 1) {
       await db.promise().query(
         `UPDATE production_temp_machine_lines
@@ -215,9 +239,9 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
 module.exports = {
   ...approvalModel,
   async approveSelected(targets, reviewerId, isAdmin = false) {
-    await ensureLegacyMachineLines(targets);
-    await repairMachineLineReferences(targets);
-    await linkMatchingApprovedMachineEvents(targets);
-    return approveSelectedSerialized(targets, reviewerId, isAdmin);
+    await approvalStage("ensureLegacyMachineLines", () => ensureLegacyMachineLines(targets));
+    await approvalStage("repairMachineLineReferences", () => repairMachineLineReferences(targets));
+    await approvalStage("linkMatchingApprovedMachineEvents", () => linkMatchingApprovedMachineEvents(targets));
+    return approvalStage("approveSelectedSerialized", () => approveSelectedSerialized(targets, reviewerId, isAdmin));
   },
 };

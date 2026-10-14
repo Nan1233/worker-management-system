@@ -60,7 +60,20 @@ export const getProductStandardsByProcess = async (processId: number, processCod
             const machineScope = String(row.eligible_machine_codes || "").trim().toUpperCase();
             const key = `${productCodeValue}|${aliasValue}|${workTypeValue}|${machineScope}`;
             const previous = merged.get(key);
-            merged.set(key, previous ? { ...previous, ...row } : row);
+            if (!previous) {
+                merged.set(key, row);
+                continue;
+            }
+            // Duplicate active rows for the same product/work type can have
+            // conflicting outputs. Business rule: keep the highest positive
+            // standard instead of whichever row the API returned last.
+            const previousOutput = Number(previous.standard_output);
+            const currentOutput = Number(row.standard_output);
+            if (Number.isFinite(currentOutput) && currentOutput > previousOutput) {
+                merged.set(key, { ...previous, ...row });
+            } else {
+                merged.set(key, { ...row, ...previous });
+            }
         }
     }
     const rows = Array.from(merged.values());
@@ -143,17 +156,32 @@ const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProd
     const normalizedCanonical = String(canonicalProduct || "").trim().toUpperCase();
     const normalizedInput = String(normalizedProduct || "").trim().toUpperCase();
     const workType = inferGcWorkType(machineCode);
-    const matchesProduct = (row: ProductStandardOption) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedInput)
-        || String(row?.product_code || "").trim().toUpperCase() === normalizedCanonical;
-    const positive = rows.filter((row) => matchesProduct(row) && Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0);
-    if (workType) {
-        const typed = positive.filter((row) => {
+    const isPositive = (row: ProductStandardOption) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0;
+    const hasExactCode = (row: ProductStandardOption) => [row?.product_code, row?.alias_code]
+        .some((value) => String(value || "").trim().toUpperCase() === normalizedInput);
+    const byWorkType = (candidates: ProductStandardOption[]) => {
+        if (!workType) return candidates;
+        return candidates.filter((row) => {
             const type = String(row?.work_type || "").trim().toUpperCase();
-            return workType === "LONG" ? type === "LỒNG" || type === "LONG" : type === "CẮT" || type === "CUT" || type === "CAT";
+            return workType === "LONG"
+                ? type === "LỒNG" || type === "LONG"
+                : type === "CẮT" || type === "CUT" || type === "CAT";
         });
-        if (typed.length === 1) return typed[0];
+    };
+
+    // AUTO code must win over a canonical/base-product fallback. Otherwise C2556
+    // can be considered alongside C2556-AUTO and create a false ambiguity.
+    const exactCandidates = byWorkType(rows.filter((row) => hasExactCode(row) && isPositive(row)));
+    if (exactCandidates.length > 0) {
+        return exactCandidates.slice().sort((a, b) => Number(b.standard_output) - Number(a.standard_output) || Number(a.id) - Number(b.id))[0];
     }
-    if (positive.length === 1) return positive[0];
+
+    const canonicalCandidates = byWorkType(rows.filter((row) =>
+        String(row?.product_code || "").trim().toUpperCase() === normalizedCanonical && isPositive(row)
+    ));
+    if (canonicalCandidates.length > 0) {
+        return canonicalCandidates.slice().sort((a, b) => Number(b.standard_output) - Number(a.standard_output) || Number(a.id) - Number(b.id))[0];
+    }
     return undefined;
 };
 
@@ -206,14 +234,11 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     if (!normalizedMachine) {
         const candidates = rows.filter((row) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedProduct.toUpperCase()) || String(row?.product_code || "").trim().toUpperCase() === canonicalProduct.toUpperCase());
         const positiveCandidates = candidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0);
-        const distinctOutputs = new Set(positiveCandidates.map((row) => Number(row.standard_output)));
-        const product = positiveCandidates.length === 1
-            ? positiveCandidates[0]
-            : distinctOutputs.size === 1 && positiveCandidates.length > 1
-                ? positiveCandidates[0]
-                : candidates.length === 1
-                    ? candidates[0]
-                    : undefined;
+        const product = positiveCandidates.length > 0
+            ? positiveCandidates.slice().sort((a, b) => Number(b.standard_output) - Number(a.standard_output) || Number(a.id) - Number(b.id))[0]
+            : candidates.length === 1
+                ? candidates[0]
+                : undefined;
         if (!product) throw new Error(`Không xác định duy nhất định mức sản phẩm ${normalizedProduct} trong công đoạn`);
         return toLocalResolvedStandard(product, processId, "", normalizedProduct);
     }

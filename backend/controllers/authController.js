@@ -94,14 +94,32 @@ function findUsersByWorkerCode(workerCode) {
     });
 }
 
-async function resolveLoginAccount(loginName) {
-    // 1) Username luôn được ưu tiên tuyệt đối.
+async function resolveLoginAccount(loginName, accessType = null) {
+    // Worker login uses an employee code, so resolve the linked workers profile
+    // before checking an exact username. This prevents an orphan users row whose
+    // username equals a worker code from shadowing the real worker account.
+    if (accessType === "worker") {
+        const workerUsers = await findUsersByWorkerCode(loginName);
+        if (workerUsers.length === 1) {
+            return { user: workerUsers[0], ambiguous: false, matchedBy: "worker_code" };
+        }
+        if (workerUsers.length > 1) {
+            return {
+                user: null,
+                ambiguous: true,
+                matchedBy: "worker_code",
+                usernames: workerUsers.map((item) => item.username)
+            };
+        }
+    }
+
+    // Management / legacy login retains exact-username priority.
     const exactUsers = await findExactUserByUsername(loginName);
     if (exactUsers.length > 0) {
         return { user: exactUsers[0], ambiguous: false, matchedBy: "username" };
     }
 
-    // 2) Chỉ fallback sang mã công nhân khi không có username trùng chính xác.
+    // Legacy fallback: resolve by employee code when no exact username exists.
     const workerUsers = await findUsersByWorkerCode(loginName);
     if (workerUsers.length === 1) {
         return { user: workerUsers[0], ambiguous: false, matchedBy: "worker_code" };
@@ -288,7 +306,7 @@ exports.login = async (req, res) => {
             });
         }
 
-        const resolvedAccount = await resolveLoginAccount(username);
+        const resolvedAccount = await resolveLoginAccount(username, accessType);
 
         if (resolvedAccount.ambiguous) {
             console.error("AUTH_ACCOUNT_AMBIGUOUS", {
@@ -347,7 +365,7 @@ exports.login = async (req, res) => {
 
         if (accessType === "management") {
             if (
-                !["admin", "manager", "lead"].includes(
+                !["admin", "admin_ops", "manager", "lead"].includes(
                     user.role
                 )
             ) {

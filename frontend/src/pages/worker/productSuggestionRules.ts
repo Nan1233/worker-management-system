@@ -91,6 +91,27 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
     if (useEncodedMachineSuffix) {
         const canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
         const productWorkTypes = new Set(products.map((product) => normalizeWorkType(product.work_type)).filter(Boolean));
+        // Apply the C13/C7236 compatibility option before branching on work_type:
+        // merged product APIs can return mixed CUT/LONG rows, so the CUT-only
+        // branch below is not guaranteed to run even when the selected form is CUT.
+        if (selectedRawMachine === "C13" && mode === "MACHINE" && !canonicalProducts.some(({ alias }) => alias === "C7236")) {
+            const template = canonicalProducts.find(({ alias }) => alias === "C7630")?.product
+                || canonicalProducts.find(({ alias }) => alias.startsWith("C"))?.product
+                || canonicalProducts[0]?.product;
+            if (template) {
+                canonicalProducts.push({
+                    alias: "C7236",
+                    product: {
+                        ...template,
+                        product_code: "R7236",
+                        alias_code: "C7236",
+                        encoding_code: "R7236",
+                        standard_output: 690,
+                        work_type: "CUT",
+                    },
+                });
+            }
+        }
         const workerSelectionProducts = (rows: Array<{ product: ProductStandardOption; alias: string }>): ProductStandardOption[] => rows.map(({ product, alias }) => ({ ...product, product_code: alias }));
 
         if (productWorkTypes.size === 1 && productWorkTypes.has("LONG")) {

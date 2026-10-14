@@ -1241,9 +1241,7 @@ const updateDeductionValue = (
 
     const validateForm = (): string => {
         const cvkWorkType = String(form.workType || "").trim().toUpperCase();
-        const normalizeWorkType = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-        const normalizedCvkWorkType = normalizeWorkType(cvkWorkType);
-        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(normalizedCvkWorkType) || Boolean(isCvkMode);
+        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);
 
         if (
             loadingWorker
@@ -1284,7 +1282,7 @@ const updateDeductionValue = (
         }
 
 
-        if (!isCvkEntry && !usesMultiMachineLines) {
+        if (!isCvkMode && !usesMultiMachineLines) {
             if (!form.productName.trim()) {
                 return "Vui lòng chọn sản phẩm";
             }
@@ -1346,7 +1344,7 @@ const updateDeductionValue = (
 
 
 
-        if (!isCvkEntry && (
+        if (!isCvkMode && (
             Number(
                 form.standardOutput
                 ||
@@ -1392,7 +1390,10 @@ const updateDeductionValue = (
         }
 
 
-        if (Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
+        // GC machine-line reports calculate actual output independently for each
+        // machine/product line. The parent form's aggregate must not be checked
+        // against the single-product formula used by manual reports.
+        if (!usesMachineLineAccounting && Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
             return productExcludesKqd()
                 ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã sản phẩm này)"
                 : "Thực tế phải bằng TT OK cộng TT NG";

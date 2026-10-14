@@ -92,9 +92,8 @@ exports.createTempReport = async (req, res) => {
         const extraDataInput = req.body?.extra_data && typeof req.body.extra_data === "object" && !Array.isArray(req.body.extra_data)
             ? req.body.extra_data
             : {};
-        const normalizeWorkTypeCode = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-        const submittedWorkType = normalizeWorkTypeCode(req.body?.work_type || req.body?.workType || extraDataInput.work_type);
-        const isKnownNonProductWorkType = new Set(["XUATNHAP", "KTCD", "TAIPP"]).has(submittedWorkType);
+        const isNonProductWorkWithinProcess = extraDataInput.non_product_work === true
+            && processId !== 30002 && processId !== 60006;
 
 
         if (!workerId) {
@@ -185,7 +184,7 @@ exports.createTempReport = async (req, res) => {
         // machine_lines chỉ lưu thời gian chạy riêng của từng máy.
         const operationType = String(req.body?.operation_type || "").trim().toUpperCase() || null;
         const operationMode = String(req.body?.operation_mode || req.body?.execution_method || "").trim().toUpperCase() || null;
-        const rawMachineLines = Array.isArray(req.body?.machine_lines)
+        const submittedMachineLines = Array.isArray(req.body?.machine_lines)
             ? req.body.machine_lines
             : Array.isArray(req.body?.machines)
                 ? req.body.machines.map((item) => ({
@@ -193,15 +192,21 @@ exports.createTempReport = async (req, res) => {
                     product_code: item.product_code || validation.normalized.product_name,
                     machine_time_hours: item.machine_time_hours ??
                         ((Number(item.running_hours || 0) * 60 + Number(item.running_minutes || 0)) / 60),
-                    ok_quantity: item.ok_quantity || 0,
-                    ng_quantity: item.ng_quantity || 0
+                    ok_quantity: item.ok_quantity ?? item.okQuantity ?? 0,
+                    ng_quantity: item.ng_quantity ?? item.ngQuantity ?? 0
                 }))
                 : [];
 
+        // Accept both API snake_case and frontend camelCase quantity keys.
+        // Nullish fallback is intentional: a valid numeric 0 must remain 0,
+        // while a missing snake_case key can still use the camelCase value.
+        const rawMachineLines = submittedMachineLines.map((line) => ({
+            ...line,
+            ok_quantity: line?.ok_quantity ?? line?.okQuantity ?? 0,
+            ng_quantity: line?.ng_quantity ?? line?.ngQuantity ?? 0
+        }));
+
         const machinePolicy = getProcessMachinePolicy(processId);
-        const isNonProductWorkWithinProcess = processId !== 30002 && processId !== 60006
-            && machinePolicy.code === "GC"
-            && (req.body?.non_product_work === true || extraDataInput.non_product_work === true || isKnownNonProductWorkType);
         const normalizedMachineNo = String(validation.normalized.machine_no || req.body?.machine_no || "").trim();
         const requestedMachineMode = operationMode === "MACHINE" || rawMachineLines.length > 0 || Boolean(normalizedMachineNo);
 
@@ -311,16 +316,19 @@ exports.createTempReport = async (req, res) => {
 
                 productName:
                     firstMachineLine?.product_code || validation.normalized.product_name,
-                workType: req.body?.work_type || req.body?.workType || req.body?.extra_data?.work_type,
-                nonProductWork: isNonProductWorkWithinProcess,
 
                 defects,
                 deductions,
                 ttOk: validation.normalized.tt_ok,
                 actualOutput: validation.normalized.actual_output,
+                // Machine-line reports validate each line's OK/NG/output in validateMachineLines.
+                // Do not compare aggregate output against only the first machine's defects.
+                skipActualOutputValidation: Array.isArray(machineValidation.lines) && machineValidation.lines.length > 0,
                 allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
                 operationMode,
-                workDate: req.body.work_date
+                workDate: req.body.work_date,
+                workType: req.body.work_type || extraDataInput.work_type,
+                nonProductWork: isNonProductWorkWithinProcess
             });
 
 

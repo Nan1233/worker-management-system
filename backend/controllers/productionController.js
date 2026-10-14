@@ -38,7 +38,7 @@ exports.getReportById=async(req,res)=>{
     const role=String(req.user?.role||'').toLowerCase();
     if(role==='worker'){
       try { assertWorkerOwnership(req.user,minimal.worker_id); } catch(error) { return res.status(error.status||403).json({success:false,code:error.code,message:error.message}); }
-    }else if(['manager','lead'].includes(role)){
+    }else if(['manager','lead','admin_ops'].includes(role)){
       if(!await hasPermission(req.user,'REPORT_APPROVED_VIEW'))return res.status(403).json({success:false,code:'PERMISSION_DENIED',message:'Bạn không có quyền xem báo cáo đã duyệt'});
       await assertProcessScope(req.user,minimal.process_id,{action:'REPORT_APPROVED_VIEW'});
     }

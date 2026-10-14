@@ -65,7 +65,13 @@ const getProcessMachineRule = (processCode, machineCode, dbRow = null) => {
   if (MULTI_MACHINE_PROCESS_CODES.has(code)) {
     return {
       maxMachinesPerWorker: MAX_MACHINES_PER_WORKER,
-      maxWorkersPerMachine: DEFAULT_SHARED_WORKERS_PER_MACHINE,
+      // All machines in Gia công (GC) may be shared by workers in the same day/shift.
+      // Keep the existing 4-worker cap consistently across C* and ML* machines.
+      maxWorkersPerMachine: code === "GC"
+        ? DEFAULT_SHARED_WORKERS_PER_MACHINE
+        : (dbRow?.max_workers_per_machine != null
+          ? Math.max(1, Number(dbRow.max_workers_per_machine) || 1)
+          : DEFAULT_SHARED_WORKERS_PER_MACHINE),
       automatic: dbRow?.is_automatic != null
         ? Number(dbRow.is_automatic) === 1
         : code === "GC" ? GC_AUTOMATIC_MACHINE_NUMBERS.includes(canonicalMachineNumber(machineCode)) : false,

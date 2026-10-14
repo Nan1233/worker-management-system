@@ -10,7 +10,7 @@ const normalizeText = (value) => String(value ?? "").trim();
 const uniquePositiveIds = (items, key) => [...new Set((Array.isArray(items) ? items : []).map((item) => Number(item?.[key])).filter((id) => Number.isInteger(id) && id > 0))];
 const ZERO_STANDARD_GC_LONG_MANUAL_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
-const validateMasterData = async ({ workerId, processId, machineNo, productName, workType = null, nonProductWork = false, defects = [], deductions = [], ttOk, actualOutput, allowEmptyMachine = false, operationMode = null, workDate }) => {
+const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, skipActualOutputValidation = false, allowEmptyMachine = false, operationMode = null, workDate, workType = null, nonProductWork = false }) => {
     const errors = {};
     const normalizedMachineNo = normalizeText(machineNo);
     const normalizedProductName = normalizeText(productName);
@@ -37,21 +37,28 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             [processId, normalizedProductName, normalizedProductName, normalizedProductName, normalizedProductName, normalizedProductName]
         ) : Promise.resolve([]),
         defectIds.length ? query(`SELECT DISTINCT id, defect_code, defect_name FROM defect_types WHERE process_id = ? AND status = 'active' AND id IN (${defectIds.map(() => "?").join(",")})`, [processId, ...defectIds]) : Promise.resolve([]),
-        deductionIds.length ? query(`SELECT DISTINCT d.id FROM deduction_types d LEFT JOIN processes dp ON dp.id = d.process_id WHERE d.status = 'active' AND d.id IN (${deductionIds.map(() => "?").join(",")}) AND (d.process_id = ? OR (? = 60006 AND UPPER(TRIM(COALESCE(dp.process_code, ''))) = 'CVK'))`, [...deductionIds, processId, processId]) : Promise.resolve([]),
+        deductionIds.length ? query(`SELECT DISTINCT d.id
+             FROM deduction_types d
+             LEFT JOIN processes dp ON dp.id = d.process_id
+            WHERE d.status = 'active'
+              AND d.id IN (${deductionIds.map(() => "?").join(",")})
+              AND (
+                d.process_id = ?
+                OR (? = 60006 AND UPPER(TRIM(COALESCE(dp.process_code, ''))) = 'CVK')
+                OR (? IN (30002, 60006)
+                    AND UPPER(TRIM(COALESCE(dp.process_code, ''))) = 'GC'
+                    AND UPPER(TRIM(COALESCE(?, ''))) IN ('XUATNHAP', 'KTCD', 'TAIPP'))
+              )`, [...deductionIds, processId, processId, processId, workType]) : Promise.resolve([]),
         query(`SELECT process_code FROM processes WHERE id = ? LIMIT 1`, [processId])
     ]);
 
     const processCode = normalizeText(processRows?.[0]?.process_code).toUpperCase();
-    const normalizeWorkCode = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const normalizedWorkType = normalizeWorkCode(workType);
-    const isKnownNonProductWorkType = new Set(["XUATNHAP", "KTCD", "TAIPP"]).has(normalizedWorkType);
-    // GC/Cắt-Lồng can contain sibling non-product work types such as Xuất nhập.
-    // They must not be validated as a normal product/machine report.
-    const isNonProductWork = Number(processId) === 60006 || processCode === "CVK" || (processCode === "GC" && (Boolean(nonProductWork) || isKnownNonProductWorkType));
+    const isStandaloneNonProductProcess = Number(processId) === 60006 || Number(processId) === 30002 || processCode === "CVK";
+    const isNonProductWork = isStandaloneNonProductProcess || nonProductWork === true;
     const canonicalDefectsById = new Map(validDefectRows.map((row) => [Number(row.id), row]));
     const authoritativeDefects = (defects || []).map((item) => ({ ...item, defect_code: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_code || null, defect_name: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_name || null }));
 
-    if (!isNonProductWork && !assignments.length) errors.process_id = "Công nhân chưa được phân công công đoạn này";
+    if (!isStandaloneNonProductProcess && !assignments.length) errors.process_id = "Công nhân chưa được phân công công đoạn này";
 
     let legacyApprovedWithoutMachine = false;
     if (!normalizedMachineNo && !allowEmptyMachine && Number(workerId) > 0 && Number(processId) > 0 && workDate && normalizedProductName) {
@@ -115,7 +122,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
         const encodedScopeError = validateEncodedGcMachineProduct({ processCode: products[0].process_code, productCode, machineCode: machineCode || normalizedMachineNo, isAutomatic: machines[0]?.is_automatic || 0, operationMode: normalizedOperationMode });
         if (encodedScopeError && !legacyApprovedWithoutMachine) errors.product_name = encodedScopeError;
 
-        if (ttOk !== undefined && actualOutput !== undefined && !isGcLongManualZeroStandard) {
+        if (ttOk !== undefined && actualOutput !== undefined && !isGcLongManualZeroStandard && !skipActualOutputValidation) {
             const { calculateActualOutput } = require("../utils/outputCalculation");
             const expected = calculateActualOutput({ ttOk, defects: authoritativeDefects, excludeKqdFromTt: Boolean(excludeKqdFromTt) });
             if (Math.abs(Number(actualOutput) - expected) > 0.02) errors.actual_output = "Sản lượng thực tế không đúng theo quy tắc tính của mã sản phẩm";

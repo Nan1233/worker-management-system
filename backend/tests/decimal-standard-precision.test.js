@@ -47,6 +47,7 @@ test('historical decimal boundary preserves value and version identity together'
 test('machine historical decimals preserve 900.77 and 950.25', async () => {
   const query = async (sql, params = []) => {
     const text = String(sql).toLowerCase();
+    if (text.includes('from product_aliases')) return [];
     if (text.includes('from product_standards')) return [{ product_standard_id: 1, product_code: 'P1' }];
     if (text.includes('from product_standard_versions')) return [{ id: 21, standard_output: 617.1, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null }];
     if (text.includes('from machines')) return [{ id: 9, machine_code: 'M1' }];

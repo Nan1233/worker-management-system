@@ -83,3 +83,31 @@ test('validateMachineWorkerCapacity still rejects when a machine is already at c
   assert.equal(result.valid, false);
   assert.match(result.errors.machine_lines, /chỉ cho phép tối đa 1 người/);
 });
+
+
+test('GC manual machine C13 allows shared reporting while remaining non-automatic and product-based', () => {
+  const { service } = loadWithFakeDb([]);
+  const rule = service.getProcessMachineRule('GC', 'C13', {
+    is_automatic: 0,
+    max_workers_per_machine: 1,
+    output_basis: 'PRODUCT',
+  });
+
+  assert.equal(rule.automatic, false);
+  assert.equal(rule.maxWorkersPerMachine, 4);
+  assert.equal(rule.outputBasis, 'PRODUCT');
+});
+
+
+test('GC lồng machine ML12 allows shared reporting despite a legacy DB capacity of one', () => {
+  const { service } = loadWithFakeDb([]);
+  const rule = service.getProcessMachineRule('GC', 'ML12', {
+    is_automatic: 0,
+    max_workers_per_machine: 1,
+    output_basis: 'PRODUCT',
+  });
+
+  assert.equal(rule.maxWorkersPerMachine, 4);
+  assert.equal(rule.automatic, false);
+  assert.equal(rule.outputBasis, 'PRODUCT');
+});

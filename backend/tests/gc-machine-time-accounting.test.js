@@ -61,7 +61,7 @@ test('GC machine accounting falls back to machine-line time when no physical eve
 });
 
 
-test('GC machine accounting falls back to legacy report total time and deduction time when no machine lines exist', () => {
+test('GC machine accounting does not substitute worker time when machine lines are missing', () => {
   const result = buildGiaCongMachineAccounting({
     total_time: 4.5,
     actual_time: 3.5,
@@ -69,13 +69,13 @@ test('GC machine accounting falls back to legacy report total time and deduction
     machineLines: []
   }, new Map());
 
-  assert.equal(result.source, 'LEGACY_REPORT');
-  assert.equal(result.grossHours, 4.5);
-  assert.equal(result.deductionHours, 1);
-  assert.equal(result.netHours, 3.5);
+  assert.equal(result.source, 'MACHINE_DATA_MISSING');
+  assert.equal(result.grossHours, 0);
+  assert.equal(result.deductionHours, 0);
+  assert.equal(result.netHours, 0);
 });
 
-test('GC machine accounting uses legacy report deduction when machine line has no deduction rows', () => {
+test('GC machine accounting does not substitute worker deduction when machine line has no deduction rows', () => {
   const result = buildGiaCongMachineAccounting({
     total_time: 4.5,
     actual_time: 3.5,
@@ -93,11 +93,11 @@ test('GC machine accounting uses legacy report deduction when machine line has n
 
   assert.equal(result.source, 'MACHINE_LINE');
   assert.equal(result.grossHours, 4.5);
-  assert.equal(result.deductionHours, 1);
-  assert.equal(result.netHours, 3.5);
+  assert.equal(result.deductionHours, 0);
+  assert.equal(result.netHours, 4.5);
 });
 
-test('H2: two lines share machine_event_id but event not in map — grossHours counted once', () => {
+test('linked machine event missing from map does not fall back to worker participation time', () => {
   const result = buildGiaCongMachineAccounting({
     machineLines: [
       { id: 401, machine_event_id: 5555, machine_time_hours: 8, deduction_time_hours: 0, deductions_json: '[]' },
@@ -105,7 +105,7 @@ test('H2: two lines share machine_event_id but event not in map — grossHours c
     ]
   }, new Map());
 
-  assert.equal(result.grossHours, 8, 'should be 8 not 16 — same physical event must not double-count');
-  assert.equal(result.netHours, 8);
-  assert.equal(result.source, 'MACHINE_LINE');
+  assert.equal(result.grossHours, 0, 'missing physical event must not fall back to worker participation time');
+  assert.equal(result.netHours, 0);
+  assert.equal(result.source, 'MACHINE_EVENT_MISSING');
 });

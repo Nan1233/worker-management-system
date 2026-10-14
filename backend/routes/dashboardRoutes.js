@@ -5,5 +5,5 @@ const permission = require('../middleware/permissionMiddleware');
 const dashboardController = require('../controllers/dashboardController');
 
 const router = express.Router();
-router.get('/summary', verifyToken, checkRole('admin', 'manager', 'lead'), permission('DASHBOARD_VIEW'), dashboardController.getSummary);
+router.get('/summary', verifyToken, checkRole('admin', 'admin_ops', 'manager', 'lead'), permission('DASHBOARD_VIEW'), dashboardController.getSummary);
 module.exports = router;

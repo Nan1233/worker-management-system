@@ -14,7 +14,7 @@ router.use(verifyToken);
 const MANAGER_MASTER_RESOURCES=['machines','standards','deductions'];
 const MANAGER_ONLY_MASTER_RESOURCES=['defects'];
 const SUPPORTING_READ_RESOURCES=['processes'];
-const MANAGEMENT_ROLES=['admin','manager','lead'];
+const MANAGEMENT_ROLES=['admin','admin_ops','manager','lead'];
 const normalizedRole=(req)=>String(req.user?.role||'').trim().toLowerCase();
 const isManagementRole=(req)=>MANAGEMENT_ROLES.includes(normalizedRole(req));
 
@@ -67,7 +67,7 @@ router.put('/:resource/:id',managerMasterAccess,masterPermission,managerResource
 router.delete('/:resource/:id',managerMasterAccess,masterPermission,managerResourceScope,controller.remove);
 
 // Worker-specific master operations retain the normal permission guard.
-router.put('/workers/:id/profile',checkRole('admin','manager','lead'),permission('MASTER_EDIT'),controller.updateWorker);
-router.put('/workers/:id/processes',checkRole('admin','manager','lead'),permission('MASTER_EDIT'),controller.setWorkerProcesses);
+router.put('/workers/:id/profile',checkRole('admin','admin_ops','manager','lead'),permission('MASTER_EDIT'),controller.updateWorker);
+router.put('/workers/:id/processes',checkRole('admin','admin_ops','manager','lead'),permission('MASTER_EDIT'),controller.setWorkerProcesses);
 
 module.exports=router;

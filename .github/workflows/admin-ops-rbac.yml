@@ -1,0 +1,85 @@
+name: Admin Ops RBAC Checks
+
+on:
+  pull_request:
+    branches: [test]
+  push:
+    branches: ['safe/admin-ops-**', 'ci/admin-ops-**']
+  workflow_dispatch: {}
+
+jobs:
+  backend-rbac-tests:
+    name: Backend RBAC contract tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - name: Syntax check
+        run: node --check server.js
+      - name: RBAC / permission contract tests (no live DB required)
+        run: >
+          node --test
+          tests/admin-ops-scope.contract.test.js
+          tests/authorization-f09-scope.test.js
+          tests/authorization-process-scope.test.js
+          tests/permission-matrix.test.cjs
+          tests/full-authorization-audit.test.cjs
+
+  frontend-rbac-checks:
+    name: Frontend typecheck + permissions UI test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Permissions UI contract test
+        run: node --test tests/permissions-ui.test.cjs
+
+  backend-full-suite:
+    name: Backend full test suite (informational — no live TiDB in CI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - name: Full backend suite (node --test tests/*.test.js)
+        timeout-minutes: 8
+        run: npm test
+
+  frontend-full-suite-and-build:
+    name: Frontend full tests (informational) + production build (blocking)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - name: Full frontend test suite (informational — known pre-existing failures tracked outside this PR)
+        continue-on-error: true
+        run: npm test
+      - name: Production build (must pass)
+        run: npm run build

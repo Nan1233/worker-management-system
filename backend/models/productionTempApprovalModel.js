@@ -27,7 +27,18 @@ function serializeExtraData(value) {
 const { createApprovedReportVersion } = require("../services/approvedVersionSnapshotService");
 const { assertReviewBatchSize } = require("../services/managerReportPaginationService");
 
-const qRows = async (executor, sql, params = []) => await query(executor, sql, params);
+const qRows = async (executor, sql, params = []) => {
+  const started = Date.now();
+  try {
+    const result = await query(executor, sql, params);
+    const elapsed = Date.now() - started;
+    if (elapsed >= 750) console.warn(`[KTC][APPROVAL_QUERY] ms=${elapsed} sql=${String(sql).replace(/\s+/g, " ").slice(0, 260)}`);
+    return result;
+  } catch (error) {
+    console.error(`[KTC][APPROVAL_QUERY_ERROR] ms=${Date.now() - started} code=${error?.code || ""} sql=${String(sql).replace(/\s+/g, " ").slice(0, 260)} message=${String(error?.message || error).slice(0, 200)}`);
+    throw error;
+  }
+};
 
 async function getTempMachineLines(tempReportId, connection) {
   const lines = await qRows(
@@ -126,8 +137,42 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
   return approvedIds;
 }
 
+function getExtraDataObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}; }
+    catch { return {}; }
+  }
+  return {};
+}
+
+function isParentProcessNonProductWork(item) {
+  const extra = getExtraDataObject(item?.extra_data);
+  return extra.non_product_work === true
+    && Number(item?.process_id) !== 30002
+    && Number(item?.process_id) !== 60006;
+}
+
+function assertNonProductWorkSnapshot(item) {
+  const output = Number(item?.standard_output || 0);
+  const versionId = Number(item?.standard_version_id || 0);
+  const machineStandardId = Number(item?.machine_standard_id || 0);
+  const kqdPolicy = Number(item?.exclude_kqd_from_tt_snapshot || 0);
+  if (output !== 0 || versionId !== 0 || machineStandardId !== 0 || kqdPolicy !== 0) {
+    const error = new Error("Ảnh chụp công việc khác trong công đoạn không hợp lệ; cần kiểm tra lại báo cáo");
+    error.status = 422;
+    error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
+    error.isPublic = true;
+    throw error;
+  }
+}
+
 async function validateApprovalSnapshot(item, connection, standardResolver) {
   const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
+  if (!isMachineReport && isParentProcessNonProductWork(item)) {
+    assertNonProductWorkSnapshot(item);
+    return;
+  }
   if (isMachineReport) {
     const tempLines = await getTempMachineLines(item.id, connection);
     if (!tempLines.length) {
@@ -169,6 +214,23 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
     standardVersionId: item.standard_version_id,
     machineStandardId: item.machine_standard_id,
   });
+  // CVK "Công việc khác" reports intentionally have no product standard.
+  // Their valid snapshot is zero output with no product/machine standard IDs.
+  if (resolved?.nonProductWork) {
+    const savedOutput = Number(item.standard_output || 0);
+    const savedVersionId = Number(item.standard_version_id || 0);
+    const savedMachineStandardId = Number(item.machine_standard_id || 0);
+    const savedKqdPolicy = Number(item.exclude_kqd_from_tt_snapshot || 0);
+    if (savedOutput !== 0 || savedVersionId !== 0 || savedMachineStandardId !== 0 || savedKqdPolicy !== 0) {
+      const error = new Error("Ảnh chụp công việc khác không hợp lệ; cần kiểm tra lại báo cáo");
+      error.status = 422;
+      error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
+      error.isPublic = true;
+      throw error;
+    }
+    return;
+  }
+
   assertStandardSnapshotConsistency({
     resolved,
     standardOutput: item.standard_output,
@@ -182,24 +244,24 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
 }
 
 async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection) {
-  const [snapshotDefects, snapshotDeductions] = await Promise.all([
-    qRows(
-      connection,
-      `SELECT dt.defect_code, dt.defect_name, d.quantity
-         FROM production_report_defects d
-         LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
-        WHERE d.report_id=? ORDER BY d.id`,
-      [approvedReportId],
-    ),
-    qRows(
-      connection,
-      `SELECT dt.deduction_code, dt.deduction_name, d.hours
-         FROM production_report_deductions d
-         LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
-        WHERE d.report_id=? ORDER BY d.id`,
-      [approvedReportId],
-    ),
-  ]);
+  // TiDB Serverless transaction connections must not run concurrent queries.
+  // Keep these snapshot reads sequential on the same transaction connection.
+  const snapshotDefects = await qRows(
+    connection,
+    `SELECT dt.defect_code, dt.defect_name, d.quantity
+       FROM production_report_defects d
+       LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+      WHERE d.report_id=? ORDER BY d.id`,
+    [approvedReportId],
+  );
+  const snapshotDeductions = await qRows(
+    connection,
+    `SELECT dt.deduction_code, dt.deduction_name, d.hours
+       FROM production_report_deductions d
+       LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+      WHERE d.report_id=? ORDER BY d.id`,
+    [approvedReportId],
+  );
   const machineLines = await qRows(
     connection,
     `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,

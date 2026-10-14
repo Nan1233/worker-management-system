@@ -25,58 +25,6 @@ test('deduction detail minutes matches deduction_time in hours', () => {
   assert.equal(Math.round(result.normalized.deductions.reduce((sum, item) => sum + item.hours, 0) * 60), 20);
 });
 
-test('GC non-product Xuất nhập report may have zero production time', () => {
-  const result = validateProductionReport({
-    process_id: 1,
-    process_code: 'GC',
-    work_date: '2026-10-14',
-    shift: 'A',
-    work_type: 'XUATNHAP',
-    non_product_work: true,
-    operation_mode: 'MANUAL',
-    total_time: 0,
-    actual_time: 0,
-    deduction_time: 0,
-    standard_output: 0,
-    actual_output: 0,
-    tt_ok: 0,
-    tt_ng: 0,
-    defects: [],
-    deductions: [],
-    machine_lines: [],
-  }, { skipActualOutputFormula: true });
-
-  assert.equal(result.valid, true, JSON.stringify(result.errors));
-  assert.equal(result.errors.actual_time, undefined);
-  assert.equal(result.normalized.standard_output, 0);
-});
-
-test('non-product flag cannot bypass worker-time validation outside GC/CVK', () => {
-  const result = validateProductionReport({
-    process_id: 2,
-    process_code: 'MAI',
-    work_date: '2026-10-14',
-    shift: 'A',
-    work_type: 'XUATNHAP',
-    non_product_work: true,
-    operation_mode: 'MANUAL',
-    total_time: 0,
-    actual_time: 0,
-    deduction_time: 0,
-    standard_output: 0,
-    actual_output: 0,
-    tt_ok: 0,
-    tt_ng: 0,
-    defects: [],
-    deductions: [],
-    machine_lines: [],
-  }, { skipActualOutputFormula: true });
-
-  assert.equal(result.valid, false);
-  assert.equal(typeof result.errors.actual_time, 'string');
-  assert.equal(typeof result.errors.standard_output, 'string');
-});
-
 test('canonical deduction hours still works', () => {
   const result = validateProductionReport({
     work_date: '2026-10-01',

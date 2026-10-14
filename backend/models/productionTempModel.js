@@ -87,7 +87,7 @@ const enforceDailyWorkerHours = async (data, executor = db) => {
 createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) => {
     if (!logicalDuplicateKey) return null;
     const rows = await query(executor,
-        `SELECT id, worker_id, process_id, work_date, shift, operation_mode, machine_no, product_name, status, created_at, updated_at
+        `SELECT id, worker_id, process_id, work_date, shift, operation_mode, machine_no, product_name, extra_data, status, created_at, updated_at
          FROM production_reports WHERE worker_id=? AND process_id=? AND work_date=? AND shift=? AND status <> 'deleted' ORDER BY id DESC`,
         [workerId, processId, workDate, shift]);
     if (!rows.length) return null;
@@ -105,7 +105,7 @@ createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, 
         const key = buildLogicalDuplicateKey({
             workerId: row.worker_id, processId: row.process_id, workDate: row.work_date,
             shift: row.shift, operationMode: row.operation_mode, machineNo: row.machine_no,
-            productName: row.product_name, machineLines: byReport.get(Number(row.id)) || []
+            productName: row.product_name, workType: (() => { try { const extra = typeof row.extra_data === "string" ? JSON.parse(row.extra_data) : row.extra_data; return String(extra?.work_type || "").trim(); } catch { return ""; } })(), machineLines: byReport.get(Number(row.id)) || []
         });
         if (key === logicalDuplicateKey) return { ...row, report_type: "approved" };
     }
@@ -237,7 +237,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         const existingBefore = await findExistingClientRequest(data);
         if (existingBefore) return idempotent(existingBefore);
 
-        data.logical_duplicate_key = buildLogicalDuplicateKey({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, operationMode: data.operation_mode ?? data.operationMode, machineNo: data.machine_no, productName: data.product_name, machineLines });
+        data.logical_duplicate_key = buildLogicalDuplicateKey({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, operationMode: data.operation_mode ?? data.operationMode, machineNo: data.machine_no, productName: data.product_name, workType: data.work_type || data.extra_data?.work_type, machineLines });
 
         const tempDuplicate = await createModel.findSimilarTempReport({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, machineNo: data.machine_no, productName: data.product_name, logicalDuplicateKey: data.logical_duplicate_key });
         const approvedDuplicate = tempDuplicate ? null : await createModel.findSimilarApprovedReport({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, logicalDuplicateKey: data.logical_duplicate_key });

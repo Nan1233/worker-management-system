@@ -93,13 +93,11 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const errors = {};
     const workDate = String(payload.work_date || '').slice(0, 10);
     const parsedDate = DATE_PATTERN.test(workDate) ? new Date(`${workDate}T00:00:00`) : null;
-    const submittedProcessCode = String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase();
-    const submittedIsGcProcess = submittedProcessCode === 'GC' || getProcessMachinePolicy(payload.process_id).code === 'GC';
     const isNonProductWork = Number(payload.process_id) === 60006 || Number(payload.process_id) === 30002 ||
-        submittedProcessCode === 'CVK' ||
-        (submittedIsGcProcess && (payload.extra_data?.non_product_work === true || payload.non_product_work === true));
+        String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK' ||
+        payload.extra_data?.non_product_work === true || payload.non_product_work === true;
     const productCodeForPolicy = String(payload.product_name || '').split(',')[0].trim().toUpperCase();
-    const normalizeWorkCode = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const normalizeWorkCode = (value) => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const processCodeForPolicy = String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase();
     const isGcProcessForPolicy = processCodeForPolicy === 'GC' || getProcessMachinePolicy(payload.process_id).code === 'GC';
     const workTypeForPolicy = normalizeWorkCode(payload.work_type || payload.workType || payload.extra_data?.work_type || payload.extra_data?.workType);
@@ -117,12 +115,13 @@ const validateProductionReport = (payload = {}, options = {}) => {
         Number(payload.process_id) !== 60006;
     const isMachineReport = String(payload.operation_mode || payload.execution_method || '').trim().toUpperCase() === 'MACHINE' ||
         (Array.isArray(payload.machine_lines) && payload.machine_lines.length > 0);
-    // Gia công (GC) nhiều máy lấy thời gian làm việc từ machine_lines[].machine_time_hours
-    // (xem machineLineValidationService.js) thay vì actual_time/total_time/deduction_time
-    // cấp báo cáo. Frontend cố ý gửi 3 trường này = 0 cho luồng này
-    // (processReportSubmission.ts: isGiaCongMachine). Chỉ GC mới được miễn kiểm tra
-    // actual_time > 0; các công đoạn máy khác (Mài, Đo, Ép, Cán) vẫn phải nhập thời gian
-    // công nhân như cũ.
+    // Gia công (GC) nhiều/một máy lấy thời gian làm việc từ machine_lines[].machine_time_hours
+    // (xem machineLineValidationService.js, giới hạn 0 < hours <= 12 mỗi máy) thay vì
+    // actual_time/total_time/deduction_time cấp báo cáo. Frontend cố ý gửi 3 trường này = 0
+    // cho luồng này (processReportSubmission.ts: isGiaCongMachine; ProcessPage.tsx:
+    // usesGiaCongMachineAccounting ẩn trường và bỏ kiểm tra actualTime > 0 phía client).
+    // Chỉ GC mới được miễn kiểm tra actual_time > 0; các công đoạn máy khác (Mài, Đo, Ép,
+    // Cán, Kiểm 1/2) vẫn luôn thu thập actual_time từ công nhân nên không bị ảnh hưởng.
     const isGiaCongMachineReport = getProcessMachinePolicy(payload.process_id).code === 'GC' &&
         Array.isArray(payload.machine_lines) && payload.machine_lines.length > 0;
 
@@ -155,13 +154,15 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const ttOk = finiteNumber(payload.tt_ok, 'tt_ok', errors, { max: 100000000 });
     const ttNg = finiteNumber(payload.tt_ng, 'tt_ng', errors, { max: 100000000 });
 
-    if (!isGiaCongMachineReport && !isNonProductWork && actualTime <= 0) errors.actual_time = 'Thời gian làm thực tế phải lớn hơn 0';
+    if (!isGiaCongMachineReport && actualTime <= 0) errors.actual_time = 'Thời gian làm thực tế phải lớn hơn 0';
     if (totalTime > MAX_TOTAL_TIME_HOURS) errors.total_time = 'Tổng thời gian không được vượt quá 12 giờ';
     if (Math.abs(totalTime - (actualTime + deductionTime)) > EPSILON) {
         errors.total_time = 'Tổng thời gian phải bằng thời gian làm thực tế cộng thời gian trừ';
     }
     const defects = normalizeDetails(payload.defects || [], 'defect_type_id', 'quantity', 'defects', errors);
-    if (!isMachineReport && options.skipActualOutputFormula !== true) {
+    // GC machine-line reports validate output per machine/product in
+    // machineLineValidationService; never apply the parent single-product formula.
+    if (!isMachineReport && !isGiaCongMachineReport && options.skipActualOutputFormula !== true) {
         const policyValue = Object.prototype.hasOwnProperty.call(payload, 'exclude_kqd_from_tt_snapshot')
             ? payload.exclude_kqd_from_tt_snapshot
             : payload.exclude_kqd_from_tt;

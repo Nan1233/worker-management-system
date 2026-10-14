@@ -10,11 +10,11 @@ import "./ManagementLayout.css";
 import "./ManagementSidebarCompact.css";
 import "../styles/HideManagementPageDescriptions.css";
 
-type ManagementRole = "lead" | "manager" | "admin";
+type ManagementRole = "lead" | "manager" | "admin_ops" | "admin";
 type ManagementMenuItem = { label:string; path:string; icon:typeof LayoutDashboard; permission:PermissionCode; roles:ManagementRole[] };
-const allManagementRoles:ManagementRole[]=["lead","manager","admin"];
-const adminAndManagerRoles:ManagementRole[]=["lead","manager","admin"];
-const managerMasterRoles:ManagementRole[]=["lead","manager","admin"];
+const allManagementRoles:ManagementRole[]=["lead","manager","admin_ops","admin"];
+const adminAndManagerRoles:ManagementRole[]=["lead","manager","admin_ops","admin"];
+const managerMasterRoles:ManagementRole[]=["lead","manager","admin_ops","admin"];
 // Backend (adminMasterRoutes.js): the defect catalogue is manager/admin only; leads get 403.
 const defectMasterRoles:ManagementRole[]=["manager","admin"];
 const items:ManagementMenuItem[]=[
@@ -31,7 +31,7 @@ const items:ManagementMenuItem[]=[
  {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW",roles:adminAndManagerRoles},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE",roles:["admin"]},
 ];
-const roleLabel:Record<ManagementRole,string>={lead:"Tổ trưởng",manager:"Quản lý",admin:"Quản trị viên"};
+const roleLabel:Record<ManagementRole,string>={lead:"Tổ trưởng",manager:"Quản lý",admin_ops:"Quản trị vận hành",admin:"Quản trị viên"};
 
 export default function ManagementLayout({role}:{role:ManagementRole}){
  const navigate=useNavigate(),location=useLocation(); const {can}=usePermissions();

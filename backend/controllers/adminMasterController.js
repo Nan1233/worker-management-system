@@ -75,6 +75,20 @@ function listManagers(res, next) {
     ORDER BY u.full_name, u.username`, (error, rows) => error ? next(error) : res.json({success:true,data:rows}));
 }
 
+async function assertGcMachineCode(processId, machineCode, executor = db.promise()) {
+  const code = String(machineCode ?? '').trim();
+  const [processRows] = await executor.query(
+    "SELECT process_code FROM processes WHERE id=? LIMIT 1",
+    [Number(processId)]
+  );
+  if (String(processRows[0]?.process_code || '').trim().toUpperCase() === 'GC' && /^\d+$/.test(code)) {
+    throw Object.assign(
+      new Error('Mã máy công đoạn GC phải có tiền tố C hoặc ML; không chấp nhận mã số thuần như 2 hoặc 15'),
+      { status: 400, code: 'GC_MACHINE_CODE_INVALID' }
+    );
+  }
+}
+
 function config(req, res) {
   const value = TABLES[req.params.resource];
   if (!value) {
@@ -163,6 +177,9 @@ exports.create = async (req,res,next) => {
     if (PROCESS_BOUND_RESOURCES.has(req.params.resource)) {
       await assertProcessScope(req.user, payload.process_id, { action:'MASTER_CREATE' });
     }
+    if (req.params.resource === 'machines') {
+      await assertGcMachineCode(payload.process_id, payload.machine_code);
+    }
     if (req.params.resource === 'standards' && !payload.work_type);
     db.query(`INSERT INTO ${cfg.table} SET ?`, payload, (error,result) => {
       if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,message:'Mã hoặc dữ liệu đã tồn tại'});
@@ -205,6 +222,12 @@ exports.update = async (req,res,next) => {
       if (existingProcessId === null) { await connection.rollback(); return res.status(404).json({success:false,message:'Không tìm thấy dữ liệu'}); }
       if ('process_id' in payload && PROCESS_BOUND_RESOURCES.has(req.params.resource)) {
         await assertProcessScope(req.user, payload.process_id, { executor:connection, action:'MASTER_UPDATE_TARGET' });
+      }
+      if (req.params.resource === 'machines') {
+        const targetProcessId = 'process_id' in payload ? payload.process_id : existingProcessId;
+        const [machineRows] = await connection.query('SELECT machine_code FROM machines WHERE id=? LIMIT 1', [id]);
+        const targetMachineCode = 'machine_code' in payload ? payload.machine_code : machineRows[0]?.machine_code;
+        await assertGcMachineCode(targetProcessId, targetMachineCode, connection);
       }
       const [result] = await connection.query(`UPDATE ${cfg.table} SET ? WHERE id=?`,[payload,id]);
       await connection.commit();
