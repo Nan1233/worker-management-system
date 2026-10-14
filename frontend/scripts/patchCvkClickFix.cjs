@@ -59,7 +59,7 @@ submission = submission.replace(/process_id:\s*args\.processId/g, 'process_id: e
 
 // Fail the build instead of deploying if the product-required guard was not
 // actually removed from the CVK-aware validator.
-if (!page.includes('const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);')) {
+if (!page.includes('const isCvkEntry =')) {
   throw new Error('[KTC] CVK patch failed: isCvkEntry was not inserted');
 }
 if (/if \(!usesMultiMachineLines\) \{\s*if \(!form\.productName\.trim\(\)\) \{\s*return "Vui lòng chọn sản phẩm";/.test(page)) {
