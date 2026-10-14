@@ -263,7 +263,7 @@ const machineAutocompleteOptions =
     const usesMultiMachineLines = resolveUsesMultiMachineLines(processCapabilities, operationMode);
     const usesSingleMachine = resolveUsesSingleMachine(processCapabilities, operationMode);
     const usesAnyMachine = usesMultiMachineLines || usesSingleMachine;
-    const usesGiaCongMachineAccounting = isCutLongProcess && usesMultiMachineLines;
+    const usesMachineLineAccounting = usesMultiMachineLines;
 
     const productAutocompleteOptions = useMemo<AutocompleteOption[]>(() => {
         const effectiveMode: OperationMode = usesAnyMachine ? "MACHINE" : "MANUAL";
@@ -1294,6 +1294,7 @@ const updateDeductionValue = (
         if (usesMultiMachineLines) {
             const machineLinesError = validateMachineLines({
                 machineLines,
+                maxMachines: maxMachineCount,
                 isMachineValid: (machineCode) => machineOptions.some(
                     (item) => item.machine_code.trim().toLowerCase() === machineCode.trim().toLowerCase()
                 ),
@@ -1315,7 +1316,7 @@ const updateDeductionValue = (
         }
 
 
-        if (!usesGiaCongMachineAccounting) {
+        if (!usesMachineLineAccounting) {
             if (parseFlexibleTime(form.actualTime) <= 0) {
                 return "Thời gian làm việc thực tế phải lớn hơn 0";
             }
@@ -1454,6 +1455,8 @@ const updateDeductionValue = (
                     extraData,
                     operationType,
                     isCutLongProcess,
+                    isCvkMode,
+                    processCode,
                     usesAnyMachine,
                     usesMultiMachineLines,
                     usesSingleMachine,
@@ -1728,8 +1731,9 @@ window.setTimeout(() => {
                     setExtraData={setExtraData}
                 />
 
-                {!usesGiaCongMachineAccounting && (
+                {!usesMachineLineAccounting && (
                     <ProcessTimeDeductionSection
+                        processCode={processCode}
                         form={form}
                         setForm={setForm}
                         deductions={deductions}
@@ -1774,6 +1778,7 @@ window.setTimeout(() => {
                     showNg={showNg}
                     setShowNg={setShowNg}
                     usesMultiMachineLines={usesMultiMachineLines}
+                    operationMode={operationMode}
                     formatIntegerDisplay={formatIntegerDisplay}
                     onTtOkChange={handleTtOkChange}
                     onNumberBlur={handleNumberBlur}
