@@ -147,7 +147,9 @@ const validateProductionReport = (payload = {}, options = {}) => {
         errors.total_time = 'Tổng thời gian phải bằng thời gian làm thực tế cộng thời gian trừ';
     }
     const defects = normalizeDetails(payload.defects || [], 'defect_type_id', 'quantity', 'defects', errors);
-    if (!isMachineReport && options.skipActualOutputFormula !== true) {
+    // GC machine-line reports validate output per machine/product in
+    // machineLineValidationService; never apply the parent single-product formula.
+    if (!isMachineReport && !isGiaCongMachineReport && options.skipActualOutputFormula !== true) {
         const policyValue = Object.prototype.hasOwnProperty.call(payload, 'exclude_kqd_from_tt_snapshot')
             ? payload.exclude_kqd_from_tt_snapshot
             : payload.exclude_kqd_from_tt;
