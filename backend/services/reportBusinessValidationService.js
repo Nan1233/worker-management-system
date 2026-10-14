@@ -10,7 +10,7 @@ const normalizeText = (value) => String(value ?? "").trim();
 const uniquePositiveIds = (items, key) => [...new Set((Array.isArray(items) ? items : []).map((item) => Number(item?.[key])).filter((id) => Number.isInteger(id) && id > 0))];
 const ZERO_STANDARD_GC_LONG_MANUAL_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
-const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, allowEmptyMachine = false, operationMode = null, workDate }) => {
+const validateMasterData = async ({ workerId, processId, machineNo, productName, workType = null, nonProductWork = false, defects = [], deductions = [], ttOk, actualOutput, allowEmptyMachine = false, operationMode = null, workDate }) => {
     const errors = {};
     const normalizedMachineNo = normalizeText(machineNo);
     const normalizedProductName = normalizeText(productName);
@@ -42,7 +42,12 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     ]);
 
     const processCode = normalizeText(processRows?.[0]?.process_code).toUpperCase();
-    const isNonProductWork = Number(processId) === 60006 || processCode === "CVK";
+    const normalizeWorkCode = (value) => String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const normalizedWorkType = normalizeWorkCode(workType);
+    const isKnownNonProductWorkType = new Set(["XUATNHAP", "KTCD", "TAIPP"]).has(normalizedWorkType);
+    // GC/Cắt-Lồng can contain sibling non-product work types such as Xuất nhập.
+    // They must not be validated as a normal product/machine report.
+    const isNonProductWork = Number(processId) === 60006 || processCode === "CVK" || Boolean(nonProductWork) || (processCode === "GC" && isKnownNonProductWorkType);
     const canonicalDefectsById = new Map(validDefectRows.map((row) => [Number(row.id), row]));
     const authoritativeDefects = (defects || []).map((item) => ({ ...item, defect_code: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_code || null, defect_name: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_name || null }));
 
