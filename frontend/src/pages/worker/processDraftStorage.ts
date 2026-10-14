@@ -16,6 +16,8 @@ export type ProcessDraft = {
   machineCount: number;
   operationType: OperationType;
   operationMode: OperationMode;
+  isCvkMode?: boolean;
+  cutExecutionMode?: "AUTO" | "NON_AUTO";
   extraData: Record<string,string>;
 };
 
@@ -227,6 +229,8 @@ function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
     machineLines,
     machineCount: lineCount,
     operationMode,
+    isCvkMode: Boolean(draft.isCvkMode || String(form.workType || "").toUpperCase() === "CVK"),
+    cutExecutionMode: draft.cutExecutionMode === "NON_AUTO" ? "NON_AUTO" : "AUTO",
     selectedDeduction: Array.isArray(draft.selectedDeduction) ? draft.selectedDeduction : [],
     selectedNg: Array.isArray(draft.selectedNg) ? draft.selectedNg : [],
     extraData: draft.extraData || {},
