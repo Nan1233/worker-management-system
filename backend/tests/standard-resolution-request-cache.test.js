@@ -63,3 +63,53 @@ test('standard resolver falls back to the historical product standard when selec
   assert.equal(resolved.machineStandardId, null);
   assert.equal(resolved.source, 'LEGACY_PRODUCT_STANDARD_MACHINE_FALLBACK');
 });
+
+
+test('standard resolver canonicalizes only a unique AUTO code casing variant', async () => {
+  const seen = [];
+  const fakeQuery = async (sql, params = []) => {
+    seen.push({ sql, params });
+    if (sql.includes('FROM machines')) return [{ id: 11, machine_code: 'C6', process_code: 'GC' }];
+    if (sql.includes('FROM product_machine_standards')) return [];
+    if (sql.includes('FROM product_standards')) {
+      if (sql.includes('UPPER(TRIM(product_code))=UPPER(TRIM(?))')) {
+        return [{ product_standard_id: 52, product_code: 'C5770-AUTO', encoding_code: '60048', work_type: 'Cắt', standard_output: '6660', exclude_kqd_from_tt: 0 }];
+      }
+      return [];
+    }
+    if (sql.includes('FROM product_standard_versions')) return [];
+    throw new Error(`Unexpected query: ${sql}`);
+  };
+  const resolver = createStandardResolver({ query: fakeQuery });
+  const resolved = await resolver.resolveStandard({
+    processId: 1,
+    productCode: 'c5770-AUTO',
+    machineId: 11,
+    machineCode: 'C6',
+    workDate: '2026-10-10'
+  });
+  assert.equal(resolved.productCode, 'C5770-AUTO');
+  assert.equal(resolved.standardOutput, 6660);
+  assert.equal(resolved.productStandardId, 52);
+  assert.ok(seen.some((item) => item.sql.includes('UPPER(TRIM(product_code))=UPPER(TRIM(?))')));
+});
+
+test('standard resolver refuses ambiguous AUTO casing variants', async () => {
+  const fakeQuery = async (sql) => {
+    if (sql.includes('FROM machines')) return [{ id: 11, machine_code: 'C6', process_code: 'GC' }];
+    if (sql.includes('FROM product_machine_standards')) return [];
+    if (sql.includes('FROM product_standards')) {
+      if (sql.includes('UPPER(TRIM(product_code))=UPPER(TRIM(?))')) return [
+        { product_standard_id: 52, product_code: 'C5770-AUTO', standard_output: '6660', exclude_kqd_from_tt: 0 },
+        { product_standard_id: 53, product_code: 'c5770-auto', standard_output: '849', exclude_kqd_from_tt: 0 }
+      ];
+      return [];
+    }
+    throw new Error(`Unexpected query: ${sql}`);
+  };
+  const resolver = createStandardResolver({ query: fakeQuery });
+  await assert.rejects(
+    resolver.resolveStandard({ processId: 1, productCode: 'c5770-AUTO', machineId: 11, machineCode: 'C6', workDate: '2026-10-10' }),
+    /Không xác định duy nhất định mức sản phẩm/
+  );
+});
