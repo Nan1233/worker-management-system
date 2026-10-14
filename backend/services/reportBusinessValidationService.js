@@ -47,7 +47,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     const isKnownNonProductWorkType = new Set(["XUATNHAP", "KTCD", "TAIPP"]).has(normalizedWorkType);
     // GC/Cắt-Lồng can contain sibling non-product work types such as Xuất nhập.
     // They must not be validated as a normal product/machine report.
-    const isNonProductWork = Number(processId) === 60006 || processCode === "CVK" || Boolean(nonProductWork) || (processCode === "GC" && isKnownNonProductWorkType);
+    const isNonProductWork = Number(processId) === 60006 || processCode === "CVK" || (processCode === "GC" && (Boolean(nonProductWork) || isKnownNonProductWorkType));
     const canonicalDefectsById = new Map(validDefectRows.map((row) => [Number(row.id), row]));
     const authoritativeDefects = (defects || []).map((item) => ({ ...item, defect_code: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_code || null, defect_name: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_name || null }));
 
