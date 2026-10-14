@@ -144,7 +144,11 @@ export default function WorkerHome() {
           <div className="worker-home-report-list">
             {displayReports.length ? displayReports.map((report) => {
               const status = statusMeta(report.status);
-              const reportTime = Number(report.actual_time ?? report.total_time ?? 0);
+              // Some legacy/API rows send actual_time=0 while total_time is populated.
+              // Prefer a positive value instead of letting zero mask the fallback.
+              const actualTime = Number(report.actual_time ?? 0);
+              const totalTime = Number(report.total_time ?? 0);
+              const reportTime = actualTime > 0 ? actualTime : Math.max(0, totalTime);
               return (
                 <button type="button" className="worker-home-report" key={report.id ?? `${report.work_date}-${report.machine_no}-${report.product_name}`} onClick={() => report.id && navigate(`/worker/history/${report.id}`)}>
                   <span className="worker-home-report-date"><strong>{formatDate(report.work_date).slice(0, 5)}</strong><small>{formatDate(report.work_date).slice(6)}</small></span>
