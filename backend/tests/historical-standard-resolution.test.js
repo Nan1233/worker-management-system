@@ -25,6 +25,7 @@ function createFixtureQuery({ overlap = false, missing = false, machine = false 
       return productVersions.filter((row) => row.effective_from <= date && (!row.effective_to || row.effective_to >= date));
     }
     if (text.includes('from machines')) return [{ id: 201, machine_code: 'M1' }];
+    if (text.includes('from product_aliases')) return [];
     if (text.includes('from product_machine_standards') && text.includes('effective_to')) {
       const date = String(params[3]);
       return machineStandards.filter((row) => (!row.effective_from || row.effective_from <= date) && (!row.effective_to || row.effective_to >= date));
