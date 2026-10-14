@@ -14,7 +14,7 @@
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "check:bundle": "node scripts/checkBundleSize.cjs",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
-    "check:theme": "npm run check:theme",
+    "check:theme": "node ../scripts/checkThemeContract.cjs",
     "android:add": "npm run android:prepare && cap add android",
     "android:sync": "npm run android:prepare && npm run build:native && cap sync android",
     "android:open": "npm run android:prepare && cap open android",
