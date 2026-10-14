@@ -153,7 +153,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const ttOk = finiteNumber(payload.tt_ok, 'tt_ok', errors, { max: 100000000 });
     const ttNg = finiteNumber(payload.tt_ng, 'tt_ng', errors, { max: 100000000 });
 
-    if (!isGiaCongMachineReport && actualTime <= 0) errors.actual_time = 'Thời gian làm thực tế phải lớn hơn 0';
+    if (!isGiaCongMachineReport && !isNonProductWork && actualTime <= 0) errors.actual_time = 'Thời gian làm thực tế phải lớn hơn 0';
     if (totalTime > MAX_TOTAL_TIME_HOURS) errors.total_time = 'Tổng thời gian không được vượt quá 12 giờ';
     if (Math.abs(totalTime - (actualTime + deductionTime)) > EPSILON) {
         errors.total_time = 'Tổng thời gian phải bằng thời gian làm thực tế cộng thời gian trừ';
