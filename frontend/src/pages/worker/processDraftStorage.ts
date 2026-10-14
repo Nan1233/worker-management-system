@@ -16,6 +16,8 @@ export type ProcessDraft = {
   machineCount: number;
   operationType: OperationType;
   operationMode: OperationMode;
+  isCvkMode?: boolean;
+  cutExecutionMode?: "AUTO" | "NON_AUTO";
   extraData: Record<string,string>;
 };
 
@@ -227,6 +229,8 @@ function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
     machineLines,
     machineCount: lineCount,
     operationMode,
+    isCvkMode: Boolean(draft.isCvkMode || String(form.workType || "").toUpperCase() === "CVK"),
+    cutExecutionMode: draft.cutExecutionMode === "NON_AUTO" ? "NON_AUTO" : "AUTO",
     selectedDeduction: Array.isArray(draft.selectedDeduction) ? draft.selectedDeduction : [],
     selectedNg: Array.isArray(draft.selectedNg) ? draft.selectedNg : [],
     extraData: draft.extraData || {},
@@ -325,7 +329,7 @@ export function clearProcessDraft(process: string): void {
 export function hasMeaningfulProcessDraft(draft: ProcessDraft): boolean {
   const f = draft.form || {};
   return Boolean(
-    f.productName || f.machineNo || f.ttOk || f.ttNg || f.totalTime || f.actualTime || f.actualHours || f.actualMinutes ||
+    f.productName || f.machineNo || f.workType || draft.isCvkMode || f.ttOk || f.ttNg || f.totalTime || f.actualTime || f.actualHours || f.actualMinutes ||
     draft.machineLines?.some(l => l.machineCode || l.productCode || l.hours || l.minutes || l.okQuantity || l.ngQuantity) ||
     draft.selectedDeduction?.length || draft.selectedNg?.length ||
     Object.values(draft.extraData || {}).some(Boolean)
