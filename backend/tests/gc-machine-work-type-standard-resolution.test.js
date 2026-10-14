@@ -156,3 +156,46 @@ test('GC C1 falls back to the only process product standard when the machine has
   assert.equal(resolved.machineCode, 'C1');
   assert.match(resolved.source, /PROCESS_FALLBACK/);
 });
+
+test('exact product code wins over another product using the same value as encoding_code', async () => {
+  const queries = [];
+  const query = async (sql, params = []) => {
+    const text = String(sql).replace(/\\s+/g, ' ').trim().toLowerCase();
+    queries.push(text);
+    if (text.includes('from product_standards')) {
+      if (/binary trim\\(product_code\\)=binary trim\\(\\?\\)/.test(text)) {
+        return [{
+          product_standard_id: 5770,
+          product_code: '5770',
+          encoding_code: null,
+          work_type: 'Lồng',
+          standard_output: 200,
+          exclude_kqd_from_tt: 0
+        }];
+      }
+      if (/binary trim\\(encoding_code\\)=binary trim\\(\\?\\)/.test(text)) {
+        return [{
+          product_standard_id: 8800,
+          product_code: 'OTHER-PRODUCT',
+          encoding_code: '5770',
+          work_type: 'Lồng',
+          standard_output: 900,
+          exclude_kqd_from_tt: 0
+        }];
+      }
+    }
+    if (text.includes('from product_standard_versions')) return [];
+    throw new Error(`Unexpected SQL: ${text}; params=${JSON.stringify(params)}`);
+  };
+  const resolver = createStandardResolver({ query });
+  const resolved = await resolver.resolveProduct({
+    processId: 1,
+    productCode: '5770',
+    workDate: '2026-10-14',
+    workType: 'LONG'
+  });
+  assert.equal(resolved.productStandardId, 5770);
+  assert.equal(resolved.productCode, '5770');
+  assert.equal(resolved.standardOutput, 200);
+  assert.equal(queries.filter(q => /binary trim\\(encoding_code\\)/.test(q)).length, 0);
+});
