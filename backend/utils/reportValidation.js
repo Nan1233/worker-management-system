@@ -97,8 +97,18 @@ const validateProductionReport = (payload = {}, options = {}) => {
         String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK' ||
         payload.extra_data?.non_product_work === true || payload.non_product_work === true;
     const productCodeForPolicy = String(payload.product_name || '').split(',')[0].trim().toUpperCase();
-    const isZeroStandardLongWork = ZERO_STANDARD_LONG_WORK_CODES.has(productCodeForPolicy) &&
-        String(payload.operation_type || '').trim().toUpperCase() === 'LONG' &&
+    const normalizeWorkCode = (value) => String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const processCodeForPolicy = String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase();
+    const workTypeForPolicy = normalizeWorkCode(payload.work_type || payload.workType || payload.extra_data?.work_type || payload.extra_data?.workType);
+    const productWorkCode = normalizeWorkCode(productCodeForPolicy);
+    const isZeroStandardLongWork = (
+        ZERO_STANDARD_LONG_WORK_CODES.has(productCodeForPolicy) ||
+        (processCodeForPolicy === 'GC' && (
+            ZERO_STANDARD_LONG_WORK_CODES.has(productWorkCode) ||
+            ZERO_STANDARD_LONG_WORK_CODES.has(workTypeForPolicy)
+        ))
+    ) &&
+        (String(payload.operation_type || '').trim().toUpperCase() === 'LONG' || processCodeForPolicy === 'GC') &&
         Number(payload.process_id) !== 60006;
     const isMachineReport = String(payload.operation_mode || payload.execution_method || '').trim().toUpperCase() === 'MACHINE' ||
         (Array.isArray(payload.machine_lines) && payload.machine_lines.length > 0);
