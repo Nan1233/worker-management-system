@@ -89,6 +89,15 @@ exports.createTempReport = async (req, res) => {
                 req.body?.process_id
             );
 
+        const extraDataInput = req.body?.extra_data && typeof req.body.extra_data === "object" && !Array.isArray(req.body.extra_data)
+            ? req.body.extra_data
+            : {};
+        const normalizeWorkTypeCode = (value) => String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const submittedWorkType = normalizeWorkTypeCode(req.body?.work_type || req.body?.workType || extraDataInput.work_type);
+        const isKnownNonProductWorkType = new Set(["XUATNHAP", "KTCD", "TAIPP"]).has(submittedWorkType);
+        const isNonProductWorkWithinProcess = processId !== 30002 && processId !== 60006
+            && (req.body?.non_product_work === true || extraDataInput.non_product_work === true || isKnownNonProductWorkType);
+
 
         if (!workerId) {
             return res.status(400).json({
@@ -195,7 +204,7 @@ exports.createTempReport = async (req, res) => {
         const normalizedMachineNo = String(validation.normalized.machine_no || req.body?.machine_no || "").trim();
         const requestedMachineMode = operationMode === "MACHINE" || rawMachineLines.length > 0 || Boolean(normalizedMachineNo);
 
-        if (machinePolicy.mode === "MANUAL_ONLY" && requestedMachineMode) {
+        if (!isNonProductWorkWithinProcess && machinePolicy.mode === "MANUAL_ONLY" && requestedMachineMode) {
             return res.status(422).json({
                 success: false,
                 message: "Công đoạn này chỉ thực hiện bằng tay",
@@ -203,7 +212,7 @@ exports.createTempReport = async (req, res) => {
             });
         }
 
-        if (machinePolicy.mode === "MULTI_MACHINE_REQUIRED" && rawMachineLines.length === 0) {
+        if (!isNonProductWorkWithinProcess && machinePolicy.mode === "MULTI_MACHINE_REQUIRED" && rawMachineLines.length === 0) {
             return res.status(422).json({
                 success: false,
                 message: "Công đoạn này bắt buộc nhập danh sách máy",
@@ -211,7 +220,7 @@ exports.createTempReport = async (req, res) => {
             });
         }
 
-        if (machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && (!normalizedMachineNo && rawMachineLines.length === 0 || rawMachineLines.length > 1)) {
+        if (!isNonProductWorkWithinProcess && machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && (!normalizedMachineNo && rawMachineLines.length === 0 || rawMachineLines.length > 1)) {
             const label = machinePolicy.code === "DO" ? "Đo" : machinePolicy.code === "EP" ? "Ép" : "Cán";
             return res.status(422).json({
                 success: false,
@@ -220,7 +229,7 @@ exports.createTempReport = async (req, res) => {
             });
         }
 
-        if (machinePolicy.mode === "MANUAL_OR_SINGLE_MACHINE" && rawMachineLines.length > 1) {
+        if (!isNonProductWorkWithinProcess && machinePolicy.mode === "MANUAL_OR_SINGLE_MACHINE" && rawMachineLines.length > 1) {
             return res.status(422).json({
                 success: false,
                 message: "Công đoạn Kiểm chỉ được chọn tối đa một máy",
@@ -245,7 +254,7 @@ exports.createTempReport = async (req, res) => {
                     errors: machineValidation.errors
                 });
             }
-        } else if (operationMode === "MACHINE" && !normalizedMachineNo) {
+        } else if (!isNonProductWorkWithinProcess && operationMode === "MACHINE" && !normalizedMachineNo) {
             return res.status(422).json({
                 success: false,
                 message: "Vui lòng chọn máy",
@@ -253,7 +262,7 @@ exports.createTempReport = async (req, res) => {
             });
         }
 
-        const factoryRuleValidation = await validateFactoryMachineRules({
+        const factoryRuleValidation = isNonProductWorkWithinProcess ? { valid: true, errors: {} } : await validateFactoryMachineRules({
             processCode: machinePolicy.code,
             processId,
             machineLines: machineValidation.lines.length
@@ -267,7 +276,7 @@ exports.createTempReport = async (req, res) => {
                 errors: factoryRuleValidation.errors
             });
         }
-        const machineCapacityValidation = await validateMachineWorkerCapacity({
+        const machineCapacityValidation = isNonProductWorkWithinProcess ? { valid: true, errors: {} } : await validateMachineWorkerCapacity({
             processCode: machinePolicy.code,
             processId,
             machineLines: machineValidation.lines.length
@@ -302,7 +311,7 @@ exports.createTempReport = async (req, res) => {
                 productName:
                     firstMachineLine?.product_code || validation.normalized.product_name,
                 workType: req.body?.work_type || req.body?.workType || req.body?.extra_data?.work_type,
-                nonProductWork: req.body?.non_product_work === true || req.body?.extra_data?.non_product_work === true,
+                nonProductWork: isNonProductWorkWithinProcess,
 
                 defects,
                 deductions,
