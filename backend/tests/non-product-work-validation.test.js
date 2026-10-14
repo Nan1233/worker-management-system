@@ -74,3 +74,28 @@ test('normal production report still rejects zero standard', () => {
   assert.equal(result.valid, false);
   assert.ok(result.errors.standard_output);
 });
+
+test('GC Xuất nhập work type accepts zero standard even when non_product_work flag is absent', () => {
+  const payload = {
+    process_id: 1,
+    process_code: 'GC',
+    work_type: 'Xuất nhập',
+    work_date: new Date().toISOString().slice(0, 10),
+    shift: 'A',
+    machine_no: '',
+    product_name: '',
+    total_time: 4,
+    actual_time: 4,
+    deduction_time: 0,
+    standard_output: 0,
+    actual_output: 0,
+    tt_ok: 0,
+    tt_ng: 0,
+    defects: [],
+    deductions: [],
+    training_percent: 100,
+  };
+  const result = validateProductionReport(payload, { skipActualOutputFormula: true });
+  assert.equal(result.valid, true, JSON.stringify(result.errors));
+  assert.equal(result.normalized.standard_output, 0);
+});
