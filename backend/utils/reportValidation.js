@@ -97,7 +97,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
         String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK' ||
         payload.extra_data?.non_product_work === true || payload.non_product_work === true;
     const productCodeForPolicy = String(payload.product_name || '').split(',')[0].trim().toUpperCase();
-    const normalizeWorkCode = (value) => String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const normalizeWorkCode = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const processCodeForPolicy = String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase();
     const isGcProcessForPolicy = processCodeForPolicy === 'GC' || getProcessMachinePolicy(payload.process_id).code === 'GC';
     const workTypeForPolicy = normalizeWorkCode(payload.work_type || payload.workType || payload.extra_data?.work_type || payload.extra_data?.workType);
