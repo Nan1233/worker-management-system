@@ -97,34 +97,52 @@ module.exports = {
             const hasMachineLines = Object.prototype.hasOwnProperty.call(data, "machine_lines");
             const deductions = Array.isArray(data.deductions) ? data.deductions : [];
             const defects = Array.isArray(data.defects) ? data.defects : [];
-            const normalizedDeductions = [];
-            for (const item of deductions) {
-                let deductionTypeId = Number(item.deduction_type_id) || null;
-                if (deductionTypeId) {
-                    const typeRows = await query(connection, `SELECT id FROM deduction_types WHERE id=? AND process_id=? LIMIT 1`, [deductionTypeId, current.process_id]);
-                    deductionTypeId = typeRows[0]?.id || null;
-                }
-                if (!deductionTypeId && String(item.deduction_name || "").trim()) {
-                    const typeRows = await query(connection, `SELECT id FROM deduction_types WHERE process_id=? AND deduction_name=? ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END, id LIMIT 1`, [current.process_id, String(item.deduction_name).trim()]);
-                    deductionTypeId = typeRows[0]?.id || null;
-                }
-                if (!deductionTypeId) throw new Error(`Nội dung thời gian trừ "${String(item.deduction_name || "").trim() || "không xác định"}" không tồn tại trong công đoạn`);
-                normalizedDeductions.push({ deduction_type_id: deductionTypeId, hours: Math.max(0, Number(item.hours) || 0) });
+            // Resolve all deduction/defect masters in at most one query per table.
+            // Per-item SELECTs multiplied TiDB HTTP subrequests and could exhaust
+            // the Cloudflare Worker budget before the report version was written.
+            const deductionIds = [...new Set(deductions.map((item) => Number(item.deduction_type_id) || 0).filter(Boolean))];
+            const deductionNames = [...new Set(deductions.map((item) => String(item.deduction_name || "").trim()).filter(Boolean))];
+            const deductionClauses = [];
+            const deductionParams = [Number(current.process_id)];
+            if (deductionIds.length) { deductionClauses.push(`id IN (${deductionIds.map(() => "?").join(",")})`); deductionParams.push(...deductionIds); }
+            if (deductionNames.length) { deductionClauses.push(`deduction_name IN (${deductionNames.map(() => "?").join(",")})`); deductionParams.push(...deductionNames); }
+            const deductionMaster = deductionClauses.length
+                ? await query(connection, `SELECT id,deduction_name,status FROM deduction_types WHERE process_id=? AND (${deductionClauses.join(" OR ")}) ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,id`, deductionParams)
+                : [];
+            const deductionById = new Map(deductionMaster.map((row) => [Number(row.id), row]));
+            const deductionByName = new Map();
+            for (const row of deductionMaster) {
+                const key = String(row.deduction_name || "").trim();
+                if (key && !deductionByName.has(key)) deductionByName.set(key, row);
             }
-            const normalizedDefects = [];
-            for (const item of defects) {
-                let defectTypeId = Number(item.defect_type_id) || null;
-                if (defectTypeId) {
-                    const typeRows = await query(connection, `SELECT id FROM defect_types WHERE id=? AND process_id=? LIMIT 1`, [defectTypeId, current.process_id]);
-                    defectTypeId = typeRows[0]?.id || null;
-                }
-                if (!defectTypeId && String(item.defect_name || "").trim()) {
-                    const typeRows = await query(connection, `SELECT id FROM defect_types WHERE process_id=? AND defect_name=? ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END, id LIMIT 1`, [current.process_id, String(item.defect_name).trim()]);
-                    defectTypeId = typeRows[0]?.id || null;
-                }
-                if (!defectTypeId) throw new Error(`Loại NG "${String(item.defect_name || "").trim() || "không xác định"}" không tồn tại trong công đoạn`);
-                normalizedDefects.push({ defect_type_id: defectTypeId, quantity: Math.max(0, Math.trunc(Number(item.quantity) || 0)) });
+            const normalizedDeductions = deductions.map((item) => {
+                const requestedId = Number(item.deduction_type_id) || 0;
+                const master = (requestedId && deductionById.get(requestedId)) || deductionByName.get(String(item.deduction_name || "").trim());
+                if (!master) throw new Error(`Nội dung thời gian trừ "${String(item.deduction_name || "").trim() || "không xác định"}" không tồn tại trong công đoạn`);
+                return { deduction_type_id: Number(master.id), hours: Math.max(0, Number(item.hours) || 0) };
+            });
+
+            const defectIds = [...new Set(defects.map((item) => Number(item.defect_type_id) || 0).filter(Boolean))];
+            const defectNames = [...new Set(defects.map((item) => String(item.defect_name || "").trim()).filter(Boolean))];
+            const defectClauses = [];
+            const defectParams = [Number(current.process_id)];
+            if (defectIds.length) { defectClauses.push(`id IN (${defectIds.map(() => "?").join(",")})`); defectParams.push(...defectIds); }
+            if (defectNames.length) { defectClauses.push(`defect_name IN (${defectNames.map(() => "?").join(",")})`); defectParams.push(...defectNames); }
+            const defectMaster = defectClauses.length
+                ? await query(connection, `SELECT id,defect_name,status FROM defect_types WHERE process_id=? AND (${defectClauses.join(" OR ")}) ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,id`, defectParams)
+                : [];
+            const defectById = new Map(defectMaster.map((row) => [Number(row.id), row]));
+            const defectByName = new Map();
+            for (const row of defectMaster) {
+                const key = String(row.defect_name || "").trim();
+                if (key && !defectByName.has(key)) defectByName.set(key, row);
             }
+            const normalizedDefects = defects.map((item) => {
+                const requestedId = Number(item.defect_type_id) || 0;
+                const master = (requestedId && defectById.get(requestedId)) || defectByName.get(String(item.defect_name || "").trim());
+                if (!master) throw new Error(`Loại NG "${String(item.defect_name || "").trim() || "không xác định"}" không tồn tại trong công đoạn`);
+                return { defect_type_id: Number(master.id), quantity: Math.max(0, Math.trunc(Number(item.quantity) || 0)) };
+            });
             const deductionTotals = new Map();
             for (const item of normalizedDeductions) deductionTotals.set(item.deduction_type_id, (deductionTotals.get(item.deduction_type_id) || 0) + item.hours);
             normalizedDeductions.length = 0;
@@ -176,11 +194,19 @@ module.exports = {
             }
             if (hasDeductions) {
                 await query(connection, `DELETE FROM production_temp_deductions WHERE temp_report_id=?`, [id]);
-                for (const item of normalizedDeductions) await query(connection, `INSERT INTO production_temp_deductions (temp_report_id,deduction_type_id,hours) VALUES (?,?,?)`, [id,item.deduction_type_id,item.hours]);
+                if (normalizedDeductions.length) {
+                    const values = normalizedDeductions.map(() => "(?,?,?)").join(",");
+                    const params = normalizedDeductions.flatMap((item) => [id, item.deduction_type_id, item.hours]);
+                    await query(connection, `INSERT INTO production_temp_deductions (temp_report_id,deduction_type_id,hours) VALUES ${values}`, params);
+                }
             }
             if (hasDefects) {
                 await query(connection, `DELETE FROM production_temp_defects WHERE temp_report_id=?`, [id]);
-                for (const item of normalizedDefects) await query(connection, `INSERT INTO production_temp_defects (temp_report_id,defect_type_id,quantity) VALUES (?,?,?)`, [id,item.defect_type_id,item.quantity]);
+                if (normalizedDefects.length) {
+                    const values = normalizedDefects.map(() => "(?,?,?)").join(",");
+                    const params = normalizedDefects.flatMap((item) => [id, item.defect_type_id, item.quantity]);
+                    await query(connection, `INSERT INTO production_temp_defects (temp_report_id,defect_type_id,quantity) VALUES ${values}`, params);
+                }
             }
             if (hasMachineLines) {
                 const nextShift = Object.prototype.hasOwnProperty.call(data, "shift") ? data.shift : current.shift;
