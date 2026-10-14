@@ -11,6 +11,8 @@ function createGcFixtureQuery() {
       return [{ id: 16, machine_code: machineCode || 'ML4', process_code: 'GC' }];
     }
 
+    if (text.includes('from product_aliases')) return [];
+
     if (text.includes('from product_machine_standards')) return [];
 
     if (text.includes('from product_standards')) {

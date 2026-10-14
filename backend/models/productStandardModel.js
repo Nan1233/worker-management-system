@@ -188,7 +188,7 @@ const resolveAliasToProductCode = async (processId, productCode) => {
 exports.resolveByMachineAndProduct = async (processId, machineCode, productCode, workDate) => {
     const { resolveStandard } = require('../services/standardResolutionService');
     const canonicalProductCode = await resolveAliasToProductCode(processId, productCode);
-    const lookupProductCode = String(productCode || '').trim() || canonicalProductCode;
+    const lookupProductCode = canonicalProductCode || String(productCode || '').trim();
     const resolved = await resolveStandard({
         processId,
         machineCode,

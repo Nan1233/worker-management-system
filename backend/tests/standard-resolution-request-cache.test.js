@@ -6,6 +6,7 @@ test('standard resolver caches exact historical/master lookups within one reques
   let calls = 0;
   const fakeQuery = async (sql) => {
     calls += 1;
+    if (sql.includes('FROM product_aliases') || sql.includes('product_aliases')) return [];
     if (sql.includes('FROM product_standards')) return [{ product_standard_id: 10, product_code: 'P1', standard_output: '12.5', exclude_kqd_from_tt: 0 }];
     if (sql.includes('FROM product_standard_versions')) return [{ id: 20, process_id: 1, product_code: 'P1', standard_output: '12.5', exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null }];
     if (sql.includes('FROM machines')) return [{ id: 30, machine_code: 'M1' }];
@@ -25,6 +26,7 @@ test('standard resolver does not conflate different machines', async () => {
   let calls = 0;
   const fakeQuery = async (sql, params) => {
     calls += 1;
+    if (sql.includes('FROM product_aliases') || sql.includes('product_aliases')) return [];
     if (sql.includes('FROM product_standards')) return [{ product_standard_id: 10, product_code: 'P1', standard_output: '12.5', exclude_kqd_from_tt: 0 }];
     if (sql.includes('FROM product_standard_versions')) return [{ id: 20, process_id: 1, product_code: 'P1', standard_output: '12.5', exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null }];
     if (sql.includes('FROM machines')) return [{ id: Number(params[1]), machine_code: params[3] }];
@@ -41,6 +43,7 @@ test('standard resolver does not conflate different machines', async () => {
 
 test('standard resolver falls back to the historical product standard when selected machine has no mapping', async () => {
   const fakeQuery = async (sql) => {
+    if (sql.includes('FROM product_aliases') || sql.includes('product_aliases')) return [];
     if (sql.includes('FROM product_standards')) return [{ product_standard_id: 100, product_code: '6495-m', standard_output: '1450', exclude_kqd_from_tt: 0 }];
     if (sql.includes('FROM product_standard_versions')) return [];
     if (sql.includes('FROM machines')) return [{ id: 2, machine_code: '2' }];
@@ -69,6 +72,7 @@ test('standard resolver canonicalizes only a unique AUTO code casing variant', a
   const seen = [];
   const fakeQuery = async (sql, params = []) => {
     seen.push({ sql, params });
+    if (sql.includes('FROM product_aliases') || sql.includes('product_aliases')) return [];
     if (sql.includes('FROM machines')) return [{ id: 11, machine_code: 'C6', process_code: 'GC' }];
     if (sql.includes('FROM product_machine_standards')) return [];
     if (sql.includes('FROM product_standards')) {
@@ -96,6 +100,7 @@ test('standard resolver canonicalizes only a unique AUTO code casing variant', a
 
 test('standard resolver refuses ambiguous AUTO casing variants', async () => {
   const fakeQuery = async (sql) => {
+    if (sql.includes('FROM product_aliases') || sql.includes('product_aliases')) return [];
     if (sql.includes('FROM machines')) return [{ id: 11, machine_code: 'C6', process_code: 'GC' }];
     if (sql.includes('FROM product_machine_standards')) return [];
     if (sql.includes('FROM product_standards')) {
