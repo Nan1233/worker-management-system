@@ -165,11 +165,13 @@ export function buildProductionReportPayload(args: {
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT" ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO") : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE") ? args.form.executionMethod : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
   const cvkWorkType = String(args.form.workType || args.extraData?.work_type || "").trim();
+  const normalizeWorkTypeCode = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const noStandardWorkType = new Set(["XUATNHAP", "KTCD", "TAIPP"]).has(normalizeWorkTypeCode(cvkWorkType));
   const isDedicatedCvkProcess = Number(args.processId) === 30002 || Number(args.processId) === 60006;
   // In a parent process (e.g. GC/Cắt-Lồng), "Công việc khác" is a work type,
   // not a separate process. Preserve the parent process_id and mark the report
   // as non-product work so validation skips only product-standard requirements.
-  const isNonProductWorkWithinProcess = Boolean(args.isCvkMode) && !isDedicatedCvkProcess;
+  const isNonProductWorkWithinProcess = !isDedicatedCvkProcess && (Boolean(args.isCvkMode) || noStandardWorkType);
   const isCvk = isDedicatedCvkProcess;
   const effectiveProcessId = isCvk ? 30002 : args.processId;
   const submittedMachineNo = isCvk || isNonProductWorkWithinProcess ? null : (useMachineLinesPayload ? lines.map(l=>l.machine_code).join(", ") : args.form.machineNo);
