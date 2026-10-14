@@ -28,11 +28,11 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
         seenEvents.add(eventId);
         grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
       }
-    } else {
-      if (!eventId || !seenEvents.has(eventId)) {
-        if (eventId) seenEvents.add(eventId);
-        grossHours += Math.max(0, Number(line.machine_time_hours) || 0);
-      }
+    } else if (!eventId || !seenEvents.has(eventId)) {
+      if (eventId) seenEvents.add(eventId);
+      // The company-data loader sets this export-only field to zero when a linked
+      // event is missing/unapproved. Never replace that zero with worker time.
+      grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
     }
 
     const lineDeductionHours = Math.max(0, Number(line.deduction_time_hours) || 0, (Number(line.adjustment_minutes) || 0) / 60);
