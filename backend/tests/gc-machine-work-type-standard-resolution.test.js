@@ -199,3 +199,29 @@ test('exact product code wins over another product using the same value as encod
   assert.equal(resolved.standardOutput, 200);
   assert.equal(queries.filter(q => q.includes('binary trim(encoding_code)')).length, 0);
 });
+
+
+test('GC selects the highest active output when the same exact product/work type has conflicting rows', async () => {
+  const query = async (sql, params = []) => {
+    const text = String(sql).replace(/\\s+/g, ' ').trim().toLowerCase();
+    if (text.includes('from product_standards')) {
+      if (text.includes("upper(trim(ps.work_type))='lồng'") && text.includes('binary trim(product_code)=binary trim(?)')) {
+        return [
+          { product_standard_id: 11, product_code: '5770', encoding_code: null, work_type: 'Lồng', standard_output: 605, exclude_kqd_from_tt: 0 },
+          { product_standard_id: 180438, product_code: '5770', encoding_code: null, work_type: 'Lồng', standard_output: 365, exclude_kqd_from_tt: 0 }
+        ];
+      }
+    }
+    if (text.includes('from product_standard_versions')) return [];
+    throw new Error(`Unexpected SQL: ${text}; params=${JSON.stringify(params)}`);
+  };
+  const resolver = createStandardResolver({ query });
+  const resolved = await resolver.resolveProduct({
+    processId: 1,
+    productCode: '5770',
+    workDate: '2026-10-14',
+    workType: 'LONG'
+  });
+  assert.equal(resolved.productStandardId, 11);
+  assert.equal(resolved.standardOutput, 605);
+});
