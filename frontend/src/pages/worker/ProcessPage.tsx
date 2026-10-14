@@ -1383,7 +1383,10 @@ const updateDeductionValue = (
         }
 
 
-        if (Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
+        // GC machine-line reports calculate actual output independently for each
+        // machine/product line. The parent form's aggregate must not be checked
+        // against the single-product formula used by manual reports.
+        if (!usesMachineLineAccounting && Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
             return productExcludesKqd()
                 ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã sản phẩm này)"
                 : "Thực tế phải bằng TT OK cộng TT NG";
