@@ -329,7 +329,7 @@ export function clearProcessDraft(process: string): void {
 export function hasMeaningfulProcessDraft(draft: ProcessDraft): boolean {
   const f = draft.form || {};
   return Boolean(
-    f.productName || f.machineNo || f.ttOk || f.ttNg || f.totalTime || f.actualTime || f.actualHours || f.actualMinutes ||
+    f.productName || f.machineNo || f.workType || draft.isCvkMode || f.ttOk || f.ttNg || f.totalTime || f.actualTime || f.actualHours || f.actualMinutes ||
     draft.machineLines?.some(l => l.machineCode || l.productCode || l.hours || l.minutes || l.okQuantity || l.ngQuantity) ||
     draft.selectedDeduction?.length || draft.selectedNg?.length ||
     Object.values(draft.extraData || {}).some(Boolean)
