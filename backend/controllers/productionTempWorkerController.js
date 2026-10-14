@@ -92,11 +92,9 @@ exports.createTempReport = async (req, res) => {
         const extraDataInput = req.body?.extra_data && typeof req.body.extra_data === "object" && !Array.isArray(req.body.extra_data)
             ? req.body.extra_data
             : {};
-        const normalizeWorkTypeCode = (value) => String(value || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const normalizeWorkTypeCode = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
         const submittedWorkType = normalizeWorkTypeCode(req.body?.work_type || req.body?.workType || extraDataInput.work_type);
         const isKnownNonProductWorkType = new Set(["XUATNHAP", "KTCD", "TAIPP"]).has(submittedWorkType);
-        const isNonProductWorkWithinProcess = processId !== 30002 && processId !== 60006
-            && (req.body?.non_product_work === true || extraDataInput.non_product_work === true || isKnownNonProductWorkType);
 
 
         if (!workerId) {
@@ -201,6 +199,9 @@ exports.createTempReport = async (req, res) => {
                 : [];
 
         const machinePolicy = getProcessMachinePolicy(processId);
+        const isNonProductWorkWithinProcess = processId !== 30002 && processId !== 60006
+            && machinePolicy.code === "GC"
+            && (req.body?.non_product_work === true || extraDataInput.non_product_work === true || isKnownNonProductWorkType);
         const normalizedMachineNo = String(validation.normalized.machine_no || req.body?.machine_no || "").trim();
         const requestedMachineMode = operationMode === "MACHINE" || rawMachineLines.length > 0 || Boolean(normalizedMachineNo);
 
