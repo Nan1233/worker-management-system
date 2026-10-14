@@ -158,6 +158,33 @@ test('a product with no matching standard at all reports HISTORICAL_STANDARD_NOT
 // and reportBusinessValidationService and is untouched by this change; see those test
 // files for coverage that remains green below.)
 
+// --- selectProductRow(): the -AUTO fallback's own ambiguity must not be masked -----
+test('a genuinely ambiguous -AUTO variant is reported as ambiguous, not silently treated as not-found', async () => {
+  // No row matches "X" directly (the non-auto lookup is empty), but two conflicting
+  // "X-AUTO" rows exist. selectProductRow() must classify this using the -AUTO
+  // lookup's own candidate set (2, conflicting) rather than falling back to the
+  // non-auto lookup's candidate count (0), which would misreport this as a plain
+  // "not found" and lose the real conflict.
+  const resolver = createStandardResolver({
+    query: buildFixture({
+      aliasRows: [],
+      productStandardRows: [
+        { product_standard_id: 21, product_code: 'X-AUTO', encoding_code: null, work_type: 'standard', standard_output: 500, exclude_kqd_from_tt: 0 },
+        { product_standard_id: 22, product_code: 'X-AUTO', encoding_code: null, work_type: 'standard', standard_output: 800, exclude_kqd_from_tt: 0 }
+      ],
+      machineCode: ''
+    })
+  });
+  await assert.rejects(
+    () => resolver.resolveStandard({ processId: 1, productCode: 'X', operationMode: 'AUTO', workDate: '2026-09-01' }),
+    (error) => {
+      assert.equal(error.code, 'STANDARD_AMBIGUOUS_MATCH');
+      assert.deepEqual(new Set(error.details.candidate_standard_ids), new Set([21, 22]));
+      return true;
+    }
+  );
+});
+
 // --- Scenario 6: normal valid submission flow succeeds with the machine-specific
 //     standard once alias canonicalization is applied -----------------------------
 test('machine-specific standard registered under the canonical code is now found for a request sent under the alias code', async () => {

@@ -47,7 +47,15 @@ function createStandardResolver({query=defaultQuery}={}) {
     const autoProduct=/-AUTO$/i.test(product)?product:`${product}-AUTO`;
     const autoRows=await findProductRows(pid,autoProduct,workType);
     const autoRow=autoRows.length===1?autoRows[0]:(pickExactRow(autoRows,autoProduct)||pickEquivalentRow(autoRows)||null);
-    return {row:autoRow,candidates:autoRow?autoRows:rows};
+    // The -AUTO lookup is the final attempt once allowAutoAlias is in play, so its own
+    // candidate set is what should drive the not-found-vs-ambiguous classification --
+    // even when autoRows itself is ambiguous (autoRow is null, autoRows.length>1).
+    // Falling back to the original (non-auto) `rows` here previously meant a genuinely
+    // ambiguous -AUTO variant lookup (e.g. two conflicting "<code>-AUTO" rows) could be
+    // misreported as a plain "not found" whenever the non-auto `rows` happened to have
+    // 0 or 1 entries, losing the real conflict signal and reporting the wrong
+    // candidate ids.
+    return {row:autoRow,candidates:autoRows.length?autoRows:rows};
   }
   async function resolveProduct({processId,productCode,workDate,standardVersionId=null,allowAutoAlias=false,workType=null}) {
     const pid=Number(processId), product=String(productCode||'').trim(), date=normalizeWorkDate(workDate), normalizedWorkType=normalizeWorkType(workType);
