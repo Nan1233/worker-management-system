@@ -19,9 +19,9 @@ let submission = fs.readFileSync(submissionPath, 'utf8');
 
 // CVK validation: use the selected non-product work type as the selection
 // instead of productName.
-const guard = 'const cvkWorkType = String(form.workType || "").trim().toUpperCase();\n        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);';
-if (!page.includes('const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);')) {
-  const inserted = page.replace(/(const validateForm = \(\): string => \{)/, `$1\n        ${guard}`);
+const guard = 'const cvkWorkType = String(form.workType || "").trim().toUpperCase();\\n        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);';
+if (!page.includes('const isCvkEntry =')) {
+  const inserted = page.replace(/(const validateForm = \\(\\): string => \\{)/, `$1\\n        ${guard}`);
   if (inserted === page) throw new Error('[KTC] CVK patch failed: validateForm anchor not found');
   page = inserted;
 }
