@@ -11,6 +11,12 @@ function createGcFixtureQuery() {
       return [{ id: 16, machine_code: machineCode || 'ML4', process_code: 'GC' }];
     }
 
+    // The real findProductRows() query also references product_aliases inside an
+    // EXISTS(...) clause, so this check must be specific enough not to swallow
+    // that query -- only the standalone alias-canonicalization lookup starts
+    // with this exact shape.
+    if (text.startsWith('select product_code from product_aliases')) return [];
+
     if (text.includes('from product_machine_standards')) return [];
 
     if (text.includes('from product_standards')) {

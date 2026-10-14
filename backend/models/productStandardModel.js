@@ -187,8 +187,13 @@ const resolveAliasToProductCode = async (processId, productCode) => {
 
 exports.resolveByMachineAndProduct = async (processId, machineCode, productCode, workDate) => {
     const { resolveStandard } = require('../services/standardResolutionService');
+    // resolveAliasToProductCode already falls back to the original input when no
+    // alias row matches, so its result is always safe to use directly. The previous
+    // `rawInput || canonicalProductCode` ordering picked the raw (possibly aliased)
+    // code whenever it was non-empty -- which is effectively always -- so the
+    // alias lookup above was computed and then silently discarded on every call.
     const canonicalProductCode = await resolveAliasToProductCode(processId, productCode);
-    const lookupProductCode = String(productCode || '').trim() || canonicalProductCode;
+    const lookupProductCode = canonicalProductCode || String(productCode || '').trim();
     const resolved = await resolveStandard({
         processId,
         machineCode,

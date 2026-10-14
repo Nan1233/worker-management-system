@@ -16,25 +16,61 @@ function inferGcWorkType(machineCode){const code=String(machineCode||'').trim().
 function normalizeRequestedWorkType({processId,processCode,machineCode,workType,operationMode}){const explicit=normalizeWorkType(workType);if(explicit==='LONG')return 'Lồng';if(explicit==='CUT')return 'Cắt';const isGc=Number(processId)===1||String(processCode||'').trim().toUpperCase()==='GC';if(isGc){const inferred=inferGcWorkType(machineCode);if(inferred)return inferred;if(String(operationMode||'').trim().toUpperCase()==='MANUAL')return 'Lồng';}return null;}
 
 function createStandardResolver({query=defaultQuery}={}) {
-  const productCache=new Map(), standardCache=new Map();
+  const productCache=new Map(), standardCache=new Map(), aliasCache=new Map();
+  async function resolveAliasProductCode(pid,product){
+    const normalized=String(product||'').trim();
+    if(!normalized)return normalized;
+    const key=`${pid}|${normalized.toUpperCase()}`;
+    if(aliasCache.has(key))return aliasCache.get(key);
+    const rows=await query(`SELECT product_code FROM product_aliases WHERE process_id=? AND status='active' AND UPPER(TRIM(alias_code))=UPPER(TRIM(?)) ORDER BY id LIMIT 1`,[pid,normalized]);
+    const canonical=rows[0]?.product_code?String(rows[0].product_code).trim():normalized;
+    aliasCache.set(key,canonical);
+    return canonical;
+  }
   async function findProductRows(pid,product,workType=null){const normalizedWorkType=normalizeWorkType(workType);const workTypeSql=normalizedWorkType==='LONG'?` AND UPPER(TRIM(ps.work_type))='LỒNG'`:normalizedWorkType==='CUT'?` AND UPPER(TRIM(ps.work_type))='CẮT'`:'';return query(`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=? AND status='active'${workTypeSql} AND (product_code=? OR encoding_code=? OR EXISTS(SELECT 1 FROM product_aliases pa WHERE pa.process_id=ps.process_id AND UPPER(TRIM(pa.product_code))=UPPER(TRIM(ps.product_code)) AND pa.status='active' AND UPPER(TRIM(pa.alias_code))=UPPER(TRIM(?)))) ORDER BY CASE WHEN UPPER(TRIM(encoding_code))=UPPER(TRIM(?)) THEN 0 WHEN UPPER(TRIM(product_code))=UPPER(TRIM(?)) THEN 1 ELSE 2 END,id LIMIT 2`,[pid,product,product,product,product,product]);}
   function pickEquivalentRow(rows){if(!Array.isArray(rows)||rows.length<2)return null;const out=Number(rows[0]?.standard_output),kqd=Number(rows[0]?.exclude_kqd_from_tt||0);if(!Number.isFinite(out)||out<=0)return null;const allSame=rows.every(row=>sameDecimal(Number(row?.standard_output),out)&&Number(row?.exclude_kqd_from_tt||0)===kqd);return allSame?rows[0]:null;}
   function pickExactRow(rows,product){if(!Array.isArray(rows)||rows.length<2)return null;const wanted=normalizeCode(product);const exact=rows.filter(row=>normalizeCode(row?.product_code)===wanted||normalizeCode(row?.encoding_code)===wanted);return exact.length===1?exact[0]:null;}
   function normalizeCode(value){return String(value||'').trim().toUpperCase();}
-  async function selectProductRow(pid,product,workDate,{allowAutoAlias=false,workType=null}={}){const rows=await findProductRows(pid,product,workType);if(rows.length===1)return rows[0];const exact=pickExactRow(rows,product);if(exact)return exact;const equivalent=pickEquivalentRow(rows);if(equivalent)return equivalent;if(!allowAutoAlias)return null;const autoProduct=/-AUTO$/i.test(product)?product:`${product}-AUTO`;const autoRows=await findProductRows(pid,autoProduct,workType);return autoRows.length===1?autoRows[0]:(pickExactRow(autoRows,autoProduct)||pickEquivalentRow(autoRows)||null);}
+  // Returns {row:null,candidates:[]} instead of just null so the caller can tell a
+  // genuine "zero matches" lookup apart from a genuine "multiple conflicting matches"
+  // lookup. Both used to collapse into the same null/throw, which made the resulting
+  // HISTORICAL_STANDARD_NOT_FOUND error indistinguishable from an ambiguity error and
+  // made the two failure modes impossible to tell apart from the error message alone.
+  async function selectProductRow(pid,product,workDate,{allowAutoAlias=false,workType=null}={}){
+    const rows=await findProductRows(pid,product,workType);
+    if(rows.length===1)return {row:rows[0],candidates:rows};
+    const exact=pickExactRow(rows,product);
+    if(exact)return {row:exact,candidates:rows};
+    const equivalent=pickEquivalentRow(rows);
+    if(equivalent)return {row:equivalent,candidates:rows};
+    if(!allowAutoAlias)return {row:null,candidates:rows};
+    const autoProduct=/-AUTO$/i.test(product)?product:`${product}-AUTO`;
+    const autoRows=await findProductRows(pid,autoProduct,workType);
+    const autoRow=autoRows.length===1?autoRows[0]:(pickExactRow(autoRows,autoProduct)||pickEquivalentRow(autoRows)||null);
+    return {row:autoRow,candidates:autoRow?autoRows:rows};
+  }
   async function resolveProduct({processId,productCode,workDate,standardVersionId=null,allowAutoAlias=false,workType=null}) {
     const pid=Number(processId), product=String(productCode||'').trim(), date=normalizeWorkDate(workDate), normalizedWorkType=normalizeWorkType(workType);
     if(pid===60006&&!product)return{processId:pid,productCode:null,productStandardId:null,standardVersionId:null,machineStandardId:null,standardOutput:0,standardTimeSeconds:null,excludeKqdFromTt:0,effectiveFrom:null,effectiveTo:null,source:'NON_PRODUCT_WORK',workDate:date,historicalVersionAvailable:false,nonProductWork:true};
     if(!Number.isInteger(pid)||pid<=0||!product)throw businessError('INVALID_STANDARD_LOOKUP','Thiếu công đoạn hoặc sản phẩm để tra định mức');
     const requestedVersionId=Number(standardVersionId)||null, cacheKey=`${pid}|${product}|${date}|${requestedVersionId||''}|auto=${allowAutoAlias?1:0}|work=${normalizedWorkType||''}`;
     if(productCache.has(cacheKey))return productCache.get(cacheKey);
-    let selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias,workType:normalizedWorkType});
+    let selection=await selectProductRow(pid,product,date,{allowAutoAlias,workType:normalizedWorkType});
+    let selectedProduct=selection.row;
     let fallbackToProcessProduct=false;
     if(!selectedProduct && normalizedWorkType){
-      selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias,workType:null});
+      selection=await selectProductRow(pid,product,date,{allowAutoAlias,workType:null});
+      selectedProduct=selection.row;
       fallbackToProcessProduct=Boolean(selectedProduct);
     }
-    if(!selectedProduct)throw businessError('HISTORICAL_STANDARD_NOT_FOUND',`Không xác định duy nhất định mức sản phẩm ${product}${normalizedWorkType?` / ${normalizedWorkType}`:''} trong công đoạn`,{process_id:pid,product_code:product,work_type:normalizedWorkType||null});
+    if(!selectedProduct){
+      const conflicting=(selection.candidates||[]).length>1;
+      const label=`${product}${normalizedWorkType?` / ${normalizedWorkType}`:''}`;
+      if(conflicting){
+        throw businessError('STANDARD_AMBIGUOUS_MATCH',`Có nhiều định mức khác nhau cùng khớp sản phẩm ${label} trong công đoạn, không thể tự chọn`,{process_id:pid,product_code:product,work_type:normalizedWorkType||null,candidate_standard_ids:selection.candidates.map(row=>Number(row.product_standard_id)).filter(Boolean)});
+      }
+      throw businessError('HISTORICAL_STANDARD_NOT_FOUND',`Không xác định duy nhất định mức sản phẩm ${label} trong công đoạn`,{process_id:pid,product_code:product,work_type:normalizedWorkType||null});
+    }
     const canonicalProduct=String(selectedProduct.product_code||'').trim();
     const effectiveWorkType=normalizeWorkType(selectedProduct.work_type)||normalizedWorkType||null;
     if(requestedVersionId){const versionRows=await query(`SELECT id,process_id,product_code,standard_output,exclude_kqd_from_tt,version_no,effective_from,effective_to,status FROM product_standard_versions WHERE id=? AND process_id=? AND product_code=? LIMIT 1`,[requestedVersionId,pid,canonicalProduct]);if(versionRows.length!==1)throw businessError('HISTORICAL_STANDARD_NOT_FOUND',`Không tìm thấy định mức lịch sử #${requestedVersionId} cho ${canonicalProduct}`);const version=versionRows[0];assertEffectiveOnDate(version,date,`Định mức lịch sử #${requestedVersionId}`);const r={processId:pid,productCode:canonicalProduct,productStandardId:Number(selectedProduct.product_standard_id),standardVersionId:Number(version.id),machineStandardId:null,standardOutput:positiveDecimal(version.standard_output),standardTimeSeconds:null,excludeKqdFromTt:Number(version.exclude_kqd_from_tt||0)===1?1:0,effectiveFrom:version.effective_from?String(version.effective_from).slice(0,10):null,effectiveTo:version.effective_to?String(version.effective_to).slice(0,10):null,source:fallbackToProcessProduct?'PRODUCT_VERSION_PROCESS_FALLBACK':'PRODUCT_VERSION_SNAPSHOT',workDate:date,historicalVersionAvailable:true,workType:effectiveWorkType};productCache.set(cacheKey,r);return r;}
@@ -58,7 +94,17 @@ function createStandardResolver({query=defaultQuery}={}) {
     const modeText=String(operationMode||executionMethod||'').trim().toUpperCase(), isAuto=['AUTO','AUTOMATIC','TỰ ĐỘNG','TU DONG'].includes(modeText)||/AUTO|TỰ\s*ĐỘNG|TU\s*DONG/.test(modeText);
     const resolvedWorkType=normalizeRequestedWorkType({processId:pid,processCode,machineCode:machine?.machine_code||requestedMachineCode,workType,operationMode:modeText});
     const standardKey=cacheKey;
-    if(machine){const rows=await query(`SELECT id,process_id,product_code,machine_id,standard_output,calculated_output_per_hour,standard_time_seconds,effective_from,effective_to,is_active FROM product_machine_standards WHERE process_id=? AND machine_id=? AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) AND (effective_from IS NULL OR effective_from<=?) AND (effective_to IS NULL OR effective_to>=?) ORDER BY COALESCE(effective_from,'1000-01-01') DESC,id DESC`,[pid,Number(machine.id),requestedProduct,date,date]);const active=rows.filter(r=>Number(r.is_active)===1),usable=active.length?active:rows;if(usable.length>1)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức máy cùng hiệu lực cho ${requestedProduct} / ${machine.machine_code}`);if(usable.length===1){const row=usable[0],out=Number(row.calculated_output_per_hour??row.standard_output);if(Number.isFinite(out)&&out>0){const r={processId:pid,productCode:requestedProduct,productStandardId:null,standardVersionId:null,machineStandardId:Number(row.id),standardOutput:out,standardTimeSeconds:Number(row.standard_time_seconds)>0?Number(row.standard_time_seconds):null,excludeKqdFromTt:0,effectiveFrom:row.effective_from?String(row.effective_from).slice(0,10):null,effectiveTo:row.effective_to?String(row.effective_to).slice(0,10):null,source:Number(row.is_active)===1?'MACHINE':'MACHINE_HISTORICAL',workDate:date,historicalVersionAvailable:true,machineId:Number(machine.id),machineCode:machine.machine_code};standardCache.set(standardKey,r);return r;}}}
+    if(machine){
+      // product_machine_standards rows are keyed by the CANONICAL product code
+      // (e.g. "QC3-2801"), but callers legitimately send the alias code workers
+      // actually pick in the form (e.g. "2801" via product_aliases). Comparing
+      // against the raw requested code here meant a real machine-specific
+      // standard for an aliased product could never be found and this branch
+      // would silently fall through to the generic product/process standard
+      // every time, even though a more precise machine standard existed.
+      const canonicalMachineProduct=await resolveAliasProductCode(pid,requestedProduct);
+      const rows=await query(`SELECT id,process_id,product_code,machine_id,standard_output,calculated_output_per_hour,standard_time_seconds,effective_from,effective_to,is_active FROM product_machine_standards WHERE process_id=? AND machine_id=? AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) AND (effective_from IS NULL OR effective_from<=?) AND (effective_to IS NULL OR effective_to>=?) ORDER BY COALESCE(effective_from,'1000-01-01') DESC,id DESC`,[pid,Number(machine.id),canonicalMachineProduct,date,date]);const active=rows.filter(r=>Number(r.is_active)===1),usable=active.length?active:rows;if(usable.length>1)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức máy cùng hiệu lực cho ${requestedProduct} / ${machine.machine_code}`);if(usable.length===1){const row=usable[0],out=Number(row.calculated_output_per_hour??row.standard_output);if(Number.isFinite(out)&&out>0){const r={processId:pid,productCode:requestedProduct,productStandardId:null,standardVersionId:null,machineStandardId:Number(row.id),standardOutput:out,standardTimeSeconds:Number(row.standard_time_seconds)>0?Number(row.standard_time_seconds):null,excludeKqdFromTt:0,effectiveFrom:row.effective_from?String(row.effective_from).slice(0,10):null,effectiveTo:row.effective_to?String(row.effective_to).slice(0,10):null,source:Number(row.is_active)===1?'MACHINE':'MACHINE_HISTORICAL',workDate:date,historicalVersionAvailable:true,machineId:Number(machine.id),machineCode:machine.machine_code};standardCache.set(standardKey,r);return r;}}
+    }
     const processAutoEligible=pid===1&&(isAuto||['AUTO','AUTOMATIC'].includes(String(workType||'').trim().toUpperCase()));
     const product=await resolveProduct({processId:pid,productCode:requestedProduct,workDate:date,standardVersionId:requestedVersionId,allowAutoAlias:processAutoEligible,workType:resolvedWorkType});
     const resolved={...product,machineId:machine?Number(machine.id):null,machineCode:machine?machine.machine_code:null,machineStandardId:null,source:resolvedWorkType?`${product.source}_MACHINE_FALLBACK`:`${product.source}_PROCESS_FALLBACK`};standardCache.set(standardKey,resolved);return resolved;
