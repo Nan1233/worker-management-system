@@ -148,14 +148,6 @@
 }
 
 
-/* GC machine form: keep deduction inputs and NG inputs in separate aligned columns. */
-.machine-detail-values-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:start;margin-top:10px;}
-.machine-detail-values-column{min-width:0;}
-.machine-detail-values-column .worker-dynamic-grid{grid-template-columns:minmax(0,1fr);gap:8px;margin-top:0;}
-.machine-detail-values-column:empty{display:none;}
-@media (max-width:560px){.machine-detail-values-row{grid-template-columns:minmax(0,1fr);gap:10px}.machine-detail-values-column{padding:11px}}
-
-
 /* Polished GC machine detail layout: clear paired panels for deduction and NG. */
 .machine-detail-values-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch;margin-top:12px;}
 .machine-detail-values-column{min-width:0;padding:12px;border:1px solid var(--ktc-border,#dce6f0);border-radius:14px;background:linear-gradient(180deg,#fff 0%,#f8fbff 100%);box-shadow:0 3px 10px rgba(23,53,83,.045);}
@@ -186,3 +178,39 @@
 .machine-data-grid > .worker-time-grid.machine-worker-time-grid{grid-column:1 / -1;justify-self:stretch;width:100%;min-width:0;}
 .machine-data-grid > .machine-section-title{grid-column:1 / -1;}
 .machine-data-grid > .machine-quantity-section{grid-column:1 / -1;min-width:0;}
+
+
+/* Mobile usability pass aligned with Stitch concept; visual-only overrides. */
+@media (max-width: 760px) {
+  .worker-form-page { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+  .worker-form-shell { width: 100%; max-width: 100%; }
+  .worker-form-card { padding: 15px 13px 17px; }
+  .worker-field-label, .worker-field-block > label { font-size: 13px; line-height: 1.4; }
+  .worker-field-block > small, .worker-card-subtitle, .worker-time-item > small { font-size: 11px; line-height: 1.5; }
+  .worker-text-input,
+  .worker-field-block input:not([type="checkbox"]):not([type="radio"]),
+  .worker-field-block select, .worker-field-block textarea { min-height: 44px; font-size: 14px; }
+  .worker-choice-row button { min-height: 40px; font-size: 13px; }
+  .worker-dropdown-title { min-height: 46px; font-size: 14px; }
+  .worker-dropdown-option { min-height: 42px; padding: 8px 9px; font-size: 12px; }
+  .worker-quality-card label, .worker-quality-card small { font-size: 12px; line-height: 1.4; }
+  .worker-quality-card input { min-height: 46px; font-size: 20px; }
+  .worker-form-actions {
+    bottom: calc(66px + env(safe-area-inset-bottom));
+    z-index: 90;
+    margin-bottom: 8px;
+    border: 1px solid #dce6f0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.98);
+  }
+  .worker-submit-button { min-height: 48px; font-size: 14px; }
+}
+@media (max-width: 420px) {
+  .worker-form-page { padding-inline: 8px; padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+  .worker-form-card { padding-inline: 11px; }
+  .worker-field-label, .worker-field-block > label { font-size: 12.5px; }
+  .worker-text-input,
+  .worker-field-block input:not([type="checkbox"]):not([type="radio"]),
+  .worker-field-block select, .worker-field-block textarea { font-size: 14px; }
+  .worker-form-actions { bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
