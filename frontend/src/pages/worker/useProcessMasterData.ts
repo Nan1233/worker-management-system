@@ -18,36 +18,14 @@ import {
 
 const ZERO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
+// Mài worker form uses only the approved time-deduction and NG categories.
+// These filter DB rows; they do not create fallback options or alter row IDs.
 const normalizeMasterLabel = (value: unknown): string => String(value ?? "")
   .normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "")
   .replace(/đ/gi, "d")
   .toLowerCase()
   .replace(/[^a-z0-9]/g, "");
-
-// GC master data can contain legacy and canonical rows with the same label.
-// Deduplicate selectable labels in the UI only; do not mutate database records.
-const dedupeGcDeductionOptions = (options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] => {
-  if (String(processCode || "").trim().toUpperCase() !== "GC") return options;
-  const normalizeLabel = (value: unknown): string => String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\\u0300-\\u036f]/g, "")
-    .replace(/đ/gi, "d")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  const priority = (option: WorkerMasterOption): number => {
-    const code = String(option.code || "").trim().toUpperCase();
-    return code && !code.startsWith("KTC_") ? 0 : code.startsWith("KTC_") ? 2 : 1;
-  };
-  const unique = new Map<string, WorkerMasterOption>();
-  for (const option of options) {
-    const key = normalizeLabel(option.label);
-    if (!key) continue;
-    const existing = unique.get(key);
-    if (!existing || priority(option) < priority(existing)) unique.set(key, option);
-  }
-  return Array.from(unique.values());
-};
 
 const MAI_ALLOWED_DEDUCTION_NAMES = new Set([
   "Bật máy, xét máy, đầu giờ",
@@ -60,7 +38,7 @@ const MAI_ALLOWED_DEDUCTION_NAMES = new Set([
   "Nghỉ giải lao",
   "Dừng máy đi hỗ trợ",
   "5s, đổ bụi,xì bụi,lấy bụi",
-].map(normalizeMasterLabel));
+ ].map(normalizeMasterLabel));
 
 const MAI_DISPLAY_LABELS = new Map<string, string>([
   ["chohanghethang", "Chờ hàng, hết hàng"],
@@ -89,6 +67,8 @@ function filterMaiMasterOptions(
   const isMai = String(processCode || "").trim().toUpperCase() === "MAI" || Number(processId) === 2;
   if (!isMai) return options;
 
+  // Keep one DB row per normalized label. Prefer the canonical MAI_* code so
+  // duplicate legacy/KTC rows do not render as separate checkboxes.
   const unique = new Map<string, WorkerMasterOption>();
   const priority = (option: WorkerMasterOption): number => {
     const code = String(option.code || "").trim().toUpperCase();
@@ -111,18 +91,118 @@ function filterMaiMasterOptions(
 
   return Array.from(unique.values());
 }
+// GC master data may contain legacy and canonical rows with the same label.
+// Keep one selectable checkbox per normalized label without deleting DB records.
+const dedupeGcDeductionOptions = (options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] => {
+  if (String(processCode || "").trim().toUpperCase() !== "GC") return options;
+  const normalizeLabel = (value: unknown): string => String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  const priority = (option: WorkerMasterOption): number => {
+    const code = String(option.code || "").trim().toUpperCase();
+    return code && !code.startsWith("KTC_") ? 0 : code.startsWith("KTC_") ? 2 : 1;
+  };
+  const unique = new Map<string, WorkerMasterOption>();
+  for (const option of options) {
+    const key = normalizeLabel(option.label);
+    if (!key) continue;
+    const existing = unique.get(key);
+    if (!existing || priority(option) < priority(existing)) unique.set(key, option);
+  }
+  return Array.from(unique.values());
+};
+
+const K2_ALLOWED_DEDUCTION_NAMES = new Set([
+  "Nghỉ giải lao",
+  "5s",
+  "chuyển mã",
+  "lau ố, lau gót chống",
+  "lăn mốc",
+  "hỗ trợ",
+  "Xem MGH, mất điện",
+  "lấy hàng và cất hàng",
+].map(normalizeMasterLabel));
+
+const K2_ALLOWED_DEFECT_NAMES = new Set([
+  "Nứt vỡ, CSN, KĐĐ",
+  "Cắt lẹm, CP, 502",
+  "cs bẩn (hủy)",
+  "Bavia do cắt, không chân số",
+  "Lõm csu",
+  "Đảo, BD, HV",
+  "Mặt mài",
+  "Lẫn csu, thiếu cs",
+  "Không ĐT",
+  "Lồng-mài ngược",
+  "Coleet, K gót",
+  "K rãnh",
+  "K do gia lưu",
+  "K do gá",
+  "K va vào đá",
+  "Trục xước, bv trục",
+  "Dập trục",
+  "Bẩn Trục",
+  "Trục sét, lớp mạ",
+  "KNCC",
+  "BV đầu vào",
+  "Rỗ khí",
+  "Lỗ rách",
+  "Rách lòng trong",
+  "Rách cs non",
+  "Dị vật",
+  "Mài sót",
+  "MM Loang-sần, lõm",
+  "Mẻ cạnh, mẻ bánh răng",
+  "Nứt đường phân khuôn",
+  "lẫn NVL",
+  "Bẩn NCC",
+  "Mốc cs",
+  "Chân bánh răng ngắn-dài, Cao su ngắn",
+  "Cao su dài",
+  "CHÂN BV SÂU, thiếu gate, chân gate cao",
+  "mm thô",
+  "NDPK",
+  "hằn cs,nhăn",
+  "LBM",
+  "rách ngang",
+  "CS BÓNG",
+  "NG-bàn đá",
+  "CS móp",
+  "Bavia bánh răng",
+  "KHOẢNG SÁNG",
+  "Lỗi rót",
+  "Khác",
+  "Tên lỗi khác(KĐTâm)",
+  "hckt",
+  "Tái đi CVN",
+  "THIẾU LIỆU",
+  "CHỜ XLBV",
+  "KQD",
+].map(normalizeMasterLabel));
+
+function filterK2MasterOptions(
+  options: WorkerMasterOption[],
+  processCode: string,
+  allowedNames: Set<string>,
+): WorkerMasterOption[] {
+  if (String(processCode || "").trim().toUpperCase() !== "K2") return options;
+  // Keep only DB-backed options in the approved K2 list; preserve each DB code/ID.
+  return options.filter((option) => allowedNames.has(normalizeMasterLabel(option.label)));
+}
 
 const PROCESS_ID_BY_CODE: Record<string, number> = {
   GC: 1,
   MAI: 2,
-  DO: 60001,
-  K1: 3,
-  K2: 4,
-  CAN: 60002,
-  EP: 60003,
-  XLBV: 60004,
-  SX3: 60005,
-  CVK: 60006,
+  DO: 3,
+  K1: 4,
+  K2: 5,
+  XLBV: 6,
+  EP: 7,
+  CAN: 8,
+  SX3: 9,
 };
 
 /**
@@ -208,7 +288,9 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const [defects, deductions] = optionalResults;
 
       if (defects.status === "fulfilled") {
-        setActiveNgOptions(filterMaiMasterOptions(normalizeDefectOptions(defects.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_"));
+        const normalized = normalizeDefectOptions(defects.value, resolvedProcessId);
+        const maiFiltered = filterMaiMasterOptions(normalized, processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_");
+        setActiveNgOptions(filterK2MasterOptions(maiFiltered, processCode, K2_ALLOWED_DEFECT_NAMES));
       } else {
         setActiveNgOptions([]);
       }
@@ -216,7 +298,11 @@ export function useProcessMasterData(processId: number, processCode: string) {
       if (deductions.status === "fulfilled") {
         setActiveDeductionOptions(
           dedupeGcDeductionOptions(
-            filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
+            filterK2MasterOptions(
+              filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
+              processCode,
+              K2_ALLOWED_DEDUCTION_NAMES,
+            ),
             processCode,
           ),
         );
