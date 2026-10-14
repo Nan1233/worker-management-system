@@ -13,8 +13,8 @@ const checkDailyHours = async (connection, { workerId, workDate, incomingTotalHo
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     const tempExcludeSql = excludeTempReportId ? "AND id <> ?" : "";
     const tempParams = excludeTempReportId ? [worker, date, excludeTempReportId] : [worker, date];
-    const approvedRows = await query(connection, `SELECT COALESCE(SUM(COALESCE(actual_time,0)),0) AS counted_hours FROM production_reports WHERE worker_id=? AND work_date=? AND status <> 'deleted'`, [worker, date]);
-    const tempRows = await query(connection, `SELECT COALESCE(SUM(COALESCE(actual_time,0)),0) AS counted_hours FROM production_reports_temp WHERE worker_id=? AND work_date=? ${tempExcludeSql} AND status IN ('pending','need_fix')`, tempParams);
+    const approvedRows = await query(connection, `SELECT COALESCE(SUM(COALESCE(total_time,0)),0) AS counted_hours FROM production_reports WHERE worker_id=? AND work_date=? AND status <> 'deleted'`, [worker, date]);
+    const tempRows = await query(connection, `SELECT COALESCE(SUM(COALESCE(total_time,0)),0) AS counted_hours FROM production_reports_temp WHERE worker_id=? AND work_date=? ${tempExcludeSql} AND status IN ('pending','need_fix')`, tempParams);
     const existingHours = Number(approvedRows?.[0]?.counted_hours || 0) + Number(tempRows?.[0]?.counted_hours || 0);
     const projectedHours = existingHours + incoming;
     if (projectedHours > DAILY_HOURS_LIMIT + 0.000001) {
@@ -152,8 +152,8 @@ module.exports = {
                 }
             }
             const nextWorkDate = Object.prototype.hasOwnProperty.call(data, "work_date") ? String(data.work_date || "").slice(0,10) : String(current.work_date || "").slice(0,10);
-            const nextActualTime = Object.prototype.hasOwnProperty.call(data, "actual_time") ? Math.max(0, Number(data.actual_time) || 0) : Math.max(0, Number(current.actual_time) || 0);
-            await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, incomingTotalHours: nextActualTime, excludeTempReportId: id });
+            const nextTotalTime = Object.prototype.hasOwnProperty.call(data, "total_time") ? Math.max(0, Number(data.total_time) || 0) : Math.max(0, Number(current.total_time) || 0);
+            await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, incomingTotalHours: nextTotalTime, excludeTempReportId: id });
             let normalizedMachineLines = null;
             if (hasMachineLines) {
                 const processRows = await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(current.process_id)]);
