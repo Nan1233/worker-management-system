@@ -301,6 +301,8 @@ exports.createTempReport = async (req, res) => {
 
                 productName:
                     firstMachineLine?.product_code || validation.normalized.product_name,
+                workType: req.body?.work_type || req.body?.workType || req.body?.extra_data?.work_type,
+                nonProductWork: req.body?.non_product_work === true || req.body?.extra_data?.non_product_work === true,
 
                 defects,
                 deductions,
