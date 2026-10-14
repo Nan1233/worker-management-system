@@ -170,3 +170,52 @@ test('row builder: machine rows ignore report totals; legacy reports without lin
   assert.equal(rows.reduce((s, r) => s + r.ng, 0), 120);
   assert.equal(buildGcWorkerRows(manual).length, 1);
 });
+
+
+test('GC Excel row uses physical event time instead of each worker participation time', () => {
+  const report = {
+    ...report2Machines,
+    machineLines: [{
+      ...report2Machines.machineLines[0],
+      machine_event_id: 9001,
+      machine_time_hours: 3,
+      excel_machine_time_hours: 8,
+      deductions_json: JSON.stringify([{ deduction_type_id: dedId('Nghỉ giải lao'), deduction_name: 'Nghỉ giải lao', hours: 1 }])
+    }]
+  };
+  const [row] = buildGcWorkerRows(report);
+  assert.equal(row.totalHours, 8);
+  assert.equal(row.workedHours, 7);
+  assert.equal(row.deductionHours, 1);
+});
+
+test('GC Excel does not substitute worker report totals when machine lines are missing', () => {
+  const report = {
+    ...report2Machines,
+    total_time: 12,
+    actual_time: 10,
+    deduction_time: 2,
+    machineLines: []
+  };
+  const [row] = buildGcWorkerRows(report);
+  assert.equal(row.source, 'MACHINE_DATA_MISSING');
+  assert.equal(row.totalHours, 0);
+  assert.equal(row.workedHours, 0);
+  assert.equal(row.deductionHours, 0);
+  assert.ok(row.warnings.includes('MACHINE_TIME_UNAVAILABLE_NO_MACHINE_LINES'));
+});
+
+test('GC Excel warns when a linked physical event has no available physical hours', () => {
+  const report = {
+    ...report2Machines,
+    machineLines: [{
+      ...report2Machines.machineLines[0],
+      machine_event_id: 9002,
+      machine_time_hours: 6,
+      excel_machine_time_hours: 0
+    }]
+  };
+  const [row] = buildGcWorkerRows(report);
+  assert.equal(row.totalHours, 0);
+  assert.ok(row.warnings.includes('PHYSICAL_MACHINE_EVENT_TIME_MISSING'));
+});
