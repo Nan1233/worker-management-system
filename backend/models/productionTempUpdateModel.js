@@ -8,23 +8,23 @@ const { validateMachineWorkerCapacityLocked } = require("../services/factoryMach
 const DAILY_HOURS_LIMIT = 12;
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
-const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, excludeTempReportId = null }) => {
-    const worker = Number(workerId), date = String(workDate || "").slice(0, 10), incoming = Number(incomingActualHours) || 0;
+const checkDailyHours = async (connection, { workerId, workDate, incomingTotalHours, excludeTempReportId = null }) => {
+    const worker = Number(workerId), date = String(workDate || "").slice(0, 10), incoming = Number(incomingTotalHours) || 0;
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     const tempExcludeSql = excludeTempReportId ? "AND id <> ?" : "";
     const tempParams = excludeTempReportId ? [worker, date, excludeTempReportId] : [worker, date];
-    const approvedRows = await query(connection, `SELECT COALESCE(SUM(COALESCE(actual_time,0)),0) AS counted_hours FROM production_reports WHERE worker_id=? AND work_date=? AND status <> 'deleted'`, [worker, date]);
-    const tempRows = await query(connection, `SELECT COALESCE(SUM(COALESCE(actual_time,0)),0) AS counted_hours FROM production_reports_temp WHERE worker_id=? AND work_date=? ${tempExcludeSql} AND status IN ('pending','need_fix')`, tempParams);
+    const approvedRows = await query(connection, `SELECT COALESCE(SUM(COALESCE(total_time,0)),0) AS counted_hours FROM production_reports WHERE worker_id=? AND work_date=? AND status <> 'deleted'`, [worker, date]);
+    const tempRows = await query(connection, `SELECT COALESCE(SUM(COALESCE(total_time,0)),0) AS counted_hours FROM production_reports_temp WHERE worker_id=? AND work_date=? ${tempExcludeSql} AND status IN ('pending','need_fix')`, tempParams);
     const existingHours = Number(approvedRows?.[0]?.counted_hours || 0) + Number(tempRows?.[0]?.counted_hours || 0);
     const projectedHours = existingHours + incoming;
     if (projectedHours > DAILY_HOURS_LIMIT + 0.000001) {
         const remainingHours = Math.max(0, DAILY_HOURS_LIMIT - existingHours);
         const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existingHours.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remainingHours.toFixed(2)} giờ.`);
         error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
-        error.details = { worker_id: worker, work_date: date, existing_hours: Number(existingHours.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projectedHours.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, remaining_hours: Number(remainingHours.toFixed(4)), counted_field: "actual_time", excluded_from_daily_limit: "deduction_time / support hours" };
+        error.details = { worker_id: worker, work_date: date, existing_hours: Number(existingHours.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projectedHours.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, remaining_hours: Number(remainingHours.toFixed(4)), counted_field: "total_time", excluded_from_daily_limit: "deduction_time / support hours" };
         throw error;
     }
-    return { existingHours, incomingActualHours: incoming, projectedHours, limitHours: DAILY_HOURS_LIMIT };
+    return { existingHours, incomingTotalHours: incoming, projectedHours, limitHours: DAILY_HOURS_LIMIT };
 };
 
 const parseDbTimestampMs = (value) => {
@@ -152,8 +152,8 @@ module.exports = {
                 }
             }
             const nextWorkDate = Object.prototype.hasOwnProperty.call(data, "work_date") ? String(data.work_date || "").slice(0,10) : String(current.work_date || "").slice(0,10);
-            const nextActualTime = Object.prototype.hasOwnProperty.call(data, "actual_time") ? Math.max(0, Number(data.actual_time) || 0) : Math.max(0, Number(current.actual_time) || 0);
-            await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, incomingActualHours: nextActualTime, excludeTempReportId: id });
+            const nextTotalTime = Object.prototype.hasOwnProperty.call(data, "total_time") ? Math.max(0, Number(data.total_time) || 0) : Math.max(0, Number(current.total_time) || 0);
+            await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, incomingTotalHours: nextTotalTime, excludeTempReportId: id });
             let normalizedMachineLines = null;
             if (hasMachineLines) {
                 const processRows = await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(current.process_id)]);
