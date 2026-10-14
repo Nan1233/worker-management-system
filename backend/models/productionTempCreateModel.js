@@ -19,7 +19,7 @@ const getStoredWorkType = (value) => {
 const enforceDailyHoursLocked = async (executor, data) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
-    const incoming = Number(data?.actual_time) || 0;
+    const incoming = Number(data?.total_time) || 0;
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
 
     // The worker row is the canonical serialization point shared by CREATE
@@ -28,10 +28,10 @@ const enforceDailyHoursLocked = async (executor, data) => {
     await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
 
     const rows = await query(executor, `
-        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports
+        SELECT COALESCE(SUM(total_time),0) AS counted_hours FROM production_reports
         WHERE worker_id=? AND work_date=? AND status <> 'deleted'
         UNION ALL
-        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports_temp
+        SELECT COALESCE(SUM(total_time),0) AS counted_hours FROM production_reports_temp
         WHERE worker_id=? AND work_date=? AND status IN ('pending','need_fix')`,
         [workerId, workDate, workerId, workDate]
     );
@@ -51,7 +51,7 @@ const enforceDailyHoursLocked = async (executor, data) => {
             projected_hours: Number(projected.toFixed(4)),
             limit_hours: DAILY_HOURS_LIMIT,
             remaining_hours: Number(remaining.toFixed(4)),
-            counted_field: "actual_time",
+            counted_field: "total_time",
             excluded_from_daily_limit: "deduction_time / support hours"
         };
         throw error;
