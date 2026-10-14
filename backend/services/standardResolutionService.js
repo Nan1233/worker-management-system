@@ -22,13 +22,16 @@ function createStandardResolver({query=defaultQuery}={}) {
     const workTypeSql=normalizedWorkType==='LONG'?` AND UPPER(TRIM(ps.work_type))='LỒNG'`:normalizedWorkType==='CUT'?` AND UPPER(TRIM(ps.work_type))='CẮT'`:'';
     const statusSql=includeInactive?'':` AND ps.status='active'`;
     const fields=`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=?${statusSql}${workTypeSql}`;
-    // Exact master code/encoding always takes precedence over an alias pointing
-    // at a different base product. This is essential for GC automatic products
-    // such as C2556-AUTO when C2556 also has an active alias.
-    // Product codes are identifiers, not case-insensitive labels. Match exact casing
-    // so C1080 cannot resolve to a separate lowercase c1080 row.
-    const exactRows=await query(`${fields} AND (BINARY TRIM(product_code)=BINARY TRIM(?) OR BINARY TRIM(encoding_code)=BINARY TRIM(?)) ORDER BY CASE WHEN BINARY TRIM(product_code)=BINARY TRIM(?) THEN 0 ELSE 1 END,id LIMIT 2`,[pid,product,product,product]);
-    if(exactRows.length)return exactRows;
+    // Resolve identifiers in strict priority order. Combining product_code and
+    // encoding_code in one OR query can return different standards when one
+    // product's code equals another product's encoding code. Exact product_code
+    // wins; encoding_code is only a fallback when no exact code exists.
+    // Keep case-sensitive matching to avoid C1080/c1080 collisions.
+    const exactCodeRows=await query(`${fields} AND BINARY TRIM(product_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,product]);
+    if(exactCodeRows.length)return exactCodeRows;
+    const encodingRows=await query(`${fields} AND BINARY TRIM(encoding_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,product]);
+    if(encodingRows.length)return encodingRows;
+    // Only use aliases after both canonical identifier forms fail.
     return query(`${fields} AND EXISTS(SELECT 1 FROM product_aliases pa WHERE pa.process_id=ps.process_id AND BINARY TRIM(pa.product_code)=BINARY TRIM(ps.product_code) AND pa.status='active' AND BINARY TRIM(pa.alias_code)=BINARY TRIM(?)) ORDER BY id LIMIT 2`,[pid,product]);
   }
   function pickEquivalentRow(rows){if(!Array.isArray(rows)||rows.length<2)return null;const out=Number(rows[0]?.standard_output),kqd=Number(rows[0]?.exclude_kqd_from_tt||0);if(!Number.isFinite(out)||out<=0)return null;const allSame=rows.every(row=>sameDecimal(Number(row?.standard_output),out)&&Number(row?.exclude_kqd_from_tt||0)===kqd);return allSame?rows[0]:null;}
