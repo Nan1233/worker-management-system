@@ -85,11 +85,13 @@ let loginTransitionActive = false;
 let transientRefreshBlockedUntil = 0;
 let redirectingToLogin = false;
 let crossTabAuthInvalidated = false;
+let crossTabObservedEpoch = getAuthEpoch();
 
 export function beginLoginTransition(): number {
     loginTransitionActive = true;
     crossTabAuthInvalidated = false;
     authGeneration = bumpAuthEpoch();
+    crossTabObservedEpoch = authGeneration;
     refreshAbortController?.abort();
     refreshAbortController = null;
     refreshPromise = null;
@@ -381,6 +383,21 @@ api.interceptors.request.use(
             return Promise.reject(staleSessionError());
         }
 
+        // Storage events are delivered asynchronously. Also compare the shared
+        // epoch immediately before any request so a tab cannot act as account A
+        // in the gap between another tab switching to B and this event arriving.
+        const currentEpoch = getAuthEpoch();
+        if (currentEpoch !== crossTabObservedEpoch && !requestUrl.includes("/auth/login")) {
+            crossTabObservedEpoch = currentEpoch;
+            crossTabAuthInvalidated = true;
+            refreshAbortController?.abort();
+            refreshAbortController = null;
+            refreshPromise = null;
+            clearCurrentTabAuthSession();
+            sessionStorage.setItem(CROSS_TAB_LOGIN_MARKER_KEY, "1");
+            return Promise.reject(staleSessionError());
+        }
+
         let accessToken = getAccessToken();
         if (
             !loginTransitionActive &&
@@ -555,6 +572,7 @@ if (typeof window !== "undefined") {
         if (event.key !== "ktcAuthEpoch") return;
 
         authGeneration = getAuthEpoch();
+        crossTabObservedEpoch = authGeneration;
         crossTabAuthInvalidated = true;
         refreshAbortController?.abort();
         refreshAbortController = null;
