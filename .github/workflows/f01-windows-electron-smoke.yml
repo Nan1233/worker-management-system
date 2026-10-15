@@ -15,7 +15,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  backend-auth-tests:
+    name: Backend refresh and account-switch tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Auth session behavior tests
+        run: node --test tests/auth-login-controller.behavior.test.js tests/auth-previous-session-revocation.test.js
+
+  frontend-auth-checks:
+    name: Frontend typecheck and auth race tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - name: Auth session hardening and runtime races
+        run: node --test tests/auth-session-hardening.test.cjs tests/auth-runtime-races.test.cjs
+
   windows-build-and-launch:
+    needs: [backend-auth-tests, frontend-auth-checks]
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
