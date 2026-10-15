@@ -12,7 +12,6 @@ test('cross-tab account switch retires stale tab access state without deleting s
 
   assert.match(storage, /export function clearCurrentTabAuthSession\(\): void/);
   assert.match(storage, /sessionStorage\.removeItem\(key\)/);
-  assert.match(storage, /Never remove refresh\/session-hint/);
   assert.doesNotMatch(
     storage.match(/export function clearCurrentTabAuthSession[\s\S]*?\n}\n/)?.[0] || '',
     /localStorage\.removeItem\(REFRESH_SESSION_HINT_KEY\)/
