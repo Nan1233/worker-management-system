@@ -41,9 +41,11 @@ test('passive cross-tab redirect does not bump auth epoch back and log out the n
 
 test('login still isolates the new request from previous account tokens', () => {
   const authService = read('frontend/src/services/authService.ts');
-  assert.match(authService, /const previousRefreshToken = getRefreshToken\(\)/);
+  assert.match(authService, /const previousRefreshToken = getPreviousRefreshTokenForLogin\(\)/);
+  assert.match(authService, /preservePreviousRefreshTokenForLogin\(\)/);
+  assert.match(authService, /supportsElectronRefreshTokenBody\(\)/);
   assert.match(authService, /const loginEpoch = beginLoginTransition\(\)/);
   assert.match(authService, /clearAuthSession\(\{ bumpEpoch: false \}\)/);
-  assert.match(authService, /previous_refresh_token: previousRefreshToken \|\| undefined/);
+  assert.match(authService, /previous_refresh_token: supportsElectronRefreshTokenBody\(\)[\s\S]*?previousRefreshToken \|\| undefined/);
   assert.match(authService, /getAuthEpoch\(\) !== loginEpoch/);
 });
