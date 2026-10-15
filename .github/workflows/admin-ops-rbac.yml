@@ -22,8 +22,6 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Backend source and migration inventory checks
         run: npm run check && npm run db:migration-inventory
-      - name: Dependency security audit
-        run: npm audit --audit-level=high
       - name: RBAC / permission contract tests (no live DB required)
         run: >
           node --test
@@ -33,6 +31,8 @@ jobs:
           tests/permission-matrix.test.cjs
           tests/full-authorization-audit.test.cjs
           tests/migration-inventory-contract.test.cjs
+      - name: Dependency security audit
+        run: npm audit --audit-level=high
 
   frontend-rbac-checks:
     name: Frontend typecheck + permissions UI test
@@ -46,14 +46,14 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --no-audit --no-fund
-      - name: ESLint
-        run: npm run lint
-      - name: Dependency security audit
-        run: npm audit --audit-level=high
       - name: Typecheck
         run: npm run typecheck
       - name: Permissions UI contract test
         run: node --test tests/permissions-ui.test.cjs
+      - name: ESLint
+        run: npm run lint
+      - name: Dependency security audit
+        run: npm audit --audit-level=high
 
   backend-full-suite:
     name: Backend full test suite (informational — no live TiDB in CI)
