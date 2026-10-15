@@ -276,6 +276,12 @@ export async function refreshAccessToken(
         throw new Error("Backend đang khởi động lại. Giữ nguyên phiên đăng nhập.");
     }
 
+    // Bind every refresh result, including failures, to the auth generation
+    // that initiated it. A late 401 from the previous account must not clear
+    // a session created while the refresh request was in flight.
+    const generationAtStart = authGeneration;
+    const epochAtStart = getAuthEpoch();
+
     const coordinatedRefresh = async (): Promise<string> => {
         try {
             const result = isElectronRuntime()
@@ -285,6 +291,13 @@ export async function refreshAccessToken(
             redirectingToLogin = false;
             return result.accessToken;
         } catch (error) {
+            if (
+                generationAtStart !== authGeneration ||
+                epochAtStart !== getAuthEpoch() ||
+                loginTransitionActive
+            ) {
+                throw new axios.CanceledError("Kết quả refresh thuộc phiên đăng nhập cũ đã bị bỏ qua.");
+            }
             if (isConfirmedInvalidRefresh(error)) {
                 invalidateSessionAndRedirect();
             } else {

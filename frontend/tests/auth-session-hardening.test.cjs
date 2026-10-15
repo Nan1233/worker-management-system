@@ -81,3 +81,27 @@ test('login still isolates the new request from previous account tokens', () => 
     'login page must preserve the Electron token before clearing storage'
   );
 });
+
+test('late logout completion cannot clear a newer login session', () => {
+  const authService = read('src/services/authService.ts');
+  const logoutBlock = authService.slice(
+    authService.indexOf('export const logout'),
+    authService.indexOf('export interface ChangePasswordInput')
+  );
+
+  assert.match(logoutBlock, /clearAuthSession\(\);\s*const logoutEpoch = getAuthEpoch\(\)/);
+  assert.match(logoutBlock, /if \(getAuthEpoch\(\) === logoutEpoch\)\s*\{\s*clearAuthSession\(\{ bumpEpoch: false \}\);/);
+});
+
+test('late refresh authentication failure cannot clear a newer account session', () => {
+  const api = read('src/services/api.ts');
+  const refreshBlock = api.slice(
+    api.indexOf('export async function refreshAccessToken'),
+    api.indexOf('export function isAuthRefreshInProgress')
+  );
+
+  assert.match(refreshBlock, /const generationAtStart = authGeneration/);
+  assert.match(refreshBlock, /const epochAtStart = getAuthEpoch\(\)/);
+  assert.match(refreshBlock, /generationAtStart !== authGeneration[\s\S]*?epochAtStart !== getAuthEpoch\(\)[\s\S]*?loginTransitionActive/);
+  assert.match(refreshBlock, /throw new axios\.CanceledError\("Kết quả refresh thuộc phiên đăng nhập cũ đã bị bỏ qua\."\)/);
+});

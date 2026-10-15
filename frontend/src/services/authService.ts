@@ -174,6 +174,7 @@ export const logout = async (): Promise<void> => {
     const refreshToken = getRefreshToken();
     clearPreviousRefreshTokenForLogin();
     clearAuthSession();
+    const logoutEpoch = getAuthEpoch();
 
     try {
         await api.post(
@@ -183,7 +184,11 @@ export const logout = async (): Promise<void> => {
     } catch {
         // Local identity is already retired. Server-side expiry/revocation is best-effort.
     } finally {
-        clearAuthSession();
+        // A logout request may finish after another account has signed in.
+        // Never let this stale completion clear the newer session.
+        if (getAuthEpoch() === logoutEpoch) {
+            clearAuthSession({ bumpEpoch: false });
+        }
     }
 };
 
