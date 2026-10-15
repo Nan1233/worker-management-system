@@ -176,7 +176,7 @@ export function buildProductionReportPayload(args: {
   const derivedWorkerActualTime = args.usesMultiMachineLines && !(
     String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase() === "GC"
   ) ? machineElapsedHours : parseHours(args.form.actualTime);
-  const actualTime=derivedWorkerActualTime, deductionTime=args.usesMultiMachineLines ? 0 : parseHours(args.form.deductionTime), totalTime=args.usesMultiMachineLines ? derivedWorkerActualTime : parseHours(args.form.totalTime);
+  // Keep the worker-level gross/deduction totals for non-GC machine workflows without\n  // assigning a parent-level deduction to an arbitrary machine line. GC continues\n  // to zero these parent fields in the final payload below.\n  const workerDeductionTime = parseHours(args.form.deductionTime);\n  const actualTime=derivedWorkerActualTime, deductionTime=workerDeductionTime, totalTime=args.usesMultiMachineLines ? derivedWorkerActualTime + workerDeductionTime : parseHours(args.form.totalTime);
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT" ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO") : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE") ? args.form.executionMethod : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
