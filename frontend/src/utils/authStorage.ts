@@ -36,7 +36,7 @@ export function supportsElectronRefreshTokenBody(): boolean {
 
 /** Preserve the Electron token in memory before login-page cleanup removes it. */
 export function preservePreviousRefreshTokenForLogin(): void {
-    if (!supportsElectronRefreshTokenBody()) return;
+    if (!supportsElectronRefreshTokenBody() || pendingPreviousRefreshTokenForLogin) return;
     const token = getRefreshToken();
     if (token) pendingPreviousRefreshTokenForLogin = token;
 }
