@@ -8,6 +8,10 @@ import {
     getAccessToken,
     getAuthEpoch,
     getRefreshToken,
+    getPreviousRefreshTokenForLogin,
+    preservePreviousRefreshTokenForLogin,
+    supportsElectronRefreshTokenBody,
+    clearPreviousRefreshTokenForLogin,
     getStoredUser,
     saveAuthSession
 } from "../utils/authStorage";
@@ -40,16 +44,20 @@ function wait(ms: number): Promise<void> {
 async function postLoginRequest(
     username: string,
     accessType: LoginAccessType,
-    password: string
+    password: string,
+    previousRefreshToken: string | null
 ): Promise<LoginResponse> {
     let lastError: unknown;
 
-    // Keep the login request deliberately minimal: this is the exact contract
-    // accepted by the test backend and avoids sending stale refresh-session data.
+    // Browser HTTP(S) clients keep refresh credentials in the HttpOnly cookie.
+    // Only Electron's opaque/file origin may send its native fallback token.
     const payload = {
         username: username.trim(),
         access_type: accessType,
-        password
+        password,
+        previous_refresh_token: supportsElectronRefreshTokenBody()
+            ? previousRefreshToken || undefined
+            : undefined
     };
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -92,12 +100,14 @@ export const login = async (
     accessType: LoginAccessType,
     password = ""
 ): Promise<LoginResponse> => {
+    preservePreviousRefreshTokenForLogin();
+    const previousRefreshToken = getPreviousRefreshTokenForLogin();
     const loginEpoch = beginLoginTransition();
     clearAuthSession({ bumpEpoch: false });
     const loginSessionId = createAuthSessionId();
 
     try {
-        const data = await postLoginRequest(username, accessType, password);
+        const data = await postLoginRequest(username, accessType, password, previousRefreshToken);
 
         if (getAuthEpoch() !== loginEpoch) {
             throw new axios.CanceledError("Lần đăng nhập đã bị thay thế bởi một phiên mới hơn.");
@@ -120,6 +130,7 @@ export const login = async (
         });
 
         assertCommittedLoginSession(data.user.id);
+        clearPreviousRefreshTokenForLogin();
         window.dispatchEvent(new CustomEvent("ktc:auth-session-saved"));
         return data;
     } catch (error) {
@@ -139,6 +150,7 @@ export const refreshSession = async (): Promise<RefreshResponse> => {
 
 export const logout = async (): Promise<void> => {
     const refreshToken = getRefreshToken();
+    clearPreviousRefreshTokenForLogin();
     clearAuthSession();
 
     try {
