@@ -184,9 +184,11 @@ export function buildProductionReportPayload(args: {
     product_name:submittedProductName,
     work_type:(isCvk || isNonProductWorkWithinProcess) ? cvkWorkType : undefined,
     operation_type:isNonProductWorkWithinProcess ? null : args.operationType, operation_mode:submittedOperationMode,
-    total_time:isMachineLineAccounting ? 0 : totalTime,
-    actual_time:isMachineLineAccounting ? 0 : actualTime,
-    deduction_time:isMachineLineAccounting ? 0 : deductionTime,
+    // Parent time fields represent the worker's shift time; machine_lines store per-machine time separately.
+    // Keep actual_time for the backend daily 12-hour cap (deduction time is excluded from that cap).
+    total_time:totalTime,
+    actual_time:actualTime,
+    deduction_time:deductionTime,
     standard_output:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork) ? 0 : (useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput)),
     actual_output:(isCvk || isNonProductWorkWithinProcess || isMachineLineAccounting) ? 0 : actualOutput, tt_ok:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttOk), tt_ng:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttNg),
     kqd_dap_lai:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.kqdDapLai), kqd_tuot:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.kqdTuot), vo_do_long:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.voDoLong), xuoc_do_long:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.xuocDoLong), cong_gay:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.congGay), xoay:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.xoay), khong_dut:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.khongDut), bavia_hut:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.baviaHut), ppcm:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.ppcm), loi_cao_su:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.loiCaoSu), ng_kich_thuoc:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.ngKichThuoc), cat_lem:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.catLem),
