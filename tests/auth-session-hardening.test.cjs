@@ -48,8 +48,8 @@ test('login still isolates the new request from previous account tokens', () => 
   assert.match(authService, /clearAuthSession\(\{ bumpEpoch: false \}\)/);
   assert.match(authService, /supportsElectronRefreshTokenBody\(\) && previousRefreshToken[\s\S]*?previous_refresh_token: previousRefreshToken/);
   assert.match(authService, /getAuthEpoch\(\) !== loginEpoch/);
-  const loginPage = read('src/pages/Login.tsx');
-  const storage = read('src/utils/authStorage.ts');
+  const loginPage = read('frontend/src/pages/Login.tsx');
+  const storage = read('frontend/src/utils/authStorage.ts');
   assert.match(storage, /export function supportsElectronRefreshTokenBody\(\)/);
   assert.match(storage, /origin === "null" \|\| origin\.startsWith\("file:"\)/);
   assert.ok(
