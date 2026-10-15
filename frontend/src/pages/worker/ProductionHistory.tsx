@@ -345,7 +345,7 @@ function ProductionHistory() {
                             )}
                         </div>
                     </section>
-                )}
+                ) : null}
             </div>
         </main>
     );
