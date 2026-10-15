@@ -135,7 +135,7 @@ export function clearRefreshSessionHint(): void {
 }
 
 export function getRefreshToken(): string | null {
-    if (isElectronRuntime()) {
+    if (supportsElectronRefreshTokenBody()) {
         return localStorage.getItem(REFRESH_TOKEN_KEY);
     }
     localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -144,7 +144,7 @@ export function getRefreshToken(): string | null {
 }
 
 export function setRefreshToken(token: string): void {
-    if (isElectronRuntime()) {
+    if (supportsElectronRefreshTokenBody()) {
         localStorage.setItem(REFRESH_TOKEN_KEY, token);
         return;
     }
@@ -153,7 +153,7 @@ export function setRefreshToken(token: string): void {
 }
 
 export function clearLegacyRefreshToken(): void {
-    if (isElectronRuntime()) return;
+    if (supportsElectronRefreshTokenBody()) return;
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     sessionStorage.removeItem(REFRESH_TOKEN_KEY);
 }

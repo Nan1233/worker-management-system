@@ -54,6 +54,11 @@ test('login still isolates the new request from previous account tokens', () => 
   const storage = read('src/utils/authStorage.ts');
   assert.match(storage, /export function supportsElectronRefreshTokenBody\(\)/);
   assert.match(storage, /origin === "null" \|\| origin\.startsWith\("file:"\)/);
+  const api = read('src/services/api.ts');
+  assert.match(api, /if \(supportsElectronRefreshTokenBody\(\)\) \{[\s\S]*?ELECTRON_REFRESH_TOKEN_SUCCESSOR_MISSING/);
+  assert.match(storage, /export function getRefreshToken\(\): string \| null \{\s*if \(supportsElectronRefreshTokenBody\(\)\)/);
+  assert.match(storage, /export function setRefreshToken\(token: string\): void \{\s*if \(supportsElectronRefreshTokenBody\(\)\)/);
+  // Hosted Electron loads HTTPS, so refresh must use the HttpOnly cookie and must not require a JSON successor token.
   assert.match(loginPage, /loginInFlightRef = useRef\(false\)/);
   assert.match(loginPage, /if \(axios\.isCancel\(err\)\) return/);
   assert.ok(

@@ -315,6 +315,21 @@ test('browser refresh rotation keeps refresh token in HttpOnly cookie rather tha
   assert.ok(response.cookies.some((cookie) => cookie.name === 'ktc_refresh_token' && cookie.options.httpOnly === true));
 });
 
+test('Electron hosted on HTTPS uses the HttpOnly cookie and does not require a body refresh token', async () => {
+  resetState();
+  seedToken('hosted-electron-current-token', 'hosted-electron-family');
+  const response = makeResponse();
+  await controller.refresh(makeRequest({
+    body: {},
+    userAgent: 'Electron/40.0',
+    origin: 'https://ktc-fe-test.nan978971.workers.dev',
+    cookie: 'ktc_refresh_token=hosted-electron-current-token',
+  }), response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(Object.hasOwn(response.body, 'refreshToken'), false);
+  assert.ok(response.cookies.some((cookie) => cookie.name === 'ktc_refresh_token' && cookie.options.httpOnly === true));
+});
+
 test('Electron refresh rotation returns the successor token for native persistence', async () => {
   resetState();
   seedToken('electron-current-token', 'electron-family');
