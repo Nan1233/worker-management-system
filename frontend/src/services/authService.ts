@@ -95,7 +95,9 @@ function assertCommittedLoginSession(userId: number): void {
     }
 }
 
-export const login = async (
+let loginInFlight: Promise<LoginResponse> | null = null;
+
+const performLogin = async (
     username: string,
     accessType: LoginAccessType,
     password = ""
@@ -141,6 +143,26 @@ export const login = async (
     } finally {
         finishLoginTransition();
     }
+};
+
+/**
+ * Only one login request may mutate auth state in this renderer at a time.
+ * The UI disables repeat submissions too, but this guard protects other callers.
+ */
+export const login = (
+    username: string,
+    accessType: LoginAccessType,
+    password = ""
+): Promise<LoginResponse> => {
+    if (loginInFlight) {
+        return Promise.reject(new axios.CanceledError("Đang xử lý một yêu cầu đăng nhập khác."));
+    }
+
+    const attempt = performLogin(username, accessType, password);
+    loginInFlight = attempt;
+    return attempt.finally(() => {
+        if (loginInFlight === attempt) loginInFlight = null;
+    });
 };
 
 export const refreshSession = async (): Promise<RefreshResponse> => {
