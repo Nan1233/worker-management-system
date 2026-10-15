@@ -736,5 +736,6 @@ module.exports = {
         } finally {
             connection.release();
         }
-    }
+    },
+    _enforceDailyHoursLocked: enforceDailyHoursLocked
 };
