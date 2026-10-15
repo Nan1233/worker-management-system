@@ -17,8 +17,8 @@ test('login retries one transient backend/network failure without requiring a se
 
 test('login page initialization is idempotent under React StrictMode', () => {
   const login = read('frontend/src/pages/Login.tsx');
-  assert.match(login, /loginPageInitializedRef = useRef\(false\)/);
-  assert.match(login, /if \(loginPageInitializedRef\.current\) return/);
+  assert.match(login, /initializedRef = useRef\(false\)/);
+  assert.match(login, /if \(initializedRef\.current\) return/);
 });
 
 test('private route waits while login transition is committing auth state', () => {
