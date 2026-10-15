@@ -39,3 +39,13 @@ test("worker home totals handle empty reports and missing quantities", () => {
     { tt_ok: undefined, defects: [{ quantity: undefined }] },
   ], () => 0), { ok: 0, ng: 0, time: 0, reportCount: 1 });
 });
+
+test("worker home limits only the visible list, not the daily aggregation input", () => {
+  const component = fs.readFileSync(
+    path.resolve(__dirname, "../src/pages/worker/WorkerHome.tsx"),
+    "utf8",
+  );
+  assert.match(component, /todayReports\.length \? todayReports\.slice\(0, 4\) : reports\.slice\(0, 4\)/);
+  assert.match(component, /calculateWorkerHomeTodayStats\(todayReports, getReportActualHours\)/);
+  assert.doesNotMatch(component, /\.sort\(\(a, b\) => String\(b\.entry_date \|\| b\.work_date\)\.localeCompare\(String\(a\.entry_date \|\| a\.work_date\)\)\)\s*\.slice\(0, 4\)/);
+});
