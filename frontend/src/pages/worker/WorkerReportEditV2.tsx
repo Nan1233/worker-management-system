@@ -12,7 +12,6 @@ import { filterProductsForSelection, toProductAutocompleteOptions } from "./prod
 import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
 import { formatIntegerDisplay, MAX_TOTAL_WORK_MINUTES, parseFlexibleTime } from "./processFormUtils";
 import { getMachineNgTotal, getMaxMachineCount, toggleMachineDefectLine, updateMachineDefectLine } from "./processMachineLines";
-import { getProcessExtraFields } from "./processExtraFields";
 import ProcessWorkerHeader from "./components/ProcessWorkerHeader";
 import ProcessBasicInfoSection from "./components/ProcessBasicInfoSection";
 import ProcessQualitySection from "./components/ProcessQualitySection";
@@ -272,7 +271,6 @@ function WorkerReportEditV2() {
   }, [loading, loadingMasterData, form.workDate, processId]);
 
   const updateForm = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const updateCvkWorkType = (value: string) => { setWorkType(value); setForm((current) => ({ ...current, workType: value })); };
   const onFormChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => updateForm(event.target.name || event.target.id, event.target.value);
   const updateLine = (index: number, patch: Partial<MachineLineState>) => setMachineLines((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
   const toggleMachineDefect = (index: number, key: string) => setMachineLines((current) => current.map((line, i) => i === index ? toggleMachineDefectLine(line, key) : line));
@@ -367,7 +365,6 @@ function WorkerReportEditV2() {
   const remainingSeconds = Number.isFinite(remaining) ? Math.ceil(remaining / 1000) : 0;
   const timeText = managerRoute ? "Không giới hạn" : Number.isFinite(remaining) ? `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}` : "Không giới hạn";
   const processTitle = readOnly ? `Chi tiết báo cáo · ${report.process_name || capabilities.processCode}` : `Sửa báo cáo · ${report.process_name || capabilities.processCode}`;
-  const extraFields = getProcessExtraFields(process);
 
   return <div className={`ktc-page ${managerRoute ? "manager-worker-report-form" : ""} ${readOnly ? "manager-worker-report-readonly" : ""}`}>
     <ProcessWorkerHeader processTitle={processTitle} workerName={form.workerName} workerCode={form.workerCode} trainingPercent={form.trainingPercent} workDate={form.workDate} dateOptions={getWorkerAllowedWorkDates()} onBack={() => navigate(-1)} onDateChange={(e) => updateForm("workDate", e.target.value)} />
