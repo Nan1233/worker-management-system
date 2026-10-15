@@ -232,5 +232,6 @@ module.exports = {
         finally { connection.release(); }
     }
     ,_getWorkerEditWindowStart: getWorkerEditWindowStart,
+    _checkDailyHours: checkDailyHours,
     _WORKER_EDIT_WINDOW_MS: WORKER_EDIT_WINDOW_MS
 };
