@@ -43,7 +43,7 @@ export default function ProductionReadonlyDetail() {
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -62,7 +62,7 @@ export default function ProductionReadonlyDetail() {
     return () => { alive = false; };
   }, [id, source]);
 
-  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
+  useEffect(() => { setNow(Date.now()); const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
 
   const remainingMs = useMemo(() => {
     if (!report || source === "approved") return 0;
