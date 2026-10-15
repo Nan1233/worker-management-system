@@ -33,7 +33,8 @@ import {
     hasRefreshSessionHint,
     isElectronRuntime,
     saveAuthSession,
-    setRefreshToken
+    setRefreshToken,
+    supportsElectronRefreshTokenBody
 } from "../utils/authStorage";
 
 import type {
@@ -234,7 +235,7 @@ async function performNetworkRefresh(): Promise<CoordinatedRefreshSuccess> {
         throw new axios.CanceledError("Phiên làm mới thuộc tài khoản khác. Tab hiện tại đã được đăng xuất.");
     }
 
-    if (isElectronRuntime()) {
+    if (supportsElectronRefreshTokenBody()) {
         if (!response.data.refreshToken) {
             throw new Error("ELECTRON_REFRESH_TOKEN_SUCCESSOR_MISSING");
         }
