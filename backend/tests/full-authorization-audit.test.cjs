@@ -117,3 +117,8 @@ test('authentication and role middleware do not emit debug logs containing user 
   assert.doesNotMatch(auth, /console\.(?:info|log|warn)\([^\n]*req\.originalUrl/);
   assert.doesNotMatch(role, /console\.(?:info|log|warn)\([^\n]*req\.originalUrl/);
 });
+
+test('Cloudflare test Worker configuration redacts query strings from observability logs', () => {
+  const config = read('wrangler.jsonc');
+  assert.match(config, /"observability"\s*:\s*\{[^}]*"redact_query_string"\s*:\s*true/);
+});
