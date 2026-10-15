@@ -121,7 +121,7 @@ function makeHarness() {
       return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
     },
     bumpAuthEpoch() {
-      const next = this.getAuthEpoch() + 1;
+      const next = (Number(localStorage.getItem('ktcAuthEpoch')) || 0) + 1;
       localStorage.setItem('ktcAuthEpoch', String(next));
       return next;
     },
@@ -152,11 +152,11 @@ function makeHarness() {
     getPreviousRefreshTokenForLogin() { return null; },
     createAuthSessionId() { generatedSessionId += 1; return 'generated-session-' + generatedSessionId; },
     saveAuthSession(data) {
-      this.setAccessToken(data.accessToken);
+      authStorage.setAccessToken(data.accessToken);
       if (data.sessionId) localStorage.setItem('ktcAuthSessionId', data.sessionId);
-      if (data.refreshToken) this.setRefreshToken(data.refreshToken);
-      if (data.user) this.setStoredUser(data.user);
-      this.markRefreshSessionAvailable();
+      if (data.refreshToken) authStorage.setRefreshToken(data.refreshToken);
+      if (data.user) authStorage.setStoredUser(data.user);
+      authStorage.markRefreshSessionAvailable();
     },
     clearCurrentTabAuthSession() {
       for (const key of ['auth', 'authUser', 'currentUser', 'accessToken', 'token', 'user', 'ktcAuthSessionId', 'refreshToken']) {
@@ -165,7 +165,7 @@ function makeHarness() {
       windowMock.dispatchEvent(new FakeCustomEvent('ktc:tab-auth-cleared'));
     },
     clearAuthSession(options = {}) {
-      if (options.bumpEpoch !== false) this.bumpAuthEpoch();
+      if (options.bumpEpoch !== false) authStorage.bumpAuthEpoch();
       for (const key of ['auth', 'authUser', 'currentUser', 'accessToken', 'token', 'refreshToken', 'user', 'ktcAuthSessionId', 'ktcRefreshSessionHint']) {
         localStorage.removeItem(key);
         sessionStorage.removeItem(key);
