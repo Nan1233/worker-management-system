@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById, updateReport, updateTempReport } from "../../services/productionService";
 import { resolveProductStandard } from "../../services/masterDataService";
@@ -47,6 +47,8 @@ function WorkerReportEditV2() {
   const readOnly = managerRoute && !pathname.endsWith("/edit");
   const source = searchParams.get("source") === "approved" ? "approved" : "pending";
   const [report, setReport] = useState<any>(null);
+  const originalUpdatedAtRef = useRef<string | null>(null);
+  const [changeReason, setChangeReason] = useState("");
   const [form, setForm] = useState<FormState>(initialForm);
   const [deductions, setDeductions] = useState<DeductionState>(initialDeduction);
   const [selectedNg, setSelectedNg] = useState<NgKey[]>([]);
@@ -143,6 +145,7 @@ function WorkerReportEditV2() {
         const data: any = (raw as any)?.report || (raw as any)?.data || raw;
         if (!data) throw new Error("Không tìm thấy báo cáo.");
         if (!alive) return;
+        originalUpdatedAtRef.current = source === "approved" ? (data.updated_at || null) : null;
         setReport(data);
         const rawMachineLines = Array.isArray(data.machine_lines) ? data.machine_lines : Array.isArray(data.machineLines) ? data.machineLines : [];
         const isMachineReport = String(data.operation_mode || "").toUpperCase() === "MACHINE" || rawMachineLines.length > 0;
@@ -313,6 +316,14 @@ function WorkerReportEditV2() {
   const save = async () => {
     if (!report || (!managerRoute && remaining <= 0) || readOnly) return;
     setError("");
+    if (managerRoute && source === "approved" && !changeReason.trim()) {
+      setError("Vui lòng nhập lý do chỉnh sửa báo cáo đã duyệt.");
+      return;
+    }
+    if (source === "approved" && !originalUpdatedAtRef.current && managerRoute) {
+      setError("Không thể lưu vì thiếu thông tin phiên bản cập nhật của báo cáo đã duyệt. Vui lòng tải lại dữ liệu.");
+      return;
+    }
     const actualHours = n(form.actualHours) + n(form.actualMinutes) / 60;
     const deductionHours = parseFlexibleTime(form.deductionTime);
     const totalHours = actualHours + (Number.isFinite(deductionHours) ? deductionHours : 0);
@@ -327,17 +338,27 @@ function WorkerReportEditV2() {
     });
     payload.updated_at = report.updated_at;
     payload.expected_updated_at = report.updated_at;
+    const approvedEditAudit = { reason: source === "approved" ? changeReason.trim() : undefined };
+    Object.assign(payload, approvedEditAudit);
     try {
       setSaving(true);
       if (managerRoute) {
-        await updateReport(Number(report.id), payload as ProductionReport, source, report.updated_at || null);
+        const result = await updateReport(Number(report.id), payload as ProductionReport, source, originalUpdatedAtRef.current);
+        originalUpdatedAtRef.current = result?.data?.updated_at || originalUpdatedAtRef.current;
         const roleBasePath = storedRole === "lead" ? "/lead" : storedRole === "admin" ? "/admin" : storedRole === "admin_ops" ? "/admin-ops" : "/manager";
         navigate(source === "pending" ? `${roleBasePath}/report/${report.id}?source=pending` : `${roleBasePath}/report/${report.id}?source=approved`, { replace: true });
       } else {
         await updateTempReport(Number(report.id), payload);
         navigate(`/worker/history/${report.id}`, { replace: true });
       }
-    } catch (e: any) { setError(e?.response?.data?.message || e?.response?.data?.errors?.machine_lines || "Không thể lưu thay đổi."); }
+    } catch (e: any) {
+      const code = String(e?.response?.data?.code || "");
+      if (code === "REPORT_VERSION_CONFLICT") {
+        setError("Báo cáo đã được người khác cập nhật. Vui lòng tải lại dữ liệu trước khi lưu. Các thay đổi bạn đang nhập vẫn được giữ trên màn hình.");
+        return;
+      }
+      setError(e?.response?.data?.message || e?.response?.data?.errors?.machine_lines || "Không thể lưu thay đổi.");
+    }
     finally { setSaving(false); }
   };
 
@@ -353,6 +374,10 @@ function WorkerReportEditV2() {
     <main className="worker-form-container">
       {!readOnly && <div className="worker-form-card" style={{ marginBottom: 12 }}><strong>{managerRoute ? `Sửa báo cáo · ${source === "approved" ? "Đã duyệt" : "Chờ duyệt"}` : `Chỉnh sửa trong 10 phút · còn ${timeText}`}</strong><span style={{ marginLeft: 10 }}>{loadingMasterData ? "Đang tải danh mục..." : "Đã tải dữ liệu báo cáo"}</span></div>}
       {error && <div className="worker-form-card" style={{ color: "#b42318", marginBottom: 12 }}>{error}</div>}
+      {managerRoute && source === "approved" && !readOnly && <section className="worker-form-card" style={{ marginBottom: 12 }}>
+        <label htmlFor="approved-change-reason" className="worker-field-label">Lý do chỉnh sửa báo cáo đã duyệt (bắt buộc)</label>
+        <textarea id="approved-change-reason" className="worker-text-input" value={changeReason} onChange={(event) => setChangeReason(event.target.value)} maxLength={500} rows={3} required />
+      </section>}
 
       <ProcessBasicInfoSection form={form} setForm={setForm} onFormChange={onFormChange} isCutLongProcess={capabilities.isCutLongProcess} isInspectionProcess={capabilities.isInspectionProcess} isCvkMode={isCvkMode} setIsCvkMode={setIsCvkMode} operationType={operationType} setOperationType={setOperationType} cutExecutionMode={cutExecutionMode} setCutExecutionMode={setCutExecutionMode} operationMode={operationMode} setOperationMode={setOperationMode} usesMultiMachineLines={usesMultiMachineLines} usesSingleMachine={usesSingleMachine} productAutocompleteOptions={toProductAutocompleteOptions(editProductOptions)} getMachineProductAutocompleteOptions={getMachineProductAutocompleteOptions} productOptions={editProductOptions as any} machineAutocompleteOptions={machineAutocompleteOptions} machineOptions={editMachineOptions} loadingMasterData={loadingMasterData} machineCount={machineCount} maxMachineCount={maxMachineCount} machineLines={machineLines} resizeMachineLines={resizeMachineLines} updateMachineLine={updateLine} refreshMachineLineStandard={refreshMachineLineStandard} getMachineNgTotal={getMachineNgTotal} activeNgOptions={editNgOptions as any} activeDeductionOptions={editDeductionOptions as any} toggleMachineDefect={toggleMachineDefect} updateMachineDefectValue={updateMachineDefectValue} />
       {report.process_code === "CVK" && <section className="worker-form-card"><h2 className="worker-card-title">Thông tin công việc</h2><div className="worker-basic-grid"><div className="worker-field-block"><label className="worker-field-label">Loại công việc</label><select className="worker-text-input" value={workType} onChange={(e) => setWorkType(e.target.value)}><option>Xuất nhập</option><option>Hỗ trợ</option><option>Kho</option><option>Vệ sinh</option><option>Công việc khác</option></select></div></div></section>}
