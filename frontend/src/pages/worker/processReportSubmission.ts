@@ -144,6 +144,11 @@ export function buildProductionReportPayload(args: {
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
   const isMachineLineAccounting = useMachineLinesPayload;
+  // GC machine-line reports intentionally keep parent time fields at zero; their
+  // machine time is validated and persisted per line. Other machine workflows
+  // still need worker-level actual_time for the daily-hours cap.
+  const isGcMachineLineAccounting = isMachineLineAccounting
+    && String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase() === "GC";
   if (isMachineLineAccounting && lines.length && deductions.length) {
     const hasLineDeductions = lines.some((line) => Array.isArray(line.deductions) && line.deductions.length);
     if (!hasLineDeductions) {
@@ -184,11 +189,11 @@ export function buildProductionReportPayload(args: {
     product_name:submittedProductName,
     work_type:(isCvk || isNonProductWorkWithinProcess) ? cvkWorkType : undefined,
     operation_type:isNonProductWorkWithinProcess ? null : args.operationType, operation_mode:submittedOperationMode,
-    // Parent time fields represent the worker's shift time; machine_lines store per-machine time separately.
-    // Keep actual_time for the backend daily 12-hour cap (deduction time is excluded from that cap).
-    total_time:totalTime,
-    actual_time:actualTime,
-    deduction_time:deductionTime,
+    // Parent time fields represent worker time for non-GC machine workflows.
+    // GC machine reports intentionally store time only in machine_lines.
+    total_time:isGcMachineLineAccounting ? 0 : totalTime,
+    actual_time:isGcMachineLineAccounting ? 0 : actualTime,
+    deduction_time:isGcMachineLineAccounting ? 0 : deductionTime,
     standard_output:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork) ? 0 : (useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput)),
     actual_output:(isCvk || isNonProductWorkWithinProcess || isMachineLineAccounting) ? 0 : actualOutput, tt_ok:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttOk), tt_ng:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttNg),
     kqd_dap_lai:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.kqdDapLai), kqd_tuot:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.kqdTuot), vo_do_long:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.voDoLong), xuoc_do_long:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.xuocDoLong), cong_gay:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.congGay), xoay:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.xoay), khong_dut:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.khongDut), bavia_hut:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.baviaHut), ppcm:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.ppcm), loi_cao_su:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.loiCaoSu), ng_kich_thuoc:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.ngKichThuoc), cat_lem:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.catLem),
