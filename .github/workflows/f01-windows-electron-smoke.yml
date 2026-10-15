@@ -1,0 +1,132 @@
+name: F01 Windows Electron Build and Runtime Smoke
+run-name: F01 Windows Electron Smoke / ${{ github.ref_name }} / ${{ github.sha }}
+
+on:
+  push:
+    branches:
+      - fix/f01-close-complete-20261015
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f01-windows-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-build-and-launch:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - name: Checkout exact tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Electron static and contract checks
+        run: npm run check
+
+      - name: Build Windows installer and portable EXE
+        run: npm run dist:win
+
+      - name: Runtime smoke — launch portable EXE and verify remote TEST frontend
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-ChildItem -Path 'release' -Filter 'KTC-Production-Control.exe' -File | Select-Object -First 1
+          if (-not $exe) { throw 'Portable EXE missing after successful build.' }
+
+          $startedAt = Get-Date
+          $proc = Start-Process -FilePath $exe.FullName -PassThru
+          $logPath = $null
+          $matched = $false
+          try {
+            $deadline = (Get-Date).AddSeconds(75)
+            while ((Get-Date) -lt $deadline) {
+              if ($proc.HasExited) {
+                throw "Portable EXE exited before smoke passed (exit code $($proc.ExitCode))."
+              }
+              $logs = @()
+              foreach ($root in @($env:APPDATA, $env:LOCALAPPDATA)) {
+                if ($root -and (Test-Path $root)) {
+                  $logs += Get-ChildItem -Path $root -Filter 'desktop-launcher.log' -File -Recurse -ErrorAction SilentlyContinue |
+                    Where-Object { $_.LastWriteTime -ge $startedAt.AddSeconds(-5) }
+                }
+              }
+              foreach ($log in $logs) {
+                $text = Get-Content -Path $log.FullName -Raw -ErrorAction SilentlyContinue
+                if ($text -match '"event":"REMOTE_FE_LOADED"' -and $text -match 'https://ktc-fe-test\.nan978971\.workers\.dev') {
+                  $logPath = $log.FullName
+                  $matched = $true
+                  break
+                }
+                if ($text -match '"event":"REMOTE_FE_LOAD_FAILED"') {
+                  throw 'Electron logged REMOTE_FE_LOAD_FAILED while loading the TEST frontend.'
+                }
+              }
+              if ($matched) { break }
+              Start-Sleep -Seconds 3
+            }
+            if (-not $matched) {
+              throw 'Electron process started, but no REMOTE_FE_LOADED evidence for the TEST frontend appeared within 75 seconds.'
+            }
+            Write-Host 'PASS: Windows portable EXE launched and logged successful navigation to TEST frontend.'
+            Write-Host "Launcher log located at: $logPath"
+          }
+          finally {
+            if ($proc -and -not $proc.HasExited) {
+              Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+      - name: Create build provenance and SHA-256 manifest
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sha = '${{ github.sha }}'
+          $runId = '${{ github.run_id }}'
+          $manifest = [ordered]@{
+            repository = '${{ github.repository }}'
+            commit_sha = $sha
+            workflow = '${{ github.workflow }}'
+            workflow_run_id = $runId
+            run_url = "https://github.com/${{ github.repository }}/actions/runs/$runId"
+            runner_os = 'windows-latest'
+            built_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+            artifacts = @()
+          }
+          if (Test-Path 'release') {
+            Get-ChildItem 'release' -File | Where-Object { $_.Extension -in @('.exe', '.msi') } | ForEach-Object {
+              $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
+              $manifest.artifacts += [ordered]@{ file = $_.Name; size_bytes = $_.Length; sha256 = $hash }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 'f01-build-provenance.json'
+          Get-Content 'f01-build-provenance.json'
+
+      - name: Upload Windows EXE and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f01-windows-exe-${{ github.sha }}
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.msi
+            desktop/f01-build-provenance.json
+          if-no-files-found: warn
+          retention-days: 14
