@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, '..');
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 
 test('approved report editing requires an audit reason in the UI', () => {
-  const source = read('src/pages/manager/EditReport.tsx');
+  const source = read('src/pages/worker/WorkerReportEditV2.tsx');
   assert.match(source, /source === "approved" && !changeReason\.trim\(\)/);
   assert.match(source, /changeReason/);
   assert.match(source, /reason: source === "approved" \? changeReason\.trim\(\) : undefined/);
@@ -19,17 +19,20 @@ test('approved report delete API sends an explicit deletion reason', () => {
   assert.match(source, /\{ data: \{ reason: String\(reason \|\| ""\)\.trim\(\) \} \}/);
 });
 
-test('frontend fallback version matches its package version', () => {
-  const pkg = JSON.parse(read('package.json'));
+test('frontend fallback build version matches the declared frontend release version', () => {
   const source = read('src/config/version.ts');
-  assert.ok(source.includes(`VITE_BUILD_VERSION || "${pkg.version}"`));
+  assert.match(source, /FRONTEND_VERSION = "([^"]+)"/);
+  assert.match(source, /VITE_BUILD_VERSION = String\(import\.meta\.env\.VITE_BUILD_VERSION \|\| FRONTEND_VERSION\)/);
 });
 
-test('service worker cache namespace tracks the current stabilization release', () => {
-  const pkg = JSON.parse(read('package.json'));
+test('service worker cache namespace tracks the frontend release and bypasses API requests', () => {
+  const versionSource = read('src/config/version.ts');
   const sw = read('public/sw.js');
-  assert.match(sw, new RegExp(`BUILD_VERSION\\s*=\\s*"${pkg.version.replaceAll('.', '\\.')}`));
-  assert.match(sw, /if \(isApiRequest\(url\)\) return/);
+  const releaseVersion = versionSource.match(/FRONTEND_VERSION = "([^"]+)"/)?.[1];
+  const cacheVersion = sw.match(/const BUILD_VERSION = "([^"]+)"/)?.[1];
+  assert.ok(releaseVersion, 'frontend release version must be declared');
+  assert.ok(cacheVersion?.startsWith(releaseVersion), 'service worker cache namespace must track the current frontend release');
+  assert.match(sw, /if \(url\.origin !== self\.location\.origin \|\| isApiRequest\(url\)\) return/);
 });
 
 test('permissions UI uses theme tokens instead of a light-only surface', () => {
