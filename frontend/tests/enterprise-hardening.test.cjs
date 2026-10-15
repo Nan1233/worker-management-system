@@ -16,7 +16,7 @@ test('approved report editing requires an audit reason in the UI', () => {
 test('approved report delete API sends an explicit deletion reason', () => {
   const source = read('src/services/productionService.ts');
   assert.match(source, /deleteReport\s*=\s*async\s*/);
-  assert.match(source, /\{ data: \{ reason: String\(reason \|\| ""\)\.trim\(\) \} \}/);
+  assert.match(source, /data\s*:\s*\{\s*reason\s*:\s*String\(reason\s*\|\|\s*""\)\.trim\(\)\s*\}/);
 });
 
 test('frontend fallback build version matches the declared frontend release version', () => {
