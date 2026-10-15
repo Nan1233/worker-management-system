@@ -8,12 +8,12 @@ const { pathToFileURL } = require('node:url');
 const root = path.join(__dirname, '..');
 const moduleUrl = pathToFileURL(path.join(root, 'src/pages/worker/processReportSubmission.ts')).href;
 
-test('machine-line payload preserves worker actual/gross/deduction time for daily-hours accounting', async () => {
+async function makePayload(processCode) {
   const { buildProductionReportPayload } = await import(moduleUrl);
-  const payload = buildProductionReportPayload({
+  return buildProductionReportPayload({
     clientRequestId: 'test-request-001',
-    processId: 1,
-    processCode: 'GC',
+    processId: processCode === 'GC' ? 1 : 2,
+    processCode,
     form: {
       workDate: '2026-10-14',
       shift: 'A',
@@ -51,7 +51,7 @@ test('machine-line payload preserves worker actual/gross/deduction time for dail
     },
     extraData: {},
     operationType: 'CUT',
-    isCutLongProcess: true,
+    isCutLongProcess: processCode === 'GC',
     isCvkMode: false,
     usesAnyMachine: true,
     usesMultiMachineLines: true,
@@ -82,13 +82,25 @@ test('machine-line payload preserves worker actual/gross/deduction time for dail
     activeDeductionOptions: [{ key: 'matDien', id: 1, code: 'MAT_DIEN', label: 'Mất điện' }],
     excludeKqdFromTt: false,
   });
+}
 
+test('non-GC machine-line payload preserves worker actual/gross/deduction time for daily-hours accounting', async () => {
+  const payload = await makePayload('MAI');
   assert.equal(payload.actual_time, 8, 'worker actual time must remain on the parent report');
   assert.equal(payload.deduction_time, 1, 'deduction time must remain on the parent report');
   assert.equal(payload.total_time, 9, 'gross report time must remain actual plus deduction');
   assert.equal(payload.actual_output, 0, 'machine-line output must not be double-counted on the parent');
   assert.equal(payload.tt_ok, 0, 'machine-line OK must not be double-counted on the parent');
   assert.equal(payload.tt_ng, 0, 'machine-line NG must not be double-counted on the parent');
+  assert.equal(payload.machine_lines[0].actual_time_hours, 8);
+  assert.equal(payload.machine_lines[0].machine_time_hours, 9);
+});
+
+test('GC machine-line payload preserves its established per-machine-only time contract', async () => {
+  const payload = await makePayload('GC');
+  assert.equal(payload.actual_time, 0);
+  assert.equal(payload.deduction_time, 0);
+  assert.equal(payload.total_time, 0);
   assert.equal(payload.machine_lines[0].actual_time_hours, 8);
   assert.equal(payload.machine_lines[0].machine_time_hours, 9);
 });
