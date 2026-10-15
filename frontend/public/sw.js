@@ -19,14 +19,25 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+function isApiRequest(url) {
+  const pathname = url.pathname.replace(/\\/+$/, "");
+  return pathname === "/api" || pathname.startsWith("/api/");
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
 
+  const url = new URL(request.url);
+  // API responses can contain worker-specific and management-only data. Never
+  // put them in Cache Storage or substitute offline.html for an API response.
+  // Cross-origin requests are also left to the browser's normal fetch path.
+  if (url.origin !== self.location.origin || isApiRequest(url)) return;
+
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response && response.ok && new URL(request.url).origin === self.location.origin) {
+        if (response && response.ok) {
           const clone = response.clone();
           caches.open(APP_CACHE).then((cache) => cache.put(request, clone)).catch(() => undefined);
         }
