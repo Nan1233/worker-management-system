@@ -17,7 +17,7 @@ test('F07 FE 02 approved update request sends expected_updated_at from immutable
   const page = read('src/pages/worker/WorkerReportEditV2.tsx');
   const service = read('src/services/productionService.ts');
   assert.match(page, /updateReport\([^,]+,\s*payload(?: as ProductionReport)?,\s*source,\s*originalUpdatedAtRef\.current\)/);
-  assert.match(service, /expected_updated_at: expectedUpdatedAt \|\| undefined/);
+  assert.match(service, /expected_updated_at\s*:\s*expectedUpdatedAt\s*\|\|\s*undefined/);
   assert.doesNotMatch(service, /expected_updated_at:\s*new Date/);
 });
 
