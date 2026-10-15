@@ -203,17 +203,26 @@ async function performNetworkRefresh(): Promise<CoordinatedRefreshSuccess> {
     const epochAtStart = getAuthEpoch();
     const sessionIdAtStart = getAuthSessionId();
 
-    refreshAbortController = new AbortController();
-    const response = await axios.post<RefreshResponse>(
-        `${API_BASE_URL}/auth/refresh`,
-        refreshToken ? { refreshToken } : {},
-        {
-            timeout: REFRESH_REQUEST_TIMEOUT_MS,
-            withCredentials: true,
-            headers: { "Content-Type": "application/json" },
-            signal: refreshAbortController.signal
+    const requestController = new AbortController();
+    refreshAbortController = requestController;
+    let response: Awaited<ReturnType<typeof axios.post<RefreshResponse>>>;
+    try {
+        response = await axios.post<RefreshResponse>(
+            `${API_BASE_URL}/auth/refresh`,
+            refreshToken ? { refreshToken } : {},
+            {
+                timeout: REFRESH_REQUEST_TIMEOUT_MS,
+                withCredentials: true,
+                headers: { "Content-Type": "application/json" },
+                signal: requestController.signal
+            }
+        );
+    } finally {
+        // A superseded refresh must not clear the controller for a newer one.
+        if (refreshAbortController === requestController) {
+            refreshAbortController = null;
         }
-    );
+    }
 
     const newAccessToken = response.data.accessToken || response.data.token;
     if (!newAccessToken) throw new Error("Backend không trả về access token mới");
@@ -304,17 +313,19 @@ export async function refreshAccessToken(
                 transientRefreshBlockedUntil = Date.now() + TRANSIENT_REFRESH_COOLDOWN_MS;
             }
             throw error;
-        } finally {
-            refreshAbortController = null;
         }
     };
 
-    refreshPromise = coordinatedRefresh()
-        .finally(() => {
+    const pendingRefresh = coordinatedRefresh().finally(() => {
+        // beginLoginTransition may detach this promise and a later account may
+        // start another refresh before this older promise settles.
+        if (refreshPromise === pendingRefresh) {
             refreshPromise = null;
-        });
+        }
+    });
+    refreshPromise = pendingRefresh;
 
-    return refreshPromise;
+    return pendingRefresh;
 }
 
 export function isAuthRefreshInProgress(): boolean {

@@ -105,3 +105,20 @@ test('late refresh authentication failure cannot clear a newer account session',
   assert.match(refreshBlock, /generationAtStart !== authGeneration[\s\S]*?epochAtStart !== getAuthEpoch\(\)[\s\S]*?loginTransitionActive/);
   assert.match(refreshBlock, /throw new axios\.CanceledError\("Kết quả refresh thuộc phiên đăng nhập cũ đã bị bỏ qua\."\)/);
 });
+
+test('stale refresh cleanup cannot detach a newer refresh promise or controller', () => {
+  const api = read('src/services/api.ts');
+  const networkRefresh = api.slice(
+    api.indexOf('async function performNetworkRefresh'),
+    api.indexOf('export async function refreshAccessToken')
+  );
+  const refreshBlock = api.slice(
+    api.indexOf('export async function refreshAccessToken'),
+    api.indexOf('export function isAuthRefreshInProgress')
+  );
+
+  assert.match(networkRefresh, /const requestController = new AbortController\(\)/);
+  assert.match(networkRefresh, /if \(refreshAbortController === requestController\)\s*\{\s*refreshAbortController = null/);
+  assert.match(refreshBlock, /const pendingRefresh = coordinatedRefresh\(\)\.finally\(\(\) => \{[\s\S]*?if \(refreshPromise === pendingRefresh\)\s*\{\s*refreshPromise = null/);
+  assert.doesNotMatch(refreshBlock, /finally \{\s*refreshAbortController = null/);
+});
