@@ -88,6 +88,17 @@ async function createTempDetails({
         values.flat());
 }
 
+async function lockDuplicateKey(key, executor) {
+    if (!key) return;
+    await query(executor,
+        `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
+         VALUES (?, NOW()) ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
+        [key]);
+    await query(executor,
+        "SELECT logical_key FROM production_report_duplicate_locks WHERE logical_key = ? FOR UPDATE",
+        [key]);
+}
+
 module.exports = {
     async create(data, executor = db) {
         await enforceDailyHoursLocked(executor, data);
@@ -233,43 +244,14 @@ module.exports = {
         const worker = Number(workerId);
         const requestId = String(clientRequestId || "").trim();
         if (!Number.isInteger(worker) || worker <= 0 || !requestId) return;
-
-        const logicalLockKey = crypto
-            .createHash("sha256")
+        const key = crypto.createHash("sha256")
             .update(`client-request:${worker}:${requestId}`, "utf8")
             .digest("hex");
-
-        await query(
-            executor,
-            `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
-             VALUES (?, NOW())
-             ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
-            [logicalLockKey]
-        );
-        await query(
-            executor,
-            `SELECT logical_key
-             FROM production_report_duplicate_locks
-             WHERE logical_key = ?
-             FOR UPDATE`,
-            [logicalLockKey]
-        );
+        return lockDuplicateKey(key, executor);
     },
 
     async lockLogicalDuplicateKey(logicalDuplicateKey, executor = db) {
-        if (!logicalDuplicateKey) return;
-        await query(
-            executor,
-            `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
-             VALUES (?, NOW())
-             ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
-            [logicalDuplicateKey]
-        );
-        await query(
-            executor,
-            `SELECT logical_key FROM production_report_duplicate_locks WHERE logical_key = ? FOR UPDATE`,
-            [logicalDuplicateKey]
-        );
+        return lockDuplicateKey(logicalDuplicateKey, executor);
     },
 
 
