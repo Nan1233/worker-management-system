@@ -122,3 +122,12 @@ test('Cloudflare test Worker configuration redacts query strings from observabil
   const config = read('wrangler.jsonc');
   assert.match(config, /"observability"\s*:\s*\{[^}]*"redact_query_string"\s*:\s*true/);
 });
+
+
+test('approved report edits require an explicit audit reason at the API boundary', () => {
+  const routes = read('routes/productionRoutes.js');
+  assert.match(routes, /const ensureApprovedEditReason=\(req,res,next\)=>\{/);
+  assert.match(routes, /if\(!reason\)return res\.status\(422\)\.json\(\{success:false,code:"CHANGE_REASON_REQUIRED"/);
+  assert.match(routes, /permission\("REPORT_APPROVED_EDIT"\),ensureApprovedEditReason,approvedReportEditLock/);
+  assert.doesNotMatch(routes, /req\.body\.reason=String\(req\.body\.reason\|\|req\.body\.change_reason\|\|"Cập nhật báo cáo đã duyệt"\)/);
+});
