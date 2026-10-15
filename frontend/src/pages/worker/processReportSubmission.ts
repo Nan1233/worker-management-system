@@ -119,18 +119,18 @@ export function buildProductionReportPayload(args: {
   }
 
   if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
-    const singleLineDefects = lines[0]?.defects?.length ? lines[0].defects.map((item) => ({
+    const selectedMachineLine = lines.find((line) =>
+      String(line.machine_code || "").trim().toUpperCase() === args.form.machineNo.trim().toUpperCase()
+    );
+    // Defect detail must come from the same selected machine as its OK/NG totals.
+    // Never borrow defects from lines[0], which may be a stale/different machine.
+    const singleLineDefects = selectedMachineLine?.defects?.length ? selectedMachineLine.defects.map((item) => ({
       defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     })) : defects.map((item) => ({
       defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     }));
     const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions);
-    // For machine reports, the per-machine fields are the source of truth. The
-    // parent form totals may lag behind the machine-line state (or be stale),
-    // so do not overwrite a valid line quantity with form.ttOk/form.ttNg.
-    const selectedMachineLine = lines.find((line) =>
-      String(line.machine_code || "").trim().toUpperCase() === args.form.machineNo.trim().toUpperCase()
-    );
+    // For machine reports, the selected machine line is the source of truth.
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, actual_time_hours:parseHours(args.form.actualTime), machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
       adjustment_count:num(args.form.adjustmentCount), deduction_time_hours:0, deductions:[],
@@ -149,7 +149,10 @@ export function buildProductionReportPayload(args: {
   // still need worker-level actual_time for the daily-hours cap.
   const isGcMachineLineAccounting = isMachineLineAccounting
     && String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase() === "GC";
-  if (isMachineLineAccounting && lines.length && deductions.length) {
+  // A parent-level deduction is only safely transferable when this is a
+  // single-machine report. For multi-machine reports, assigning all parent
+  // deductions to lines[0] silently misattributes time to the first machine.
+  if (args.usesSingleMachine && !args.usesMultiMachineLines && isMachineLineAccounting && lines.length && deductions.length) {
     const hasLineDeductions = lines.some((line) => Array.isArray(line.deductions) && line.deductions.length);
     if (!hasLineDeductions) {
       const machineDeductionHours = deductions.reduce((sum, item) => sum + num(item.hours), 0);
@@ -165,7 +168,15 @@ export function buildProductionReportPayload(args: {
     }
   }
   const actualOutput=noStandardLongWork ? 0 : num(args.form.actualOutput);
-  const actualTime=parseHours(args.form.actualTime), deductionTime=parseHours(args.form.deductionTime), totalTime=parseHours(args.form.totalTime);
+  // Multi-machine forms do not expose a separate worker-time field. Use the
+  // longest machine run as the worker's elapsed shift time (parallel machines
+  // must not be added together). GC retains its dedicated machine-line-only
+  // parent-time contract below.
+  const machineElapsedHours = lines.reduce((max, line) => Math.max(max, num((line as { actual_time_hours?: number }).actual_time_hours)), 0);
+  const derivedWorkerActualTime = args.usesMultiMachineLines && !(
+    String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase() === "GC"
+  ) ? machineElapsedHours : parseHours(args.form.actualTime);
+  const actualTime=derivedWorkerActualTime, deductionTime=args.usesMultiMachineLines ? 0 : parseHours(args.form.deductionTime), totalTime=args.usesMultiMachineLines ? derivedWorkerActualTime : parseHours(args.form.totalTime);
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT" ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO") : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE") ? args.form.executionMethod : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
