@@ -85,9 +85,12 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
             WHERE pr.worker_id=? AND pr.work_date=? AND pr.status IN ('pending','need_fix')
         ) daily_hours`, [workerId, workDate, workerId, workDate]);
     const existing = Number(rows?.[0]?.counted_hours || 0);
-    if (existing + incoming > DAILY_HOURS_LIMIT + 0.000001) {
+    const projected = existing + incoming;
+    if (projected > DAILY_HOURS_LIMIT + 0.000001) {
         const error = new Error(`Tổng giờ làm trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ.`);
-        error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true; throw error;
+        error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
+        error.details = { worker_id: workerId, work_date: workDate, existing_hours: Number(existing.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projected.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, counted_field: "actual_time_or_gc_machine_line_actual_time" };
+        throw error;
     }
     return { existingHours: existing, incomingActualHours: incoming, projectedHours: existing + incoming, limitHours: DAILY_HOURS_LIMIT };
 };
