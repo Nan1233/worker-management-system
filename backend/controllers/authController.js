@@ -180,18 +180,27 @@ function generateAccessToken(user) {
 }
 
 async function issueLoginSession(req, res, user) {
+    const bodyPreviousRefreshToken = shouldReturnRefreshToken(req) &&
+        typeof req.body?.previous_refresh_token === "string"
+        ? req.body.previous_refresh_token.trim()
+        : "";
     const previousRefreshToken =
-        (typeof req.body?.previous_refresh_token === "string"
-            ? req.body.previous_refresh_token.trim()
-            : "") || parseCookie(req, REFRESH_COOKIE_NAME);
+        bodyPreviousRefreshToken || parseCookie(req, REFRESH_COOKIE_NAME);
 
     // Khi đổi tài khoản, thu hồi phiên cũ trước khi tạo phiên mới. Điều này
     // ngăn tab/PWA cũ dùng refresh token trước đó để ghi đè tài khoản vừa đăng nhập.
     if (previousRefreshToken) {
         try {
+            // A missing/expired token is an allowed no-op (service returns found:false).
+            // Infrastructure failures must stop login before creating a new family.
             await refreshSessionService.revokeFamilyByRefreshToken(previousRefreshToken);
-        } catch (revokeError) {
-            console.warn("Không thể thu hồi phiên trước khi đổi tài khoản:", revokeError?.message || revokeError);
+        } catch {
+            console.error("AUTH_PREVIOUS_SESSION_REVOCATION_FAILED");
+            return res.status(503).json({
+                success: false,
+                code: "AUTH_PREVIOUS_SESSION_REVOCATION_FAILED",
+                message: "Không thể hoàn tất đăng nhập an toàn. Vui lòng thử lại."
+            });
         }
     }
 
