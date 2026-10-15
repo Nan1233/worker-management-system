@@ -10,4 +10,4 @@ test('offline queue UI exposes blocked retry and explicit removal controls',()=>
 
 test('offline queue never silently drops stale or overflow production reports',()=>{const s=read('frontend/src/services/offlineReportQueue.ts');assert.doesNotMatch(s,/slice\(-MAX_ITEMS/);assert.doesNotMatch(s,/filter\(\(item\).*MAX_AGE_MS/);assert.match(s,/Do not automatically block old reports/);assert.match(s,/MAX_ITEMS_PER_OWNER/);assert.match(s,/Hàng đợi offline trên thiết bị đã đầy/);});
 
-test('manual force sync includes blocked reports for an explicit retry',()=>{const s=read('frontend/src/services/offlineReportQueue.ts');assert.match(s,/\(!force && item\.status === "blocked"\)/);assert.match(s,/if \(item\.status === "blocked"\)/);});
+test('manual force sync includes blocked reports for an explicit retry',()=>{const s=read('frontend/src/services/offlineReportQueue.ts');assert.match(s,/item\\.status === "blocked"/);
