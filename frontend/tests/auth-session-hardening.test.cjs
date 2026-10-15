@@ -38,6 +38,21 @@ test('passive cross-tab redirect does not bump auth epoch back and log out the n
   assert.match(login, /if \(passiveCrossTabRedirect\)[\s\S]*?clearCurrentTabAuthSession\(\)[\s\S]*?else[\s\S]*?beginLoginTransition\(\)/);
 });
 
+test('hosted HTTPS Electron refresh uses cookie credentials and does not require or persist a JSON refresh token', () => {
+  const api = read('src/services/api.ts');
+  const storage = read('src/utils/authStorage.ts');
+  const refreshBlock = api.slice(
+    api.indexOf('async function performNetworkRefresh()'),
+    api.indexOf('export async function refreshAccessToken')
+  );
+
+  assert.match(refreshBlock, /refreshToken \\? \\{ refreshToken \\} : \\{ \\}/);
+  assert.match(refreshBlock, /withCredentials: true/);
+  assert.match(refreshBlock, /if \\(supportsElectronRefreshTokenBody\\(\\)\\) \\{[\\s\\S]*?ELECTRON_REFRESH_TOKEN_SUCCESSOR_MISSING/);
+  assert.match(storage, /export function supportsElectronRefreshTokenBody\\(\\): boolean \\{[\\s\\S]*?origin === "null" \\|\\| origin\\.startsWith\\("file:"\\)/);
+  assert.match(storage, /export function setRefreshToken\\(token: string\\): void \\{[\\s\\S]*?localStorage\\.removeItem\\(REFRESH_TOKEN_KEY\\);[\\s\\S]*?sessionStorage\\.removeItem\\(REFRESH_TOKEN_KEY\\);/);
+});
+
 test('login still isolates the new request from previous account tokens', () => {
   const authService = read('src/services/authService.ts');
   assert.match(authService, /const previousRefreshToken = getPreviousRefreshTokenForLogin\(\)/);
