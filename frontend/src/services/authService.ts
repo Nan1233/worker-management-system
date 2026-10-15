@@ -55,9 +55,9 @@ async function postLoginRequest(
         username: username.trim(),
         access_type: accessType,
         password,
-        previous_refresh_token: supportsElectronRefreshTokenBody()
-            ? previousRefreshToken || undefined
-            : undefined
+        ...(supportsElectronRefreshTokenBody() && previousRefreshToken
+            ? { previous_refresh_token: previousRefreshToken }
+            : {})
     };
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
