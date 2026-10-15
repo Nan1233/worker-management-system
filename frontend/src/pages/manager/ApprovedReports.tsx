@@ -84,22 +84,23 @@ export default function ApprovedReports() {
 
     const load = useCallback(async () => {
         const requestSeq = ++reportLoadSeqRef.current;
+        const isCurrentRequest = () => reportLoadSeqRef.current === requestSeq;
         try {
             setLoading(true); setError("");
             const r = range || { dateFrom: date, dateTo: date };
             const filters = { dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined };
             const result = await getApprovedReports({ ...filters, page, pageSize: 8 });
-            if (requestSeq !== reportLoadSeqRef.current) return;
+            if (!isCurrentRequest()) return;
             setReports(result.data || []); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
             const ranges = (["day", "week", "month", "year"] as const).map(type => ({ type, ...rangeFor(date, type) }));
             const values = await Promise.all(ranges.map(x => getApprovedReports({ dateFrom: x.dateFrom, dateTo: x.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page: 1, pageSize: 1 })));
-            if (requestSeq !== reportLoadSeqRef.current) return;
+            if (!isCurrentRequest()) return;
             setCounts({ day: values[0].pagination?.total || 0, week: values[1].pagination?.total || 0, month: values[2].pagination?.total || 0, year: values[3].pagination?.total || 0 });
         } catch (e: unknown) {
-            if (requestSeq !== reportLoadSeqRef.current) return;
+            if (!isCurrentRequest()) return;
             setError(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể tải báo cáo đã duyệt" : "Không thể tải báo cáo đã duyệt");
             setReports([]); setTotal(0); setPages(1);
-        } finally { if (requestSeq === reportLoadSeqRef.current) setLoading(false); }
+        } finally { if (isCurrentRequest()) setLoading(false); }
     }, [date, range, process, shift, searchQuery, page]);
 
     useEffect(() => {

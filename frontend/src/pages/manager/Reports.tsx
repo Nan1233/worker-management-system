@@ -98,16 +98,17 @@ export default function Reports() {
 
     const load = useCallback(async () => {
         const requestSeq = ++reportLoadSeqRef.current;
+        const isCurrentRequest = () => reportLoadSeqRef.current === requestSeq;
         try {
             setLoading(true); setError("");
             const r = range || { dateFrom: date, dateTo: date };
             const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page, pageSize: 8 });
-            if (requestSeq !== reportLoadSeqRef.current) return;
+            if (!isCurrentRequest()) return;
             setReports(result.data || []); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
         } catch (e: any) {
-            if (requestSeq !== reportLoadSeqRef.current) return;
+            if (!isCurrentRequest()) return;
             setError(e?.response?.data?.message || "Không thể tải báo cáo chờ duyệt"); setReports([]); setTotal(0); setPages(1);
-        } finally { if (requestSeq === reportLoadSeqRef.current) setLoading(false); }
+        } finally { if (isCurrentRequest()) setLoading(false); }
     }, [date, range, process, shift, searchQuery, page]);
 
     useEffect(() => {
