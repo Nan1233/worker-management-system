@@ -201,7 +201,7 @@ test('cross-tab invalidated renderer blocks stale protected requests until a fre
   const api = read('src/services/api.ts');
   assert.match(api, /let crossTabAuthInvalidated = false/);
   assert.match(api, /crossTabAuthInvalidated && !requestUrl\.includes\("\/auth\/login"\)/);
-  assert.match(api, /authGeneration = getAuthEpoch\(\);\s*crossTabAuthInvalidated = true;/);
+  assert.match(api, /authGeneration = getAuthEpoch\(\);\s*crossTabObservedEpoch = authGeneration;\s*crossTabAuthInvalidated = true;/);
   assert.match(api, /loginTransitionActive = true;\s*crossTabAuthInvalidated = false;/);
 });
 
