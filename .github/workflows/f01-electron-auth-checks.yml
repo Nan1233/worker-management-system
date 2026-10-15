@@ -50,4 +50,4 @@ jobs:
       - name: TypeScript typecheck
         run: npm run typecheck
       - name: Auth session hardening contract
-        run: node --test tests/auth-session-hardening.test.cjs
+        run: node --test tests/auth-session-hardening.test.cjs tests/auth-runtime-races.test.cjs

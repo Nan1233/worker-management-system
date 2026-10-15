@@ -442,9 +442,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => {
         const requestConfig = response.config as RetryableRequestConfig;
+        const responseEpoch = getAuthEpoch();
         if (
             requestConfig._authGeneration !== undefined &&
-            requestConfig._authGeneration !== authGeneration
+            (
+                requestConfig._authGeneration !== authGeneration ||
+                requestConfig._authGeneration !== responseEpoch
+            )
         ) {
             return Promise.reject(staleSessionError());
         }
@@ -460,9 +464,13 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
+        const responseEpoch = getAuthEpoch();
         if (
             originalRequest._authGeneration !== undefined &&
-            originalRequest._authGeneration !== authGeneration
+            (
+                originalRequest._authGeneration !== authGeneration ||
+                originalRequest._authGeneration !== responseEpoch
+            )
         ) {
             return Promise.reject(staleSessionError());
         }
