@@ -51,63 +51,41 @@ const enforceDailyHoursLocked = async (executor, data) => {
 
 async function createTempDetails({
     tempReportId, processId, items, executor, typeIdField, nameField,
-    valueField, masterTable, detailTable, idColumn, nameColumn,
-    valueColumn, truncateValue = false
+    valueField, masterTable, detailTable, idColumn, nameColumn, valueColumn,
+    truncateValue = false
 }) {
-    if (!Array.isArray(items) || items.length === 0) return;
+    if (!Array.isArray(items) || !items.length) return;
+    const valid = items.map((item) => ({
+        id: Number(item[typeIdField]) || null,
+        name: String(item[nameField] || "").trim(),
+        value: Number(item[valueField]) || 0
+    })).filter((item) => item.value > 0);
+    if (!valid.length) return;
 
-    const validItems = items
-        .map((item) => ({
-            typeId: Number(item[typeIdField]) || null,
-            name: String(item[nameField] || "").trim(),
-            value: Number(item[valueField]) || 0
-        }))
-        .filter((item) => item.value > 0);
-    if (!validItems.length) return;
-
-    const unresolvedNames = [
-        ...new Set(
-            validItems
-                .filter((item) => !item.typeId && item.name)
-                .map((item) => item.name)
-        )
-    ];
+    const names = [...new Set(valid.filter((item) => !item.id && item.name).map((item) => item.name))];
     const nameToId = new Map();
-
-    if (unresolvedNames.length) {
-        const placeholders = unresolvedNames.map(() => "?").join(",");
-        const rows = await query(
-            executor,
-            `SELECT id, ${nameColumn}
-             FROM ${masterTable}
-             WHERE process_id = ?
-               AND status = 'active'
-               AND ${nameColumn} IN (${placeholders})`,
-            [processId, ...unresolvedNames]
-        );
+    if (names.length) {
+        const placeholders = names.map(() => "?").join(",");
+        const rows = await query(executor,
+            `SELECT id, ${nameColumn} FROM ${masterTable}
+             WHERE process_id = ? AND status = 'active' AND ${nameColumn} IN (${placeholders})`,
+            [processId, ...names]);
         rows.forEach((row) => nameToId.set(String(row[nameColumn]), Number(row.id)));
     }
 
     const totals = new Map();
-    for (const item of validItems) {
-        const id = item.typeId || nameToId.get(item.name) || null;
-        if (!id) continue;
-        totals.set(id, (totals.get(id) || 0) + item.value);
+    for (const item of valid) {
+        const id = item.id || nameToId.get(item.name);
+        if (id) totals.set(id, (totals.get(id) || 0) + item.value);
     }
-
-    const values = [...totals.entries()]
-        .filter(([, value]) => value > 0)
+    const values = [...totals].filter(([, value]) => value > 0)
         .map(([id, value]) => [tempReportId, id, truncateValue ? Math.trunc(value) : value]);
     if (!values.length) return;
 
     const placeholders = values.map(() => "(?, ?, ?)").join(",");
-    await query(
-        executor,
-        `INSERT INTO ${detailTable}
-         (temp_report_id, ${idColumn}, ${valueColumn})
-         VALUES ${placeholders}`,
-        values.flat()
-    );
+    await query(executor,
+        `INSERT INTO ${detailTable} (temp_report_id, ${idColumn}, ${valueColumn}) VALUES ${placeholders}`,
+        values.flat());
 }
 
 module.exports = {
@@ -329,20 +307,19 @@ module.exports = {
     async createDefects(tempReportId, processId, defects, executor = db) {
         return createTempDetails({
             tempReportId, processId, items: defects, executor,
-            typeIdField: "defect_type_id", nameField: "defect_name",
-            valueField: "quantity", masterTable: "defect_types",
-            detailTable: "production_temp_defects", idColumn: "defect_type_id",
-            nameColumn: "defect_name", valueColumn: "quantity", truncateValue: true
+            typeIdField: "defect_type_id", nameField: "defect_name", valueField: "quantity",
+            masterTable: "defect_types", detailTable: "production_temp_defects",
+            idColumn: "defect_type_id", nameColumn: "defect_name", valueColumn: "quantity",
+            truncateValue: true
         });
     },
 
     async createDeductions(tempReportId, processId, deductions, executor = db) {
         return createTempDetails({
             tempReportId, processId, items: deductions, executor,
-            typeIdField: "deduction_type_id", nameField: "deduction_name",
-            valueField: "hours", masterTable: "deduction_types",
-            detailTable: "production_temp_deductions", idColumn: "deduction_type_id",
-            nameColumn: "deduction_name", valueColumn: "hours"
+            typeIdField: "deduction_type_id", nameField: "deduction_name", valueField: "hours",
+            masterTable: "deduction_types", detailTable: "production_temp_deductions",
+            idColumn: "deduction_type_id", nameColumn: "deduction_name", valueColumn: "hours"
         });
     },
 
