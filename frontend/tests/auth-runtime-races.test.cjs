@@ -442,3 +442,23 @@ test('runtime: persisted web identity and session restore after auth module relo
     assert.equal(reloadedInstance.hasRefreshSessionHint(), true);
   } finally { h.dispose(); }
 });
+
+
+test('runtime: concurrent refresh calls in one session share one network rotation', async () => {
+  const h = makeHarness();
+  try {
+    h.installSession(userA, 'A-access', 'session-A');
+    const networkRefresh = h.queueAxiosPost();
+    const first = h.apiModule.refreshAccessToken(true);
+    const second = h.apiModule.refreshAccessToken(true);
+    assert.equal(h.axiosCalls.length, 1, 'same-session refreshes must share the in-flight network request');
+
+    networkRefresh.resolve({ data: { accessToken: 'A-refreshed', user: userA } });
+    const tokens = await Promise.all([first, second]);
+    assert.deepEqual(tokens, ['A-refreshed', 'A-refreshed']);
+    assert.equal(h.authStorage.getAccessToken(), 'A-refreshed');
+    assert.equal(h.authStorage.getStoredUser().id, userA.id);
+    assert.equal(h.authStorage.getAuthSessionId(), 'session-A');
+    assert.equal(h.apiModule.isAuthRefreshInProgress(), false);
+  } finally { h.dispose(); }
+});
