@@ -48,10 +48,14 @@ test('login still isolates the new request from previous account tokens', () => 
   assert.match(authService, /clearAuthSession\(\{ bumpEpoch: false \}\)/);
   assert.match(authService, /supportsElectronRefreshTokenBody\(\) && previousRefreshToken[\s\S]*?previous_refresh_token: previousRefreshToken/);
   assert.match(authService, /getAuthEpoch\(\) !== loginEpoch/);
+  assert.match(authService, /let loginInFlight: Promise<LoginResponse> \| null = null/);
+  assert.match(authService, /if \(loginInFlight\)[\s\S]*?new axios\.CanceledError/);
   const loginPage = read('src/pages/Login.tsx');
   const storage = read('src/utils/authStorage.ts');
   assert.match(storage, /export function supportsElectronRefreshTokenBody\(\)/);
   assert.match(storage, /origin === "null" \|\| origin\.startsWith\("file:"\)/);
+  assert.match(loginPage, /loginInFlightRef = useRef\(false\)/);
+  assert.match(loginPage, /if \(axios\.isCancel\(err\)\) return/);
   assert.ok(
     loginPage.indexOf('preservePreviousRefreshTokenForLogin()') <
       loginPage.indexOf('clearAuthSession({ bumpEpoch: false })'),
