@@ -64,19 +64,27 @@ const recoverAfter1205 = async (data) => {
     throw error;
 };
 
-const enforceDailyWorkerHours = async (data, executor = db) => {
+const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
-    const incoming = Number(data?.actual_time) || 0;
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
-    const rows = await query(executor, `
-        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports
-        WHERE worker_id=? AND work_date=? AND status='approved'
-        UNION ALL
-        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports_temp
-        WHERE worker_id=? AND work_date=? AND status IN ('pending','need_fix')`,
-        [workerId, workDate, workerId, workDate]);
-    const existing = (rows || []).reduce((sum, row) => sum + Number(row?.counted_hours || 0), 0);
+    const processRows = await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
+    const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
+    const incoming = isGc && machineLines.length ? Math.max(...machineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0))) : (Number(data?.actual_time) || 0);
+    const rows = await query(executor, `SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
+            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
+                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
+                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
+            FROM production_reports pr JOIN processes p ON p.id=pr.process_id
+            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
+            UNION ALL
+            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
+                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
+                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
+            FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
+            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status IN ('pending','need_fix')
+        ) daily_hours`, [workerId, workDate, workerId, workDate]);
+    const existing = Number(rows?.[0]?.counted_hours || 0);
     if (existing + incoming > DAILY_HOURS_LIMIT + 0.000001) {
         const error = new Error(`Tổng giờ làm trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ.`);
         error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true; throw error;
@@ -232,7 +240,8 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         return nonProductWorkModel.createCompleteReport({ data, defects: defectsInput, deductions: deductionsInput, audit });
     }
 
-    await enforceDailyWorkerHours(data);
+    await enforceDailyWorkerHours(data, db, machineLines);
+    data._daily_hours_machine_lines = machineLines;
     return runSerialized(queueKey(data, machineLines), async () => {
         const existingBefore = await findExistingClientRequest(data);
         if (existingBefore) return idempotent(existingBefore);
