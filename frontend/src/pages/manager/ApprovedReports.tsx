@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import axios from "axios";
 import { getApprovedReports, getReportById } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
@@ -67,30 +67,46 @@ const parseMachineDefects = (detail: Record<string, unknown> | null) => {
 export default function ApprovedReports() {
     const [date, setDate] = useState(getToday());
     const [range, setRange] = useState<{ dateFrom: string; dateTo: string } | null>(() => rangeFor(getToday(), "month"));
-    const [search, setSearch] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
+    const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
     const [counts, setCounts] = useState({ day: 0, week: 0, month: 0, year: 0 });
     const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false);
 
+    const reportLoadSeqRef = useRef(0);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchQuery(searchKeyword.trim());
+        }, 250);
+        return () => clearTimeout(timer);
+    }, [searchKeyword]);
+
     const load = useCallback(async () => {
+        const requestSeq = ++reportLoadSeqRef.current;
         try {
             setLoading(true); setError("");
             const r = range || { dateFrom: date, dateTo: date };
-            const filters = { dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: search.trim() || undefined };
+            const filters = { dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined };
             const result = await getApprovedReports({ ...filters, page, pageSize: 8 });
+            if (requestSeq !== reportLoadSeqRef.current) return;
             setReports(result.data || []); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
             const ranges = (["day", "week", "month", "year"] as const).map(type => ({ type, ...rangeFor(date, type) }));
-            const values = await Promise.all(ranges.map(x => getApprovedReports({ dateFrom: x.dateFrom, dateTo: x.dateTo, processName: process || undefined, shift: shift || undefined, search: search.trim() || undefined, page: 1, pageSize: 1 })));
+            const values = await Promise.all(ranges.map(x => getApprovedReports({ dateFrom: x.dateFrom, dateTo: x.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page: 1, pageSize: 1 })));
+            if (requestSeq !== reportLoadSeqRef.current) return;
             setCounts({ day: values[0].pagination?.total || 0, week: values[1].pagination?.total || 0, month: values[2].pagination?.total || 0, year: values[3].pagination?.total || 0 });
         } catch (e: unknown) {
+            if (requestSeq !== reportLoadSeqRef.current) return;
             setError(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể tải báo cáo đã duyệt" : "Không thể tải báo cáo đã duyệt");
             setReports([]); setTotal(0); setPages(1);
-        } finally { setLoading(false); }
-    }, [date, range, process, shift, search, page]);
+        } finally { if (requestSeq === reportLoadSeqRef.current) setLoading(false); }
+    }, [date, range, process, shift, searchQuery, page]);
 
-    useEffect(() => { void load(); }, [load]);
-    useEffect(() => { setPage(1); setDetail(null); }, [date, range, process, shift, search]);
+    useEffect(() => {
+        void load();
+        return () => { reportLoadSeqRef.current += 1; };
+    }, [load]);
+    useEffect(() => { setPage(1); setDetail(null); }, [date, range, process, shift, searchQuery]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
     const shifts = useMemo(() => Array.from(new Set(reports.map(r => r.shift).filter(Boolean))).sort(), [reports]);
@@ -113,7 +129,7 @@ export default function ApprovedReports() {
         <div className="pending-reference-page">
             <div className="pending-page-title"><h1 style={{ margin: 0, color: "#12385f", fontSize: 26, fontWeight: 800 }}>Báo cáo đã duyệt</h1><div style={{ marginTop: 5, color: "#6f89a8", fontSize: 13 }}>Xem lại các báo cáo sản xuất đã được duyệt.</div></div>
             <div className="pending-filter-card" style={{ display: "grid", gap: 10, alignItems: "end", padding: 14, border: "1px solid #dbe6f2", borderRadius: 12, background: "#fff", boxShadow: "0 4px 14px rgba(35,76,125,.045)" }}>
-                <label className="pending-search"><span>Tìm kiếm</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
+                <label className="pending-search"><span>Tìm kiếm</span><input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
                 <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setRange(null); }} /></label>
                 <div className="pending-quick-filters">{(["Hôm nay", "Tuần này", "Tháng này", "Năm này"] as const).map(label => { const type = label === "Hôm nay" ? "day" : label === "Tuần này" ? "week" : label === "Tháng này" ? "month" : "year"; const active = type === "day" ? !range : Boolean(range && range.dateFrom === rangeFor(date, type).dateFrom && range.dateTo === rangeFor(date, type).dateTo); return <button key={label} type="button" className={active ? "active" : ""} onClick={() => quick(type)}>{label}</button>; })}</div>
                 <label><span>Công đoạn</span><select value={process} onChange={e => setProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p} value={p}>{p}</option>)}</select></label>

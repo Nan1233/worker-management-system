@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
@@ -80,26 +80,41 @@ const metricStyle = (type: "productivity" | "pp", value: number, ngTypeCount = 0
 export default function Reports() {
     const [date, setDate] = useState(getToday());
     const [range, setRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
-    const [search, setSearch] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
+    const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
     const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false);
     const [rejectReason, setRejectReason] = useState(""); const [rejectNote, setRejectNote] = useState(""); const [rejecting, setRejecting] = useState(false); const [rejectDialogOpen, setRejectDialogOpen] = useState(false); const [rejectTargetIds, setRejectTargetIds] = useState<number[]>([]);
 
+    const reportLoadSeqRef = useRef(0);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchQuery(searchKeyword.trim());
+        }, 250);
+        return () => clearTimeout(timer);
+    }, [searchKeyword]);
+
     const load = useCallback(async () => {
+        const requestSeq = ++reportLoadSeqRef.current;
         try {
             setLoading(true); setError("");
             const r = range || { dateFrom: date, dateTo: date };
-            const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: search.trim() || undefined, page, pageSize: 8 });
+            const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page, pageSize: 8 });
+            if (requestSeq !== reportLoadSeqRef.current) return;
             setReports(result.data || []); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
         } catch (e: any) {
+            if (requestSeq !== reportLoadSeqRef.current) return;
             setError(e?.response?.data?.message || "Không thể tải báo cáo chờ duyệt"); setReports([]); setTotal(0); setPages(1);
-        } finally { setLoading(false); }
-    }, [date, range, process, shift, search, page]);
+        } finally { if (requestSeq === reportLoadSeqRef.current) setLoading(false); }
+    }, [date, range, process, shift, searchQuery, page]);
 
-    useEffect(() => { void load(); }, [load]);
-    useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, search]);
+    useEffect(() => {
+        void load();
+        return () => { reportLoadSeqRef.current += 1; };
+    }, [load]);
+    useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, searchQuery]);
     useEffect(() => { setSelectedIds([]); }, [page]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
@@ -218,7 +233,7 @@ export default function Reports() {
             </div>
 
             <div className="pending-filter-card" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(140px, .9fr)", gridTemplateAreas: '"search date process shift" "quick quick quick quick"', gap: "10px 12px", alignItems: "end", padding: 14, border: "1px solid #dbe6f2", borderRadius: 12, background: "#fff", boxShadow: "0 4px 14px rgba(35,76,125,.045)" }}>
-                <label className="pending-search" style={{ gridArea: "search", display: "flex", flexDirection: "column", alignSelf: "end", gap: 4, minWidth: 0, position: "relative" }}><span style={{ position: "static", display: "block", width: "auto", height: "auto", border: 0, fontSize: 12, lineHeight: "16px", color: "#526b88", zIndex: "auto" }}>Tìm kiếm</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
+                <label className="pending-search" style={{ gridArea: "search", display: "flex", flexDirection: "column", alignSelf: "end", gap: 4, minWidth: 0, position: "relative" }}><span style={{ position: "static", display: "block", width: "auto", height: "auto", border: 0, fontSize: 12, lineHeight: "16px", color: "#526b88", zIndex: "auto" }}>Tìm kiếm</span><input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
                 <label className="pending-date-filter" style={{ gridArea: "date", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setRange(null); }} /></label>
                 <div className="pending-quick-filters" style={{ gridArea: "quick", minWidth: 0 }}>
                     {(["Hôm nay", "Tuần này", "Tháng này", "Năm này"] as const).map(label => {
