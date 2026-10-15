@@ -20,8 +20,10 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --no-audit --no-fund
-      - name: Syntax check
-        run: node --check server.js
+      - name: Backend source and migration inventory checks
+        run: npm run check && npm run db:migration-inventory
+      - name: Dependency security audit
+        run: npm audit --audit-level=high
       - name: RBAC / permission contract tests (no live DB required)
         run: >
           node --test
@@ -43,6 +45,10 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --no-audit --no-fund
+      - name: ESLint
+        run: npm run lint
+      - name: Dependency security audit
+        run: npm audit --audit-level=high
       - name: Typecheck
         run: npm run typecheck
       - name: Permissions UI contract test
