@@ -61,10 +61,10 @@ function clearRefreshCookie(res) {
 }
 
 function shouldReturnRefreshToken(req) {
-    // Electron keeps a body-token fallback because file:// renderer cookie behavior
-    // differs by platform. Chromium file:// requests may omit Origin or send the
-    // opaque value "null". HTTP(S) browser origins must keep refresh tokens
-    // HttpOnly-only. Browser JavaScript cannot set a forged User-Agent header.
+    // Compatibility discriminator only, NOT client authentication: arbitrary HTTP
+    // clients can spoof both User-Agent and Origin. Never use this predicate to
+    // bypass account/role/password checks. Electron retains a body-token fallback
+    // because file:// cookie behavior varies; HTTP(S) browser origins stay cookie-only.
     const userAgent = String(req.headers["user-agent"] || "");
     const origin = String(req.headers.origin || "").trim().toLowerCase();
     const isOpaqueNativeOrigin = !origin || origin === "null" || origin.startsWith("file:");
@@ -412,7 +412,10 @@ exports.login = async (req, res) => {
 
         return issueLoginSession(req, res, user);
     } catch (error) {
-        console.error("Lỗi đăng nhập:", error);
+        console.error("AUTH_LOGIN_ERROR", {
+            code: typeof error?.code === "string" ? error.code : "AUTH_LOGIN_FAILED",
+            name: typeof error?.name === "string" ? error.name : "Error"
+        });
 
         const databaseUnavailable = [
             "ECONNREFUSED",
@@ -539,7 +542,10 @@ exports.logout = async (req, res) => {
             message: "Đăng xuất thành công"
         });
     } catch (error) {
-        console.error("Lỗi đăng xuất:", error);
+        console.error("AUTH_LOGOUT_ERROR", {
+            code: typeof error?.code === "string" ? error.code : "AUTH_LOGOUT_FAILED",
+            name: typeof error?.name === "string" ? error.name : "Error"
+        });
 
         return res.status(500).json({
             success: false,
