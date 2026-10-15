@@ -7,6 +7,7 @@ import { getCurrentWorker } from "../../services/workerService";
 import { getMyTempReports } from "../../services/productionService";
 import type { WorkerProfile } from "../../types/worker";
 import type { ProductionReport } from "../../types/production";
+import { calculateWorkerHomeTodayStats } from "./workerHomeStats";
 import "./WorkerHome.css";
 
 const formatNumber = (value: unknown) => new Intl.NumberFormat("vi-VN").format(Number(value ?? 0));
@@ -100,18 +101,15 @@ export default function WorkerHome() {
 
   const todayReports = useMemo(() => reports
     .filter((report) => String(report.work_date || "").slice(0, 10) === todayKey)
-    .sort((a, b) => String(b.entry_date || b.work_date).localeCompare(String(a.entry_date || a.work_date)))
-    .slice(0, 4), [reports, todayKey]);
+    .sort((a, b) => String(b.entry_date || b.work_date).localeCompare(String(a.entry_date || a.work_date))), [reports, todayKey]);
 
-  const todayStats = useMemo(() => {
-    const ok = todayReports.reduce((sum, report) => sum + Number(report.tt_ok ?? 0), 0);
-    const ng = todayReports.reduce((sum, report) => sum + Number((report.defects || []).reduce((defectSum, defect) => defectSum + Number(defect.quantity ?? 0), 0)), 0);
-    const time = todayReports.reduce((sum, report) => sum + getReportActualHours(report), 0);
-    return { ok, ng, time, reportCount: todayReports.length };
-  }, [todayReports]);
+  const todayStats = useMemo(
+    () => calculateWorkerHomeTodayStats(todayReports, getReportActualHours),
+    [todayReports],
+  );
 
   const trainingPercent = Number(worker?.training_percent ?? 0);
-  const displayReports = todayReports.length ? todayReports : reports.slice(0, 4);
+  const displayReports = todayReports.length ? todayReports.slice(0, 4) : reports.slice(0, 4);
   const greetingName = worker?.full_name || "Công nhân";
 
   return (
