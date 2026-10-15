@@ -46,3 +46,10 @@ test('F07 FE 06 approved edit refuses save if loaded server token is unavailable
   assert.match(source, /source === "approved" && !originalUpdatedAtRef\.current/);
   assert.match(source, /thiếu thông tin phiên bản cập nhật/);
 });
+
+
+test('Admin Ops uses the management edit flow for approved reports', () => {
+  const source = read('src/pages/worker/WorkerReportEditV2.tsx');
+  assert.match(source, /managerRole = \["admin_ops", "manager", "lead", "admin"/);
+  assert.match(source, /storedRole === "admin_ops" \? "\/admin-ops"/);
+});
