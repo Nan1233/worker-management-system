@@ -3,13 +3,41 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+const fs = require('node:fs');
+const ts = require('typescript');
+const Module = require('node:module');
 
 const root = path.join(__dirname, '..');
-const moduleUrl = pathToFileURL(path.join(root, 'src/pages/worker/processReportSubmission.ts')).href;
+const submissionPath = path.join(root, 'src/pages/worker/processReportSubmission.ts');
+
+function loadSubmissionModule() {
+  const source = fs.readFileSync(submissionPath, 'utf8');
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText;
+  const compiledModule = new Module(submissionPath, module);
+  compiledModule.filename = submissionPath;
+  compiledModule.paths = Module._nodeModulePaths(path.dirname(submissionPath));
+  const originalLoad = Module._load;
+  Module._load = function (request, parent, isMain) {
+    if (parent?.filename === submissionPath && request === './productSuggestionRules') {
+      return {
+        getFullProductCode: (alias) => alias,
+        isNoStandardLongWork: () => false
+      };
+    }
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  try {
+    compiledModule._compile(compiled, submissionPath);
+  } finally {
+    Module._load = originalLoad;
+  }
+  return compiledModule.exports;
+}
 
 async function makePayload(processCode) {
-  const { buildProductionReportPayload } = await import(moduleUrl);
+  const { buildProductionReportPayload } = loadSubmissionModule();
   return buildProductionReportPayload({
     clientRequestId: 'test-request-001',
     processId: processCode === 'GC' ? 1 : 2,
@@ -63,8 +91,8 @@ async function makePayload(processCode) {
       minutes: '0',
       adjustmentMinutes: '0',
       adjustmentCount: '0',
-      deductions: { matDien: '0' },
-      selectedDeductions: [],
+      deductions: { matDien: '60' },
+      selectedDeductions: ['matDien'],
       okQuantity: '10',
       ngQuantity: '2',
       standardOutputPerHour: 100,
