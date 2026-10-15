@@ -8,4 +8,6 @@ test('offline sync warns when queued production data needs manual review',()=>{c
 
 test('offline queue UI exposes blocked retry and explicit removal controls',()=>{const q=read('src/services/offlineReportQueue.ts');const ui=read('src/components/system/OfflineReportSync.tsx');assert.match(q,/retryBlockedOfflineReport/);assert.match(q,/removeOfflineReport/);assert.match(ui,/Đồng bộ ngay/);assert.match(ui,/Cần kiểm tra/);assert.match(ui,/Xóa báo cáo đang chờ này/);});
 
-test('offline queue never silently drops stale or overflow production reports',()=>{const s=read('src/services/offlineReportQueue.ts');assert.doesNotMatch(s,/slice\(-MAX_ITEMS/);assert.doesNotMatch(s,/filter\(\(item\).*MAX_AGE_MS/);assert.match(s,/Báo cáo đã chờ đồng bộ quá 24 giờ/);assert.match(s,/MAX_ITEMS_PER_OWNER/);assert.match(s,/Hàng đợi offline trên thiết bị đã đầy/);});
+test('offline queue never silently drops stale or overflow production reports',()=>{const s=read('src/services/offlineReportQueue.ts');assert.doesNotMatch(s,/slice\(-MAX_ITEMS/);assert.doesNotMatch(s,/filter\(\(item\).*MAX_AGE_MS/);assert.match(s,/Do not automatically block old reports/);assert.match(s,/MAX_ITEMS_PER_OWNER/);assert.match(s,/Hàng đợi offline trên thiết bị đã đầy/);});
+
+test('manual force sync includes blocked reports for an explicit retry',()=>{const s=read('src/services/offlineReportQueue.ts');assert.match(s,/\(!force && item\.status === "blocked"\)/);assert.match(s,/if \(item\.status === "blocked"\)/);});
