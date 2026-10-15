@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [test]
   push:
-    branches: ['safe/admin-ops-**', 'ci/admin-ops-**']
+    branches: ['test', 'safe/admin-ops-**', 'ci/admin-ops-**']
   workflow_dispatch: {}
 
 jobs:
