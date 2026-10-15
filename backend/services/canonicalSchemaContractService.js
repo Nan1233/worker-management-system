@@ -91,7 +91,7 @@ function normalizeDefault(value) {
 
 function parseColumnDefinition(definition) {
   const text = definition.trim();
-  if (/^(PRIMARY|UNIQUE|KEY|CONSTRAINT|FULLTEXT|SPATIAL)\b/i.test(text)) return null;
+  if (/^(PRIMARY|UNIQUE|KEY|INDEX|CONSTRAINT|FULLTEXT|SPATIAL)\b/i.test(text)) return null;
   const match = /^`?([A-Za-z0-9_]+)`?\s+([A-Za-z]+(?:\s+UNSIGNED)?(?:\s*\([^)]*\))?)([\s\S]*)$/i.exec(text);
   if (!match) return null;
   const name = match[1].toLowerCase();
