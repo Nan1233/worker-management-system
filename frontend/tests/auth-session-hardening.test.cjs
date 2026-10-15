@@ -46,7 +46,7 @@ test('hosted HTTPS Electron refresh uses cookie credentials and does not require
     api.indexOf('export async function refreshAccessToken')
   );
 
-  assert.match(refreshBlock, /refreshToken \? \{ refreshToken \} : \{ \}/);
+  assert.match(refreshBlock, /refreshToken \? \{ refreshToken \} : \{\}/);
   assert.match(refreshBlock, /withCredentials: true/);
   assert.match(refreshBlock, /if \(supportsElectronRefreshTokenBody\(\)\) \{[\s\S]*?ELECTRON_REFRESH_TOKEN_SUCCESSOR_MISSING/);
   assert.match(storage, /export function supportsElectronRefreshTokenBody\(\): boolean \{[\s\S]*?origin === "null" \|\| origin\.startsWith\("file:"\)/);
