@@ -76,7 +76,7 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
                 THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
                 ELSE COALESCE(pr.actual_time,0) END AS counted_hours
             FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
+            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status='approved'
             UNION ALL
             SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
                 THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
