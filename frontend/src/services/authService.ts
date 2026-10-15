@@ -8,6 +8,10 @@ import {
     getAccessToken,
     getAuthEpoch,
     getRefreshToken,
+    getPreviousRefreshTokenForLogin,
+    preservePreviousRefreshTokenForLogin,
+    supportsElectronRefreshTokenBody,
+    clearPreviousRefreshTokenForLogin,
     getStoredUser,
     saveAuthSession
 } from "../utils/authStorage";
@@ -40,16 +44,20 @@ function wait(ms: number): Promise<void> {
 async function postLoginRequest(
     username: string,
     accessType: LoginAccessType,
-    password: string
+    password: string,
+    previousRefreshToken: string | null
 ): Promise<LoginResponse> {
     let lastError: unknown;
 
-    // Keep the login request deliberately minimal: this is the exact contract
-    // accepted by the test backend and avoids sending stale refresh-session data.
+    // Browser HTTP(S) clients keep refresh credentials in the HttpOnly cookie.
+    // Only Electron's opaque/file origin may send its native fallback token.
     const payload = {
         username: username.trim(),
         access_type: accessType,
-        password
+        password,
+        ...(supportsElectronRefreshTokenBody() && previousRefreshToken
+            ? { previous_refresh_token: previousRefreshToken }
+            : {})
     };
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -87,17 +95,21 @@ function assertCommittedLoginSession(userId: number): void {
     }
 }
 
-export const login = async (
+let loginInFlight: Promise<LoginResponse> | null = null;
+
+const performLogin = async (
     username: string,
     accessType: LoginAccessType,
     password = ""
 ): Promise<LoginResponse> => {
+    preservePreviousRefreshTokenForLogin();
+    const previousRefreshToken = getPreviousRefreshTokenForLogin();
     const loginEpoch = beginLoginTransition();
     clearAuthSession({ bumpEpoch: false });
     const loginSessionId = createAuthSessionId();
 
     try {
-        const data = await postLoginRequest(username, accessType, password);
+        const data = await postLoginRequest(username, accessType, password, previousRefreshToken);
 
         if (getAuthEpoch() !== loginEpoch) {
             throw new axios.CanceledError("Lần đăng nhập đã bị thay thế bởi một phiên mới hơn.");
@@ -120,6 +132,7 @@ export const login = async (
         });
 
         assertCommittedLoginSession(data.user.id);
+        clearPreviousRefreshTokenForLogin();
         window.dispatchEvent(new CustomEvent("ktc:auth-session-saved"));
         return data;
     } catch (error) {
@@ -132,6 +145,26 @@ export const login = async (
     }
 };
 
+/**
+ * Only one login request may mutate auth state in this renderer at a time.
+ * The UI disables repeat submissions too, but this guard protects other callers.
+ */
+export const login = (
+    username: string,
+    accessType: LoginAccessType,
+    password = ""
+): Promise<LoginResponse> => {
+    if (loginInFlight) {
+        return Promise.reject(new axios.CanceledError("Đang xử lý một yêu cầu đăng nhập khác."));
+    }
+
+    const attempt = performLogin(username, accessType, password);
+    loginInFlight = attempt;
+    return attempt.finally(() => {
+        if (loginInFlight === attempt) loginInFlight = null;
+    });
+};
+
 export const refreshSession = async (): Promise<RefreshResponse> => {
     const accessToken = await refreshAccessToken(true);
     return { success: true, message: "Phiên đã được làm mới", accessToken };
@@ -139,6 +172,7 @@ export const refreshSession = async (): Promise<RefreshResponse> => {
 
 export const logout = async (): Promise<void> => {
     const refreshToken = getRefreshToken();
+    clearPreviousRefreshTokenForLogin();
     clearAuthSession();
 
     try {
