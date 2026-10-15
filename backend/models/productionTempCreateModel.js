@@ -49,6 +49,67 @@ const enforceDailyHoursLocked = async (executor, data) => {
     }
 };
 
+async function createTempDetails({
+    tempReportId, processId, items, executor, typeIdField, nameField,
+    valueField, masterTable, detailTable, idColumn, nameColumn,
+    valueColumn, truncateValue = false
+}) {
+    if (!Array.isArray(items) || items.length === 0) return;
+
+    const validItems = items
+        .map((item) => ({
+            typeId: Number(item[typeIdField]) || null,
+            name: String(item[nameField] || "").trim(),
+            value: Number(item[valueField]) || 0
+        }))
+        .filter((item) => item.value > 0);
+    if (!validItems.length) return;
+
+    const unresolvedNames = [
+        ...new Set(
+            validItems
+                .filter((item) => !item.typeId && item.name)
+                .map((item) => item.name)
+        )
+    ];
+    const nameToId = new Map();
+
+    if (unresolvedNames.length) {
+        const placeholders = unresolvedNames.map(() => "?").join(",");
+        const rows = await query(
+            executor,
+            `SELECT id, ${nameColumn}
+             FROM ${masterTable}
+             WHERE process_id = ?
+               AND status = 'active'
+               AND ${nameColumn} IN (${placeholders})`,
+            [processId, ...unresolvedNames]
+        );
+        rows.forEach((row) => nameToId.set(String(row[nameColumn]), Number(row.id)));
+    }
+
+    const totals = new Map();
+    for (const item of validItems) {
+        const id = item.typeId || nameToId.get(item.name) || null;
+        if (!id) continue;
+        totals.set(id, (totals.get(id) || 0) + item.value);
+    }
+
+    const values = [...totals.entries()]
+        .filter(([, value]) => value > 0)
+        .map(([id, value]) => [tempReportId, id, truncateValue ? Math.trunc(value) : value]);
+    if (!values.length) return;
+
+    const placeholders = values.map(() => "(?, ?, ?)").join(",");
+    await query(
+        executor,
+        `INSERT INTO ${detailTable}
+         (temp_report_id, ${idColumn}, ${valueColumn})
+         VALUES ${placeholders}`,
+        values.flat()
+    );
+}
+
 module.exports = {
     async create(data, executor = db) {
         await enforceDailyHoursLocked(executor, data);
@@ -266,119 +327,23 @@ module.exports = {
     },
 
     async createDefects(tempReportId, processId, defects, executor = db) {
-        if (!Array.isArray(defects) || defects.length === 0) return;
-
-        const validItems = defects
-            .map((item) => ({
-                defectTypeId: Number(item.defect_type_id) || null,
-                defectName: String(item.defect_name || "").trim(),
-                quantity: Number(item.quantity) || 0
-            }))
-            .filter((item) => item.quantity > 0);
-
-        if (!validItems.length) return;
-
-        const unresolvedNames = [
-            ...new Set(
-                validItems
-                    .filter((item) => !item.defectTypeId && item.defectName)
-                    .map((item) => item.defectName)
-            )
-        ];
-
-        const nameToId = new Map();
-        if (unresolvedNames.length) {
-            const placeholders = unresolvedNames.map(() => "?").join(",");
-            const rows = await query(
-                executor,
-                `SELECT id, defect_name
-                 FROM defect_types
-                 WHERE process_id = ?
-                   AND status = 'active'
-                   AND defect_name IN (${placeholders})`,
-                [processId, ...unresolvedNames]
-            );
-            rows.forEach((row) => nameToId.set(String(row.defect_name), Number(row.id)));
-        }
-
-        const defectTotals = new Map();
-        for (const item of validItems) {
-            const defectTypeId = item.defectTypeId || nameToId.get(item.defectName) || null;
-            if (!defectTypeId) continue;
-            defectTotals.set(defectTypeId, (defectTotals.get(defectTypeId) || 0) + item.quantity);
-        }
-        const values = [...defectTotals.entries()]
-            .filter(([, quantity]) => quantity > 0)
-            .map(([defectTypeId, quantity]) => [tempReportId, defectTypeId, Math.trunc(quantity)]);
-
-        if (!values.length) return;
-
-        const placeholders = values.map(() => "(?, ?, ?)").join(",");
-        await query(
-            executor,
-            `INSERT INTO production_temp_defects
-             (temp_report_id, defect_type_id, quantity)
-             VALUES ${placeholders}`,
-            values.flat()
-        );
+        return createTempDetails({
+            tempReportId, processId, items: defects, executor,
+            typeIdField: "defect_type_id", nameField: "defect_name",
+            valueField: "quantity", masterTable: "defect_types",
+            detailTable: "production_temp_defects", idColumn: "defect_type_id",
+            nameColumn: "defect_name", valueColumn: "quantity", truncateValue: true
+        });
     },
 
     async createDeductions(tempReportId, processId, deductions, executor = db) {
-        if (!Array.isArray(deductions) || deductions.length === 0) return;
-
-        const validItems = deductions
-            .map((item) => ({
-                deductionTypeId: Number(item.deduction_type_id) || null,
-                deductionName: String(item.deduction_name || "").trim(),
-                hours: Number(item.hours) || 0
-            }))
-            .filter((item) => item.hours > 0);
-
-        if (!validItems.length) return;
-
-        const unresolvedNames = [
-            ...new Set(
-                validItems
-                    .filter((item) => !item.deductionTypeId && item.deductionName)
-                    .map((item) => item.deductionName)
-            )
-        ];
-
-        const nameToId = new Map();
-        if (unresolvedNames.length) {
-            const placeholders = unresolvedNames.map(() => "?").join(",");
-            const rows = await query(
-                executor,
-                `SELECT id, deduction_name
-                 FROM deduction_types
-                 WHERE process_id = ?
-                   AND status = 'active'
-                   AND deduction_name IN (${placeholders})`,
-                [processId, ...unresolvedNames]
-            );
-            rows.forEach((row) => nameToId.set(String(row.deduction_name), Number(row.id)));
-        }
-
-        const deductionTotals = new Map();
-        for (const item of validItems) {
-            const deductionTypeId = item.deductionTypeId || nameToId.get(item.deductionName) || null;
-            if (!deductionTypeId) continue;
-            deductionTotals.set(deductionTypeId, (deductionTotals.get(deductionTypeId) || 0) + item.hours);
-        }
-        const values = [...deductionTotals.entries()]
-            .filter(([, hours]) => hours > 0)
-            .map(([deductionTypeId, hours]) => [tempReportId, deductionTypeId, hours]);
-
-        if (!values.length) return;
-
-        const placeholders = values.map(() => "(?, ?, ?)").join(",");
-        await query(
-            executor,
-            `INSERT INTO production_temp_deductions
-             (temp_report_id, deduction_type_id, hours)
-             VALUES ${placeholders}`,
-            values.flat()
-        );
+        return createTempDetails({
+            tempReportId, processId, items: deductions, executor,
+            typeIdField: "deduction_type_id", nameField: "deduction_name",
+            valueField: "hours", masterTable: "deduction_types",
+            detailTable: "production_temp_deductions", idColumn: "deduction_type_id",
+            nameColumn: "deduction_name", valueColumn: "hours"
+        });
     },
 
     async logAction({ reportType = "temp", reportId, userId, action, note = null, ipAddress = null, userAgent = null }, executor = db) {
