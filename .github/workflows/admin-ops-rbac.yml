@@ -53,6 +53,7 @@ jobs:
       - name: ESLint
         run: npm run lint
       - name: Dependency security audit
+        if: always()
         run: npm audit --audit-level=high
 
   backend-full-suite:
