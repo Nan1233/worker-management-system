@@ -41,7 +41,7 @@ function WorkerReportEditV2() {
   const storedRole = s(getStoredUser()?.role).trim().toLowerCase();
   // Manager/Lead/Admin edits are never subject to the worker's 10-minute edit window.
   // Detect by route AND by the authenticated role so nested/legacy manager routes cannot fall back to worker rules.
-  const managerRole = ["manager", "lead", "admin", "manager1", "manager_1", "to_truong", "truong_nhom"].includes(storedRole);
+  const managerRole = ["admin_ops", "manager", "lead", "admin", "manager1", "manager_1", "to_truong", "truong_nhom"].includes(storedRole);
   const managerRoute = managerRole || /^\/(manager|lead|admin)(?:\/|$)/i.test(pathname);
   const readOnly = managerRoute && !pathname.endsWith("/edit");
   const source = searchParams.get("source") === "approved" ? "approved" : "pending";
