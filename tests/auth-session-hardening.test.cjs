@@ -46,6 +46,15 @@ test('login still isolates the new request from previous account tokens', () => 
   assert.match(authService, /supportsElectronRefreshTokenBody\(\)/);
   assert.match(authService, /const loginEpoch = beginLoginTransition\(\)/);
   assert.match(authService, /clearAuthSession\(\{ bumpEpoch: false \}\)/);
-  assert.match(authService, /previous_refresh_token: supportsElectronRefreshTokenBody\(\)[\s\S]*?previousRefreshToken \|\| undefined/);
+  assert.match(authService, /supportsElectronRefreshTokenBody\(\) && previousRefreshToken[\s\S]*?previous_refresh_token: previousRefreshToken/);
   assert.match(authService, /getAuthEpoch\(\) !== loginEpoch/);
+  const loginPage = read('src/pages/Login.tsx');
+  const storage = read('src/utils/authStorage.ts');
+  assert.match(storage, /export function supportsElectronRefreshTokenBody\(\)/);
+  assert.match(storage, /origin === "null" \|\| origin\.startsWith\("file:"\)/);
+  assert.ok(
+    loginPage.indexOf('preservePreviousRefreshTokenForLogin()') <
+      loginPage.indexOf('clearAuthSession({ bumpEpoch: false })'),
+    'login page must preserve the Electron token before clearing storage'
+  );
 });
