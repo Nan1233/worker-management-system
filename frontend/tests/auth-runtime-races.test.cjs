@@ -250,6 +250,11 @@ function makeHarness() {
     localStorage, sessionStorage, windowMock, authStorage, axiosCalls, apiCalls,
     apiModule, mockApi, requestHandlers, responseHandlers,
     installSession, switchSessionInSameRenderer, queueAxiosPost, queueApiPost,
+    loadRealAuthStorage(tag) {
+      return loadTs('src/utils/authStorage.ts', 'src/utils/__auth-runtime-storage-' + tag + '.cjs', {
+        '../services/sessionCache': { clearSessionCache() {}, setSessionCacheScope() {} }
+      });
+    },
     loadAuthService() {
       return loadTs('src/services/authService.ts', 'src/services/__auth-runtime-service.cjs', {
         axios: axiosMock,
@@ -420,5 +425,20 @@ test('runtime: failed B login follows current contract and leaves no partial ide
     assert.equal(h.authStorage.getAuthSessionId(), null);
     assert.equal(h.authStorage.getAuthEpoch(), 2);
     assert.equal(h.apiModule.isLoginTransitionActive(), false);
+  } finally { h.dispose(); }
+});
+
+
+test('runtime: persisted web identity and session restore after auth module reload', () => {
+  const h = makeHarness();
+  try {
+    const firstInstance = h.loadRealAuthStorage('before-reload');
+    firstInstance.saveAuthSession({ accessToken: 'persisted-B-access', sessionId: 'session-B-reload', user: userB });
+    const reloadedInstance = h.loadRealAuthStorage('after-reload');
+
+    assert.equal(reloadedInstance.getAccessToken(), 'persisted-B-access');
+    assert.equal(reloadedInstance.getStoredUser().id, userB.id);
+    assert.equal(reloadedInstance.getAuthSessionId(), 'session-B-reload');
+    assert.equal(reloadedInstance.hasRefreshSessionHint(), true);
   } finally { h.dispose(); }
 });
