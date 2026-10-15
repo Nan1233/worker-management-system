@@ -266,18 +266,10 @@ export function clearCurrentTabAuthSession(): void {
         sessionStorage.removeItem(key);
     }
 
-    if (!isElectronRuntime()) {
-        for (const key of [
-            "auth",
-            "authUser",
-            "currentUser",
-            ACCESS_TOKEN_KEY,
-            LEGACY_TOKEN_KEY,
-            USER_KEY
-        ]) {
-            localStorage.removeItem(key);
-        }
-    }
+    // Access token and user are stored in localStorage and shared by same-origin tabs.
+    // A stale tab must not delete the newer tab's session. This function retires
+    // only this renderer's tab-scoped state; clearAuthSession() remains the
+    // explicit global logout/account-retirement operation.
 
     if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("ktc:tab-auth-cleared"));

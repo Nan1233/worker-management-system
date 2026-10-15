@@ -122,3 +122,85 @@ test('stale refresh cleanup cannot detach a newer refresh promise or controller'
   assert.match(refreshBlock, /const pendingRefresh = coordinatedRefresh\(\)\.finally\(\(\) => \{[\s\S]*?if \(refreshPromise === pendingRefresh\)\s*\{\s*refreshPromise = null/);
   assert.doesNotMatch(refreshBlock, /finally \{\s*refreshAbortController = null/);
 });
+
+
+test('stale tab invalidation preserves shared localStorage session owned by the newer tab', () => {
+  const assert = require('node:assert/strict');
+  const Module = require('node:module');
+  const ts = require('typescript');
+  const storageSource = read('src/utils/authStorage.ts');
+
+  class MemoryStorage {
+    constructor(initial = {}) { this.values = new Map(Object.entries(initial)); }
+    getItem(key) { return this.values.has(key) ? this.values.get(key) : null; }
+    setItem(key, value) { this.values.set(String(key), String(value)); }
+    removeItem(key) { this.values.delete(key); }
+    clear() { this.values.clear(); }
+    key(index) { return [...this.values.keys()][index] ?? null; }
+    get length() { return this.values.size; }
+  }
+
+  const originalDescriptors = {};
+  for (const key of ['localStorage', 'sessionStorage', 'window', 'navigator', 'CustomEvent']) {
+    originalDescriptors[key] = Object.getOwnPropertyDescriptor(globalThis, key);
+  }
+  const local = new MemoryStorage({
+    accessToken: 'new-account-access-token',
+    token: 'new-account-access-token',
+    user: JSON.stringify({ id: 202, username: 'account-B' }),
+    ktcAuthSessionId: 'session-B',
+    ktcRefreshSessionHint: '1'
+  });
+  const session = new MemoryStorage({
+    accessToken: 'stale-account-access-token',
+    token: 'stale-account-access-token',
+    user: JSON.stringify({ id: 101, username: 'account-A' })
+  });
+  const dispatched = [];
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: local });
+  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: session });
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: 'Mozilla/5.0' } });
+  Object.defineProperty(globalThis, 'CustomEvent', { configurable: true, value: class CustomEvent { constructor(type) { this.type = type; } } });
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { dispatchEvent: (event) => dispatched.push(event.type) } });
+
+  const filename = path.join(root, 'src/utils/authStorage.runtime-test.js');
+  const compiled = ts.transpileModule(storageSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText;
+  const loaded = new Module(filename, module);
+  loaded.filename = filename;
+  loaded.paths = Module._nodeModulePaths(path.dirname(filename));
+  const originalLoad = Module._load;
+  try {
+    Module._load = function(request, parent, isMain) {
+      if (parent && parent.filename === filename && request === '../services/sessionCache') {
+        return { clearSessionCache() {}, setSessionCacheScope() {} };
+      }
+      return originalLoad.call(this, request, parent, isMain);
+    };
+    loaded._compile(compiled, filename);
+    loaded.exports.clearCurrentTabAuthSession();
+
+    assert.equal(local.getItem('accessToken'), 'new-account-access-token');
+    assert.equal(local.getItem('user'), JSON.stringify({ id: 202, username: 'account-B' }));
+    assert.equal(local.getItem('ktcAuthSessionId'), 'session-B');
+    assert.equal(local.getItem('ktcRefreshSessionHint'), '1');
+    assert.equal(session.getItem('accessToken'), null);
+    assert.equal(session.getItem('user'), null);
+    assert.deepEqual(dispatched, ['ktc:tab-auth-cleared']);
+  } finally {
+    Module._load = originalLoad;
+    for (const key of Object.keys(originalDescriptors)) {
+      if (originalDescriptors[key]) Object.defineProperty(globalThis, key, originalDescriptors[key]);
+      else delete globalThis[key];
+    }
+  }
+});
+
+test('cross-tab invalidated renderer blocks stale protected requests until a fresh login', () => {
+  const api = read('src/services/api.ts');
+  assert.match(api, /let crossTabAuthInvalidated = false/);
+  assert.match(api, /crossTabAuthInvalidated && !requestUrl\.includes\("\/auth\/login"\)/);
+  assert.match(api, /authGeneration = getAuthEpoch\(\);\s*crossTabAuthInvalidated = true;/);
+  assert.match(api, /loginTransitionActive = true;\s*crossTabAuthInvalidated = false;/);
+});

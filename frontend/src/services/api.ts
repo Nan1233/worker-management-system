@@ -84,9 +84,11 @@ let authGeneration = getAuthEpoch();
 let loginTransitionActive = false;
 let transientRefreshBlockedUntil = 0;
 let redirectingToLogin = false;
+let crossTabAuthInvalidated = false;
 
 export function beginLoginTransition(): number {
     loginTransitionActive = true;
+    crossTabAuthInvalidated = false;
     authGeneration = bumpAuthEpoch();
     refreshAbortController?.abort();
     refreshAbortController = null;
@@ -370,6 +372,15 @@ api.interceptors.request.use(
             requestUrl.includes("/auth/login") ||
             requestUrl.includes("/auth/refresh") ||
             requestUrl.includes("/auth/logout");
+
+        // After another tab changes the account, this renderer is stale even
+        // though localStorage now contains the newer tab's shared credentials.
+        // Permit only a fresh login; never send the new account's token or let
+        // a stale tab's logout/refresh mutate the active session.
+        if (crossTabAuthInvalidated && !requestUrl.includes("/auth/login")) {
+            return Promise.reject(staleSessionError());
+        }
+
         let accessToken = getAccessToken();
         if (
             !loginTransitionActive &&
@@ -544,6 +555,7 @@ if (typeof window !== "undefined") {
         if (event.key !== "ktcAuthEpoch") return;
 
         authGeneration = getAuthEpoch();
+        crossTabAuthInvalidated = true;
         refreshAbortController?.abort();
         refreshAbortController = null;
         refreshPromise = null;
