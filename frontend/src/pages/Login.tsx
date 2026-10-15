@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { login } from "../services/authService";
 import { beginLoginTransition, finishLoginTransition } from "../services/api";
-import { clearAuthSession, clearCurrentTabAuthSession } from "../utils/authStorage";
+import { clearAuthSession, clearCurrentTabAuthSession, preservePreviousRefreshTokenForLogin } from "../utils/authStorage";
 import type { User, UserRole } from "../types/auth";
 
 type LoginStep = "employee-code" | "role-choice" | "management-password";
@@ -35,7 +35,7 @@ function Login() {
         initializedRef.current = true;
         const passiveCrossTabRedirect = sessionStorage.getItem(CROSS_TAB_LOGIN_MARKER_KEY) === "1";
         sessionStorage.removeItem(CROSS_TAB_LOGIN_MARKER_KEY);
-        if (passiveCrossTabRedirect) clearCurrentTabAuthSession(); else { beginLoginTransition(); clearAuthSession({ bumpEpoch: false }); finishLoginTransition(); }
+        if (passiveCrossTabRedirect) clearCurrentTabAuthSession(); else { preservePreviousRefreshTokenForLogin(); beginLoginTransition(); clearAuthSession({ bumpEpoch: false }); finishLoginTransition(); }
         sessionStorage.removeItem("redirectAfterLogin");
         if (/\/login\/?$/.test(window.location.pathname)) {
             const canonicalUrl = `${window.location.origin}/#${window.location.hash.replace(/^#/, "") || "/login"}`;
