@@ -31,6 +31,7 @@ import OfflineReportSync from "./components/system/OfflineReportSync";
 import { initializeReliableReportRecovery } from "./services/reliableReportJournal";
 import "./ui-polish.css";
 import "./admin-worker-password-override.css";
+import "./styles/ManagementExperiencePolish.css";
 import "./config/workerAccountPolicy";
 import "./utils/reportNumberInputFix";
 import "./utils/personnelCapacityPolicy";

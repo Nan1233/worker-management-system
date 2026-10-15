@@ -1,0 +1,326 @@
+/*
+ * KTC Management Experience — shared visual refinement layer.
+ * Presentation only: preserve existing routes, permissions, API contracts and report workflows.
+ * Loaded after the existing styles so this file can normalize the Lead/Manager/Admin experience.
+ */
+:root {
+  --ktc-shell-bg: #f3f6fb;
+  --ktc-shell-border: #dfe7f1;
+  --ktc-shell-ink: #15243a;
+  --ktc-shell-muted: #68788f;
+  --ktc-shell-blue: #1769d2;
+  --ktc-shell-blue-hover: #1258b4;
+  --ktc-shell-blue-soft: #edf5ff;
+  --ktc-shell-shadow: 0 8px 24px rgba(18, 42, 76, .055);
+}
+
+.management-layout,
+.admin-layout {
+  background: var(--ktc-shell-bg);
+  color: var(--ktc-shell-ink);
+}
+
+.management-content,
+.admin-content {
+  color: var(--ktc-shell-ink);
+}
+
+.management-content > *,
+.admin-content > * {
+  min-width: 0;
+}
+
+.management-menu button,
+.admin-menu button,
+.management-mobile-nav button,
+.admin-mobile-nav button {
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.management-menu button:focus-visible,
+.admin-menu button:focus-visible,
+.management-header button:focus-visible,
+.admin-header button:focus-visible,
+.management-mobile-nav button:focus-visible,
+.admin-mobile-nav button:focus-visible {
+  outline: 3px solid rgba(23, 105, 210, .28);
+  outline-offset: 2px;
+}
+
+@media (min-width: 801px) {
+  .management-sidebar {
+    background: rgba(255, 255, 255, .97) !important;
+    border-bottom-color: var(--ktc-shell-border) !important;
+    box-shadow: 0 4px 18px rgba(18, 42, 76, .055) !important;
+  }
+
+  .management-menu button {
+    border: 1px solid transparent !important;
+    border-radius: 10px !important;
+    color: #52657e !important;
+    font-size: 11px !important;
+    font-weight: 650 !important;
+  }
+
+  .management-menu button:hover:not(.active) {
+    background: #f4f8fe !important;
+    border-color: #e4edf8 !important;
+    color: var(--ktc-shell-blue) !important;
+  }
+
+  .management-menu button.active {
+    background: var(--ktc-shell-blue-soft) !important;
+    border-color: #d8e8fc !important;
+    box-shadow: inset 0 -2px 0 var(--ktc-shell-blue) !important;
+    color: var(--ktc-shell-blue) !important;
+  }
+
+  .management-menu button.management-logout {
+    background: #fff !important;
+    border-color: var(--ktc-shell-border) !important;
+    color: #64748b !important;
+  }
+
+  .management-menu button.management-logout:hover {
+    background: #fff5f5 !important;
+    border-color: #f0d6d9 !important;
+    color: #b93843 !important;
+  }
+
+  .management-header-brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 4px;
+    border: 1px solid var(--ktc-shell-border);
+    border-radius: 10px;
+    background: #fff;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .management-header-brand-logo {
+    display: block;
+    width: 84px;
+    max-height: 34px;
+    object-fit: contain;
+  }
+}
+
+.management-header,
+.admin-header {
+  border-bottom-color: var(--ktc-shell-border);
+  box-shadow: 0 3px 14px rgba(18, 42, 76, .035);
+}
+
+.management-user,
+.admin-user {
+  border: 1px solid transparent;
+  border-radius: 12px;
+}
+
+.management-user:hover,
+.admin-user:hover {
+  border-color: #dce8f6;
+  background: #f5f9ff;
+}
+
+.management-user-avatar,
+.admin-user-avatar {
+  background: linear-gradient(145deg, #2b83df, #155cb9);
+  box-shadow: 0 3px 9px rgba(23, 105, 210, .15);
+}
+
+.admin-sidebar {
+  border-right-color: var(--ktc-shell-border);
+  box-shadow: 5px 0 20px rgba(18, 42, 76, .035);
+}
+
+.admin-menu button {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #5d6e84;
+  font-weight: 600;
+}
+
+.admin-menu button:hover:not(.active) {
+  border-color: #e3edf8;
+  background: #f6f9fe;
+  color: var(--ktc-shell-blue);
+}
+
+.admin-menu button.active {
+  border-color: #d8e8fc;
+  background: var(--ktc-shell-blue-soft);
+  box-shadow: inset 3px 0 0 var(--ktc-shell-blue);
+  color: var(--ktc-shell-blue);
+  font-weight: 750;
+}
+
+.admin-sidebar-heading {
+  color: #8b9ab0;
+}
+
+.admin-header-title strong,
+.admin-dashboard-hero h1,
+.admin-section-heading h2,
+.admin-overview-copy strong,
+.admin-control-copy strong {
+  color: var(--ktc-shell-ink);
+}
+
+.admin-overview-card,
+.admin-control-card {
+  border-color: var(--ktc-shell-border);
+  border-radius: 14px;
+  box-shadow: var(--ktc-shell-shadow);
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.admin-overview-card:hover,
+.admin-control-card:hover {
+  border-color: #b9d2ef;
+  box-shadow: 0 12px 28px rgba(18, 42, 76, .085);
+  transform: translateY(-2px);
+}
+
+.admin-overview-icon,
+.admin-control-icon {
+  border-radius: 12px;
+  background: linear-gradient(145deg, #edf5ff, #e4efff);
+  color: var(--ktc-shell-blue);
+}
+
+.admin-notice {
+  border-color: var(--ktc-shell-border);
+  border-radius: 12px;
+  background: #f8fafd;
+}
+
+.manager-dashboard .dashboard-panel {
+  border-color: var(--ktc-shell-border);
+  border-radius: 14px;
+  box-shadow: var(--ktc-shell-shadow);
+}
+
+.dashboard-welcome {
+  border-color: #d9e7f8;
+  border-radius: 16px;
+  box-shadow: var(--ktc-shell-shadow);
+}
+
+.dashboard-panel-title h2 {
+  color: var(--ktc-shell-ink);
+}
+
+.pending-table-wrap {
+  border: 1px solid #e6edf5;
+  border-radius: 10px;
+}
+
+.pending-table-wrap table thead th {
+  background: #f5f8fc;
+  color: #64748b;
+}
+
+.pending-table-wrap table tbody tr:hover {
+  background: #f7faff;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+@media (max-width: 800px) {
+  .management-mobile-nav,
+  .admin-mobile-nav {
+    padding-bottom: max(5px, env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, .98);
+    border-top-color: var(--ktc-shell-border);
+    box-shadow: 0 -5px 18px rgba(18, 42, 76, .065);
+    backdrop-filter: blur(14px);
+  }
+
+  .management-mobile-nav button,
+  .admin-mobile-nav button {
+    border-radius: 10px;
+    font-weight: 650;
+  }
+
+  .management-mobile-nav button.active,
+  .admin-mobile-nav button.active {
+    background: var(--ktc-shell-blue-soft);
+    color: var(--ktc-shell-blue);
+  }
+
+  .management-mobile-overflow,
+  .admin-mobile-overflow {
+    border-color: var(--ktc-shell-border);
+    border-radius: 14px;
+    box-shadow: 0 16px 34px rgba(18, 42, 76, .16);
+  }
+
+  .admin-dashboard-hero {
+    gap: 14px;
+    border-radius: 14px;
+  }
+
+  .admin-overview-card,
+  .admin-control-card {
+    min-height: 78px;
+    padding: 14px;
+  }
+
+  .dashboard-welcome {
+    height: auto;
+    min-height: 130px;
+    padding: 17px;
+  }
+
+  .dashboard-welcome h1 {
+    font-size: clamp(21px, 5vw, 28px) !important;
+  }
+
+  .dashboard-tags {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .dashboard-tags span {
+    max-width: 100%;
+    height: auto;
+    min-height: 27px;
+    padding: 5px 10px;
+    font-size: 10px;
+  }
+
+  .dashboard-motto {
+    display: none;
+  }
+
+  .pending-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .management-menu button,
+  .admin-menu button,
+  .management-mobile-nav button,
+  .admin-mobile-nav button,
+  .admin-overview-card,
+  .admin-control-card {
+    transition: none !important;
+  }
+
+  .admin-overview-card:hover,
+  .admin-control-card:hover {
+    transform: none;
+  }
+}
