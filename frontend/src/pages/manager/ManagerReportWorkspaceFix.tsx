@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { getApprovedReports, getPendingReports } from "../../services/productionService";
 import Reports from "./Reports";
 import ApprovedReportsDesktopActions from "./ApprovedReportsDesktopActions";
@@ -47,8 +47,8 @@ const reportCode = (r: any, index = 0, duplicate = false) => {
   return duplicate ? `${base}-${r?.id ?? index + 1}` : base;
 };
 
-function installPendingTableFix(navigate: (to: string) => void) {
-  const basePath = window.location.pathname.startsWith("/admin-ops") ? "/admin-ops" : "/manager";
+function installPendingTableFix(navigate: (to: string) => void, routePath: string) {
+  const basePath = routePath.startsWith("/admin-ops") ? "/admin-ops" : "/manager";
   const styleId = "ktc-manager-report-workspace-fix";
   const style = document.getElementById(styleId) || document.createElement("style");
   style.id = styleId;
@@ -80,7 +80,7 @@ function installPendingTableFix(navigate: (to: string) => void) {
   let busy = false;
   let renderTimer: number | undefined;
 
-  const isPending = () => window.location.pathname === `${basePath}/reports`;
+  const isPending = () => routePath === `${basePath}/reports`;
   const readFilters = () => {
     const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(".pending-filter-card input"));
     const selects = Array.from(document.querySelectorAll<HTMLSelectElement>(".pending-filter-card select"));
@@ -202,18 +202,20 @@ function installPendingTableFix(navigate: (to: string) => void) {
 
 export function ManagerReportsWorkspaceFix() {
   const navigate = useNavigate();
-  useEffect(() => installPendingTableFix(navigate), [navigate]);
+  const location = useLocation();
+  useEffect(() => installPendingTableFix(navigate, location.pathname), [navigate, location.pathname]);
   return <Reports />;
 }
 
 export function ManagerApprovedReportsWorkspaceFix() {
   const navigate = useNavigate();
-  useEffect(() => installApprovedNavigationFix(navigate), [navigate]);
+  const location = useLocation();
+  useEffect(() => installApprovedNavigationFix(navigate, location.pathname), [navigate, location.pathname]);
   return <ApprovedReportsDesktopActions />;
 }
 
-function installApprovedNavigationFix(navigate: (to: string) => void) {
-  const basePath = window.location.pathname.startsWith("/admin-ops") ? "/admin-ops" : "/manager";
+function installApprovedNavigationFix(navigate: (to: string) => void, routePath: string) {
+  const basePath = routePath.startsWith("/admin-ops") ? "/admin-ops" : "/manager";
   let disposed = false;
   let timer: number | undefined;
   let busy = false;
@@ -223,7 +225,7 @@ function installApprovedNavigationFix(navigate: (to: string) => void) {
   };
   const readPage = () => Number(document.querySelector<HTMLButtonElement>(".pending-pagination button.active")?.textContent || 1) || 1;
   const handle = async (event: MouseEvent) => {
-    if (disposed || busy || window.location.pathname !== `${basePath}/approved`) return;
+    if (disposed || busy || routePath !== `${basePath}/approved`) return;
     const target = event.target as Element | null;
     if (!target || target.closest("input,select,textarea,button,a")) return;
     const row = target.closest<HTMLTableRowElement>(".pending-reference-table tbody tr");
