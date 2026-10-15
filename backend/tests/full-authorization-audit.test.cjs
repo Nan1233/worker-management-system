@@ -108,3 +108,12 @@ test('full authorization audit: frontend permission catalog matches backend cata
   for (const code of new Set(backendCodes)) assert.ok(frontendCodes.includes(code), `frontend missing ${code}`);
   assert.doesNotMatch(frontend, /FORMULA_VIEW|FORMULA_EDIT|PERIOD_LOCK|PERIOD_UNLOCK/);
 });
+
+test('authentication and role middleware do not emit debug logs containing user identity or request URLs', () => {
+  const auth = read('middleware/authMiddleware.js');
+  const role = read('middleware/roleMiddleware.js');
+  assert.doesNotMatch(auth, /\[AUTH DEBUG\]/);
+  assert.doesNotMatch(role, /\[AUTH DEBUG\]/);
+  assert.doesNotMatch(auth, /console\.(?:info|log|warn)\([^\n]*req\.originalUrl/);
+  assert.doesNotMatch(role, /console\.(?:info|log|warn)\([^\n]*req\.originalUrl/);
+});
