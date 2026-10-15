@@ -90,7 +90,7 @@ jobs:
           $exe = Get-ChildItem -Path 'release' -Filter 'KTC-Production-Control.exe' -File | Select-Object -First 1
           if (-not $exe) { throw 'Portable EXE missing after successful build.' }
 
-          $startedAt = Get-Date
+          $startedAtUtc = [DateTimeOffset]::UtcNow
           $proc = Start-Process -FilePath $exe.FullName -PassThru
           $logPath = $null
           $matched = $false
@@ -100,29 +100,52 @@ jobs:
               if ($proc.HasExited) {
                 throw "Portable EXE exited before smoke passed (exit code $($proc.ExitCode))."
               }
+
               $logs = @()
               foreach ($root in @($env:APPDATA, $env:LOCALAPPDATA)) {
                 if ($root -and (Test-Path $root)) {
-                  $logs += Get-ChildItem -Path $root -Filter 'desktop-launcher.log' -File -Recurse -ErrorAction SilentlyContinue |
-                    Where-Object { $_.LastWriteTime -ge $startedAt.AddSeconds(-5) }
+                  $logs += Get-ChildItem -Path $root -Filter 'desktop-launcher.log' -File -Recurse -ErrorAction SilentlyContinue
                 }
               }
+
               foreach ($log in $logs) {
-                $text = Get-Content -Path $log.FullName -Raw -ErrorAction SilentlyContinue
-                if ($text -match '"event":"REMOTE_FE_LOADED"' -and $text -match 'https://ktc-fe-test\.nan978971\.workers\.dev') {
+                $recentEvents = @()
+                foreach ($line in (Get-Content -Path $log.FullName -ErrorAction SilentlyContinue)) {
+                  try {
+                    $entry = $line | ConvertFrom-Json -ErrorAction Stop
+                    $eventTime = [DateTimeOffset]::MinValue
+                    if (-not [DateTimeOffset]::TryParse([string]$entry.timestamp, [ref]$eventTime)) { continue }
+                    if ($eventTime -lt $startedAtUtc.AddSeconds(-5)) { continue }
+                    $recentEvents += $entry
+                  } catch {
+                    continue
+                  }
+                }
+
+                $failedEvent = $recentEvents | Where-Object {
+                  $_.event -eq 'REMOTE_FE_LOAD_FAILED' -and
+                  ([string]$_.validatedURL -match '^https://ktc-fe-test\.nan978971\.workers\.dev(?:/|$)')
+                } | Select-Object -First 1
+                if ($failedEvent) {
+                  throw 'Electron logged a current-run REMOTE_FE_LOAD_FAILED for the TEST frontend.'
+                }
+
+                $loadedEvent = $recentEvents | Where-Object {
+                  $_.event -eq 'REMOTE_FE_LOADED' -and
+                  ([string]$_.url -match '^https://ktc-fe-test\.nan978971\.workers\.dev(?:/|$)')
+                } | Select-Object -Last 1
+                if ($loadedEvent) {
                   $logPath = $log.FullName
                   $matched = $true
                   break
                 }
-                if ($text -match '"event":"REMOTE_FE_LOAD_FAILED"') {
-                  throw 'Electron logged REMOTE_FE_LOAD_FAILED while loading the TEST frontend.'
-                }
               }
+
               if ($matched) { break }
               Start-Sleep -Seconds 3
             }
             if (-not $matched) {
-              throw 'Electron process started, but no REMOTE_FE_LOADED evidence for the TEST frontend appeared within 75 seconds.'
+              throw 'Electron process started, but no current-run REMOTE_FE_LOADED evidence for the TEST frontend appeared within 75 seconds.'
             }
             Write-Host 'PASS: Windows portable EXE launched and logged successful navigation to TEST frontend.'
             Write-Host "Launcher log located at: $logPath"
