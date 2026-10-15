@@ -324,3 +324,33 @@ button:disabled,
     transform: none;
   }
 }
+
+.dashboard-role-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  color: #3878bd;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.dashboard-role-eyebrow::before {
+  content: "";
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: #2d83df;
+}
+.dashboard-welcome p {
+  max-width: 680px;
+  line-height: 1.5;
+}
+@media (max-width: 800px) {
+  .dashboard-role-eyebrow {
+    margin-bottom: 7px;
+    font-size: 8px;
+    letter-spacing: .1em;
+  }
+}
