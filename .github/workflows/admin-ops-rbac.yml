@@ -32,6 +32,7 @@ jobs:
           tests/authorization-process-scope.test.js
           tests/permission-matrix.test.cjs
           tests/full-authorization-audit.test.cjs
+          tests/migration-inventory-contract.test.cjs
 
   frontend-rbac-checks:
     name: Frontend typecheck + permissions UI test
