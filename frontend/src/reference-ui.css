@@ -344,10 +344,7 @@ button { font-family:inherit; }
   cursor: not-allowed;
   opacity: .62;
 }
-:where(input, select, textarea) {
-  min-height: 42px;
-  font-size: 14px;
-}
+/* Keep native form sizing owned by each page to avoid changing legacy layouts globally. */
 :where(input, select, textarea)::placeholder {
   color: #8492a5;
   opacity: 1;
@@ -398,17 +395,11 @@ button { font-family:inherit; }
     min-height: 44px;
     font-size: 16px;
   }
-  .management-report-table, .selected-review-table, .management-workers-table,
-  .formula-table, .history-table {
-    min-width: 640px;
-  }
+  /* Table width/scroll stays controlled by each page's existing wrapper. */
 }
 @media (max-width: 560px) {
   .management-header, .worker-header {
     gap: 8px;
-  }
-  .management-content, .worker-content {
-    overflow-wrap: anywhere;
   }
   .worker-form-card input, .worker-form-card select, .worker-form-card textarea,
   .worker-form-page input, .worker-form-page select, .worker-form-page textarea {
