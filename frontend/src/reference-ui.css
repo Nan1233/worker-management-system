@@ -363,12 +363,7 @@ button { font-family:inherit; }
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
 }
-.management-report-table th, .selected-review-table th, .management-workers-table th,
-.formula-table th, .history-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
+/* Sticky table headers remain page-specific to avoid breaking nested scroll regions. */
 .management-report-table td, .selected-review-table td, .management-workers-table td,
 .formula-table td, .history-table td {
   vertical-align: middle;
