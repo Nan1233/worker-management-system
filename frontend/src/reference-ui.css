@@ -333,3 +333,97 @@ button { font-family:inherit; }
   .ktc-ui-page-header-actions { width: 100%; }
   .ktc-ui-button { min-height: 42px; }
 }
+
+
+/* ===== Usability pass: clearer focus, larger targets, readable forms ===== */
+:where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+  outline: 3px solid rgba(23, 105, 210, .38);
+  outline-offset: 2px;
+}
+:where(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: .62;
+}
+:where(input, select, textarea) {
+  min-height: 42px;
+  font-size: 14px;
+}
+:where(input, select, textarea)::placeholder {
+  color: #8492a5;
+  opacity: 1;
+}
+:where(label) {
+  line-height: 1.45;
+}
+:where(button) {
+  -webkit-tap-highlight-color: transparent;
+}
+.management-content, .worker-content, .manager-page, .admin-page {
+  min-width: 0;
+}
+.management-table-container, .selected-table-scroll, .management-workers-table-wrapper,
+.formula-table-wrap, .master-table-wrap, .table-container {
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.management-report-table th, .selected-review-table th, .management-workers-table th,
+.formula-table th, .history-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.management-report-table td, .selected-review-table td, .management-workers-table td,
+.formula-table td, .history-table td {
+  vertical-align: middle;
+  line-height: 1.45;
+}
+.management-menu button, .worker-nav button,
+.management-mobile-nav button, .worker-mobile-nav button {
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease;
+}
+@media (max-width: 800px) {
+  :where(button, [role="button"]) {
+    touch-action: manipulation;
+  }
+  .management-menu button, .worker-nav button {
+    min-height: 44px;
+  }
+  .management-mobile-nav button, .worker-mobile-nav button {
+    min-height: 44px;
+  }
+  .management-search-box input, .management-filter-field input,
+  .management-filter-field select, .history-search-box input,
+  .history-filter-field input, .history-filter-field select,
+  .dashboard-period-filter select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .management-report-table, .selected-review-table, .management-workers-table,
+  .formula-table, .history-table {
+    min-width: 640px;
+  }
+}
+@media (max-width: 560px) {
+  .management-header, .worker-header {
+    gap: 8px;
+  }
+  .management-content, .worker-content {
+    overflow-wrap: anywhere;
+  }
+  .worker-form-card input, .worker-form-card select, .worker-form-card textarea,
+  .worker-form-page input, .worker-form-page select, .worker-form-page textarea {
+    min-height: 46px;
+    font-size: 16px;
+  }
+  .worker-form-card button, .worker-form-page button {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
