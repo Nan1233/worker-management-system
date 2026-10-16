@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Bell, ClipboardPenLine, History, Home, LogOut, UserRound } from "lucide-react";
+import { Bell, ClipboardPenLine, History, LogOut, UserRound } from "lucide-react";
 import { logout } from "../services/authService";
 import { usePermissions } from "../hooks/usePermissions";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -15,8 +15,7 @@ type Item = {
 };
 
 const items: Item[] = [
-  { label: "Trang chủ", path: "/worker", icon: Home },
-  { label: "Báo cáo", path: "/worker/process/select", icon: ClipboardPenLine, permission: "WORKER_ENTRY" },
+  { label: "Sản xuất", path: "/worker/process/select", icon: ClipboardPenLine, permission: "WORKER_ENTRY" },
   { label: "Lịch sử", path: "/worker/history", icon: History, permission: "WORKER_HISTORY" },
   { label: "Thông báo", path: "/worker/notifications", icon: Bell, permission: "NOTIFICATION_VIEW" },
   { label: "Cá nhân", path: "/worker/profile", icon: UserRound, permission: "PROFILE_VIEW" },
@@ -34,7 +33,7 @@ export default function WorkerLayout() {
 
   const active = (item: Item) => {
     if (item.path === "/worker") return location.pathname === "/worker";
-    if (item.label === "Báo cáo") return location.pathname.startsWith("/worker/process/");
+    if (item.label === "Sản xuất") return location.pathname.startsWith("/worker/process/");
     return location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
   };
 

@@ -1,6 +1,7 @@
 // GC machine-line time input: Worker enters "Thời gian chạy thực tế" + "Thời gian trừ".
-// "Tổng thời gian" must stay read-only and be computed as actual + deduction, mirroring
-// the pattern already used by ProcessTimeDeductionSection.tsx for non-machine reports.
+// There is no separate "Tổng thời gian" field for machine lines: the gross total
+// (actual + deduction) is computed internally only to cap at 12h (MAX_TOTAL_WORK_MINUTES)
+// and is never rendered to the Worker, unlike ProcessTimeDeductionSection.tsx.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -22,9 +23,6 @@ test("machine line shows actual-time input and deduction input without rendering
   assert.match(basic, /machine-detail-values-row/);
   assert.match(basic, /Chi tiết trừ giờ/);
   assert.match(basic, /Chi tiết lỗi NG/);
-  assert.match(basic, /label>Tổng thời gian/);
-  // The "total" field must be read-only; Worker can no longer type a gross total directly.
-  assert.match(basic, /data-worker-time-value="machine-total"[^]*?readOnly/);
   // No editable field should still be labelled as the old "Thời gian máy" (direct gross input).
   assert.doesNotMatch(basic, />Thời gian máy</);
 });
