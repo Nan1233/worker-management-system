@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { invalidateStandardResolutionCache } = require('../services/standardResolutionService');
 const formulaSettingsService = require('../services/formulaSettingsService');
 const { getActorProcessScope, assertProcessScope } = require('../services/processAuthorizationService');
 
@@ -116,6 +117,9 @@ exports.updateProductRule = async (req, res, next) => {
       [normalized, id]
     );
     if (!result.affectedRows) return res.status(404).json({success:false,message:'Không tìm thấy mã sản phẩm'});
+    // MySQL autocommits this single UPDATE; invalidate only after it is confirmed
+    // written (affectedRows check above already guards the not-found case).
+    invalidateStandardResolutionCache();
     res.json({ success:true, message:'Đã cập nhật công thức tính TT theo mã sản phẩm' });
   } catch (error) { next(error); }
 };

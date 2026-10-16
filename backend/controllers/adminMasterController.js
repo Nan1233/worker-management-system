@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { invalidateStandardResolutionCache } = require('../services/standardResolutionService');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
 const { getActorProcessScope, assertProcessScope, assertProcessesScope, scopeSql } = require('../services/processAuthorizationService');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
@@ -184,6 +185,9 @@ exports.create = async (req,res,next) => {
     db.query(`INSERT INTO ${cfg.table} SET ?`, payload, (error,result) => {
       if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,message:'Mã hoặc dữ liệu đã tồn tại'});
       if (error) return next(error);
+      // Invalidate AFTER the write is committed (MySQL autocommits a single
+      // non-transactional INSERT), never before/on error above.
+      if (req.params.resource === 'standards' || req.params.resource === 'machines') invalidateStandardResolutionCache();
       res.status(201).json({success:true,message:'Tạo mới thành công',data:{id:result.insertId}});
     });
   } catch(error) { res.status(error.status||error.statusCode||400).json({success:false,code:error.code||undefined,message:error.message}); }
@@ -231,6 +235,8 @@ exports.update = async (req,res,next) => {
       }
       const [result] = await connection.query(`UPDATE ${cfg.table} SET ? WHERE id=?`,[payload,id]);
       await connection.commit();
+      // Invalidate only after commit() has returned successfully.
+      if (req.params.resource === 'standards' || req.params.resource === 'machines') invalidateStandardResolutionCache();
       return res.json({success:true,message:'Cập nhật thành công'});
     } catch (error) {
       try { await connection.rollback(); } catch (_) {}
@@ -255,6 +261,8 @@ exports.remove = async (req,res,next) => {
       if(processId===null){await connection.rollback();return res.status(404).json({success:false,message:'Không tìm thấy dữ liệu'});}
       const [result]=await connection.query(`UPDATE ${cfg.table} SET status='inactive' WHERE id=?`,[id]);
       await connection.commit();
+      // Invalidate only after commit() has returned successfully.
+      if (req.params.resource === 'standards' || req.params.resource === 'machines') invalidateStandardResolutionCache();
       return res.json({success:true,message:'Đã ngừng sử dụng dữ liệu'});
     } catch(error){try{await connection.rollback();}catch(_){} if(authErrorResponse(res,error))return; throw error;}
     finally{connection.release();}

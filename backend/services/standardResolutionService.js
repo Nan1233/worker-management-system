@@ -102,8 +102,23 @@ function createStandardResolver({query=defaultQuery}={}) {
     const resolvedSource=product.nonProductWork?product.source:(resolvedWorkType?`${product.source}_MACHINE_FALLBACK`:`${product.source}_PROCESS_FALLBACK`);const resolved={...product,machineId:machine?Number(machine.id):null,machineCode:machine?machine.machine_code:null,machineStandardId:null,source:resolvedSource};standardCache.set(standardKey,resolved);return resolved;
   }
   async function validateProductVersionRange({processId,productCode,effectiveFrom,effectiveTo=null,excludeVersionId=null}){const from=normalizeWorkDate(effectiveFrom),to=effectiveTo?normalizeWorkDate(effectiveTo):null;if(to&&to<from)throw businessError('INVALID_STANDARD_EFFECTIVE_RANGE','Ngày kết thúc định mức phải từ ngày bắt đầu trở đi');const rows=await query(`SELECT id FROM product_standard_versions WHERE process_id=? AND product_code=? AND status='active' AND (? IS NULL OR id<>?) AND effective_from<=COALESCE(?, '9999-12-31') AND (effective_to IS NULL OR effective_to>=?) LIMIT 2`,[Number(processId),String(productCode||'').trim(),excludeVersionId?Number(excludeVersionId):null,excludeVersionId?Number(excludeVersionId):null,to,from]);if(rows.length)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT','Khoảng hiệu lực định mức bị chồng lấn',{conflicting_version_ids:rows.map(r=>Number(r.id))});return true;}
-  return {resolveProduct,resolveStandard,validateProductVersionRange};
+  // A4/B1: explicit cache invalidation hook. Call this after a product_standards /
+  // machines CRUD write has COMMITTED (never before a transaction fails/rolls back),
+  // so the next resolveProduct()/resolveStandard() call on this SAME resolver instance
+  // re-reads current DB data instead of serving a cached pre-write value. Clears both
+  // caches unconditionally (process/product/machine-scoped partial invalidation would
+  // need to reproduce every cache-key shape above; clearing everything is simpler and
+  // correct, per the explicit instruction to prefer full invalidation over an
+  // incomplete scoped one).
+  function clearCache(){ productCache.clear(); standardCache.clear(); }
+  return {resolveProduct,resolveStandard,validateProductVersionRange,clearCache};
 }
 function assertStandardSnapshotConsistency({resolved,standardOutput,standardVersionId,machineStandardId=null}){const savedOutput=Number(standardOutput),hasSavedOutput=Number.isFinite(savedOutput)&&savedOutput>0,outputMatches=Boolean(resolved)&&sameDecimal(resolved.standardOutput,standardOutput),versionMatches=Number(resolved?.standardVersionId||0)===Number(standardVersionId||0),machineMatches=Number(resolved?.machineStandardId||0)===Number(machineStandardId||0),hasMachineSnapshotId=Number(machineStandardId||0)>0,hasProductSnapshotId=Number(standardVersionId||0)>0;if(hasMachineSnapshotId&&(!outputMatches||!machineMatches||(hasProductSnapshotId&&!versionMatches)))throw businessError('STANDARD_SNAPSHOT_MISMATCH','Định mức đã lưu không khớp nguồn định mức lịch sử',{saved_standard_output:standardOutput??null,saved_standard_version_id:standardVersionId??null,saved_machine_standard_id:machineStandardId??null,expected_standard_output:resolved?.standardOutput??null,expected_standard_version_id:resolved?.standardVersionId??null,expected_machine_standard_id:resolved?.machineStandardId??null,expected_source:resolved?.source??null});if(hasProductSnapshotId&&!hasMachineSnapshotId){if(!hasSavedOutput||!outputMatches||!versionMatches)throw businessError('STANDARD_SNAPSHOT_MISMATCH','Định mức đã lưu không khớp nguồn định mức lịch sử');return true;}if(!hasProductSnapshotId&&!hasMachineSnapshotId){if(!hasSavedOutput)throw businessError('STANDARD_SNAPSHOT_MISMATCH','Định mức đã lưu không khớp nguồn định mức lịch sử');return true;}if(!resolved||!outputMatches||!versionMatches||!machineMatches)throw businessError('STANDARD_SNAPSHOT_MISMATCH','Định mức đã lưu không khớp nguồn định mức lịch sử');return true;}
 const runtimeResolver=createStandardResolver();
-module.exports={...runtimeResolver,createStandardResolver,assertStandardSnapshotConsistency,normalizeWorkDate,businessError};
+// Exposed so CRUD controllers can invalidate the SHARED runtimeResolver's cache
+// after a successful, committed write to product_standards / product_standard_versions
+// / product_machine_standards / machines. A resolver created fresh via
+// createStandardResolver() (machineLineValidationService.js, machineProductionEventService.js,
+// approveSelected()'s per-call resolver) is NOT affected by this and needs no invalidation
+// -- its cache never outlives the single call that created it.
+module.exports={...runtimeResolver,createStandardResolver,assertStandardSnapshotConsistency,normalizeWorkDate,businessError,invalidateStandardResolutionCache:runtimeResolver.clearCache};
