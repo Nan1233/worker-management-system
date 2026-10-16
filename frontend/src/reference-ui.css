@@ -1,6 +1,6 @@
-/* KTC Reference UI — CSS-only visual system.
-   Source of truth: the Poketto-style reference board supplied for KTC.
-   No template components are required. Business logic/routes stay untouched. */
+/* KTC Design System — locally maintained CSS-only visual system.
+   Source of truth: KTC design tokens and responsive UI rules in this repository.
+   No third-party UI template dependency. Business logic/routes stay untouched. */
 
 :root {
   --ktc-workspace: #f4f7fb;
