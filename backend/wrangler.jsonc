@@ -8,6 +8,7 @@
   "keep_vars": true,
   "observability": { "enabled": true, "redact_query_string": true },
   "vars": {
+    "CORS_ORIGINS": "https://ktc-frontend.nan978971.workers.dev",
     "KTC_RUN_BUILD_DB_MIGRATIONS": "true",
     "KTC_CLOUDFLARE_WORKER": "true",
     "KTC_MIGRATION_REF": "test15102026",
@@ -25,16 +26,26 @@
     // Test-only: lets /api/health/ready return missingTables/missingColumns so
     // DATABASE_CONTRACT_INVALID is diagnosable. Do not set on production.
     "KTC_EXPOSE_SCHEMA_DIAGNOSTICS": "true",
+    "KTC_RUN_KQD_REPAIR": "true",
+    "MYSQL_SSL": "true",
+    "NODE_OPTIONS": "--max-old-space-size=384",
+    "WEB_CONCURRENCY": "1",
     "DB_HOST": "gateway01.ap-southeast-1.prod.aws.tidbcloud.com",
     "DB_NAME": "worker_management_test",
     "DB_PORT": "4000",
     "DB_CONNECTION_LIMIT": "6",
     "DB_WORKER_CONNECTION_LIMIT": "2",
     "DB_WORKER_MAX_IDLE": "1",
+    "DB_WORKER_CONNECTION_LIMIT": "2",
+    "DB_WORKER_MAX_IDLE": "1",
     "ENABLE_PROCESS_EXCEL_EXPORT": "true",
     "ENABLE_SERVER_COMPANY_EXCEL": "false",
     "ENABLE_SERVER_HEAVY_EXCEL": "false",
     "EXCEL_DETAIL_BATCH_SIZE": "400",
+    "EXCEL_JOB_TIMEOUT_MS": "240000",
+    "EXCEL_MAX_REPORTS_PER_DAY": "350",
+    "EXCEL_MAX_REPORTS_PER_MONTH": "5000",
+    "EXCEL_STAGE_FOLDER": "Cắt lồng",
     "EXCEL_EXPORT_RETENTION_MS": "2592000000",
     "EXCEL_EXPORT_ROOT": "D:\\BaoCaoSanXuat"
   }
