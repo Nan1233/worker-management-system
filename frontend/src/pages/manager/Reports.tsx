@@ -283,7 +283,7 @@ export default function Reports() {
                         <div style={{ display: "flex", gap: 6 }}><button type="button" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button><button type="button" disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button></div>
                     </div>
                 </section>
-                {detail && <aside className="pending-detail-card pending-detail-card-compact">
+                {detail && <aside className="pending-detail-card">
                     <div className="pending-detail-head">
                         <div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span><span className="pending-detail-code">#{detail.id}</span></div>
                         <button type="button" className="pending-detail-close" onClick={() => setDetail(null)} aria-label="Đóng">×</button>
