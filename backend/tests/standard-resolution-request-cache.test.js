@@ -9,12 +9,12 @@ test('standard resolver caches exact historical/master lookups within one reques
     if (sql.includes('FROM product_aliases') || sql.includes('product_aliases')) return [];
     if (sql.includes('FROM product_standards')) return [{ product_standard_id: 10, product_code: 'P1', standard_output: '12.5', exclude_kqd_from_tt: 0 }];
     if (sql.includes('FROM product_standard_versions')) return [{ id: 20, process_id: 1, product_code: 'P1', standard_output: '12.5', exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null }];
-    if (sql.includes('FROM machines')) return [{ id: 30, machine_code: 'M1' }];
+    if (sql.includes('FROM machines')) return [{ id: 30, machine_code: 'ML1', process_code: 'GC' }];
     if (sql.includes('FROM product_machine_standards') && sql.includes('machine_id=?')) return [{ id: 40, standard_output: '15', calculated_output_per_hour: '15', standard_time_seconds: null, effective_from: null, effective_to: null }];
     throw new Error(`Unexpected query: ${sql}`);
   };
   const resolver = createStandardResolver({ query: fakeQuery });
-  const input = { processId: 1, productCode: 'P1', machineId: 30, machineCode: 'M1', workDate: '2026-08-13' };
+  const input = { processId: 1, productCode: 'P1', machineId: 30, machineCode: 'ML1', workDate: '2026-08-13' };
   const first = await resolver.resolveStandard(input);
   const firstCallCount = calls;
   const second = await resolver.resolveStandard(input);
@@ -29,14 +29,14 @@ test('standard resolver does not conflate different machines', async () => {
     if (sql.includes('FROM product_aliases') || sql.includes('product_aliases')) return [];
     if (sql.includes('FROM product_standards')) return [{ product_standard_id: 10, product_code: 'P1', standard_output: '12.5', exclude_kqd_from_tt: 0 }];
     if (sql.includes('FROM product_standard_versions')) return [{ id: 20, process_id: 1, product_code: 'P1', standard_output: '12.5', exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null }];
-    if (sql.includes('FROM machines')) return [{ id: Number(params[1]), machine_code: params[3] }];
+    if (sql.includes('FROM machines')) return [{ id: Number(params[1]), machine_code: params[3], process_code: 'GC' }];
     if (sql.includes('FROM product_machine_standards') && sql.includes('machine_id=?')) return [{ id: 40 + Number(params[2]), standard_output: String(10 + Number(params[2])), calculated_output_per_hour: String(10 + Number(params[2])), standard_time_seconds: null, effective_from: null, effective_to: null }];
     throw new Error(`Unexpected query: ${sql}`);
   };
   const resolver = createStandardResolver({ query: fakeQuery });
   const a = await resolver.resolveStandard({ processId: 1, productCode: 'P1', machineId: 30, machineCode: 'M1', workDate: '2026-08-13' });
   const afterA = calls;
-  const b = await resolver.resolveStandard({ processId: 1, productCode: 'P1', machineId: 31, machineCode: 'M2', workDate: '2026-08-13' });
+  const b = await resolver.resolveStandard({ processId: 1, productCode: 'P1', machineId: 31, machineCode: 'ML2', workDate: '2026-08-13' });
   assert.notEqual(a.machineId, b.machineId);
   assert.ok(calls > afterA, 'different machine still performs machine-specific lookup');
 });
@@ -46,7 +46,7 @@ test('standard resolver falls back to the historical product standard when selec
     if (sql.includes('FROM product_aliases') || sql.includes('product_aliases')) return [];
     if (sql.includes('FROM product_standards')) return [{ product_standard_id: 100, product_code: '6495-m', standard_output: '1450', exclude_kqd_from_tt: 0 }];
     if (sql.includes('FROM product_standard_versions')) return [];
-    if (sql.includes('FROM machines')) return [{ id: 2, machine_code: '2' }];
+    if (sql.includes('FROM machines')) return [{ id: 2, machine_code: 'ML2', process_code: 'GC' }];
     if (sql.includes('FROM product_machine_standards') && sql.includes('machine_id=?')) return [];
     throw new Error(`Unexpected query: ${sql}`);
   };
@@ -56,13 +56,13 @@ test('standard resolver falls back to the historical product standard when selec
     processId: 1,
     productCode: '6495-m',
     machineId: 2,
-    machineCode: '2',
+    machineCode: 'ML2',
     workDate: '2026-09-09'
   });
 
   assert.equal(resolved.standardOutput, 1450);
   assert.equal(resolved.machineId, 2);
-  assert.equal(resolved.machineCode, '2');
+  assert.equal(resolved.machineCode, 'ML2');
   assert.equal(resolved.machineStandardId, null);
   assert.equal(resolved.source, 'LEGACY_PRODUCT_STANDARD_MACHINE_FALLBACK');
 });
@@ -115,6 +115,6 @@ test('standard resolver refuses ambiguous AUTO casing variants', async () => {
   const resolver = createStandardResolver({ query: fakeQuery });
   await assert.rejects(
     resolver.resolveStandard({ processId: 1, productCode: 'c5770-AUTO', machineId: 11, machineCode: 'C6', workDate: '2026-10-10' }),
-    /Không xác định duy nhất định mức sản phẩm/
+    /Có nhiều định mức AUTO mâu thuẫn/
   );
 });
