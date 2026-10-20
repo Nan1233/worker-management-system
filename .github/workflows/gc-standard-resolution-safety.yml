@@ -79,6 +79,52 @@ jobs:
           path: backend/backend-test-results.tap
           if-no-files-found: warn
 
+  backend-baseline:
+    name: Backend baseline on test (diagnostic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout exact test baseline (read-only)
+        uses: actions/checkout@v4
+        with:
+          ref: 693592e71906d45600748834b1e0ae7c9f9610c9
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Initialize baseline report
+        shell: bash
+        run: |
+          printf '# BASELINE_SHA=693592e71906d45600748834b1e0ae7c9f9610c9\n# CHECKOUT_REF=exact commit SHA; branch test is not modified\n# NODE_VERSION=%s\n' "$(node --version)" > backend-baseline-test-results.tap
+      - name: Install locked dependencies (no secrets or database credentials)
+        run: npm ci --no-audit --no-fund
+      - name: Full backend suite on exact baseline
+        shell: bash
+        run: |
+          set +e
+          node --test \
+            --test-timeout=60000 \
+            --test-force-exit \
+            --test-concurrency=1 \
+            --test-reporter=tap \
+            tests/*.test.js 2>&1 | tee -a backend-baseline-test-results.tap
+          test_exit=${PIPESTATUS[0]}
+          printf '\nBASELINE_TEST_EXIT_CODE=%s\n' "$test_exit" | tee -a backend-baseline-test-results.tap
+          exit "$test_exit"
+      - name: Upload baseline full-suite report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-baseline-test-${{ github.run_id }}-${{ github.sha }}
+          path: backend/backend-baseline-test-results.tap
+          if-no-files-found: warn
   frontend-typecheck:
     name: Frontend TypeScript typecheck (blocking)
     runs-on: ubuntu-latest
