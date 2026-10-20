@@ -33,6 +33,8 @@ jobs:
           tests/historical-standard-resolution.test.js
           tests/standard-resolution-request-cache.test.js
           tests/decimal-standard-precision.test.js
+      - name: Frontend/API resolver safety contract
+        run: node --test ../frontend/tests/gc-standard-resolution-safety.contract.test.cjs
 
   backend-full-suite:
     name: Backend full suite (informational)
