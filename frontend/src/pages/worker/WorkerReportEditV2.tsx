@@ -177,7 +177,7 @@ function WorkerReportEditV2() {
         setForm(nextForm);
         const normalizedOperation = s(data.operation_type || data.operation || "").trim().toUpperCase();
         setOperationType(normalizedOperation === "LONG" || normalizedOperation === "NEST" || normalizedOperation === "LÔNG" || normalizedOperation === "LỒNG" ? "LONG" : "CUT");
-        const loadedMachineCode = s(firstLine?.machine_code || data.machine_no).trim().toUpperCase().replace(/^MÁY\\s*/i, "");
+        const loadedMachineCode = s(firstLine?.machine_code || data.machine_no).trim().toUpperCase().replace(/^MÁY\s*/i, "");
         if (loadedMachineCode) setCutExecutionMode(["C5", "C6", "C7", "C11"].includes(loadedMachineCode) ? "AUTO" : "NON_AUTO");
         setOperationMode(data.operation_mode === "MACHINE" || (Array.isArray(data.machine_lines) ? data.machine_lines.length : Array.isArray(data.machineLines) ? data.machineLines.length : 0) > 0 ? "MACHINE" : "MANUAL");
         const loadedWorkType = s(data.extra_data?.work_type || data.work_type || "");
