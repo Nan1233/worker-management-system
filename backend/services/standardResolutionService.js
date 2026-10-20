@@ -27,9 +27,9 @@ function createStandardResolver({query=defaultQuery}={}) {
     // product's code equals another product's encoding code. Exact product_code
     // wins; encoding_code is only a fallback when no exact code exists.
     // Keep case-sensitive matching to avoid C1080/c1080 collisions.
-    const exactCodeRows=await query(`${fields} AND BINARY TRIM(product_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,product]);
+    const exactCodeRows=await query(`${fields} AND BINARY TRIM(product_code)=BINARY TRIM(?) ORDER BY id`,[pid,product]);
     if(exactCodeRows.length)return exactCodeRows;
-    const encodingRows=await query(`${fields} AND BINARY TRIM(encoding_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,product]);
+    const encodingRows=await query(`${fields} AND BINARY TRIM(encoding_code)=BINARY TRIM(?) ORDER BY id`,[pid,product]);
     if(encodingRows.length)return encodingRows;
     // Resolve aliases to exactly one canonical product before querying its
     // work-type-specific standards. Never merge rows from different products.
@@ -37,7 +37,7 @@ function createStandardResolver({query=defaultQuery}={}) {
     const aliasCodes=[...new Set(aliasRows.map(row=>normalizeCode(row?.product_code)).filter(Boolean))];
     if(aliasCodes.length>1)throw businessError('PRODUCT_ALIAS_CONFLICT',`Mã alias ${product} ánh xạ tới nhiều sản phẩm`,{process_id:pid,alias_code:product,product_codes:aliasCodes});
     if(!aliasRows.length)return [];
-    return query(`${fields} AND BINARY TRIM(product_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,String(aliasRows[0].product_code||'').trim()]);
+    return query(`${fields} AND BINARY TRIM(product_code)=BINARY TRIM(?) ORDER BY id`,[pid,String(aliasRows[0].product_code||'').trim()]);
   }
   function pickEquivalentRow(rows){if(!Array.isArray(rows)||rows.length<2)return null;const first=rows[0],code=normalizeCode(first?.product_code),workType=normalizeWorkType(first?.work_type);if(!code||!rows.every(row=>normalizeCode(row?.product_code)===code&&normalizeWorkType(row?.work_type)===workType))return null;const out=Number(first?.standard_output),kqd=Number(first?.exclude_kqd_from_tt||0);if(!Number.isFinite(out)||out<=0)return null;const allSame=rows.every(row=>sameDecimal(Number(row?.standard_output),out)&&Number(row?.exclude_kqd_from_tt||0)===kqd);return allSame?first:null;}
   function pickExactRow(rows,product){if(!Array.isArray(rows)||rows.length<2)return null;const wanted=normalizeCode(product);const exact=rows.filter(row=>normalizeCode(row?.product_code)===wanted||normalizeCode(row?.encoding_code)===wanted);return exact.length===1?exact[0]:null;}
@@ -85,7 +85,7 @@ function createStandardResolver({query=defaultQuery}={}) {
       const normalizedWorkType=normalizeWorkType(workType);
       const workTypeSql=normalizedWorkType==='LONG'?` AND UPPER(TRIM(ps.work_type))='LỒNG'`:normalizedWorkType==='CUT'?` AND UPPER(TRIM(ps.work_type))='CẮT'`:'';
       const statusSql=includeInactive?'':` AND ps.status='active'`;
-      const candidates=await query(`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=?${statusSql}${workTypeSql} AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) ORDER BY id LIMIT 2`,[pid,autoCode]);
+      const candidates=await query(`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=?${statusSql}${workTypeSql} AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) ORDER BY id`,[pid,autoCode]);
       if(candidates.length>1){
         const first=candidates[0],out=Number(first.standard_output),kqd=Number(first.exclude_kqd_from_tt||0);
         if(candidates.some(row=>!sameDecimal(Number(row.standard_output),out)||Number(row.exclude_kqd_from_tt||0)!==kqd)){
