@@ -298,13 +298,14 @@ test('GC conflicting active machine standards fail instead of selecting one row'
 test('GC alias lookup preserves the requested work_type when resolving the canonical product', async () => {
   const query = async (sql, params = []) => {
     const text = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
+    if (text.includes('from product_aliases')) return [{ product_code: 'QC3-2801' }];
     if (text.includes('from product_standards')) {
-      if (text.includes('binary trim(product_code)=binary trim(?)')) return [];
-      if (text.includes('binary trim(encoding_code)=binary trim(?)')) return [];
-      if (text.includes("upper(trim(ps.work_type))='lồng'") && text.includes('exists(select 1 from product_aliases')) {
+      const requestedProduct = String(params[1] || '').trim().toUpperCase();
+      if (requestedProduct !== 'QC3-2801') return [];
+      if (text.includes("upper(trim(ps.work_type))='lồng'")) {
         return [{ product_standard_id: 8801, product_code: 'QC3-2801', encoding_code: null, work_type: 'Lồng', standard_output: 180, exclude_kqd_from_tt: 0 }];
       }
-      if (text.includes("upper(trim(ps.work_type))='cắt'")) return [];
+      return [];
     }
     if (text.includes('from product_standard_versions')) return [];
     throw new Error(`Unexpected SQL: ${text}; params=${JSON.stringify(params)}`);
@@ -316,4 +317,18 @@ test('GC alias lookup preserves the requested work_type when resolving the canon
   assert.equal(resolved.productCode, 'QC3-2801');
   assert.equal(resolved.workType, 'LONG');
   assert.equal(resolved.standardOutput, 180);
+});
+
+test('GC alias mapping to multiple canonical products fails closed', async () => {
+  const query = async (sql) => {
+    const text = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
+    if (text.includes('from machines')) return [{ id: 16, machine_code: 'ML4', process_code: 'GC' }];
+    if (text.includes('from product_aliases')) return [{ product_code: 'QC3-2801' }, { product_code: 'OTHER-2801' }];
+    throw new Error(`Unexpected SQL: ${text}`);
+  };
+  const resolver = createStandardResolver({ query });
+  await assert.rejects(
+    resolver.resolveStandard({ processId: 1, productCode: '2801', machineCode: 'ML4', workDate: '2026-10-04' }),
+    error => error.code === 'PRODUCT_ALIAS_CONFLICT'
+  );
 });
