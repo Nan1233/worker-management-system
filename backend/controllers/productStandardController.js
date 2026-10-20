@@ -125,93 +125,24 @@ exports.resolveProductStandard = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Thiếu process_id, product_code hoặc work_date hợp lệ' });
     }
 
+    if (processId === 1 && !machineCode) {
+      return res.status(422).json({ success: false, code: 'GC_WORK_TYPE_UNRESOLVED', message: 'Cần chọn máy GC thuộc nhóm C1–C12 hoặc ML1–ML20 để xác định loại công việc' });
+    }
+
     await Promise.all([
       getOrLoadMasterData(`machines:${MACHINE_CACHE_VERSION}:${processId}`, TTL.machines, () => machineModel.findByProcess(processId)),
       getOrLoadMasterData(`product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:resolve:${processId}`, TTL.productStandards, () => productStandardModel.findByProcess(processId))
     ]);
-
-    if (machineCode) {
-      const [machineRows] = await query(
-        `SELECT id, machine_code
-           FROM machines
-          WHERE process_id=? AND status='active' AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
-          LIMIT 2`,
-        [processId, machineCode]
-      );
-
-      if (machineRows.length === 1) {
-        const machine = machineRows[0];
-        const [aliasRows] = await query(
-          `SELECT product_code
-             FROM product_aliases
-            WHERE process_id=? AND status='active' AND UPPER(TRIM(alias_code))=UPPER(TRIM(?))
-            ORDER BY id
-            LIMIT 1`,
-          [processId, productCode]
-        );
-        const canonicalProduct = String(aliasRows[0]?.product_code || productCode).trim();
-
-        const [machineStandardRows] = await query(
-          `SELECT
-              pms.id AS machine_standard_id,
-              pms.product_code,
-              pms.standard_output,
-              pms.calculated_output_per_hour,
-              pms.standard_time_seconds,
-              pms.effective_from,
-              pms.effective_to,
-              pms.is_active,
-              ps.id AS product_standard_id,
-              COALESCE(ps.exclude_kqd_from_tt,0) AS exclude_kqd_from_tt
-             FROM product_machine_standards pms
-             LEFT JOIN product_standards ps
-               ON ps.process_id=pms.process_id
-              AND UPPER(TRIM(ps.product_code))=UPPER(TRIM(pms.product_code))
-             WHERE pms.process_id=?
-              AND UPPER(TRIM(pms.product_code))=UPPER(TRIM(?))
-              AND pms.machine_id=?
-              AND (pms.effective_from IS NULL OR pms.effective_from<=?)
-              AND (pms.effective_to IS NULL OR pms.effective_to>=?)
-             ORDER BY CASE WHEN pms.is_active=1 THEN 0 ELSE 1 END,
-                      COALESCE(pms.effective_from,'1000-01-01') DESC,
-                      pms.id DESC
-             LIMIT 2`,
-          [processId, canonicalProduct, Number(machine.id), workDate, workDate]
-        );
-
-        if (machineStandardRows.length === 1) {
-          const row = machineStandardRows[0];
-          const output = Number(row.calculated_output_per_hour ?? row.standard_output);
-          if (Number.isFinite(output) && output > 0) {
-            return res.status(200).json({
-              success: true,
-              data: {
-                product_standard_id: Number(row.product_standard_id || 0),
-                process_id: processId,
-                product_code: String(row.product_code || canonicalProduct),
-                alias_code: productCode.toUpperCase() !== String(row.product_code || canonicalProduct).toUpperCase() ? productCode : null,
-                machine_id: Number(machine.id),
-                machine_code: machine.machine_code,
-                standard_time_seconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null,
-                machine_standard_output: output,
-                default_standard_output: Number(row.standard_output) > 0 ? Number(row.standard_output) : null,
-                resolved_output_per_hour: output,
-                standard_source: Number(row.is_active) === 1 ? 'MACHINE' : 'MACHINE_HISTORICAL',
-                machine_standard_id: Number(row.machine_standard_id),
-                exclude_kqd_from_tt: Number(row.exclude_kqd_from_tt || 0)
-              }
-            });
-          }
-        }
-      }
-    }
 
     const data = await productStandardModel.resolveByMachineAndProduct(processId, machineCode, productCode, workDate);
     if (!data) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy định mức cho máy và sản phẩm đã chọn' });
     }
 
-    const resolved = Number(data.resolved_output_per_hour || 0);
+    const resolved = Number(data.resolved_output_per_hour);
+    if (!Number.isFinite(resolved) || resolved <= 0) {
+      return res.status(422).json({ success: false, code: 'INVALID_STANDARD_VALUE', message: 'Không có định mức hợp lệ cho sản phẩm, công đoạn và máy đã chọn' });
+    }
     return res.status(200).json({
       success: true,
       data: {

@@ -173,15 +173,24 @@ const resolveAliasToProductCode = async (processId, productCode) => {
     if (!input) return input;
 
     const rows = await query(`
-        SELECT product_code
+        SELECT DISTINCT product_code
         FROM product_aliases
         WHERE process_id = ?
           AND UPPER(TRIM(alias_code)) = UPPER(TRIM(?))
           AND status = 'active'
-        ORDER BY id
-        LIMIT 1
+        ORDER BY product_code
+        LIMIT 2
     `, [processId, input]);
 
+    const productCodes = [...new Set(rows.map((row) => String(row?.product_code || '').trim().toUpperCase()).filter(Boolean))];
+    if (productCodes.length > 1) {
+        const error = new Error(`Mã alias ${input} ánh xạ tới nhiều sản phẩm`);
+        error.status = 422;
+        error.code = 'PRODUCT_ALIAS_CONFLICT';
+        error.isPublic = true;
+        error.details = { process_id: Number(processId), alias_code: input, product_codes: productCodes };
+        throw error;
+    }
     return rows[0]?.product_code ? String(rows[0].product_code).trim() : input;
 };
 
@@ -205,10 +214,10 @@ exports.resolveByMachineAndProduct = async (processId, machineCode, productCode,
         machine_id: resolved.machineId || null,
         machine_code: resolved.machineCode || machineCode,
         standard_time_seconds: resolved.standardTimeSeconds,
-        machine_standard_output: resolved.source === 'MACHINE' ? resolved.standardOutput : null,
-        default_standard_output: resolved.source === 'MACHINE' ? null : resolved.standardOutput,
+        machine_standard_output: resolved.machineStandardId ? resolved.standardOutput : null,
+        default_standard_output: resolved.machineStandardId ? null : resolved.standardOutput,
         resolved_output_per_hour: resolved.standardOutput,
-        standard_source: resolved.source === 'MACHINE' ? 'MACHINE' : 'DEFAULT',
+        standard_source: resolved.machineStandardId ? resolved.source : 'DEFAULT',
         exclude_kqd_from_tt: resolved.excludeKqdFromTt
     };
 };
