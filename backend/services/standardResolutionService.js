@@ -158,6 +158,13 @@ function createStandardResolver({query=defaultQuery}={}) {
     const modeText=String(operationMode||executionMethod||'').trim().toUpperCase(), isAuto=['AUTO','AUTOMATIC','TỰ ĐỘNG','TU DONG'].includes(modeText)||/AUTO|TỰ\s*ĐỘNG|TU\s*DONG/.test(modeText);
     const resolvedWorkType=normalizeRequestedWorkType({processId:pid,processCode,machineCode:machine?.machine_code||requestedMachineCode,workType});
     const isGcProcess=pid===1||processCode==='GC';
+    const inferredGcWorkType=isGcProcess?inferGcWorkType(machine?.machine_code||requestedMachineCode):null;
+    const explicitGcWorkType=normalizeWorkType(workType);
+    if(isGcProcess&&inferredGcWorkType&&['CUT','LONG'].includes(explicitGcWorkType)&&explicitGcWorkType!==normalizeWorkType(inferredGcWorkType)){
+      throw businessError('GC_WORK_TYPE_MISMATCH',`Loại công việc ${explicitGcWorkType} không khớp với máy ${machine?.machine_code||requestedMachineCode} (${inferredGcWorkType})`,{
+        process_id:pid,machine_code:machine?.machine_code||requestedMachineCode,requested_work_type:explicitGcWorkType,inferred_work_type:normalizeWorkType(inferredGcWorkType)
+      });
+    }
     if(isGcProcess&&!resolvedWorkType){
       throw businessError('GC_WORK_TYPE_UNRESOLVED',`Không xác định được loại công việc Cắt/Lồng cho máy ${machine?.machine_code||requestedMachineCode||'(chưa chọn máy)'}; hãy chọn máy thuộc C1–C12 hoặc ML1–ML20, hoặc truyền work_type rõ ràng`,{
         process_id:pid,machine_code:machine?.machine_code||requestedMachineCode||null,work_type:workType||null
