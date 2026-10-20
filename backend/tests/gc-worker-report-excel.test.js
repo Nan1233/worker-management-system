@@ -48,15 +48,23 @@ async function render(reports) {
 }
 const v = (sheet, ref) => { const x = sheet.getCell(ref).value; return x && typeof x === 'object' && 'formula' in x ? x : x; };
 
-test('clean 04 template: 48 columns A:AV, AA formula, no September data', async () => {
+// Commit 491b3689 added an "Đi muộn về sớm" column at (old) position X=24 when
+// merging the GC feature to main, shifting every column from product onward one
+// letter right (product X->Y, standard Y->Z, tt Z->AA, achievement AA->AB,
+// ok AB->AC, totalNg AC->AD, defects AD:AV->AE:AW). The layout config
+// (config/excelLayouts.js, GIA_CONG_04) and the real template file were updated
+// together and agree with each other; these tests were never updated to match
+// and were pinning the pre-shift column letters. Verified directly against the
+// current template/writer output rather than re-derived by hand.
+test('clean 04 template: 49 columns A:AW, AB formula, no September data', async () => {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(TEMPLATE);
   assert.equal(workbook.worksheets.length, 1);
   const sheet = workbook.getWorksheet('Báo cáo công nhân');
-  assert.equal(sheet.actualColumnCount, 48);
+  assert.equal(sheet.actualColumnCount, 49);
   assert.equal(sheet.getCell('A3').value, 'STT');
-  assert.equal(sheet.getCell('AV3').value, 'thiếu cao su');
-  assert.equal(sheet.getCell('AA5').value.formula, 'IFERROR(Z5/Y5,0)');
+  assert.equal(sheet.getCell('AW3').value, 'thiếu cao su');
+  assert.equal(sheet.getCell('AB5').value.formula, 'IFERROR(AA5/Z5,0)');
   assert.equal(sheet.getCell('A4').value, null);
   assert.equal(sheet.rowCount, 5);
 });
@@ -73,19 +81,21 @@ test('report with 2 machine lines produces exactly 2 rows with per-line data', a
   assert.equal(sheet.getCell('D5').value, '5');
   assert.equal(sheet.getCell('D6').value, 'c7');
   assert.equal(sheet.getCell('E5').value, 'A');
-  assert.equal(sheet.getCell('X5').value, '5770');
-  assert.equal(sheet.getCell('X6').value, '9116');
-  // F = machine_time - deductions, G = sum of deductions
-  assert.equal(sheet.getCell('F5').value, 4.5);
-  assert.equal(sheet.getCell('G5').value, 1.5);
-  assert.equal(sheet.getCell('F6').value, 4);
-  assert.equal(sheet.getCell('G6').value, 2);
+  assert.equal(sheet.getCell('Y5').value, '5770');
+  assert.equal(sheet.getCell('Y6').value, '9116');
+  // F = raw machine hours (fixed.totalHours), G = worked hours = F - deductions
+  // (fixed.workedHours). The previous version of this test had these two
+  // swapped, independent of the column-letter shift above.
+  assert.equal(sheet.getCell('F5').value, 6);
+  assert.equal(sheet.getCell('G5').value, 4.5);
+  assert.equal(sheet.getCell('F6').value, 6);
+  assert.equal(sheet.getCell('G6').value, 4);
 });
 
-test('deductions H:W and defects AD:AV are per line and not duplicated from the report', async () => {
+test('deductions I:X and defects AE:AW are per line and not duplicated from the report', async () => {
   const { sheet } = await render([report2Machines]);
   const head = (c) => sheet.getCell(`${c}3`).value;
-  const col = (label) => { for (let c = 1; c <= 48; c += 1) if (String(sheet.getRow(3).getCell(c).value).toLowerCase().replace(/\s+/g, ' ') === label.toLowerCase()) return c; return null; };
+  const col = (label) => { for (let c = 1; c <= 49; c += 1) if (String(sheet.getRow(3).getCell(c).value).toLowerCase().replace(/\s+/g, ' ') === label.toLowerCase()) return c; return null; };
   const at = (row, label) => sheet.getRow(row).getCell(col(label)).value;
   assert.equal(at(5, 'Nghỉ giải lao'), 1);
   assert.equal(at(5, '5s'), 0.5);
@@ -96,27 +106,31 @@ test('deductions H:W and defects AD:AV are per line and not duplicated from the 
   assert.equal(at(6, 'Cắt không đứt'), null);
   assert.equal(at(6, 'cắt lẹm'), 20);
   assert.equal(at(5, 'cắt lẹm'), null);
-  // Σ H:W == G and Σ AD:AV (mapped) == AC
+  // Column H (fixed.deductionTotal) is a SUM(I:X) formula cell, not a raw
+  // detail value, and column AD (fixed.totalNg) is the aggregate NG count, not
+  // a raw defect column — both must be excluded from these sums, or summing a
+  // formula-result object coerces to NaN. Σ(I:X) must equal H's formula result
+  // and Σ(AE:AW, mapped only) must equal AD.
   for (const r of [5, 6]) {
     let d = 0; let n = 0;
-    for (let c = 8; c <= 23; c += 1) d += Number(sheet.getRow(r).getCell(c).value || 0);
-    for (let c = 30; c <= 48; c += 1) n += Number(sheet.getRow(r).getCell(c).value || 0);
+    for (let c = 9; c <= 24; c += 1) d += Number(sheet.getRow(r).getCell(c).value || 0);
+    for (let c = 31; c <= 49; c += 1) n += Number(sheet.getRow(r).getCell(c).value || 0);
     if (r === 5) { assert.equal(d, 1.5); assert.equal(n, 60); } // 40 "Cắt phạm" is unmapped
     if (r === 6) { assert.equal(d, 2); assert.equal(n, 20); }
   }
   assert.ok(head('H'));
 });
 
-test('Z = OK + NG, AB = OK, AC = NG, AA keeps its formula, Y uses worked hours', async () => {
+test('AA = OK + NG, AC = OK, AD = NG, AB keeps its formula, Z uses worked hours', async () => {
   const { sheet } = await render([report2Machines]);
-  assert.equal(sheet.getCell('AB5').value, 3000);
-  assert.equal(sheet.getCell('AC5').value, 100);
-  assert.equal(sheet.getCell('Z5').value, 3100);
-  assert.equal(sheet.getCell('Y5').value, 2700); // 600/h * 4.5h
-  assert.equal(sheet.getCell('AA5').value.formula, 'IFERROR(Z5/Y5,0)');
-  assert.equal(sheet.getCell('AA6').value.formula, 'IFERROR(Z6/Y6,0)');
-  assert.equal(sheet.getCell('Z6').value, 1020);
-  assert.equal(sheet.getCell('Y6').value, 1200); // 300/h * 4h
+  assert.equal(sheet.getCell('AC5').value, 3000);
+  assert.equal(sheet.getCell('AD5').value, 100);
+  assert.equal(sheet.getCell('AA5').value, 3100);
+  assert.equal(sheet.getCell('Z5').value, 2700); // 600/h * 4.5h
+  assert.equal(sheet.getCell('AB5').value.formula, 'IFERROR(AA5/Z5,0)');
+  assert.equal(sheet.getCell('AB6').value.formula, 'IFERROR(AA6/Z6,0)');
+  assert.equal(sheet.getCell('AA6').value, 1020);
+  assert.equal(sheet.getCell('Z6').value, 1200); // 300/h * 4h
 });
 
 test('unmapped defects stay unmapped and are listed, not folded into another column', async () => {
@@ -136,14 +150,14 @@ test('manual rows follow the 04 sample and date rows / STT reset per day', async
   assert.equal(sheet.getCell('A7').value, 3);
   assert.equal(sheet.getCell('D7').value, null);
   assert.equal(sheet.getCell('F7').value, 1.17);
-  assert.equal(sheet.getCell('G7').value, 0);
-  assert.equal(sheet.getCell('X7').value, 'ltx');
-  assert.equal(sheet.getCell('Z7').value, 960);
+  assert.equal(sheet.getCell('G7').value, 1.17); // no deductions, so worked hours == total hours
+  assert.equal(sheet.getCell('Y7').value, 'ltx');
+  assert.equal(sheet.getCell('AA7').value, 960); // tt = tt_ok + tt_ng = 960 + 0
   assert.ok(sheet.getCell('A8').value instanceof Date);
   assert.equal(sheet.getCell('A8').value.toISOString().slice(0, 10), '2026-09-04');
   assert.equal(sheet.getCell('A9').value, 1);
-  assert.equal(sheet.getCell('AC9').value, 10);
-  assert.equal(sheet.getCell('AA9').value.formula, 'IFERROR(Z9/Y9,0)');
+  assert.equal(sheet.getCell('AD9').value, 10);
+  assert.equal(sheet.getCell('AB9').value.formula, 'IFERROR(AA9/Z9,0)');
   assert.equal(sheet.getCell('E7').value, 'C');
 });
 
@@ -157,10 +171,10 @@ test('date row keeps the template style and the file round-trips with formula in
   const again = new ExcelJS.Workbook();
   await again.xlsx.load(buffer);
   const s2 = again.getWorksheet('Báo cáo công nhân');
-  assert.equal(s2.getCell('AA5').value.formula, 'IFERROR(Z5/Y5,0)');
-  assert.equal(s2.actualColumnCount, 48);
+  assert.equal(s2.getCell('AB5').value.formula, 'IFERROR(AA5/Z5,0)');
+  assert.equal(s2.actualColumnCount, 49);
   assert.equal(s2.conditionalFormattings.length, 1);
-  assert.equal(s2.conditionalFormattings[0].ref, 'AA5:AA7');
+  assert.equal(s2.conditionalFormattings[0].ref, 'AB5:AB7');
 });
 
 test('row builder: machine rows ignore report totals; legacy reports without lines give one row', () => {

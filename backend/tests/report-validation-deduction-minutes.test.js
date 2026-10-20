@@ -4,7 +4,11 @@ const { validateProductionReport } = require('../utils/reportValidation');
 
 test('deduction detail minutes matches deduction_time in hours', () => {
   const result = validateProductionReport({
-    work_date: '2026-10-01',
+    // A hardcoded date goes stale once it falls outside the 14-day submission
+    // window and starts failing on an unrelated work_date check; use "today"
+    // like the other validateProductionReport tests (e.g.
+    // decimal-standard-precision.test.js, non-product-work-validation.test.js).
+    work_date: new Date().toISOString().slice(0, 10),
     shift: 'A',
     total_time: 10 + 20 / 60,
     actual_time: 10,
@@ -27,7 +31,7 @@ test('deduction detail minutes matches deduction_time in hours', () => {
 
 test('canonical deduction hours still works', () => {
   const result = validateProductionReport({
-    work_date: '2026-10-01',
+    work_date: new Date().toISOString().slice(0, 10),
     shift: 'A',
     total_time: 10 + 20 / 60,
     actual_time: 10,

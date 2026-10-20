@@ -14,13 +14,19 @@ test('monthList rejects invalid start month', () => {
   assert.throws(() => monthList('2026-13', '2026-10-08'), /month must be 01-12/);
 });
 
-test('single machine line with missing hours is eligible only with valid worker time', () => {
+test('single machine line with missing hours and valid worker time still requires review, not auto-inference', () => {
+  // Worker total/actual time is not proof of physical machine time, even when
+  // there is exactly one machine line (commit 13c178f6, "Prevent worker-time
+  // inference in historical machine audit"). Auto-classifying this as eligible
+  // for backfill would let an unverified worker-entered duration stand in for
+  // the machine's real run time, so this must stay REVIEW until an approved
+  // physical event or trusted machine-time source confirms the value.
   const result = classifyReport({
     id: 10, work_date: '2026-09-01', total_time: 8, deduction_time: 1,
     operation_mode: 'MACHINE', machineLines: [{ id: 20, machine_code: 'GC01', machine_time_hours: 0 }]
   });
-  assert.equal(result.action, 'ELIGIBLE_SINGLE_MACHINE');
-  assert.equal(result.reason, 'ONE_MACHINE_LINE_MISSING_TIME_WITH_VALID_WORKER_TIME');
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'MISSING_MACHINE_TIME_CANNOT_BE_INFERRED_FROM_WORKER_TIME');
 });
 
 test('multi-machine allocation is flagged for review, not auto-split', () => {
