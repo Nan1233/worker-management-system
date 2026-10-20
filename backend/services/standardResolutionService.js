@@ -12,8 +12,8 @@ function assertEffectiveOnDate(row,date,label){const from=row?.effective_from?St
 function chooseHistoricalVersion(rows,date,label){const applicable=(rows||[]).filter(row=>{const from=row?.effective_from?String(row.effective_from).slice(0,10):null;const to=row?.effective_to?String(row.effective_to).slice(0,10):null;return(!from||from<=date)&&(!to||to>=date)});if(!applicable.length)return null;const active=applicable.filter(row=>String(row.status||'').toLowerCase()==='active'||Number(row.is_active)===1);const candidates=active.length?active:applicable;if(candidates.length>1)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức cùng hiệu lực cho ${label} tại ngày ${date}`,{work_date:date,version_ids:candidates.map(r=>Number(r.id)).filter(Boolean)});return candidates[0];}
 
 function normalizeWorkType(value){const code=String(value||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');if(['CUT','CAT'].includes(code))return 'CUT';if(['LONG','LNG'].includes(code))return 'LONG';return code;}
-function inferGcWorkType(machineCode){const code=String(machineCode||'').trim().toUpperCase().replace(/\s+/g,'');if(/^ML\d+$/.test(code)||/^\d+$/.test(code))return 'Lồng';if(code==='C5')return 'Cắt';return null;}
-function normalizeRequestedWorkType({processId,processCode,machineCode,workType,operationMode}){const explicit=normalizeWorkType(workType);if(explicit==='LONG')return 'Lồng';if(explicit==='CUT')return 'Cắt';const isGc=Number(processId)===1||String(processCode||'').trim().toUpperCase()==='GC';if(isGc){const inferred=inferGcWorkType(machineCode);if(inferred)return inferred;if(String(operationMode||'').trim().toUpperCase()==='MANUAL')return 'Lồng';}return null;}
+function inferGcWorkType(machineCode){const code=String(machineCode||'').trim().toUpperCase().replace(/\s+/g,'');if(/^ML(?:[1-9]|1\d|20)$/.test(code))return 'Lồng';if(/^C(?:[1-9]|1[0-2])$/.test(code))return 'Cắt';return null;}
+function normalizeRequestedWorkType({processId,processCode,machineCode,workType}){const explicit=normalizeWorkType(workType);if(explicit==='LONG')return 'Lồng';if(explicit==='CUT')return 'Cắt';const isGc=Number(processId)===1||String(processCode||'').trim().toUpperCase()==='GC';if(isGc)return inferGcWorkType(machineCode);return null;}
 
 function createStandardResolver({query=defaultQuery}={}) {
   const productCache=new Map(), standardCache=new Map();
@@ -35,10 +35,72 @@ function createStandardResolver({query=defaultQuery}={}) {
     return query(`${fields} AND EXISTS(SELECT 1 FROM product_aliases pa WHERE pa.process_id=ps.process_id AND BINARY TRIM(pa.product_code)=BINARY TRIM(ps.product_code) AND pa.status='active' AND BINARY TRIM(pa.alias_code)=BINARY TRIM(?)) ORDER BY id LIMIT 2`,[pid,product]);
   }
   function pickEquivalentRow(rows){if(!Array.isArray(rows)||rows.length<2)return null;const out=Number(rows[0]?.standard_output),kqd=Number(rows[0]?.exclude_kqd_from_tt||0);if(!Number.isFinite(out)||out<=0)return null;const allSame=rows.every(row=>sameDecimal(Number(row?.standard_output),out)&&Number(row?.exclude_kqd_from_tt||0)===kqd);return allSame?rows[0]:null;}
-  function pickHighestDuplicateProductRow(rows,product){if(!Array.isArray(rows)||rows.length<2)return null;const wanted=normalizeCode(product),first=rows[0],code=normalizeCode(first?.product_code),workType=normalizeWorkType(first?.work_type);if(!code||code!==wanted||!workType)return null;const sameProductAndWorkType=rows.every(row=>normalizeCode(row?.product_code)===code&&normalizeWorkType(row?.work_type)===workType);if(!sameProductAndWorkType)return null;const positive=rows.filter(row=>Number.isFinite(Number(row?.standard_output))&&Number(row.standard_output)>0);if(!positive.length)return null;return positive.slice().sort((a,b)=>Number(b.standard_output)-Number(a.standard_output)||Number(a.product_standard_id)-Number(b.product_standard_id))[0];}
   function pickExactRow(rows,product){if(!Array.isArray(rows)||rows.length<2)return null;const wanted=normalizeCode(product);const exact=rows.filter(row=>normalizeCode(row?.product_code)===wanted||normalizeCode(row?.encoding_code)===wanted);return exact.length===1?exact[0]:null;}
   function normalizeCode(value){return String(value||'').trim().toUpperCase();}
-  async function selectProductRow(pid,product,workDate,{allowAutoAlias=false,workType=null,includeInactive=false}={}){const lookupOptions={includeInactive};const rows=await findProductRows(pid,product,workType,lookupOptions);if(rows.length===1)return rows[0];const highestDuplicate=pickHighestDuplicateProductRow(rows,product);if(highestDuplicate)return highestDuplicate;const exact=pickExactRow(rows,product);if(exact)return exact;const equivalent=pickEquivalentRow(rows);if(equivalent)return equivalent;const resolveUniqueAutoCaseVariant=async(autoCode)=>{if(!/-AUTO$/i.test(autoCode))return null;const normalizedWorkType=normalizeWorkType(workType);const workTypeSql=normalizedWorkType==='LONG'?` AND UPPER(TRIM(ps.work_type))='LỒNG'`:normalizedWorkType==='CUT'?` AND UPPER(TRIM(ps.work_type))='CẮT'`:'';const statusSql=includeInactive?'':` AND ps.status='active'`;const candidates=await query(`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=?${statusSql}${workTypeSql} AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) ORDER BY id LIMIT 2`,[pid,autoCode]);return candidates.length===1?candidates[0]:null;};const autoCaseVariant=await resolveUniqueAutoCaseVariant(product);if(autoCaseVariant)return autoCaseVariant;if(!allowAutoAlias)return null;const autoProduct=/-AUTO$/i.test(product)?product:`${product}-AUTO`;const autoRows=await findProductRows(pid,autoProduct,workType,lookupOptions);if(autoRows.length===1)return autoRows[0];const exactAuto=pickExactRow(autoRows,autoProduct);if(exactAuto)return exactAuto;const equivalentAuto=pickEquivalentRow(autoRows);if(equivalentAuto)return equivalentAuto;return resolveUniqueAutoCaseVariant(autoProduct);}
+  async function selectProductRow(pid,product,workDate,{allowAutoAlias=false,workType=null,includeInactive=false}={}){
+    const lookupOptions={includeInactive};
+    const rows=await findProductRows(pid,product,workType,lookupOptions);
+    if(rows.length===1)return rows[0];
+    if(rows.length>1){
+      const first=rows[0];
+      const sameProduct=rows.every(row=>normalizeCode(row?.product_code)===normalizeCode(first?.product_code));
+      const sameWorkType=rows.every(row=>normalizeWorkType(row?.work_type)===normalizeWorkType(first?.work_type));
+      if(sameProduct&&sameWorkType){
+        const output=Number(first?.standard_output);
+        const kqd=Number(first?.exclude_kqd_from_tt||0);
+        const conflicting=rows.some(row=>!sameDecimal(Number(row?.standard_output),output)||Number(row?.exclude_kqd_from_tt||0)!==kqd);
+        if(conflicting){
+          throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức chung đang hoạt động mâu thuẫn cho sản phẩm ${product}${workType?` / ${workType}`:''}`,{
+            process_id:pid,product_code:product,work_type:workType||first?.work_type||null,
+            conflicting_standard_ids:rows.map(row=>Number(row?.product_standard_id)).filter(Number.isFinite)
+          });
+        }
+      }
+      if(Number(pid)===1&&!normalizeWorkType(workType)&&sameProduct){
+        const types=new Set(rows.map(row=>normalizeWorkType(row?.work_type)).filter(Boolean));
+        if(types.size>1){
+          throw businessError('GC_WORK_TYPE_UNRESOLVED',`Không xác định được Cắt/Lồng cho sản phẩm ${product}; cần loại công việc rõ ràng`,{
+            process_id:pid,product_code:product,work_types:[...types]
+          });
+        }
+      }
+    }
+    const exact=pickExactRow(rows,product);
+    if(exact)return exact;
+    const equivalent=pickEquivalentRow(rows);
+    if(equivalent)return equivalent;
+    const resolveUniqueAutoCaseVariant=async(autoCode)=>{
+      if(!/-AUTO$/i.test(autoCode))return null;
+      const normalizedWorkType=normalizeWorkType(workType);
+      const workTypeSql=normalizedWorkType==='LONG'?` AND UPPER(TRIM(ps.work_type))='LỒNG'`:normalizedWorkType==='CUT'?` AND UPPER(TRIM(ps.work_type))='CẮT'`:'';
+      const statusSql=includeInactive?'':` AND ps.status='active'`;
+      const candidates=await query(`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=?${statusSql}${workTypeSql} AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) ORDER BY id LIMIT 2`,[pid,autoCode]);
+      if(candidates.length>1){
+        const first=candidates[0],out=Number(first.standard_output),kqd=Number(first.exclude_kqd_from_tt||0);
+        if(candidates.some(row=>!sameDecimal(Number(row.standard_output),out)||Number(row.exclude_kqd_from_tt||0)!==kqd)){
+          throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức AUTO mâu thuẫn cho sản phẩm ${autoCode}`,{process_id:pid,product_code:autoCode,work_type:workType||null});
+        }
+      }
+      return candidates.length===1?candidates[0]:pickEquivalentRow(candidates);
+    };
+    const autoCaseVariant=await resolveUniqueAutoCaseVariant(product);
+    if(autoCaseVariant)return autoCaseVariant;
+    if(!allowAutoAlias)return null;
+    const autoProduct=/-AUTO$/i.test(product)?product:`${product}-AUTO`;
+    const autoRows=await findProductRows(pid,autoProduct,workType,lookupOptions);
+    if(autoRows.length>1){
+      const first=autoRows[0],out=Number(first.standard_output),kqd=Number(first.exclude_kqd_from_tt||0);
+      if(autoRows.some(row=>!sameDecimal(Number(row.standard_output),out)||Number(row.exclude_kqd_from_tt||0)!==kqd)){
+        throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức AUTO mâu thuẫn cho sản phẩm ${autoProduct}`,{process_id:pid,product_code:autoProduct,work_type:workType||null});
+      }
+    }
+    if(autoRows.length===1)return autoRows[0];
+    const exactAuto=pickExactRow(autoRows,autoProduct);
+    if(exactAuto)return exactAuto;
+    const equivalentAuto=pickEquivalentRow(autoRows);
+    if(equivalentAuto)return equivalentAuto;
+    return resolveUniqueAutoCaseVariant(autoProduct);
+  }
   async function resolveProduct({processId,productCode,workDate,standardVersionId=null,allowAutoAlias=false,workType=null}) {
     const pid=Number(processId), product=String(productCode||'').trim(), date=normalizeWorkDate(workDate), normalizedWorkType=normalizeWorkType(workType);
     if((pid===60006||pid===30002)&&!product)return{processId:pid,productCode:null,productStandardId:null,standardVersionId:null,machineStandardId:null,standardOutput:0,standardTimeSeconds:null,excludeKqdFromTt:0,effectiveFrom:null,effectiveTo:null,source:'NON_PRODUCT_WORK',workDate:date,historicalVersionAvailable:false,nonProductWork:true};
@@ -59,7 +121,7 @@ function createStandardResolver({query=defaultQuery}={}) {
     if(allowAutoAlias && !requestedVersionId && !/-AUTO$/i.test(product)){
       const autoProduct=`${product}-AUTO`;
       selectedProduct=await selectProductRow(pid,autoProduct,date,{allowAutoAlias:false,workType:normalizedWorkType,includeInactive:false});
-      if(!selectedProduct && normalizedWorkType){
+      if(!selectedProduct && normalizedWorkType && pid!==1){
         selectedProduct=await selectProductRow(pid,autoProduct,date,{allowAutoAlias:false,workType:null,includeInactive:false});
         fallbackToProcessProduct=Boolean(selectedProduct);
       }
@@ -67,7 +129,7 @@ function createStandardResolver({query=defaultQuery}={}) {
 
     if(!selectedProduct){
       selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutoAlias&&!requestedVersionId,workType:normalizedWorkType,includeInactive:historicalSnapshotLookup});
-      if(!selectedProduct && normalizedWorkType){
+      if(!selectedProduct && normalizedWorkType && pid!==1){
         selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutoAlias&&!requestedVersionId,workType:null,includeInactive:historicalSnapshotLookup});
         fallbackToProcessProduct=Boolean(selectedProduct);
       }
@@ -94,7 +156,13 @@ function createStandardResolver({query=defaultQuery}={}) {
     if((requestedMachineId||requestedMachineCode||requestedMachineStandardId)&&machineRows.length!==1)throw businessError('MACHINE_NOT_FOUND','Máy không tồn tại hoặc không thuộc công đoạn');
     const machine=machineRows[0]||null, processCode=String(machine?.process_code||'').trim().toUpperCase();
     const modeText=String(operationMode||executionMethod||'').trim().toUpperCase(), isAuto=['AUTO','AUTOMATIC','TỰ ĐỘNG','TU DONG'].includes(modeText)||/AUTO|TỰ\s*ĐỘNG|TU\s*DONG/.test(modeText);
-    const resolvedWorkType=normalizeRequestedWorkType({processId:pid,processCode,machineCode:machine?.machine_code||requestedMachineCode,workType,operationMode:modeText});
+    const resolvedWorkType=normalizeRequestedWorkType({processId:pid,processCode,machineCode:machine?.machine_code||requestedMachineCode,workType});
+    const isGcProcess=pid===1||processCode==='GC';
+    if(isGcProcess&&!resolvedWorkType){
+      throw businessError('GC_WORK_TYPE_UNRESOLVED',`Không xác định được loại công việc Cắt/Lồng cho máy ${machine?.machine_code||requestedMachineCode||'(chưa chọn máy)'}; hãy chọn máy thuộc C1–C12 hoặc ML1–ML20, hoặc truyền work_type rõ ràng`,{
+        process_id:pid,machine_code:machine?.machine_code||requestedMachineCode||null,work_type:workType||null
+      });
+    }
     const standardKey=cacheKey;
     if(machine){const aliasRows=await query(`SELECT product_code FROM product_aliases WHERE process_id=? AND status='active' AND BINARY TRIM(alias_code)=BINARY TRIM(?) ORDER BY id LIMIT 1`,[pid,requestedProduct]);const canonicalMachineProduct=aliasRows[0]?.product_code?String(aliasRows[0].product_code).trim():requestedProduct;const rows=await query(`SELECT id,process_id,product_code,machine_id,standard_output,calculated_output_per_hour,standard_time_seconds,effective_from,effective_to,is_active FROM product_machine_standards WHERE process_id=? AND machine_id=? AND BINARY TRIM(product_code)=BINARY TRIM(?) AND (effective_from IS NULL OR effective_from<=?) AND (effective_to IS NULL OR effective_to>=?) ORDER BY COALESCE(effective_from,'1000-01-01') DESC,id DESC`,[pid,Number(machine.id),canonicalMachineProduct,date,date]);const active=rows.filter(r=>Number(r.is_active)===1),usable=active.length?active:rows;if(usable.length>1)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức máy cùng hiệu lực cho ${requestedProduct} / ${machine.machine_code}`);if(usable.length===1){const row=usable[0],out=Number(row.calculated_output_per_hour??row.standard_output);if(Number.isFinite(out)&&out>0){const r={processId:pid,productCode:requestedProduct,productStandardId:null,standardVersionId:null,machineStandardId:Number(row.id),standardOutput:out,standardTimeSeconds:Number(row.standard_time_seconds)>0?Number(row.standard_time_seconds):null,excludeKqdFromTt:0,effectiveFrom:row.effective_from?String(row.effective_from).slice(0,10):null,effectiveTo:row.effective_to?String(row.effective_to).slice(0,10):null,source:Number(row.is_active)===1?'MACHINE':'MACHINE_HISTORICAL',workDate:date,historicalVersionAvailable:true,machineId:Number(machine.id),machineCode:machine.machine_code};standardCache.set(standardKey,r);return r;}}}
     const processAutoEligible=pid===1&&(isAuto||['AUTO','AUTOMATIC'].includes(String(workType||'').trim().toUpperCase()));
