@@ -32,7 +32,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
                      WHERE pa.process_id=ps.process_id AND UPPER(TRIM(pa.product_code))=UPPER(TRIM(ps.product_code))
                        AND pa.status='active' AND UPPER(TRIM(pa.alias_code))=UPPER(TRIM(?))
                 ))
-              ORDER BY CASE WHEN UPPER(TRIM(ps.encoding_code))=UPPER(TRIM(?)) THEN 0 WHEN UPPER(TRIM(ps.product_code))=UPPER(TRIM(?)) THEN 1 ELSE 2 END, ps.id
+              ORDER BY CASE WHEN BINARY TRIM(ps.product_code)=BINARY TRIM(?) THEN 0 WHEN BINARY TRIM(ps.encoding_code)=BINARY TRIM(?) THEN 1 ELSE 2 END, ps.id
               LIMIT 2`,
             [processId, normalizedProductName, normalizedProductName, normalizedProductName, normalizedProductName, normalizedProductName]
         ) : Promise.resolve([]),
