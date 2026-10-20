@@ -187,6 +187,20 @@ test('GC machine codes outside the confirmed Cắt/Lồng groups are not guessed
   );
 });
 
+test('GC explicit work_type cannot override the machine group', async () => {
+  const resolver = createStandardResolver({ query: createGcFixtureQuery() });
+  await assert.rejects(
+    resolver.resolveStandard({
+      processId: 1,
+      productCode: '15U-T',
+      machineCode: 'ML4',
+      workType: 'CUT',
+      workDate: '2026-10-04'
+    }),
+    error => error.code === 'GC_WORK_TYPE_MISMATCH'
+  );
+});
+
 test('exact product code wins over another product using the same value as encoding_code', async () => {
   const queries = [];
   const query = async (sql, params = []) => {
