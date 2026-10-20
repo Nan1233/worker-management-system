@@ -62,14 +62,14 @@ jobs:
         shell: bash
         run: |
           set +e
-          node --test \\
-            --test-timeout=60000 \\
-            --test-force-exit \\
-            --test-concurrency=1 \\
-            --test-reporter=tap \\
+          node --test \
+            --test-timeout=60000 \
+            --test-force-exit \
+            --test-concurrency=1 \
+            --test-reporter=tap \
             tests/*.test.js 2>&1 | tee backend-test-results.tap
           test_exit=${PIPESTATUS[0]}
-          printf '\\nBACKEND_TEST_EXIT_CODE=%s\\n' "$test_exit" | tee -a backend-test-results.tap
+          printf '\nBACKEND_TEST_EXIT_CODE=%s\n' "$test_exit" | tee -a backend-test-results.tap
           exit "$test_exit"
       - name: Upload backend full-suite report
         if: always()
