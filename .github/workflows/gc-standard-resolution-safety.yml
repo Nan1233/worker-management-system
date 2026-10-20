@@ -1,6 +1,11 @@
 name: GC Standard Resolution Safety
 run-name: GC Standard Resolution Safety / ${{ github.ref_name }} / ${{ github.sha }}
 
+# Keep only the latest validation for this branch; earlier pushes can otherwise queue stale runs.
+concurrency:
+  group: gc-standard-resolution-safety-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
