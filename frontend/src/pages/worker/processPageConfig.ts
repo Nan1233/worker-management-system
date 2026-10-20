@@ -73,7 +73,7 @@ export type MachineLineState = {
     ngQuantity: string;
     standardOutputPerHour: number;
     standardTimeSeconds: number | null;
-    standardSource: "MACHINE" | "DEFAULT" | null;
+    standardSource: "MACHINE" | "MACHINE_HISTORICAL" | "DEFAULT" | null;
     standardLoading: boolean;
     standardError: string;
     selectedDefects: string[];
