@@ -151,7 +151,7 @@ function createFakeDb(initial, options = {}) {
         const event = state.events[Number(params[0])];
         return [event ? [deep(event)] : [], []];
       }
-      if (/COALESCE\(MAX\(version_no\)/i.test(q)) {
+      if (/^SELECT COALESCE\(MAX\(version_no\)/i.test(q)) {
         const max = state.versions.filter((x) => Number(x.report_id) === Number(params[1])).reduce((m, x) => Math.max(m, Number(x.version_no)), 0);
         return [[{ next_version: max + 1 }], []];
       }

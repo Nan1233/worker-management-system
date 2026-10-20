@@ -14,7 +14,8 @@ assert.match(source, /ER_DUP_ENTRY/);
 assert.match(source, /key === '_buf'/);
 assert.match(source, /toPlainValue/);
 assert.match(source, /LIMIT 1\s+FOR UPDATE/);
-assert.match(source, /ORDER BY version_no DESC/);
+// Atomic INSERT ... SELECT MAX(version_no)+1 replaces the old ordered read.
+assert.match(source, /COALESCE\(MAX\(version_no\), 0\) \+ 1/);
 assert.match(source, /loadTempReportSnapshot/);
 
 console.log("PASS audit-service-release.contract");

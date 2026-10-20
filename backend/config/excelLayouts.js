@@ -17,7 +17,7 @@ const LAYOUTS = Object.freeze({
   },
   // Flat "Báo cáo công nhân" sheet of 04_CAT_LONG_09-2026 (source of truth for the
   // Gia công output): one row per machine line / manual report, date rows between
-  // days, 48 columns A:AV, header on row 3. Only AA is a formula (IFERROR(Z/Y,0)).
+  // days, 49 columns A:AW, header on row 3. AB is the achievement formula (TT / standard).
   GIA_CONG_04: {
     labelRow: 3,
     dataStyleRow: 5,
