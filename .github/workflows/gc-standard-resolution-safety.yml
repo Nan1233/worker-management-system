@@ -1,0 +1,54 @@
+name: GC Standard Resolution Safety
+run-name: GC Standard Resolution Safety / ${{ github.ref_name }} / ${{ github.sha }}
+
+on:
+  push:
+    branches:
+      - fix/gc-standard-resolution-safety
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-regression:
+    name: GC resolver regression tests (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: GC standard resolution and related regression tests
+        run: >
+          node --test
+          tests/gc-machine-work-type-standard-resolution.test.js
+          tests/historical-standard-resolution.test.js
+          tests/standard-resolution-request-cache.test.js
+          tests/decimal-standard-precision.test.js
+
+  backend-full-suite:
+    name: Backend full suite (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Full backend suite
+        run: npm test
