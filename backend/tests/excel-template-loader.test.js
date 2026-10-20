@@ -37,5 +37,10 @@ test('desktop validates generated workbooks with smoke test before packaging', (
   assert.match(smokeSource, /assert\.ok\(values\.includes\('STT'/);
   assert.match(smokeSource, /Date row phải lấy work_date/);
   assert.match(smokeSource, /Cột B phải chứa submission timestamp/);
-  assert.match(smokeSource, /DB detail alias mapping/);
+  // Pin to the actual DB-detail-alias-mapping assertions rather than a one-off
+  // [PASS] summary string: the smoke script's final log line has been reworded
+  // more than once as later checks were appended (see commit 57cb1320), so a
+  // fixed phrase in that free-text summary drifts independently of whether the
+  // underlying behavior it originally described is still verified.
+  assert.match(smokeSource, /không được đổ từ DB khi tên\/code DB khác tên template/);
 });

@@ -43,7 +43,11 @@ test('legacy exporters use the same safety rules even though monthly clean rende
 });
 
 test('real workbook smoke fixture covers zero training, KQD, ordering and date separation', () => {
-  assert.match(smoke, /reports: \[report\(\{ id: 1, worker_code: '599' \}\), report\(\{ id: 2, worker_code: '600', work_date: '2026-08-02', actual_output: 0, training_percent: 0 \}\)\]/);
+  // The fixture's reports array was reformatted onto multiple lines in commit
+  // 57cb1320 when a third report with a long defects list was added; the report
+  // data itself (ids, worker codes, zero-training/zero-output case) is unchanged,
+  // so match each report entry independently of the line breaks between them.
+  assert.match(smoke, /reports: \[\s*report\(\{ id: 1, worker_code: '599' \}\),\s*report\(\{ id: 2, worker_code: '600', work_date: '2026-08-02', actual_output: 0, training_percent: 0 \}\),/);
   assert.match(smoke, /defect_type_code: 'DEF_KQD_DB'/);
   assert.match(smoke, /work_date: '2026-08-01'/);
   assert.match(smoke, /created_at: '2026-08-02T08:00:00\.000Z'/);
@@ -52,5 +56,8 @@ test('real workbook smoke fixture covers zero training, KQD, ordering and date s
   assert.match(smoke, /assert\.ok\(values\.includes\('STT'\)/);
   assert.match(smoke, /assert\.ok\(dateRow, 'Date row phải lấy work_date'\)/);
   assert.match(smoke, /assert\.equal\(submission\.getUTCHours\(\), 8\)/);
-  assert.match(smoke, /DB detail alias mapping/);
+  // Pin to the actual DB-detail-alias-mapping assertions rather than a one-off
+  // [PASS] summary string that has been reworded more than once as later checks
+  // were appended (see commit 57cb1320).
+  assert.match(smoke, /không được đổ từ DB khi tên\/code DB khác tên template/);
 });

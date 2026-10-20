@@ -151,13 +151,20 @@ function createFakeDb(initial, options = {}) {
         const event = state.events[Number(params[0])];
         return [event ? [deep(event)] : [], []];
       }
+      if (/^INSERT INTO report_versions/i.test(q)) {
+        // Real production SQL is a single INSERT...SELECT statement whose SELECT
+        // clause contains "COALESCE(MAX(version_no), 0) + 1" — this check must run
+        // before the generic COALESCE(MAX(version_no)) branch below, or that branch
+        // intercepts the INSERT and returns a bare SELECT-shaped row instead of a
+        // ResultSetHeader, silently hiding whether callers read back insertId.
+        const max = state.versions.filter((x) => Number(x.report_id) === Number(params[6])).reduce((m, x) => Math.max(m, Number(x.version_no)), 0);
+        const versionNo = max + 1;
+        state.versions.push({ report_id: Number(params[1]), version_no: versionNo, snapshot_json: String(params[2]), change_reason: params[3] });
+        return [{ insertId: versionNo }, []];
+      }
       if (/COALESCE\(MAX\(version_no\)/i.test(q)) {
         const max = state.versions.filter((x) => Number(x.report_id) === Number(params[1])).reduce((m, x) => Math.max(m, Number(x.version_no)), 0);
         return [[{ next_version: max + 1 }], []];
-      }
-      if (/^INSERT INTO report_versions/i.test(q)) {
-        state.versions.push({ report_id: Number(params[1]), version_no: Number(params[2]), snapshot_json: String(params[3]), change_reason: params[4] });
-        return [{ insertId: state.versions.length }, []];
       }
       if (/^UPDATE production_reports SET/i.test(q)) {
         if (controls.failParentUpdate) throw new Error('FAIL_PARENT_UPDATE');

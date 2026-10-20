@@ -19,13 +19,17 @@ const toPlainValue = (value, seen = new WeakSet()) => {
 
 const json = (value) => JSON.stringify(toPlainValue(value) ?? null);
 
-// mysql2/promise returns [rows, fields]. The legacy callback executor returns
-// rows directly. Normalize both shapes so snapshots and MAX(version_no) never
-// accidentally serialize the mysql2 result tuple itself.
+// mysql2/promise returns [rows, fields] for SELECT and [ResultSetHeader, fields]
+// for INSERT/UPDATE/DELETE — the second element is only ever field metadata, never
+// part of the payload. The legacy callback executor returns rows (or the header)
+// directly. Normalize both shapes so snapshots and MAX(version_no) never
+// accidentally serialize the mysql2 result tuple itself, and so INSERT callers
+// (e.g. createReportVersion) can read result.insertId instead of getting back the
+// raw [header, fields] tuple.
 const query = async (executor, sql, params = []) => {
   if (executor && typeof executor.promise === 'function') {
     const result = await executor.promise().query(sql, params);
-    return Array.isArray(result) && result.length === 2 && Array.isArray(result[0])
+    return Array.isArray(result) && result.length === 2
       ? result[0]
       : result;
   }
@@ -36,7 +40,7 @@ const query = async (executor, sql, params = []) => {
     // callback argument at all.
     if (executor.query.length < 3) {
       const result = await executor.query(sql, params);
-      return Array.isArray(result) && result.length === 2 && Array.isArray(result[0])
+      return Array.isArray(result) && result.length === 2
         ? result[0]
         : result;
     }
@@ -153,6 +157,10 @@ async function createReportVersion(
   // Generate the next version and insert it in one SQL statement. On Cloudflare
   // each TiDB Serverless execute consumes a Worker subrequest, so a separate
   // SELECT MAX(version_no) followed by INSERT needlessly doubles this operation.
+  // LAST_INSERT_ID(expr) overrides the session's last-insert-id with the computed
+  // version_no, so result.insertId below returns the per-report version number —
+  // not report_versions.id, which is a global, unrelated AUTO_INCREMENT PK that
+  // callers (e.g. restoring back to a specific version_no) must never receive.
   // Keep duplicate-key retries for concurrent writers.
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
@@ -160,7 +168,7 @@ async function createReportVersion(
         executor,
         `INSERT INTO report_versions
           (report_type, report_id, version_no, snapshot_json, change_reason, created_by)
-         SELECT ?, ?, COALESCE(MAX(version_no), 0) + 1, ?, ?, ?
+         SELECT ?, ?, LAST_INSERT_ID(COALESCE(MAX(version_no), 0) + 1), ?, ?, ?
            FROM report_versions
           WHERE report_type=? AND report_id=?`,
         [
@@ -173,7 +181,11 @@ async function createReportVersion(
           normalizedReportId,
         ],
       );
-      return Number(result?.insertId || result?.lastInsertId || 0) || true;
+      const versionNo = Number(result?.insertId ?? result?.lastInsertId ?? 0);
+      if (!Number.isInteger(versionNo) || versionNo <= 0) {
+        throw new Error('Không thể xác định version_no vừa tạo');
+      }
+      return versionNo;
     } catch (error) {
       const message = String(error?.message || '');
       const duplicateVersion =
@@ -187,9 +199,15 @@ async function createReportVersion(
 
 async function loadTempReportSnapshot(reportId, executor = db) {
   const normalizedReportId = Number(reportId);
+  // Lock the temp-report row for the lifetime of the caller's transaction so a
+  // concurrent update/approve/reject cannot interleave between this snapshot read
+  // and the caller's own write, which would otherwise let the audit trail record a
+  // "before" or "after" snapshot that never actually existed as a consistent state.
+  // Outside a transaction (autocommit) FOR UPDATE is a harmless no-op lock that is
+  // released immediately after this statement.
   const reportRows = await query(
     executor,
-    `SELECT * FROM production_reports_temp WHERE id=? LIMIT 1`,
+    `SELECT * FROM production_reports_temp WHERE id=? LIMIT 1 FOR UPDATE`,
     [normalizedReportId],
   );
   const report = reportRows[0];

@@ -15,6 +15,8 @@ on:
       - 'backend/services/reportBusinessValidationService.js'
       - 'backend/tests/gc-machine-work-type-standard-resolution.test.js'
       - 'frontend/tests/gc-standard-resolution-main.contract.test.cjs'
+      - 'frontend/src/pages/worker/WorkerReportEditV2.tsx'
+      - 'frontend/tests/worker-report-edit-cut-execution-mode.contract.test.cjs'
       - '.github/workflows/gc-standard-resolution-main.yml'
 
 permissions:
@@ -57,7 +59,25 @@ jobs:
           path: backend/gc-focused.tap
           if-no-files-found: error
       - name: Frontend/API safety contract
-        run: node --test frontend/tests/gc-standard-resolution-main.contract.test.cjs
+        run: node --test frontend/tests/gc-standard-resolution-main.contract.test.cjs frontend/tests/worker-report-edit-cut-execution-mode.contract.test.cjs
+
+  frontend-build-candidate:
+    name: Frontend build (candidate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Build frontend candidate
+        working-directory: frontend
+        run: npm run build
 
   backend-full-suite:
     name: Backend full suite (candidate)
@@ -91,14 +111,14 @@ jobs:
           if-no-files-found: warn
 
   backend-baseline:
-    name: Backend full suite (exact main baseline diagnostic)
+    name: Backend full suite (exact PR base diagnostic)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout exact pre-patch main SHA (read-only)
+      - name: Checkout exact PR base SHA (read-only)
         uses: actions/checkout@v4
         with:
-          ref: 164895d0717eac3d2c8115811fbf3ddc2baacaf6
+          ref: ${{ github.event.pull_request.base.sha || 'main' }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -115,13 +135,13 @@ jobs:
           set +e
           node --test --test-timeout=60000 --test-force-exit --test-concurrency=1 --test-reporter=tap tests/*.test.js 2>&1 | tee backend-baseline.tap
           test_exit=${PIPESTATUS[0]}
-          printf '\\nBASELINE_SHA=164895d0717eac3d2c8115811fbf3ddc2baacaf6\\nBACKEND_TEST_EXIT_CODE=%s\\n' "$test_exit" | tee -a backend-baseline.tap
+          printf '\\nBASELINE_SHA=%s\\nBACKEND_TEST_EXIT_CODE=%s\\n' "$(git rev-parse HEAD)" "$test_exit" | tee -a backend-baseline.tap
           exit "$test_exit"
       - name: Upload baseline suite report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-full-suite-baseline-164895d0717eac3d2c8115811fbf3ddc2baacaf6
+          name: backend-full-suite-baseline-${{ github.event.pull_request.base.sha || 'main' }}
           path: backend/backend-baseline.tap
           if-no-files-found: warn
 
@@ -159,14 +179,14 @@ jobs:
           if-no-files-found: warn
 
   frontend-typecheck-baseline:
-    name: Frontend typecheck (exact main baseline diagnostic)
+    name: Frontend typecheck (exact PR base diagnostic)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout exact pre-patch main SHA (read-only)
+      - name: Checkout exact PR base SHA (read-only)
         uses: actions/checkout@v4
         with:
-          ref: 164895d0717eac3d2c8115811fbf3ddc2baacaf6
+          ref: ${{ github.event.pull_request.base.sha || 'main' }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -176,7 +196,7 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci --no-audit --no-fund
-      - name: Typecheck exact baseline and capture diagnostics
+      - name: Typecheck exact PR base and capture diagnostics
         working-directory: frontend
         shell: bash
         run: |
@@ -184,12 +204,12 @@ jobs:
           npm run typecheck > typecheck-baseline.log 2>&1
           test_exit=$?
           cat typecheck-baseline.log
-          printf '\\nTYPECHECK_BASELINE_SHA=164895d0717eac3d2c8115811fbf3ddc2baacaf6\\nTYPECHECK_EXIT_CODE=%s\\n' "$test_exit" | tee -a typecheck-baseline.log
+          printf '\\nTYPECHECK_BASELINE_SHA=%s\\nTYPECHECK_EXIT_CODE=%s\\n' "$(git rev-parse HEAD)" "$test_exit" | tee -a typecheck-baseline.log
           exit "$test_exit"
       - name: Upload baseline typecheck report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-typecheck-baseline-164895d0717eac3d2c8115811fbf3ddc2baacaf6
+          name: frontend-typecheck-baseline-${{ github.event.pull_request.base.sha || 'main' }}
           path: frontend/typecheck-baseline.log
           if-no-files-found: warn
