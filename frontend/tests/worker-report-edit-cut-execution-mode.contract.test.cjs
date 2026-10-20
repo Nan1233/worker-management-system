@@ -33,12 +33,18 @@ test('machine-code mapping matches the component automatic-machine set', () => {
   assert.deepEqual(componentCodes, ['C11', 'C5', 'C6', 'C7']);
 });
 
-test('the component filters automatic and non-automatic CUT machine options as opposites', () => {
-  assert.match(basicInfo, /operationType === "CUT" \? cutExecutionMode === "AUTO" \? machineAutocompleteOptions\.filter\(\(option\) => GC_AUTOMATIC_MACHINE_CODES\.has\(getMachineCode\(option\)\)\) : machineAutocompleteOptions\.filter\(\(option\) => !GC_AUTOMATIC_MACHINE_CODES\.has\(getMachineCode\(option\)\)\)/);
-  const normalizeMachineCode = basicInfo.match(/const getMachineCode = \(option: AutocompleteOption\): string => [^\n]+/);
-  assert.ok(normalizeMachineCode, 'component must normalize machine option codes');
-  assert.match(normalizeMachineCode[0], /trim\(\).*toUpperCase\(\).*replace\(/);
-  assert.match(normalizeMachineCode[0], /MÁY/);
+test('CUT mode filters machine options using the shared automatic-machine set', () => {
+  const normalized = basicInfo.match(/const getMachineCode = \(option: AutocompleteOption\): string => ([^;]+);/);
+  assert.ok(normalized, 'component must normalize machine option codes');
+  assert.match(normalized[1], /trim\(\).*toUpperCase\(\).*replace\(/);
+  assert.match(normalized[1], /MÁY/);
+
+  const machineFilter = basicInfo.match(/const visibleGcMachineOptions = ([^;]+);/);
+  assert.ok(machineFilter, 'component must filter CUT machine options based on execution mode');
+  assert.match(machineFilter[1], /operationType === "CUT"/);
+  assert.match(machineFilter[1], /cutExecutionMode === "AUTO"/);
+  assert.match(machineFilter[1], /GC_AUTOMATIC_MACHINE_CODES\.has\(getMachineCode\(option\)\)/);
+  assert.match(machineFilter[1], /!GC_AUTOMATIC_MACHINE_CODES\.has\(getMachineCode\(option\)\)/);
 });
 
 test('changing operation type resets execution mode to the expected default for CUT/LONG', () => {
