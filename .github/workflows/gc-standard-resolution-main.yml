@@ -183,10 +183,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout exact pre-patch main SHA (read-only)
+      - name: Checkout exact PR base SHA (read-only)
         uses: actions/checkout@v4
         with:
-          ref: 164895d0717eac3d2c8115811fbf3ddc2baacaf6
+          ref: ${{ github.event.pull_request.base.sha || 'main' }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
