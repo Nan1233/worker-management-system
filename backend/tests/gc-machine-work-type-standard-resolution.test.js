@@ -293,3 +293,27 @@ test('GC conflicting active machine standards fail instead of selecting one row'
     error => error.code === 'STANDARD_EFFECTIVE_RANGE_CONFLICT'
   );
 });
+
+
+test('GC alias lookup preserves the requested work_type when resolving the canonical product', async () => {
+  const query = async (sql, params = []) => {
+    const text = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
+    if (text.includes('from product_standards')) {
+      if (text.includes('binary trim(product_code)=binary trim(?)')) return [];
+      if (text.includes('binary trim(encoding_code)=binary trim(?)')) return [];
+      if (text.includes("upper(trim(ps.work_type))='lồng'") && text.includes('exists(select 1 from product_aliases')) {
+        return [{ product_standard_id: 8801, product_code: 'QC3-2801', encoding_code: null, work_type: 'Lồng', standard_output: 180, exclude_kqd_from_tt: 0 }];
+      }
+      if (text.includes("upper(trim(ps.work_type))='cắt'")) return [];
+    }
+    if (text.includes('from product_standard_versions')) return [];
+    throw new Error(`Unexpected SQL: ${text}; params=${JSON.stringify(params)}`);
+  };
+  const resolver = createStandardResolver({ query });
+  const resolved = await resolver.resolveProduct({
+    processId: 1, productCode: '2801', workType: 'LONG', workDate: '2026-10-04'
+  });
+  assert.equal(resolved.productCode, 'QC3-2801');
+  assert.equal(resolved.workType, 'LONG');
+  assert.equal(resolved.standardOutput, 180);
+});
