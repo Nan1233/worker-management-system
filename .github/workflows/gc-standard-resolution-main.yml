@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   gc-regression-and-contracts:
-    name: GC resolver regression, API safety and typecheck (blocking)
+    name: GC resolver regression and API safety (blocking)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -58,26 +58,6 @@ jobs:
           if-no-files-found: error
       - name: Frontend/API safety contract
         run: node --test frontend/tests/gc-standard-resolution-main.contract.test.cjs
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci --no-audit --no-fund
-      - name: Frontend TypeScript typecheck
-        working-directory: frontend
-        shell: bash
-        run: |
-          set +e
-          npm run typecheck > typecheck-candidate.log 2>&1
-          test_exit=$?
-          cat typecheck-candidate.log
-          printf '\\nTYPECHECK_EXIT_CODE=%s\\n' "$test_exit" | tee -a typecheck-candidate.log
-          exit "$test_exit"
-      - name: Upload candidate typecheck report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-typecheck-candidate-${{ github.sha }}
-          path: frontend/typecheck-candidate.log
-          if-no-files-found: warn
 
   backend-full-suite:
     name: Backend full suite (candidate)
@@ -143,6 +123,39 @@ jobs:
         with:
           name: backend-full-suite-baseline-164895d0717eac3d2c8115811fbf3ddc2baacaf6
           path: backend/backend-baseline.tap
+          if-no-files-found: warn
+
+
+  frontend-typecheck-candidate:
+    name: Frontend typecheck (candidate diagnostic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck candidate and capture diagnostics
+        working-directory: frontend
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > typecheck-candidate.log 2>&1
+          test_exit=$?
+          cat typecheck-candidate.log
+          printf '\\nTYPECHECK_CANDIDATE_SHA=%s\\nTYPECHECK_EXIT_CODE=%s\\n' "${GITHUB_SHA}" "$test_exit" | tee -a typecheck-candidate.log
+          exit "$test_exit"
+      - name: Upload candidate typecheck report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-typecheck-candidate-${{ github.sha }}
+          path: frontend/typecheck-candidate.log
           if-no-files-found: warn
 
   frontend-typecheck-baseline:
