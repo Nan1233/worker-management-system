@@ -272,3 +272,24 @@ test('GC conflicting active standards fail with a business conflict instead of s
       && error.details?.conflicting_standard_ids?.includes(180438)
   );
 });
+
+
+test('GC conflicting active machine standards fail instead of selecting one row', async () => {
+  const query = async (sql) => {
+    const text = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
+    if (text.includes('from machines')) return [{ id: 16, machine_code: 'ML4', process_code: 'GC' }];
+    if (text.includes('from product_aliases')) return [];
+    if (text.includes('from product_machine_standards')) return [
+      { id: 41, process_id: 1, product_code: '15U-T', machine_id: 16, standard_output: 180, calculated_output_per_hour: 180, effective_from: '2026-01-01', effective_to: null, is_active: 1 },
+      { id: 42, process_id: 1, product_code: '15U-T', machine_id: 16, standard_output: 200, calculated_output_per_hour: 200, effective_from: '2026-01-01', effective_to: null, is_active: 1 }
+    ];
+    throw new Error(`Unexpected SQL: ${text}`);
+  };
+  const resolver = createStandardResolver({ query });
+  await assert.rejects(
+    resolver.resolveStandard({
+      processId: 1, productCode: '15U-T', machineCode: 'ML4', workDate: '2026-10-04'
+    }),
+    error => error.code === 'STANDARD_EFFECTIVE_RANGE_CONFLICT'
+  );
+});
