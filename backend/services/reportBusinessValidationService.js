@@ -99,7 +99,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             productStandardId = Number(products[0].id) || null;
         } else {
             const normalizedGcWorkType = processCode === "GC" && normalizedOperationMode === "MACHINE"
-                ? (/^ML(?:[1-9]|1\\d|20)$/i.test(normalizedMachineNo)
+                ? (/^ML(?:[1-9]|1\d|20)$/i.test(normalizedMachineNo)
                     ? "Lồng"
                     : (/^C(?:[1-9]|1[0-2])$/i.test(normalizedMachineNo) ? "Cắt" : null))
                 : null;
