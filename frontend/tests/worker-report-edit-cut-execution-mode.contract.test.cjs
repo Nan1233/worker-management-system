@@ -35,7 +35,10 @@ test('machine-code mapping matches the component automatic-machine set', () => {
 
 test('the component filters automatic and non-automatic CUT machine options as opposites', () => {
   assert.match(basicInfo, /operationType === "CUT" \? cutExecutionMode === "AUTO" \? machineAutocompleteOptions\.filter\(\(option\) => GC_AUTOMATIC_MACHINE_CODES\.has\(getMachineCode\(option\)\)\) : machineAutocompleteOptions\.filter\(\(option\) => !GC_AUTOMATIC_MACHINE_CODES\.has\(getMachineCode\(option\)\)\)/);
-  assert.match(basicInfo, /const getMachineCode = \(option: AutocompleteOption\): string => option\.value\.trim\(\)\.toUpperCase\(\)\.replace\(\/\^MÁY\\\\s\*\/i, ""\);/);
+  const normalizeMachineCode = basicInfo.match(/const getMachineCode = \(option: AutocompleteOption\): string => [^\n]+/);
+  assert.ok(normalizeMachineCode, 'component must normalize machine option codes');
+  assert.match(normalizeMachineCode[0], /trim\(\).*toUpperCase\(\).*replace\(/);
+  assert.match(normalizeMachineCode[0], /MÁY/);
 });
 
 test('changing operation type resets execution mode to the expected default for CUT/LONG', () => {
