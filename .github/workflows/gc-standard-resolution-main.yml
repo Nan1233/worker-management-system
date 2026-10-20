@@ -1,0 +1,119 @@
+name: GC Standard Resolution Main
+run-name: GC Standard Resolution Main / ${{ github.ref_name }} / ${{ github.sha }}
+
+on:
+  push:
+    branches:
+      - fix/gc-standard-resolution-main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'backend/services/standardResolutionService.js'
+      - 'backend/models/productStandardModel.js'
+      - 'backend/controllers/productStandardController.js'
+      - 'backend/services/reportBusinessValidationService.js'
+      - 'backend/tests/gc-machine-work-type-standard-resolution.test.js'
+      - 'frontend/tests/gc-standard-resolution-main.contract.test.cjs'
+      - '.github/workflows/gc-standard-resolution-main.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  gc-regression-and-contracts:
+    name: GC resolver regression, API safety and typecheck (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --no-audit --no-fund
+      - name: Backend source check
+        working-directory: backend
+        run: npm run check
+      - name: GC resolver regression tests
+        working-directory: backend
+        run: node --test tests/gc-machine-work-type-standard-resolution.test.js tests/historical-standard-resolution.test.js tests/standard-resolution-request-cache.test.js tests/decimal-standard-precision.test.js
+      - name: Frontend/API safety contract
+        run: node --test frontend/tests/gc-standard-resolution-main.contract.test.cjs
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Frontend TypeScript typecheck
+        working-directory: frontend
+        run: npm run typecheck
+
+  backend-full-suite:
+    name: Backend full suite (candidate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --no-audit --no-fund
+      - name: Full backend suite with TAP report
+        working-directory: backend
+        shell: bash
+        run: |
+          set +e
+          node --test --test-timeout=60000 --test-force-exit --test-concurrency=1 --test-reporter=tap tests/*.test.js 2>&1 | tee backend-candidate.tap
+          test_exit=${PIPESTATUS[0]}
+          printf '\\nCANDIDATE_SHA=%s\\nBACKEND_TEST_EXIT_CODE=%s\\n' "${GITHUB_SHA}" "$test_exit" | tee -a backend-candidate.tap
+          exit "$test_exit"
+      - name: Upload candidate suite report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-full-suite-candidate-${{ github.sha }}
+          path: backend/backend-candidate.tap
+          if-no-files-found: warn
+
+  backend-baseline:
+    name: Backend full suite (exact main baseline diagnostic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact pre-patch main SHA (read-only)
+        uses: actions/checkout@v4
+        with:
+          ref: 164895d0717eac3d2c8115811fbf3ddc2baacaf6
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --no-audit --no-fund
+      - name: Full backend suite with TAP report on baseline
+        working-directory: backend
+        shell: bash
+        run: |
+          set +e
+          node --test --test-timeout=60000 --test-force-exit --test-concurrency=1 --test-reporter=tap tests/*.test.js 2>&1 | tee backend-baseline.tap
+          test_exit=${PIPESTATUS[0]}
+          printf '\\nBASELINE_SHA=164895d0717eac3d2c8115811fbf3ddc2baacaf6\\nBACKEND_TEST_EXIT_CODE=%s\\n' "$test_exit" | tee -a backend-baseline.tap
+          exit "$test_exit"
+      - name: Upload baseline suite report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-full-suite-baseline-164895d0717eac3d2c8115811fbf3ddc2baacaf6
+          path: backend/backend-baseline.tap
+          if-no-files-found: warn
