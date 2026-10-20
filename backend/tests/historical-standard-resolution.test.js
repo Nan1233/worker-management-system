@@ -33,7 +33,7 @@ function createFixtureQuery({ overlap = false, missing = false, machine = false,
       return productVersions.filter((row) => row.effective_from <= date && (!row.effective_to || row.effective_to >= date));
     }
     if (text.includes('from product_aliases')) return [];
-    if (text.includes('from machines')) return [{ id: 201, machine_code: 'M1' }];
+    if (text.includes('from machines')) return [{ id: 201, machine_code: 'ML1', process_code: 'GC' }];
     if (text.includes('from product_machine_standards') && text.includes('effective_to')) {
       const date = String(params[3]);
       return machineStandards.filter((row) => (!row.effective_from || row.effective_from <= date) && (!row.effective_to || row.effective_to >= date));
@@ -60,8 +60,8 @@ test('canonical CVK process ID resolves non-product work without requiring a pro
 
 test('historical product standard resolves strictly by work_date boundary', async () => {
   const resolver = createStandardResolver({ query: createFixtureQuery() });
-  const v1 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-10' });
-  const v2 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-11' });
+  const v1 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workType: 'LONG', workDate: '2026-08-10' });
+  const v2 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workType: 'LONG', workDate: '2026-08-11' });
   assert.equal(v1.standardOutput, 100);
   assert.equal(v1.standardVersionId, 11);
   assert.equal(v2.standardOutput, 120);
@@ -75,10 +75,10 @@ test('resolver is submit-date independent and rejected/resubmitted report keeps 
   const editedOn = '2026-08-20';
   assert.notEqual(createdOn, originalWorkDate);
   assert.notEqual(editedOn, originalWorkDate);
-  const afterResubmit = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: originalWorkDate });
+  const afterResubmit = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workType: 'LONG', workDate: originalWorkDate });
   assert.equal(afterResubmit.standardOutput, 100);
   assert.equal(afterResubmit.standardVersionId, 11);
-  const changedDate = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-11' });
+  const changedDate = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workType: 'LONG', workDate: '2026-08-11' });
   assert.equal(changedDate.standardOutput, 120);
   assert.equal(changedDate.standardVersionId, 12);
 });
@@ -88,7 +88,7 @@ test('saved historical version still resolves when the current product master is
   const resolved = await resolver.resolveStandard({
     processId: 1,
     productCode: 'P1',
-    workDate: '2026-08-10',
+    workType: 'LONG', workDate: '2026-08-10',
     standardVersionId: 11,
   });
   assert.equal(resolved.productCode, 'P1');
@@ -100,7 +100,7 @@ test('saved historical version still resolves when the current product master is
 test('inactive product without a saved version remains unavailable for new lookup', async () => {
   const resolver = createStandardResolver({ query: createFixtureQuery({ inactiveProduct: true }) });
   await assert.rejects(
-    () => resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-10' }),
+    () => resolver.resolveStandard({ processId: 1, productCode: 'P1', workType: 'LONG', workDate: '2026-08-10' }),
     (error) => error.code === 'HISTORICAL_STANDARD_NOT_FOUND'
   );
 });
@@ -108,7 +108,7 @@ test('inactive product without a saved version remains unavailable for new looku
 test('missing historical product standard fails closed', async () => {
   const resolver = createStandardResolver({ query: createFixtureQuery({ missing: true }) });
   await assert.rejects(
-    () => resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-10' }),
+    () => resolver.resolveStandard({ processId: 1, productCode: 'P1', workType: 'LONG', workDate: '2026-08-10' }),
     (error) => error.code === 'HISTORICAL_STANDARD_NOT_FOUND' && error.status === 422
   );
 });
@@ -116,15 +116,15 @@ test('missing historical product standard fails closed', async () => {
 test('overlapping historical product standards fail closed instead of choosing arbitrary row', async () => {
   const resolver = createStandardResolver({ query: createFixtureQuery({ overlap: true }) });
   await assert.rejects(
-    () => resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-10' }),
+    () => resolver.resolveStandard({ processId: 1, productCode: 'P1', workType: 'LONG', workDate: '2026-08-10' }),
     (error) => error.code === 'STANDARD_EFFECTIVE_RANGE_CONFLICT'
   );
 });
 
 test('historical machine standard resolves by same report work_date and preserves decimal values', async () => {
   const resolver = createStandardResolver({ query: createFixtureQuery({ machine: true }) });
-  const v1 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', machineCode: 'M1', workDate: '2026-08-10' });
-  const v2 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', machineCode: 'M1', workDate: '2026-08-11' });
+  const v1 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', machineCode: 'ML1', workDate: '2026-08-10' });
+  const v2 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', machineCode: 'ML1', workDate: '2026-08-11' });
   assert.equal(v1.standardOutput, 900.77);
   assert.equal(v1.machineStandardId, 41);
   assert.equal(v2.standardOutput, 950.25);
