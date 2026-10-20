@@ -37,5 +37,5 @@ test('desktop validates generated workbooks with smoke test before packaging', (
   assert.match(smokeSource, /assert\.ok\(values\.includes\('STT'/);
   assert.match(smokeSource, /Date row phải lấy work_date/);
   assert.match(smokeSource, /Cột B phải chứa submission timestamp/);
-  assert.match(smokeSource, /DB detail alias mapping/);
+  assert.match(smokeSource, /Chi tiết Trừ H không được đổ từ DB khi tên\/code DB khác tên template/);
 });

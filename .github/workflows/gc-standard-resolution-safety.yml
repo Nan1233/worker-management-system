@@ -58,6 +58,26 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci --no-audit --no-fund
+      - name: Inspect 04 GC template headers and formulas (read-only)
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const ExcelJS = require('exceljs');
+          (async () => {
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.readFile('templates/04_CAT_LONG_template.xlsx');
+            const sheet = workbook.getWorksheet('Báo cáo công nhân');
+            console.log('GC_TEMPLATE_ACTUAL_COLUMN_COUNT=' + sheet.actualColumnCount);
+            for (let c = 1; c <= Math.max(sheet.actualColumnCount, 49); c += 1) {
+              const cell = sheet.getRow(3).getCell(c);
+              if (cell.value !== null && cell.value !== undefined) console.log('GC_TEMPLATE_HEADER ' + cell.address + '=' + String(cell.value));
+            }
+            for (const address of ['X5','Y5','Z5','AA5','AB5','AC5','AD5','AV3','AW3']) {
+              const cell = sheet.getCell(address);
+              console.log('GC_TEMPLATE_CELL ' + address + '=' + JSON.stringify(cell.value));
+            }
+          })().catch((error) => { console.error(error); process.exitCode = 1; });
+          NODE
       - name: Full backend suite
         shell: bash
         run: |

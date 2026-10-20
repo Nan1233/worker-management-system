@@ -25,9 +25,10 @@ const json = (value) => JSON.stringify(toPlainValue(value) ?? null);
 const query = async (executor, sql, params = []) => {
   if (executor && typeof executor.promise === 'function') {
     const result = await executor.promise().query(sql, params);
-    return Array.isArray(result) && result.length === 2 && Array.isArray(result[0])
-      ? result[0]
-      : result;
+    if (Array.isArray(result) && result.length === 2 && Array.isArray(result[0])) return result[0];
+    // mysql2/promise mutations return [ResultSetHeader, fields], not [rows, fields].
+    if (Array.isArray(result) && result.length === 2 && result[0] && typeof result[0] === 'object') return result[0];
+    return result;
   }
 
   if (executor && typeof executor.query === 'function') {
@@ -36,9 +37,10 @@ const query = async (executor, sql, params = []) => {
     // callback argument at all.
     if (executor.query.length < 3) {
       const result = await executor.query(sql, params);
-      return Array.isArray(result) && result.length === 2 && Array.isArray(result[0])
-        ? result[0]
-        : result;
+      if (Array.isArray(result) && result.length === 2 && Array.isArray(result[0])) return result[0];
+      // Promise-style fake executors can also return mysql2 mutation tuples.
+      if (Array.isArray(result) && result.length === 2 && result[0] && typeof result[0] === 'object') return result[0];
+      return result;
     }
     return new Promise((resolve, reject) => {
       executor.query(sql, params, (error, rows) => {
@@ -189,7 +191,7 @@ async function loadTempReportSnapshot(reportId, executor = db) {
   const normalizedReportId = Number(reportId);
   const reportRows = await query(
     executor,
-    `SELECT * FROM production_reports_temp WHERE id=? LIMIT 1`,
+    `SELECT * FROM production_reports_temp WHERE id=? LIMIT 1 FOR UPDATE`,
     [normalizedReportId],
   );
   const report = reportRows[0];

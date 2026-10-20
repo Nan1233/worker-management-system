@@ -18,7 +18,7 @@ test('deduction detail minutes matches deduction_time in hours', () => {
       { deduction_type_id: 1, deduction_name: 'Chỉnh máy', minutes: 10 },
       { deduction_type_id: 2, deduction_name: 'Nghỉ giải lao', minutes: 10 },
     ],
-  }, { skipActualOutputFormula: true });
+  }, { skipActualOutputFormula: true, enforceBackDate: false });
 
   assert.equal(result.valid, true);
   assert.equal(result.errors.deduction_time, undefined);
@@ -41,7 +41,7 @@ test('canonical deduction hours still works', () => {
       { deduction_type_id: 1, deduction_name: 'Chỉnh máy', hours: 10 / 60 },
       { deduction_type_id: 2, deduction_name: 'Nghỉ giải lao', hours: 10 / 60 },
     ],
-  }, { skipActualOutputFormula: true });
+  }, { skipActualOutputFormula: true, enforceBackDate: false });
 
   assert.equal(result.valid, true);
   assert.equal(result.errors.deduction_time, undefined);

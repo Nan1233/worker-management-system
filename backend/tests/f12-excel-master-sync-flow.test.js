@@ -49,6 +49,9 @@ function buildFakeDb({ assignments = {} } = {}) {
     promise() {
       return {
         async query(sql, params = []) {
+          // Mirror the read-only permission schema probe; absent override tables
+          // mean default role permissions apply, not that authorization is skipped.
+          if (/SELECT COUNT\(\*\) total FROM information_schema\.tables/i.test(sql)) return [[{ total: 0 }], []];
           if (/manager_processes/i.test(sql)) {
             const actorId = Number(params[0]);
             return [(assignments[actorId] || []).map((process_id) => ({ process_id })), []];
