@@ -173,7 +173,7 @@ const resolveAliasToProductCode = async (processId, productCode) => {
     if (!input) return input;
 
     const rows = await query(`
-        SELECT product_code
+        SELECT DISTINCT product_code
         FROM product_aliases
         WHERE process_id = ?
           AND UPPER(TRIM(alias_code)) = UPPER(TRIM(?))
