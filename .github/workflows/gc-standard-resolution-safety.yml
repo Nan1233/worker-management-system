@@ -46,8 +46,7 @@ jobs:
   backend-full-suite:
     name: Backend full suite (informational)
     runs-on: ubuntu-latest
-    timeout-minutes: 12
-    continue-on-error: true
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: backend
@@ -60,7 +59,25 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci --no-audit --no-fund
       - name: Full backend suite
-        run: npm test
+        shell: bash
+        run: |
+          set +e
+          node --test \\
+            --test-timeout=60000 \\
+            --test-force-exit \\
+            --test-concurrency=1 \\
+            --test-reporter=tap \\
+            tests/*.test.js 2>&1 | tee backend-test-results.tap
+          test_exit=${PIPESTATUS[0]}
+          printf '\\nBACKEND_TEST_EXIT_CODE=%s\\n' "$test_exit" | tee -a backend-test-results.tap
+          exit "$test_exit"
+      - name: Upload backend full-suite report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-full-suite-${{ github.sha }}
+          path: backend/backend-test-results.tap
+          if-no-files-found: warn
 
   frontend-typecheck:
     name: Frontend TypeScript typecheck (blocking)
