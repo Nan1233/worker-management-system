@@ -178,7 +178,7 @@ const resolveAliasToProductCode = async (processId, productCode) => {
         WHERE process_id = ?
           AND UPPER(TRIM(alias_code)) = UPPER(TRIM(?))
           AND status = 'active'
-        ORDER BY id
+        ORDER BY product_code
         LIMIT 2
     `, [processId, input]);
 
