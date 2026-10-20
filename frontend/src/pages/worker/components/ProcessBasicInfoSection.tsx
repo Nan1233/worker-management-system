@@ -5,6 +5,7 @@ import type { ProductStandardOption } from "../../../services/masterDataService"
 import AppIcon from "../../../components/common/AppIcon";
 import type { DeductionKey, DeductionState, FormState, MachineLineState, NgKey, OperationMode, OperationType } from "../processPageConfig";
 import { MAX_TOTAL_WORK_MINUTES } from "../processFormUtils";
+import { getVisibleGcMachineOptions } from "../cutExecutionMode.js";
 
 interface NgOption { key: NgKey; code: string; label: string; }
 interface DeductionOption { key: DeductionKey; label: string; id?: number; code?: string; deduction_type_id?: number; deduction_name?: string; }
@@ -13,9 +14,7 @@ interface Props {
     isCutLongProcess: boolean; isInspectionProcess: boolean; isCvkMode: boolean; setIsCvkMode: Dispatch<SetStateAction<boolean>>; operationType: OperationType; setOperationType: Dispatch<SetStateAction<OperationType>>; operationMode: OperationMode; setOperationMode: Dispatch<SetStateAction<OperationMode>>; cutExecutionMode: CutExecutionMode; setCutExecutionMode: Dispatch<SetStateAction<CutExecutionMode>>;
     usesMultiMachineLines: boolean; usesSingleMachine: boolean; productAutocompleteOptions: AutocompleteOption[]; getMachineProductAutocompleteOptions: (machineCode: string) => AutocompleteOption[]; productOptions: ProductStandardOption[]; machineAutocompleteOptions: AutocompleteOption[]; machineOptions?: unknown[]; loadingMasterData: boolean; machineCount: number; maxMachineCount: number; machineLines: MachineLineState[]; resizeMachineLines: (count: number) => void; updateMachineLine: (index: number, patch: Partial<MachineLineState>) => void; refreshMachineLineStandard: (index: number, machineCode: string, productCode: string) => Promise<void>; getMachineNgTotal: (line: MachineLineState) => number; activeNgOptions: NgOption[]; activeDeductionOptions: DeductionOption[]; toggleMachineDefect: (lineIndex: number, key: string) => void; updateMachineDefectValue: (lineIndex: number, key: string, value: string) => void;
 }
-const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 const CVK_WORK_TYPES = [{ value: "XUATNHAP", label: "Xuất nhập" }, { value: "KTCD", label: "Kiểm tra công đoạn" }, { value: "TAIPP", label: "Tái phế phẩm" }] as const;
-const getMachineCode = (option: AutocompleteOption): string => option.value.trim().toUpperCase().replace(/^MÁY\s*/i, "");
 const normalizeDefectCode = (value: unknown): string => String(value ?? "").trim().toUpperCase();
 type CutExecutionMode = "AUTO" | "NON_AUTO";
 type LongExecutionMode = "MANUAL" | "MACHINE";
@@ -47,7 +46,7 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
     const handleCvkSelect = () => { setIsCvkMode(true); setForm((prev) => ({ ...prev, workType: "CVK", productName: "", standardOutput: "0", actualOutput: "0", ttOk: "0", ttNg: "0" })); setOperationType("LONG"); setOperationMode("MANUAL"); setLongExecutionMode("MANUAL"); };
     const handleOperationTypeChange = (nextType: OperationType) => { setIsCvkMode(false); setForm((prev) => ({ ...prev, workType: "", productName: "" })); setOperationType(nextType); if (nextType === "CUT") { setOperationMode("MACHINE"); setCutExecutionMode("AUTO"); setLongExecutionMode("MACHINE"); return; } setOperationMode("MANUAL"); setCutExecutionMode("AUTO"); setLongExecutionMode("MANUAL"); };
     const handleLongExecutionModeChange = (mode: LongExecutionMode) => { setLongExecutionMode(mode); setOperationMode(mode === "MANUAL" ? "MANUAL" : "MACHINE"); };
-    const visibleGcMachineOptions = operationType === "CUT" ? cutExecutionMode === "AUTO" ? machineAutocompleteOptions.filter((option) => GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option))) : machineAutocompleteOptions.filter((option) => !GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option))) : machineAutocompleteOptions;
+    const visibleGcMachineOptions = getVisibleGcMachineOptions(machineAutocompleteOptions, operationType, cutExecutionMode);
     const visibleMachineOptions = isCutLongProcess ? visibleGcMachineOptions : machineAutocompleteOptions;
     const visibleNgOptions = isCutLongProcess ? activeNgOptions.filter((item) => { const code = normalizeDefectCode(item.code); return operationType === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG"); }) : activeNgOptions;
     const getDefectDisplayLabel = (item: NgOption): string => { const code = normalizeDefectCode(item.code); const label = String(item.label ?? "").trim(); if (!code) return label; if (label.toUpperCase().startsWith(`${code} `) || label.toUpperCase().startsWith(`${code} —`)) return label; return `${code} — ${label}`; };
