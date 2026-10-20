@@ -7,6 +7,8 @@
   "workers_dev": true,
   "keep_vars": true,
   "observability": { "enabled": true, "redact_query_string": true },
+  // Keep branch Previews isolated from top-level runtime variables until preview-safe bindings are configured.
+  "previews": {},
   "vars": {
     "KTC_RUN_BUILD_DB_MIGRATIONS": "true",
     "KTC_CLOUDFLARE_WORKER": "true",
