@@ -152,8 +152,8 @@ test('minimal decimal preservation in historical resolver keeps 617.1 and 900.77
     throw new Error('Unexpected SQL');
   };
   const resolver = createStandardResolver({ query });
-  assert.equal((await resolver.resolveStandard({ processId:1, productCode:'D', workDate:'2026-08-10' })).standardOutput, 617.1);
-  assert.equal((await resolver.resolveStandard({ processId:1, productCode:'D', workDate:'2026-08-11' })).standardOutput, 900.77);
+  assert.equal((await resolver.resolveStandard({ processId:1, productCode:'D', workType:'LONG', workDate:'2026-08-10' })).standardOutput, 617.1);
+  assert.equal((await resolver.resolveStandard({ processId:1, productCode:'D', workType:'LONG', workDate:'2026-08-11' })).standardOutput, 900.77);
 });
 
 test('write-side effective-range validator rejects overlap', async () => {
