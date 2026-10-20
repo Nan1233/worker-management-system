@@ -125,6 +125,10 @@ exports.resolveProductStandard = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Thiếu process_id, product_code hoặc work_date hợp lệ' });
     }
 
+    if (processId === 1 && !machineCode) {
+      return res.status(422).json({ success: false, code: 'GC_WORK_TYPE_UNRESOLVED', message: 'Cần chọn máy GC thuộc nhóm C1–C12 hoặc ML1–ML20 để xác định loại công việc' });
+    }
+
     await Promise.all([
       getOrLoadMasterData(`machines:${MACHINE_CACHE_VERSION}:${processId}`, TTL.machines, () => machineModel.findByProcess(processId)),
       getOrLoadMasterData(`product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:resolve:${processId}`, TTL.productStandards, () => productStandardModel.findByProcess(processId))

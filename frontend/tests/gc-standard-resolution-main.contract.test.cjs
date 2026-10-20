@@ -20,6 +20,7 @@ test('GC machine inference is limited to C1-C12 and ML1-ML20', () => {
 
 test('GC resolver fails closed on conflicting standards and aliases', () => {
   assert.doesNotMatch(resolver, /pickHighestDuplicateProductRow/);
+  assert.match(resolver, /normalizedWorkType && pid!==1/);
   assert.match(resolver, /STANDARD_EFFECTIVE_RANGE_CONFLICT/);
   assert.match(resolver, /PRODUCT_ALIAS_CONFLICT/);
   assert.match(model, /PRODUCT_ALIAS_CONFLICT/);

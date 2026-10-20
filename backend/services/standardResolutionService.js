@@ -63,7 +63,7 @@ function createStandardResolver({query=defaultQuery}={}) {
     if(allowAutoAlias && !requestedVersionId && !/-AUTO$/i.test(product)){
       const autoProduct=`${product}-AUTO`;
       selectedProduct=await selectProductRow(pid,autoProduct,date,{allowAutoAlias:false,workType:normalizedWorkType,includeInactive:false});
-      if(!selectedProduct && normalizedWorkType){
+      if(!selectedProduct && normalizedWorkType && pid!==1){
         selectedProduct=await selectProductRow(pid,autoProduct,date,{allowAutoAlias:false,workType:null,includeInactive:false});
         fallbackToProcessProduct=Boolean(selectedProduct);
       }
@@ -71,7 +71,7 @@ function createStandardResolver({query=defaultQuery}={}) {
 
     if(!selectedProduct){
       selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutoAlias&&!requestedVersionId,workType:normalizedWorkType,includeInactive:historicalSnapshotLookup});
-      if(!selectedProduct && normalizedWorkType){
+      if(!selectedProduct && normalizedWorkType && pid!==1){
         selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutoAlias&&!requestedVersionId,workType:null,includeInactive:historicalSnapshotLookup});
         fallbackToProcessProduct=Boolean(selectedProduct);
       }
@@ -98,8 +98,8 @@ function createStandardResolver({query=defaultQuery}={}) {
     if((requestedMachineId||requestedMachineCode||requestedMachineStandardId)&&machineRows.length!==1)throw businessError('MACHINE_NOT_FOUND','Máy không tồn tại hoặc không thuộc công đoạn');
     const machine=machineRows[0]||null, processCode=String(machine?.process_code||'').trim().toUpperCase();
     const modeText=String(operationMode||executionMethod||'').trim().toUpperCase(), isAuto=['AUTO','AUTOMATIC','TỰ ĐỘNG','TU DONG'].includes(modeText)||/AUTO|TỰ\s*ĐỘNG|TU\s*DONG/.test(modeText);
-    const isGcProcess=processCode?processCode==='GC':pid===1;
-    const inferredGcWorkType=isGcProcess?inferGcWorkType(machine?.machine_code||requestedMachineCode):null;
+    const inferredGcWorkType=inferGcWorkType(machine?.machine_code||requestedMachineCode);
+    const isGcProcess=processCode?processCode==='GC':(pid===1&&(Boolean(inferredGcWorkType)||modeText==='MANUAL'||modeText==='MACHINE'));
     const explicitGcWorkType=normalizeWorkType(workType);
     const resolvedWorkType=normalizeRequestedWorkType({processId:pid,processCode,machineCode:machine?.machine_code||requestedMachineCode,workType});
     if(isGcProcess&&inferredGcWorkType&&['CUT','LONG'].includes(explicitGcWorkType)&&explicitGcWorkType!==normalizeWorkType(inferredGcWorkType)){
