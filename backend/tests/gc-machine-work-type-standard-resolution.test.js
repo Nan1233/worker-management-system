@@ -252,6 +252,7 @@ test('GC conflicting active standards fail with a business conflict instead of s
       if (text.includes("upper(trim(ps.work_type))='lồng'") && text.includes('binary trim(product_code)=binary trim(?)')) {
         return [
           { product_standard_id: 11, product_code: '5770', encoding_code: null, work_type: 'Lồng', standard_output: 605, exclude_kqd_from_tt: 0 },
+          { product_standard_id: 12, product_code: '5770', encoding_code: null, work_type: 'Lồng', standard_output: 605, exclude_kqd_from_tt: 0 },
           { product_standard_id: 180438, product_code: '5770', encoding_code: null, work_type: 'Lồng', standard_output: 365, exclude_kqd_from_tt: 0 }
         ];
       }
