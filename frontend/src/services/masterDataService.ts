@@ -96,7 +96,7 @@ export interface ResolvedProductStandard {
     machine_standard_output: number | null;
     default_standard_output: number;
     resolved_output_per_hour: number;
-    standard_source: "MACHINE" | "DEFAULT";
+    standard_source: "MACHINE" | "MACHINE_HISTORICAL" | "DEFAULT";
     exclude_kqd_from_tt?: number;
 }
 
@@ -126,13 +126,6 @@ const getAutomaticAliasProduct = async (processId: number, machineCode: string, 
 };
 
 
-
-const inferGcWorkType = (machineCode: string): "CUT" | "LONG" | null => {
-    const code = String(machineCode || "").trim().toUpperCase().replace(/\s+/g, "");
-    if (/^ML(?:[1-9]|1\d|20)$/.test(code)) return "LONG";
-    if (/^C(?:[1-9]|1[0-2])$/.test(code)) return "CUT";
-    return null;
-};
 
 
 const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string, requestedProductCode?: string): ResolvedProductStandard => {
