@@ -114,11 +114,11 @@ test('AA = OK + NG, AC = OK, AD = NG, AB keeps its formula, Z is the standard', 
   assert.equal(sheet.getCell('AC5').value, 3000);
   assert.equal(sheet.getCell('AD5').value, 100);
   assert.equal(sheet.getCell('AA5').value, 3100);
-  assert.equal(sheet.getCell('Z5').value, 600); // standard output per hour; TT is OK + NG
+  assert.equal(sheet.getCell('Z5').value, 2700); // 600 per hour × 4.5 worked hours
   assert.equal(sheet.getCell('AB5').value.formula, 'IFERROR(AA5/Z5,0)');
   assert.equal(sheet.getCell('AB6').value.formula, 'IFERROR(AA6/Z6,0)');
   assert.equal(sheet.getCell('AA6').value, 1020);
-  assert.equal(sheet.getCell('Z6').value, 300); // standard output per hour
+  assert.equal(sheet.getCell('Z6').value, 1200); // 300 per hour × 4 worked hours
 });
 
 test('unmapped defects stay unmapped and are listed, not folded into another column', async () => {
@@ -139,7 +139,8 @@ test('manual rows follow the 04 sample and date rows / STT reset per day', async
   assert.equal(sheet.getCell('D7').value, null);
   assert.equal(sheet.getCell('F7').value, 1.17);
   assert.equal(sheet.getCell('G7').value, 1.17);
-  assert.equal(sheet.getCell('H7').value.result, 0);
+  assert.equal(sheet.getCell('H7').value.formula, 'SUM(I7:X7)');
+  assert.equal(Array.from({ length: 16 }, (_, i) => Number(sheet.getRow(7).getCell(9 + i).value || 0)).reduce((sum, value) => sum + value, 0), 0);
   assert.equal(sheet.getCell('Y7').value, 'ltx');
   assert.equal(sheet.getCell('AA7').value, 960);
   assert.ok(sheet.getCell('A8').value instanceof Date);
@@ -160,7 +161,7 @@ test('date row keeps the template style and the file round-trips with formula in
   const again = new ExcelJS.Workbook();
   await again.xlsx.load(buffer);
   const s2 = again.getWorksheet('Báo cáo công nhân');
-  assert.equal(s2.getCell('AA5').value.formula, 'IFERROR(Z5/Y5,0)');
+  assert.equal(s2.getCell('AB5').value.formula, 'IFERROR(AA5/Z5,0)');
   assert.equal(s2.actualColumnCount, 49);
   assert.equal(s2.conditionalFormattings.length, 1);
   assert.equal(s2.conditionalFormattings[0].ref, 'AB5:AB7');

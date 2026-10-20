@@ -156,7 +156,18 @@ function createFakeDb(initial, options = {}) {
         return [[{ next_version: max + 1 }], []];
       }
       if (/^INSERT INTO report_versions/i.test(q)) {
-        state.versions.push({ report_id: Number(params[1]), version_no: Number(params[2]), snapshot_json: String(params[3]), change_reason: params[4] });
+        // Mirror AuditService's atomic INSERT ... SELECT MAX(version_no)+1 parameter order.
+        const reportId = Number(params[1]);
+        const versionNo = state.versions
+          .filter((item) => Number(item.report_id) === reportId)
+          .reduce((max, item) => Math.max(max, Number(item.version_no) || 0), 0) + 1;
+        state.versions.push({
+          report_type: String(params[0]),
+          report_id: reportId,
+          version_no: versionNo,
+          snapshot_json: String(params[2]),
+          change_reason: params[3]
+        });
         return [{ insertId: state.versions.length }, []];
       }
       if (/^UPDATE production_reports SET/i.test(q)) {
