@@ -22,6 +22,7 @@ export interface ProductStandardOption {
     eligible_machine_codes?: string;
     standard_output: number;
     exclude_kqd_from_tt?: number;
+    has_conflicting_standard?: boolean;
 }
 
 export const getMachinesByProcess = async (processId: number): Promise<MachineOption[]> => {
@@ -64,15 +65,18 @@ export const getProductStandardsByProcess = async (processId: number, processCod
                 merged.set(key, row);
                 continue;
             }
-            // Duplicate active rows for the same product/work type can have
-            // conflicting outputs. Business rule: keep the highest positive
-            // standard instead of whichever row the API returned last.
+            // Never select a standard by output size. Preserve a conflict marker
+            // so callers can fail closed instead of silently using a guessed value.
             const previousOutput = Number(previous.standard_output);
             const currentOutput = Number(row.standard_output);
-            if (Number.isFinite(currentOutput) && currentOutput > previousOutput) {
-                merged.set(key, { ...previous, ...row });
-            } else {
-                merged.set(key, { ...row, ...previous });
+            const previousKqd = Number(previous.exclude_kqd_from_tt || 0);
+            const currentKqd = Number(row.exclude_kqd_from_tt || 0);
+            const sameOutput = Number.isFinite(previousOutput)
+                && Number.isFinite(currentOutput)
+                && Math.abs(previousOutput - currentOutput) <= 0.000001;
+            const samePolicy = previousKqd === currentKqd;
+            if (previous.has_conflicting_standard || !sameOutput || !samePolicy) {
+                merged.set(key, { ...previous, standard_output: 0, has_conflicting_standard: true });
             }
         }
     }
@@ -96,7 +100,6 @@ export interface ResolvedProductStandard {
     exclude_kqd_from_tt?: number;
 }
 
-const processProductCache = new Map<number, { expiresAt: number; codes: Set<string> }>();
 
 const getCachedProcessProductRows = async (processId: number): Promise<ProductStandardOption[]> => {
     const now = Date.now();
@@ -122,68 +125,15 @@ const getAutomaticAliasProduct = async (processId: number, machineCode: string, 
     return rows.find((row) => String(row?.product_code || "").trim().toUpperCase() === autoCode && Number(row?.standard_output) > 0);
 };
 
-const hasExactProcessProduct = async (processId: number, productCode: string, machineCode = ""): Promise<boolean> => {
-    const normalized = String(productCode || "").trim().toUpperCase();
-    if (!normalized) return false;
-    const rows = await getCachedProcessProductRows(processId);
-    const codes = new Set(rows.flatMap((row) => [row?.product_code, row?.alias_code]).map((value) => String(value || "").trim().toUpperCase()).filter(Boolean));
-    processProductCache.set(Number(processId), { expiresAt: Date.now() + PROCESS_PRODUCT_CACHE_TTL_MS, codes });
-    if (codes.has(normalized)) return true;
-    return Boolean(await getAutomaticAliasProduct(processId, machineCode, normalized, rows));
-};
 
-const resolveCanonicalProductCode = async (processId: number, productCode: string, machineCode = ""): Promise<string> => {
-    const normalized = String(productCode || "").trim().toUpperCase();
-    if (!normalized) return "";
-    const rows = await getCachedProcessProductRows(processId);
-    const exact = rows.find((row) => String(row?.product_code || "").trim().toUpperCase() === normalized);
-    if (exact?.product_code) return String(exact.product_code).trim();
-    const automatic = await getAutomaticAliasProduct(processId, machineCode, normalized, rows);
-    if (automatic?.product_code) return String(automatic.product_code).trim();
-    const aliasCandidates = rows.filter((row) => String(row?.alias_code || "").trim().toUpperCase() === normalized);
-    const positiveAlias = aliasCandidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0).sort((a, b) => Number(b.standard_output) - Number(a.standard_output))[0];
-    return String((positiveAlias ?? aliasCandidates[0])?.product_code || productCode).trim();
-};
 
 const inferGcWorkType = (machineCode: string): "CUT" | "LONG" | null => {
     const code = String(machineCode || "").trim().toUpperCase().replace(/\s+/g, "");
-    if (/^ML\d+$/.test(code)) return "LONG";
-    if (/^C\d+/.test(code)) return "CUT";
+    if (/^ML(?:[1-9]|1\d|20)$/.test(code)) return "LONG";
+    if (/^C(?:[1-9]|1[0-2])$/.test(code)) return "CUT";
     return null;
 };
 
-const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProduct: string, canonicalProduct: string, machineCode = ""): ProductStandardOption | undefined => {
-    const normalizedCanonical = String(canonicalProduct || "").trim().toUpperCase();
-    const normalizedInput = String(normalizedProduct || "").trim().toUpperCase();
-    const workType = inferGcWorkType(machineCode);
-    const isPositive = (row: ProductStandardOption) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0;
-    const hasExactCode = (row: ProductStandardOption) => [row?.product_code, row?.alias_code]
-        .some((value) => String(value || "").trim().toUpperCase() === normalizedInput);
-    const byWorkType = (candidates: ProductStandardOption[]) => {
-        if (!workType) return candidates;
-        return candidates.filter((row) => {
-            const type = String(row?.work_type || "").trim().toUpperCase();
-            return workType === "LONG"
-                ? type === "LỒNG" || type === "LONG"
-                : type === "CẮT" || type === "CUT" || type === "CAT";
-        });
-    };
-
-    // AUTO code must win over a canonical/base-product fallback. Otherwise C2556
-    // can be considered alongside C2556-AUTO and create a false ambiguity.
-    const exactCandidates = byWorkType(rows.filter((row) => hasExactCode(row) && isPositive(row)));
-    if (exactCandidates.length > 0) {
-        return exactCandidates.slice().sort((a, b) => Number(b.standard_output) - Number(a.standard_output) || Number(a.id) - Number(b.id))[0];
-    }
-
-    const canonicalCandidates = byWorkType(rows.filter((row) =>
-        String(row?.product_code || "").trim().toUpperCase() === normalizedCanonical && isPositive(row)
-    ));
-    if (canonicalCandidates.length > 0) {
-        return canonicalCandidates.slice().sort((a, b) => Number(b.standard_output) - Number(a.standard_output) || Number(a.id) - Number(b.id))[0];
-    }
-    return undefined;
-};
 
 const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string, requestedProductCode?: string): ResolvedProductStandard => {
     const output = Number(row.standard_output);
@@ -219,50 +169,45 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     }
 
     const rows = await getCachedProcessProductRows(processId);
-    const automaticAlias = await getAutomaticAliasProduct(processId, normalizedMachine, normalizedProduct, rows);
-    const lookupProduct = automaticAlias?.product_code ? String(automaticAlias.product_code).trim() : normalizedProduct;
-    const productExistsInProcess = await hasExactProcessProduct(processId, normalizedProduct, normalizedMachine);
-    const canonicalProduct = await resolveCanonicalProductCode(processId, normalizedProduct, normalizedMachine);
-    const localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct, normalizedMachine);
+    if (Number(processId) === 1 && !normalizedMachine) {
+        throw new Error("GC_WORK_TYPE_UNRESOLVED: Chưa xác định Cắt/Lồng cho công việc không có máy; không tự suy diễn thủ công là Lồng.");
+    }
 
-    // Business rule:
-    // 1) TAY/MANUAL: resolve by product code only; machine is ignored.
-    // 2) MÁY/AUTO: resolve by machine + product first.
-    // 3) If machine standard is missing/0, fall back to the process/product standard.
-    // Never reject a machine/product pair merely because the product-list endpoint omitted it;
-    // the authoritative resolver is allowed to find a machine-specific standard directly.
     if (!normalizedMachine) {
-        const candidates = rows.filter((row) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedProduct.toUpperCase()) || String(row?.product_code || "").trim().toUpperCase() === canonicalProduct.toUpperCase());
+        const normalized = normalizedProduct.toUpperCase();
+        const candidates = rows.filter((row) =>
+            [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalized)
+        );
+        if (candidates.some((row) => row.has_conflicting_standard)) {
+            throw new Error(`STANDARD_EFFECTIVE_RANGE_CONFLICT: Có nhiều định mức mâu thuẫn cho sản phẩm ${normalizedProduct}`);
+        }
         const positiveCandidates = candidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0);
-        const product = positiveCandidates.length > 0
-            ? positiveCandidates.slice().sort((a, b) => Number(b.standard_output) - Number(a.standard_output) || Number(a.id) - Number(b.id))[0]
-            : candidates.length === 1
-                ? candidates[0]
-                : undefined;
+        const first = positiveCandidates[0];
+        if (first && positiveCandidates.some((row) =>
+            Math.abs(Number(row.standard_output) - Number(first.standard_output)) > 0.000001
+            || Number(row.exclude_kqd_from_tt || 0) !== Number(first.exclude_kqd_from_tt || 0)
+        )) {
+            throw new Error(`STANDARD_EFFECTIVE_RANGE_CONFLICT: Có nhiều định mức mâu thuẫn cho sản phẩm ${normalizedProduct}`);
+        }
+        const product = first || (candidates.length === 1 ? candidates[0] : undefined);
         if (!product) throw new Error(`Không xác định duy nhất định mức sản phẩm ${normalizedProduct} trong công đoạn`);
         return toLocalResolvedStandard(product, processId, "", normalizedProduct);
     }
 
-    try {
-        const resolved = await api.get("/product-standards/resolve", {
-            params: {
-                process_id: processId,
-                machine_code: normalizedMachine,
-                product_code: lookupProduct,
-                work_date: workDate || undefined,
-            },
-        });
-        const resolvedData = resolved.data?.data ?? resolved.data;
-        const resolvedOutput = Number(resolvedData?.resolved_output_per_hour || 0);
-        if (resolvedOutput > 0) return { ...resolvedData, product_code: normalizedProduct, alias_code: resolvedData?.alias_code || normalizedProduct };
-        throw new Error(resolvedData?.message || `Không có định mức hợp lệ cho ${normalizedProduct} / ${normalizedMachine}`);
-    } catch (error: any) {
-        // Machine-specific standard is optional. If it is absent or zero, use the
-        // product/process standard for the machine's inferred Cắt/Lồng type.
-        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
-        if (!productExistsInProcess) {
-            throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn và không có định mức máy/phương án fallback`);
-        }
-        throw error;
+    const automaticAlias = await getAutomaticAliasProduct(processId, normalizedMachine, normalizedProduct, rows);
+    const lookupProduct = automaticAlias?.product_code ? String(automaticAlias.product_code).trim() : normalizedProduct;
+    const resolved = await api.get("/product-standards/resolve", {
+        params: {
+            process_id: processId,
+            machine_code: normalizedMachine,
+            product_code: lookupProduct,
+            work_date: workDate || undefined,
+        },
+    });
+    const resolvedData = resolved.data?.data ?? resolved.data;
+    const resolvedOutput = Number(resolvedData?.resolved_output_per_hour || 0);
+    if (resolvedOutput > 0) {
+        return { ...resolvedData, product_code: normalizedProduct, alias_code: resolvedData?.alias_code || normalizedProduct };
     }
+    throw new Error(resolvedData?.message || `Không có định mức hợp lệ cho ${normalizedProduct} / ${normalizedMachine}`);
 };
