@@ -179,9 +179,18 @@ const resolveAliasToProductCode = async (processId, productCode) => {
           AND UPPER(TRIM(alias_code)) = UPPER(TRIM(?))
           AND status = 'active'
         ORDER BY id
-        LIMIT 1
+        LIMIT 2
     `, [processId, input]);
 
+    const productCodes = [...new Set(rows.map((row) => String(row?.product_code || '').trim().toUpperCase()).filter(Boolean))];
+    if (productCodes.length > 1) {
+        const error = new Error(`Mã alias ${input} ánh xạ tới nhiều sản phẩm`);
+        error.status = 422;
+        error.code = 'PRODUCT_ALIAS_CONFLICT';
+        error.isPublic = true;
+        error.details = { process_id: Number(processId), alias_code: input, product_codes: productCodes };
+        throw error;
+    }
     return rows[0]?.product_code ? String(rows[0].product_code).trim() : input;
 };
 
