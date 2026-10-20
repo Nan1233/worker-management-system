@@ -34,7 +34,7 @@ test('standard resolver does not conflate different machines', async () => {
     throw new Error(`Unexpected query: ${sql}`);
   };
   const resolver = createStandardResolver({ query: fakeQuery });
-  const a = await resolver.resolveStandard({ processId: 1, productCode: 'P1', machineId: 30, machineCode: 'M1', workDate: '2026-08-13' });
+  const a = await resolver.resolveStandard({ processId: 1, productCode: 'P1', machineId: 30, machineCode: 'ML1', workDate: '2026-08-13' });
   const afterA = calls;
   const b = await resolver.resolveStandard({ processId: 1, productCode: 'P1', machineId: 31, machineCode: 'ML2', workDate: '2026-08-13' });
   assert.notEqual(a.machineId, b.machineId);
