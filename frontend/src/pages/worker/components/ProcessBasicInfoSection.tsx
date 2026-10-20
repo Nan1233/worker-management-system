@@ -5,7 +5,7 @@ import type { ProductStandardOption } from "../../../services/masterDataService"
 import AppIcon from "../../../components/common/AppIcon";
 import type { DeductionKey, DeductionState, FormState, MachineLineState, NgKey, OperationMode, OperationType } from "../processPageConfig";
 import { MAX_TOTAL_WORK_MINUTES } from "../processFormUtils";
-import { GC_AUTOMATIC_MACHINE_CODES, getVisibleGcMachineOptions } from "../cutExecutionMode.js";
+import { getVisibleGcMachineOptions } from "../cutExecutionMode.js";
 
 interface NgOption { key: NgKey; code: string; label: string; }
 interface DeductionOption { key: DeductionKey; label: string; id?: number; code?: string; deduction_type_id?: number; deduction_name?: string; }

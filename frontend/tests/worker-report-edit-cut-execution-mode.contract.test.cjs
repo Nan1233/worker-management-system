@@ -48,10 +48,11 @@ test('machine code behavior maps C5/C6/C7/C11 to AUTO and other codes to NON_AUT
   for (const code of ['C5', 'C6', 'C7', 'C11', ' c5 ', 'Máy C6']) {
     assert.equal(resolveCutExecutionMode(code), 'AUTO', `${code} should be automatic`);
   }
-  for (const code of ['C1', 'C4', 'C8', 'M1', '', null]) {
+  for (const code of ['C1', 'C4', 'C8', 'M1']) {
     assert.equal(resolveCutExecutionMode(code), 'NON_AUTO', `${code} should be non-automatic`);
   }
   assert.equal(normalizeMachineCode('  Máy c11 '), 'C11');
+  for (const code of ['', null, undefined]) assert.equal(resolveCutExecutionMode(code), 'AUTO', 'no selected machine keeps the default AUTO mode');
 });
 
 test('machine visibility behavior filters AUTO/NON_AUTO in CUT and preserves LONG options', async () => {
