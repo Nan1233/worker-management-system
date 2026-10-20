@@ -15,6 +15,8 @@ on:
       - 'backend/services/reportBusinessValidationService.js'
       - 'backend/tests/gc-machine-work-type-standard-resolution.test.js'
       - 'frontend/tests/gc-standard-resolution-main.contract.test.cjs'
+      - 'frontend/src/pages/worker/WorkerReportEditV2.tsx'
+      - 'frontend/tests/worker-report-edit-cut-execution-mode.contract.test.cjs'
       - '.github/workflows/gc-standard-resolution-main.yml'
 
 permissions:
@@ -57,7 +59,7 @@ jobs:
           path: backend/gc-focused.tap
           if-no-files-found: error
       - name: Frontend/API safety contract
-        run: node --test frontend/tests/gc-standard-resolution-main.contract.test.cjs
+        run: node --test frontend/tests/gc-standard-resolution-main.contract.test.cjs frontend/tests/worker-report-edit-cut-execution-mode.contract.test.cjs
 
   backend-full-suite:
     name: Backend full suite (candidate)
