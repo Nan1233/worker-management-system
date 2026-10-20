@@ -13,7 +13,7 @@ function chooseHistoricalVersion(rows,date,label){const applicable=(rows||[]).fi
 
 function normalizeWorkType(value){const code=String(value||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');if(['CUT','CAT'].includes(code))return 'CUT';if(['LONG','LNG'].includes(code))return 'LONG';return code;}
 function inferGcWorkType(machineCode){const code=String(machineCode||'').trim().toUpperCase().replace(/\s+/g,'');if(/^ML(?:[1-9]|1\d|20)$/.test(code))return 'Lồng';if(/^C(?:[1-9]|1[0-2])$/.test(code))return 'Cắt';return null;}
-function normalizeRequestedWorkType({processId,processCode,machineCode,workType}){const explicit=normalizeWorkType(workType);if(explicit==='LONG')return 'Lồng';if(explicit==='CUT')return 'Cắt';const isGc=Number(processId)===1||String(processCode||'').trim().toUpperCase()==='GC';if(isGc)return inferGcWorkType(machineCode);return null;}
+function normalizeRequestedWorkType({processId,processCode,machineCode,workType}){const explicit=normalizeWorkType(workType);if(explicit==='LONG')return 'Lồng';if(explicit==='CUT')return 'Cắt';const normalizedProcessCode=String(processCode||'').trim().toUpperCase();const isGc=normalizedProcessCode?normalizedProcessCode==='GC':Number(processId)===1;if(isGc)return inferGcWorkType(machineCode);return null;}
 
 function createStandardResolver({query=defaultQuery}={}) {
   const productCache=new Map(), standardCache=new Map();
@@ -157,7 +157,7 @@ function createStandardResolver({query=defaultQuery}={}) {
     const machine=machineRows[0]||null, processCode=String(machine?.process_code||'').trim().toUpperCase();
     const modeText=String(operationMode||executionMethod||'').trim().toUpperCase(), isAuto=['AUTO','AUTOMATIC','TỰ ĐỘNG','TU DONG'].includes(modeText)||/AUTO|TỰ\s*ĐỘNG|TU\s*DONG/.test(modeText);
     const resolvedWorkType=normalizeRequestedWorkType({processId:pid,processCode,machineCode:machine?.machine_code||requestedMachineCode,workType});
-    const isGcProcess=pid===1||processCode==='GC';
+    const isGcProcess=processCode?processCode==='GC':pid===1;
     const inferredGcWorkType=isGcProcess?inferGcWorkType(machine?.machine_code||requestedMachineCode):null;
     const explicitGcWorkType=normalizeWorkType(workType);
     if(isGcProcess&&inferredGcWorkType&&['CUT','LONG'].includes(explicitGcWorkType)&&explicitGcWorkType!==normalizeWorkType(inferredGcWorkType)){
