@@ -21,8 +21,11 @@ test('GC reports without a machine fail closed instead of defaulting to Lồng',
 });
 
 test('standard resolution API uses the shared resolver instead of a second machine-standard query', () => {
-  assert.match(controller, /productStandardModel\.resolveByMachineAndProduct/);
-  assert.doesNotMatch(controller, /FROM product_machine_standards pms/i);
+  const resolverRoute = controller.slice(controller.indexOf('exports.resolveProductStandard = async'));
+  assert.match(resolverRoute, /productStandardModel\.resolveByMachineAndProduct/);
+  assert.doesNotMatch(resolverRoute, /FROM product_machine_standards pms/i);
+  const model = fs.readFileSync(path.join(__dirname, '../../backend/models/productStandardModel.js'), 'utf8');
+  assert.match(model, /require\(['"]\.\.\/services\/standardResolutionService['"]\)/);
 });
 
 test('report validation classifies only the confirmed machine-code ranges', () => {
