@@ -205,10 +205,10 @@ exports.resolveByMachineAndProduct = async (processId, machineCode, productCode,
         machine_id: resolved.machineId || null,
         machine_code: resolved.machineCode || machineCode,
         standard_time_seconds: resolved.standardTimeSeconds,
-        machine_standard_output: resolved.source === 'MACHINE' ? resolved.standardOutput : null,
-        default_standard_output: resolved.source === 'MACHINE' ? null : resolved.standardOutput,
+        machine_standard_output: resolved.machineStandardId ? resolved.standardOutput : null,
+        default_standard_output: resolved.machineStandardId ? null : resolved.standardOutput,
         resolved_output_per_hour: resolved.standardOutput,
-        standard_source: resolved.source === 'MACHINE' ? 'MACHINE' : 'DEFAULT',
+        standard_source: resolved.machineStandardId ? resolved.source : 'DEFAULT',
         exclude_kqd_from_tt: resolved.excludeKqdFromTt
     };
 };
