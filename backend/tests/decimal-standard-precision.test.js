@@ -38,8 +38,8 @@ test('historical decimal boundary preserves value and version identity together'
     throw new Error(`Unexpected SQL ${text}`);
   };
   const resolver = createStandardResolver({ query });
-  const v1 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-10' });
-  const v2 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-11' });
+  const v1 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workType: 'LONG', workDate: '2026-08-10' });
+  const v2 = await resolver.resolveStandard({ processId: 1, productCode: 'P1', workType: 'LONG', workDate: '2026-08-11' });
   assert.deepEqual([v1.standardOutput, v1.standardVersionId], [617.1, 21]);
   assert.deepEqual([v2.standardOutput, v2.standardVersionId], [900.77, 22]);
 });
@@ -50,7 +50,7 @@ test('machine historical decimals preserve 900.77 and 950.25', async () => {
     if (text.includes('from product_aliases')) return [];
     if (text.includes('from product_standards')) return [{ product_standard_id: 1, product_code: 'P1' }];
     if (text.includes('from product_standard_versions')) return [{ id: 21, standard_output: 617.1, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null }];
-    if (text.includes('from machines')) return [{ id: 9, machine_code: 'M1' }];
+    if (text.includes('from machines')) return [{ id: 9, machine_code: 'ML1', process_code: 'GC' }];
     if (text.includes('from product_machine_standards') && text.includes('effective_to')) return String(params[3]) === '2026-08-10'
       ? [{ id: 31, calculated_output_per_hour: 900.77, standard_output: 900.77, standard_time_seconds: 4, effective_from: '2026-01-01', effective_to: '2026-08-10' }]
       : [{ id: 32, calculated_output_per_hour: 950.25, standard_output: 950.25, standard_time_seconds: 3.8, effective_from: '2026-08-11', effective_to: null }];
@@ -58,8 +58,8 @@ test('machine historical decimals preserve 900.77 and 950.25', async () => {
     throw new Error(`Unexpected SQL ${text}`);
   };
   const resolver = createStandardResolver({ query });
-  assert.equal((await resolver.resolveStandard({ processId:1, productCode:'P1', machineCode:'M1', workDate:'2026-08-10' })).standardOutput, 900.77);
-  assert.equal((await resolver.resolveStandard({ processId:1, productCode:'P1', machineCode:'M1', workDate:'2026-08-11' })).standardOutput, 950.25);
+  assert.equal((await resolver.resolveStandard({ processId:1, productCode:'P1', machineCode:'ML1', workDate:'2026-08-10' })).standardOutput, 900.77);
+  assert.equal((await resolver.resolveStandard({ processId:1, productCode:'P1', machineCode:'ML1', workDate:'2026-08-11' })).standardOutput, 950.25);
 });
 
 test('capacity uses decimal standard before comparison and does not round 617.1 to 617', async () => {
