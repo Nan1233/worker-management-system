@@ -6,6 +6,8 @@ import { getSessionCached, clearSessionCache } from "./sessionCache";
 import { normalizeProcessId } from "../utils/processAccess";
 
 const TTL_MS = 30 * 60 * 1000;
+// Machine/product masters change by manual SQL edits: keep their browser cache short (60s).
+const FAST_MASTER_TTL_MS = 60 * 1000;
 // v12: invalidate all browser/session product-master snapshots after adding
 // GC Long Tay zero-standard work codes (XUATNHAP, KTCD, TAIPP).
 // v13: invalidate browser/session and offline product snapshots after adding GC alias C7236 -> R7236 and C13 machine standard.
@@ -52,7 +54,7 @@ export const getCachedMachines = (processId: number): Promise<MachineOption[]> =
   const canonicalId = normalizeProcessId(processId);
   return getSessionCached(
     epochKey(`machines:${canonicalId}`),
-    TTL_MS,
+    FAST_MASTER_TTL_MS,
     () => withOfflineSnapshot(`machines:${canonicalId}`, () => getMachinesByProcess(canonicalId)),
   );
 };
@@ -63,7 +65,7 @@ export const getCachedProductStandards = (processId: number, processCode?: strin
   const key = `products:${canonicalId}:${code}:${PRODUCT_MASTER_VERSION}`;
   return getSessionCached(
     epochKey(key),
-    TTL_MS,
+    FAST_MASTER_TTL_MS,
     () => withOfflineSnapshot(key, () => getProductStandardsByProcess(canonicalId, processCode)),
   );
 };
