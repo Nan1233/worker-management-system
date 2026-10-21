@@ -282,7 +282,7 @@ function WorkerReportEditV2() {
   const resizeMachineLines = (count: number) => setMachineLines((current) => Array.from({ length: Math.max(1, Math.min(maxMachineCount, count)) }, (_, i) => current[i] || createEmptyMachineLine()));
   const usesMultiMachineLines = resolveMultiMachine(capabilities, operationMode);
   const usesSingleMachine = resolveSingleMachine(capabilities, operationMode);
-  const machineAutocompleteOptions = editMachineOptions.map((m: any) => ({ value: s(m.machine_code), label: s(m.machine_code) }));
+  const machineAutocompleteOptions = editMachineOptions.map((m: any) => ({ value: s(m.machine_code), label: s(m.machine_code), workType: m.gc_work_type }));
   const getMachineProductOptions = (machineCode: string) => filterProductsForSelection({ products: editProductOptions, mode: "MACHINE", machineCode, machineOptions: editMachineOptions, useEncodedMachineSuffix: capabilities.processCode === "GC" });
   const getMachineProductAutocompleteOptions = (machineCode: string) => toProductAutocompleteOptions(getMachineProductOptions(machineCode));
   const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {

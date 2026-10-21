@@ -1,4 +1,5 @@
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
+import { gcWorkTypeOfMachine } from "../../services/gcMachineWorkType";
 
 export type ProductSuggestionMode = "MANUAL" | "MACHINE";
 const normalize = (value: unknown) => String(value ?? "").trim().toUpperCase();
@@ -79,8 +80,13 @@ export const getFullProductCode = (alias: string, products: ProductStandardOptio
 };
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean => GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
-const isGcLongMachine = (machineCode: unknown): boolean => {
+const isGcLongMachine = (machineCode: unknown, machineOptions?: MachineOption[]): boolean => {
     const raw = normalize(machineCode).replace(/\s+/g, "");
+    // Machine master (gc_work_type) decides Lồng when the API supplies it. The
+    // prefix rule below is only the legacy fallback for an API without the column.
+    if ((machineOptions || []).some((item) => item?.gc_work_type !== undefined)) {
+        return gcWorkTypeOfMachine(machineOptions, raw) === "LONG";
+    }
     return /^ML\d+$/i.test(raw) || /^\d+$/.test(normalizeMachineKey(raw));
 };
 
@@ -135,7 +141,7 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
                     ...specialProducts.filter(({ alias }) => !existingAliases.has(alias)),
                 ]);
             }
-            if (!selectedMachine || !isGcLongMachine(selectedRawMachine)) return [];
+            if (!selectedMachine || !isGcLongMachine(selectedRawMachine, machineOptions)) return [];
             return workerSelectionProducts(canonicalProducts);
         }
         if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {

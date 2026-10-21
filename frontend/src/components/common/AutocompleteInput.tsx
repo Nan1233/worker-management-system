@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { scopeGcMachineOptions } from "../../services/gcMachineWorkType";
 import "./AutocompleteInput.css";
 
 export interface AutocompleteOption {
     value: string;
     label?: string;
     description?: string;
+    /** GC machine Cắt/Lồng type from the machine master (gc_work_type); undefined when the API does not supply it. */
+    workType?: string | null;
 }
 
 interface AutocompleteInputProps {
@@ -73,15 +76,9 @@ function AutocompleteInput({
 
         if (id.startsWith("machineNo")) {
             if (machineOperationType === "CẮT") {
-                scopedOptions = options.filter((option) => /^C\d+$/i.test(String(option.value).trim()));
+                scopedOptions = scopeGcMachineOptions(options, "CUT");
             } else if (machineOperationType === "LỒNG") {
-                // GC Lồng machines use the canonical DB codes ML1..ML20.
-                // Keep numeric-only codes as backward-compatible legacy input,
-                // but do not filter out the current ML-prefixed master data.
-                scopedOptions = options.filter((option) => {
-                    const code = String(option.value).trim();
-                    return /^ML\d+$/i.test(code) || /^\d+$/.test(code);
-                });
+                scopedOptions = scopeGcMachineOptions(options, "LONG");
             }
         }
 

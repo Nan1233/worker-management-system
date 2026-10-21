@@ -233,7 +233,10 @@ const machineAutocompleteOptions =
                         machine.machine_code,
 
                     label:
-                        machine.machine_code
+                        machine.machine_code,
+
+                    workType:
+                        machine.gc_work_type
 
                 })
             ),

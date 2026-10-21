@@ -11,11 +11,11 @@ const model = fs.readFileSync(path.join(root, 'backend/models/productStandardMod
 const controller = fs.readFileSync(path.join(root, 'backend/controllers/productStandardController.js'), 'utf8');
 const validation = fs.readFileSync(path.join(root, 'backend/services/reportBusinessValidationService.js'), 'utf8');
 
-test('GC machine inference is limited to C1-C12 and ML1-ML20', () => {
-  assert.match(resolver, /\^ML\(\?:\[1-9\]\|1\\d\|20\)\$/);
-  assert.match(resolver, /\^C\(\?:\[1-9\]\|1\[0-2\]\)\$/);
-  assert.doesNotMatch(resolver, /\^ML\\d\+\$/);
-  assert.doesNotMatch(resolver, /\^\\d\+\$/);
+test('GC work type comes from the machine master, never from a machine-code prefix range', () => {
+  assert.match(resolver, /gcWorkTypeLabel\(machine\?\.gc_work_type\)/);
+  assert.doesNotMatch(resolver, /\^ML\(\?:\[1-9\]\|1\\d\|20\)\$/);
+  assert.doesNotMatch(resolver, /\^C\(\?:\[1-9\]\|1\[0-2\]\)\$/);
+  assert.doesNotMatch(resolver, /inferGcWorkType/);
 });
 
 test('GC resolver fails closed on conflicting standards and aliases', () => {
@@ -33,8 +33,9 @@ test('standard-resolution API uses the shared resolver and no parallel machine-s
   assert.match(route, /INVALID_STANDARD_VALUE/);
 });
 
-test('report validation does not infer Lồng when machine data is missing', () => {
-  assert.match(validation, /\^ML\(\?:\[1-9\]\|1\\d\|20\)\$/);
-  assert.match(validation, /\^C\(\?:\[1-9\]\|1\[0-2\]\)\$/);
+test('report validation takes Cắt/Lồng from the machine master and never infers it when data is missing', () => {
+  assert.match(validation, /gcWorkTypeLabel\(machines\[0\]\?\.gc_work_type\)/);
+  assert.doesNotMatch(validation, /\^ML\(\?:\[1-9\]\|1\\d\|20\)\$/);
+  assert.doesNotMatch(validation, /\^C\(\?:\[1-9\]\|1\[0-2\]\)\$/);
   assert.doesNotMatch(validation, /normalizedMachineNo\s*\?[^;]*:\s*"Lồng"/);
 });

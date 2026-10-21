@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const { validateEncodedGcMachineProduct } = require("../utils/productMachineEligibility");
+const { gcWorkTypeLabel, queryWithOptionalGcWorkType } = require("../utils/gcMachineWorkType");
 const { resolveStandard } = require("./standardResolutionService");
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
@@ -19,7 +20,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
 
     const [assignments, machines, products, validDefectRows, validDeductionRows, processRows] = await Promise.all([
         query(`SELECT 1 FROM worker_processes WHERE worker_id = ? AND process_id = ? LIMIT 1`, [workerId, processId]),
-        normalizedMachineNo ? query(`SELECT id, machine_code, COALESCE(is_automatic, 0) AS is_automatic FROM machines WHERE process_id = ? AND status = 'active' AND machine_code = ? LIMIT 1`, [processId, normalizedMachineNo]) : Promise.resolve([]),
+        normalizedMachineNo ? queryWithOptionalGcWorkType(query, (withType) => `SELECT id, machine_code${withType ? ', gc_work_type' : ''}, COALESCE(is_automatic, 0) AS is_automatic FROM machines WHERE process_id = ? AND status = 'active' AND machine_code = ? LIMIT 1`, [processId, normalizedMachineNo]) : Promise.resolve([]),
         normalizedProductName ? query(
             `SELECT ps.id, ps.product_code, ps.encoding_code, ps.standard_output, COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
                     p.process_code,
@@ -99,9 +100,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             productStandardId = Number(products[0].id) || null;
         } else {
             const normalizedGcWorkType = processCode === "GC" && normalizedOperationMode === "MACHINE"
-                ? (/^ML(?:[1-9]|1\d|20)$/i.test(normalizedMachineNo)
-                    ? "Lồng"
-                    : (/^C(?:[1-9]|1[0-2])$/i.test(normalizedMachineNo) ? "Cắt" : null))
+                ? gcWorkTypeLabel(machines[0]?.gc_work_type)
                 : null;
             const resolvedStandard = await resolveStandard({
                 processId,
@@ -119,7 +118,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             productStandardId = resolvedStandard.productStandardId;
         }
 
-        const encodedScopeError = validateEncodedGcMachineProduct({ processCode: products[0].process_code, productCode, machineCode: machineCode || normalizedMachineNo, isAutomatic: machines[0]?.is_automatic || 0, operationMode: normalizedOperationMode });
+        const encodedScopeError = validateEncodedGcMachineProduct({ processCode: products[0].process_code, productCode, machineCode: machineCode || normalizedMachineNo, isAutomatic: machines[0]?.is_automatic || 0, operationMode: normalizedOperationMode, machineGcWorkType: machines[0]?.gc_work_type });
         if (encodedScopeError && !legacyApprovedWithoutMachine) errors.product_name = encodedScopeError;
 
         if (ttOk !== undefined && actualOutput !== undefined && !isGcLongManualZeroStandard && !skipActualOutputValidation) {

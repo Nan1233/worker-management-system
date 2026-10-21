@@ -1,6 +1,6 @@
 {
-  "latestVersion": 36,
-  "latestMigration": "058_k1_defects_and_deductions_20261012.sql",
+  "latestVersion": 37,
+  "latestMigration": "059_gc_machine_work_type_20261021.sql",
   "migrations": [
     "001_core_master_schema.sql",
     "002_production_schema.sql",
@@ -37,6 +37,7 @@
     "055_gc_shared_long_machines_capacity.sql",
     "056_gc_shared_capacity_all_machines.sql",
     "057_gc_c7236_product_for_c13.sql",
-    "058_k1_defects_and_deductions_20261012.sql"
+    "058_k1_defects_and_deductions_20261012.sql",
+    "059_gc_machine_work_type_20261021.sql"
   ]
 }

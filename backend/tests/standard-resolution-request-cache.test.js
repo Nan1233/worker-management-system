@@ -73,7 +73,7 @@ test('standard resolver canonicalizes only a unique AUTO code casing variant', a
   const fakeQuery = async (sql, params = []) => {
     seen.push({ sql, params });
     if (sql.includes('FROM product_aliases') || sql.includes('product_aliases')) return [];
-    if (sql.includes('FROM machines')) return [{ id: 11, machine_code: 'C6', process_code: 'GC' }];
+    if (sql.includes('FROM machines')) return [{ id: 11, machine_code: 'C6', process_code: 'GC', gc_work_type: 'CUT' }];
     if (sql.includes('FROM product_machine_standards')) return [];
     if (sql.includes('FROM product_standards')) {
       if (sql.includes('UPPER(TRIM(product_code))=UPPER(TRIM(?))')) {
@@ -101,7 +101,7 @@ test('standard resolver canonicalizes only a unique AUTO code casing variant', a
 test('standard resolver refuses ambiguous AUTO casing variants', async () => {
   const fakeQuery = async (sql) => {
     if (sql.includes('FROM product_aliases') || sql.includes('product_aliases')) return [];
-    if (sql.includes('FROM machines')) return [{ id: 11, machine_code: 'C6', process_code: 'GC' }];
+    if (sql.includes('FROM machines')) return [{ id: 11, machine_code: 'C6', process_code: 'GC', gc_work_type: 'CUT' }];
     if (sql.includes('FROM product_machine_standards')) return [];
     if (sql.includes('FROM product_standards')) {
       if (sql.includes('UPPER(TRIM(product_code))=UPPER(TRIM(?))')) return [

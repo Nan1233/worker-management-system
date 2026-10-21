@@ -2,7 +2,7 @@ const machineModel = require("../models/machineModel");
 const { TTL, getOrLoadMasterData } = require("../utils/masterDataCache");
 
 // v2 forces a fresh DB read after machine master data is populated externally.
-const MACHINE_CACHE_VERSION = "v2";
+const MACHINE_CACHE_VERSION = "v3";
 
 exports.getMachines = async (req, res) => {
   try {
