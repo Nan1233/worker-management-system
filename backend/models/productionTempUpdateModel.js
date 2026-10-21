@@ -6,6 +6,8 @@ const { query, getConnection, beginTransaction, commit, rollback, editableFields
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
 const DAILY_HOURS_LIMIT = 12;
+// total_time is stored rounded to 4 decimals; allow 0.001h (3.6s) so an exact 12h total is not rejected by rounding.
+const DAILY_HOURS_TOLERANCE = 0.001;
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
 const checkDailyHours = async (connection, { workerId, workDate, incomingTotalHours, excludeTempReportId = null }) => {
@@ -17,7 +19,7 @@ const checkDailyHours = async (connection, { workerId, workDate, incomingTotalHo
     const tempRows = await query(connection, `SELECT COALESCE(SUM(COALESCE(total_time,0)),0) AS counted_hours FROM production_reports_temp WHERE worker_id=? AND work_date=? ${tempExcludeSql} AND status IN ('pending','need_fix')`, tempParams);
     const existingHours = Number(approvedRows?.[0]?.counted_hours || 0) + Number(tempRows?.[0]?.counted_hours || 0);
     const projectedHours = existingHours + incoming;
-    if (projectedHours > DAILY_HOURS_LIMIT + 0.000001) {
+    if (projectedHours > DAILY_HOURS_LIMIT + DAILY_HOURS_TOLERANCE) {
         const remainingHours = Math.max(0, DAILY_HOURS_LIMIT - existingHours);
         const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existingHours.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remainingHours.toFixed(2)} giờ.`);
         error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
