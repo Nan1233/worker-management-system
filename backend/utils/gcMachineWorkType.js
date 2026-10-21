@@ -27,6 +27,12 @@ function gcWorkTypeFromOperationType(value) {
   return gcWorkTypeLabel(text);
 }
 
+// Explicit Cắt/Lồng choice to hand to resolveStandard for a GC report ('Cắt' | 'Lồng' | null).
+// Never returns a type for non-GC processes, so other processes' product lookups stay unfiltered.
+function explicitGcWorkType({ isGc, operationType }) {
+  return isGc ? gcWorkTypeFromOperationType(operationType) : null;
+}
+
 const isMissingColumnError = (error) =>
   Boolean(error) && (Number(error.errno) === 1054 || error.code === 'ER_BAD_FIELD_ERROR');
 
@@ -43,4 +49,4 @@ async function queryWithOptionalGcWorkType(query, buildSql, params = []) {
   }
 }
 
-module.exports = { normalizeMachineGcWorkType, gcWorkTypeLabel, gcWorkTypeFromOperationType, isMissingColumnError, queryWithOptionalGcWorkType };
+module.exports = { normalizeMachineGcWorkType, gcWorkTypeLabel, gcWorkTypeFromOperationType, explicitGcWorkType, isMissingColumnError, queryWithOptionalGcWorkType };

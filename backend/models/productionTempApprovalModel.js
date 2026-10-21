@@ -1,5 +1,6 @@
 const AuditService = require("../services/auditService");
 const { toDateKey } = require("../utils/dateKey");
+const { explicitGcWorkType } = require("../utils/gcMachineWorkType");
 const {
   query,
   getConnection,
@@ -213,6 +214,8 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
     workDate: item.work_date,
     standardVersionId: item.standard_version_id,
     machineStandardId: item.machine_standard_id,
+    // GC manual (no machine): the report's saved Cắt/Lồng choice; null for every other process.
+    workType: explicitGcWorkType({ isGc: Number(item.process_id) === 1, operationType: item.operation_type }),
   });
   // CVK "Công việc khác" reports intentionally have no product standard.
   // Their valid snapshot is zero output with no product/machine standard IDs.
