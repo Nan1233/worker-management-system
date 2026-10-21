@@ -25,6 +25,10 @@ exports.checkSimilarReport = async (req, res) => {
         const shift = String(req.body?.shift || "").trim();
         const machineNo = String(req.body?.machine_no || "").trim();
         const productName = String(req.body?.product_name || "").trim();
+        // Optional, backward-compatible: the queued report's own mode lets this check apply
+        // the same standard-resolution rule as createTempReport. Absent -> legacy inference.
+        const operationMode = normalizeOperationMode(req.body?.operation_mode);
+        const workType = String(req.body?.work_type || "").trim() || null;
 
         if (!workerId || !processId || !workDate || !shift || !machineNo || !productName) {
             return res.status(400).json({ success: false, message: "Thiếu thông tin kiểm tra báo cáo trùng" });
@@ -42,7 +46,9 @@ exports.checkSimilarReport = async (req, res) => {
             productName,
             defects: [],
             deductions: [],
-            workDate
+            workDate,
+            operationMode,
+            workType
         });
 
         if (!masterValidation.valid) {
@@ -73,20 +79,22 @@ exports.checkSimilarReport = async (req, res) => {
     } catch (error) {
         // Structured, non-sensitive diagnostics: which step failed and with which
         // business code. No tokens, no worker identity, no request body dump.
-        console.error("CHECK SIMILAR REPORT ERROR:", JSON.stringify({
-            event: "check_similar_failed",
-            requestId: req.headers?.["x-request-id"] || null,
-            rayId: req.headers?.["cf-ray"] || null,
-            processId: toPositiveInteger(req.body?.process_id) || null,
-            machineNo: String(req.body?.machine_no || "").trim().slice(0, 40) || null,
-            productName: String(req.body?.product_name || "").trim().slice(0, 80) || null,
-            status: error.status || 500,
-            code: error.code || null,
-            businessError: Boolean(error.isPublic),
-            sqlCode: error.sqlState || error.code && String(error.code).startsWith("ER_") ? String(error.code) : null,
-            message: String(error.message || "").slice(0, 300),
-            failedAt: String(error.stack || "").split("\n").slice(1, 4).map((line) => line.trim().replace(/\(.*[\\/]/, "(")),
-        }));
+        try {
+            console.error("CHECK SIMILAR REPORT ERROR:", JSON.stringify({
+                event: "check_similar_failed",
+                requestId: req.headers?.["x-request-id"] || null,
+                rayId: req.headers?.["cf-ray"] || null,
+                processId: toPositiveInteger(req.body?.process_id) || null,
+                machineNo: String(req.body?.machine_no || "").trim().slice(0, 40) || null,
+                productName: String(req.body?.product_name || "").trim().slice(0, 80) || null,
+                status: error.status || 500,
+                code: error.code || null,
+                businessError: Boolean(error.isPublic),
+                sqlCode: /^ER_/.test(String(error.code || "")) ? String(error.code) : (error.sqlState ? String(error.sqlState) : null),
+                message: String(error.message || "").slice(0, 300),
+                failedAt: String(error.stack || "").split("\n").slice(1, 4).map((line) => line.trim().replace(/\(.*[\\/]/, "(")),
+            }));
+        } catch (_logError) { /* logging must never change the business response */ }
         return res.status(error.status || 500).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể kiểm tra báo cáo trùng") });
     }
 };

@@ -24,6 +24,10 @@ export interface OfflineReportQueueItem {
     status: OfflineQueueStatus;
     nextRetryAt: number;
     lastError?: string;
+    /** Safe backend business code of the ORIGINAL create failure (never a token/payload). */
+    lastErrorCode?: string;
+    /** Outcome of the follow-up duplicate check when it could not give a definite answer. */
+    similarCheck?: "failed-business" | "failed-transient";
     payload: ProductionReport;
 }
 
@@ -124,7 +128,13 @@ function isAlreadyCreatedDuplicate(error: unknown, payload: ProductionReport): b
     return Boolean(existingClient && payloadClient && existingClient === payloadClient);
 }
 
-async function serverAlreadyHasQueuedReport(payload: ProductionReport): Promise<boolean> {
+export type SimilarCheckOutcome = "exists" | "absent" | "unknown-transient" | "unknown-business";
+
+/**
+ * Duplicate check after a 422. A failed check is NEVER reported as "absent" or "exists":
+ * it is "unknown" so the original create error is kept and the item is not marked sent.
+ */
+export async function serverAlreadyHasQueuedReport(payload: ProductionReport): Promise<SimilarCheckOutcome> {
     try {
         const result = await checkSimilarTempReport({
             process_id: payload.process_id,
@@ -132,11 +142,18 @@ async function serverAlreadyHasQueuedReport(payload: ProductionReport): Promise<
             shift: payload.shift,
             machine_no: payload.machine_no,
             product_name: payload.product_name,
+            operation_mode: payload.operation_mode,
+            work_type: payload.work_type,
         });
-        return Boolean(result?.duplicate && result?.data?.id);
-    } catch {
-        return false;
+        return result?.duplicate && result?.data?.id ? "exists" : "absent";
+    } catch (error) {
+        return isTransientNetworkFailure(error) ? "unknown-transient" : "unknown-business";
     }
+}
+
+function safeErrorCode(error: unknown): string | undefined {
+    const code = responseData(error)?.code;
+    return typeof code === "string" && /^[A-Z0-9_]{3,64}$/.test(code) ? code : undefined;
 }
 
 export function getCurrentOfflineQueueItems(): OfflineReportQueueItem[] {
@@ -245,9 +262,28 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
             const attempts = Number(item.attempts || 0) + 1;
             const message = errorMessage(error);
             const status = Number(axios.isAxiosError(error) ? error.response?.status || 0 : 0);
-            if (status === 422 && await serverAlreadyHasQueuedReport(item.payload)) {
-                sent += 1;
-                continue;
+            let similarCheck: OfflineReportQueueItem["similarCheck"];
+            if (status === 422) {
+                const outcome = await serverAlreadyHasQueuedReport(item.payload);
+                if (outcome === "exists") {
+                    sent += 1;
+                    continue;
+                }
+                if (outcome === "unknown-transient") {
+                    // Cannot tell whether the server already has it: retry later (backoff), keep the original error.
+                    remaining.push({
+                        ...item,
+                        attempts,
+                        status: "retrying",
+                        nextRetryAt: Date.now() + retryDelayMs(attempts),
+                        lastError: message,
+                        lastErrorCode: safeErrorCode(error),
+                        similarCheck: "failed-transient"
+                    });
+                    remaining.push(...mine.slice(index + 1));
+                    break;
+                }
+                if (outcome === "unknown-business") similarCheck = "failed-business";
             }
 
             if (isTransientNetworkFailure(error)) {
@@ -256,7 +292,8 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
                     attempts,
                     status: "retrying",
                     nextRetryAt: Date.now() + retryDelayMs(attempts),
-                    lastError: message
+                    lastError: message,
+                    lastErrorCode: safeErrorCode(error)
                 });
                 remaining.push(...mine.slice(index + 1));
                 break;
@@ -267,7 +304,10 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
                 attempts,
                 status: "blocked",
                 nextRetryAt: Number.MAX_SAFE_INTEGER,
-                lastError: message
+                // Always the ORIGINAL create error; a failed duplicate check never overwrites it.
+                lastError: message,
+                lastErrorCode: safeErrorCode(error),
+                similarCheck
             });
         }
     }

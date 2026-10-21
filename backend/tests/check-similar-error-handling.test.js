@@ -66,3 +66,31 @@ test('unexpected exception is a 500 and is logged with its failing step', async 
   const h = load({ validate: async () => { throw new TypeError('boom'); } });
   try { const { res, logs } = await call(h); assert.equal(res.code, 500); assert.match(logs[0], /check_similar_failed/); assert.match(logs[0], /boom/); } finally { h.restore(); }
 });
+
+test('operation_mode and work_type from the queued report are forwarded to validateMasterData; absent values stay backward compatible', async () => {
+  let seen = null;
+  const h = load({ validate: async (args) => { seen = args; return { valid: true, machineCode: 'C13', productCode: 'R7236' }; } });
+  try {
+    const run = async (extra) => { const res = mkRes(); await h.ctrl.checkSimilarReport({ user: { worker_id: 7 }, body: { ...body, ...extra }, headers: {} }, res); return res; };
+    await run({ operation_mode: 'machine', work_type: 'Cắt' });
+    assert.equal(seen.operationMode, 'MACHINE');
+    assert.equal(seen.workType, 'Cắt');
+    await run({});
+    assert.equal(seen.operationMode, null);
+    assert.equal(seen.workType, null);
+    await run({ operation_mode: 'garbage' });
+    assert.equal(seen.operationMode, null);
+  } finally { h.restore(); }
+});
+
+test('log keeps request/ray id, process id, business code and a sanitized message, and logging cannot change the response', async () => {
+  const err = Object.assign(new Error('Không xác định duy nhất định mức'), { status: 422, code: 'HISTORICAL_STANDARD_NOT_FOUND', isPublic: true });
+  const h = load({ validate: async () => { throw err; } });
+  const orig = console.error;
+  try {
+    console.error = () => { throw new Error('logger down'); };
+    const res = mkRes();
+    await h.ctrl.checkSimilarReport({ user: { worker_id: 7 }, body, headers: {} }, res);
+    assert.equal(res.code, 422, 'a failing logger must not change the business response');
+  } finally { console.error = orig; h.restore(); }
+});
