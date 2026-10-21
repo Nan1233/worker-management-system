@@ -16,11 +16,21 @@ function chooseHistoricalVersion(rows,date,label){const applicable=(rows||[]).fi
 function normalizeWorkType(value){const code=String(value||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');if(['CUT','CAT'].includes(code))return 'CUT';if(['LONG','LNG'].includes(code))return 'LONG';return code;}
 function normalizeRequestedWorkType({processId,processCode,machineWorkType,workType}){const explicit=normalizeWorkType(workType);if(explicit==='LONG')return 'Lồng';if(explicit==='CUT')return 'Cắt';const normalizedProcessCode=String(processCode||'').trim().toUpperCase();const isGc=normalizedProcessCode?normalizedProcessCode==='GC':Number(processId)===1;if(isGc)return machineWorkType||null;return null;}
 
+function storedWorkTypeSql(normalizedWorkType){
+  // product_standards.work_type is stored with mixed spellings (seeded 'LONG' by
+  // migration 051; 'Cắt'/'Lồng' elsewhere). Match only the spellings normalizeWorkType()
+  // already treats as Cắt/Lồng. A generic 'GC', NULL or unknown value never matches a
+  // specific Cắt/Lồng lookup: that mismatch is reported explicitly instead of guessed.
+  if(normalizedWorkType==='LONG')return ` AND UPPER(TRIM(ps.work_type)) IN ('LỒNG','LONG')`;
+  if(normalizedWorkType==='CUT')return ` AND UPPER(TRIM(ps.work_type)) IN ('CẮT','CAT','CUT')`;
+  return '';
+}
+
 function createStandardResolver({query=defaultQuery}={}) {
   const productCache=new Map(), standardCache=new Map();
   async function findProductRows(pid,product,workType=null,{includeInactive=false}={}){
     const normalizedWorkType=normalizeWorkType(workType);
-    const workTypeSql=normalizedWorkType==='LONG'?` AND UPPER(TRIM(ps.work_type))='LỒNG'`:normalizedWorkType==='CUT'?` AND UPPER(TRIM(ps.work_type))='CẮT'`:'';
+    const workTypeSql=storedWorkTypeSql(normalizedWorkType);
     const statusSql=includeInactive?'':` AND ps.status='active'`;
     const fields=`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=?${statusSql}${workTypeSql}`;
     // Resolve identifiers in strict priority order. Combining product_code and
@@ -43,7 +53,7 @@ function createStandardResolver({query=defaultQuery}={}) {
   function pickEquivalentRow(rows){if(!Array.isArray(rows)||rows.length<2)return null;const out=Number(rows[0]?.standard_output),kqd=Number(rows[0]?.exclude_kqd_from_tt||0);if(!Number.isFinite(out)||out<=0)return null;const allSame=rows.every(row=>sameDecimal(Number(row?.standard_output),out)&&Number(row?.exclude_kqd_from_tt||0)===kqd);return allSame?rows[0]:null;}
   function pickExactRow(rows,product){if(!Array.isArray(rows)||rows.length<2)return null;const wanted=normalizeCode(product);const exact=rows.filter(row=>normalizeCode(row?.product_code)===wanted||normalizeCode(row?.encoding_code)===wanted);return exact.length===1?exact[0]:null;}
   function normalizeCode(value){return String(value||'').trim().toUpperCase();}
-  async function selectProductRow(pid,product,workDate,{allowAutoAlias=false,workType=null,includeInactive=false}={}){const lookupOptions={includeInactive};const rows=await findProductRows(pid,product,workType,lookupOptions);if(rows.length===1)return rows[0];const exact=pickExactRow(rows,product);if(exact)return exact;const equivalent=pickEquivalentRow(rows);if(equivalent)return equivalent;if(rows.length>1)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức khả dĩ cho sản phẩm ${product} trong cùng công đoạn`,{process_id:pid,product_code:product,work_type:workType||null,conflicting_standard_ids:rows.map(row=>Number(row?.product_standard_id)).filter(Number.isFinite)});const resolveUniqueAutoCaseVariant=async(autoCode)=>{if(!/-AUTO$/i.test(autoCode))return null;const normalizedWorkType=normalizeWorkType(workType);const workTypeSql=normalizedWorkType==='LONG'?` AND UPPER(TRIM(ps.work_type))='LỒNG'`:normalizedWorkType==='CUT'?` AND UPPER(TRIM(ps.work_type))='CẮT'`:'';const statusSql=includeInactive?'':` AND ps.status='active'`;const candidates=await query(`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=?${statusSql}${workTypeSql} AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) ORDER BY id LIMIT 2`,[pid,autoCode]);return candidates.length===1?candidates[0]:null;};const autoCaseVariant=await resolveUniqueAutoCaseVariant(product);if(autoCaseVariant)return autoCaseVariant;if(!allowAutoAlias)return null;const autoProduct=/-AUTO$/i.test(product)?product:`${product}-AUTO`;const autoRows=await findProductRows(pid,autoProduct,workType,lookupOptions);if(autoRows.length===1)return autoRows[0];const exactAuto=pickExactRow(autoRows,autoProduct);if(exactAuto)return exactAuto;const equivalentAuto=pickEquivalentRow(autoRows);if(equivalentAuto)return equivalentAuto;return resolveUniqueAutoCaseVariant(autoProduct);}
+  async function selectProductRow(pid,product,workDate,{allowAutoAlias=false,workType=null,includeInactive=false}={}){const lookupOptions={includeInactive};const rows=await findProductRows(pid,product,workType,lookupOptions);if(rows.length===1)return rows[0];const exact=pickExactRow(rows,product);if(exact)return exact;const equivalent=pickEquivalentRow(rows);if(equivalent)return equivalent;if(rows.length>1)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức khả dĩ cho sản phẩm ${product} trong cùng công đoạn`,{process_id:pid,product_code:product,work_type:workType||null,conflicting_standard_ids:rows.map(row=>Number(row?.product_standard_id)).filter(Number.isFinite)});const resolveUniqueAutoCaseVariant=async(autoCode)=>{if(!/-AUTO$/i.test(autoCode))return null;const normalizedWorkType=normalizeWorkType(workType);const workTypeSql=storedWorkTypeSql(normalizedWorkType);const statusSql=includeInactive?'':` AND ps.status='active'`;const candidates=await query(`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt FROM product_standards ps WHERE process_id=?${statusSql}${workTypeSql} AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) ORDER BY id LIMIT 2`,[pid,autoCode]);return candidates.length===1?candidates[0]:null;};const autoCaseVariant=await resolveUniqueAutoCaseVariant(product);if(autoCaseVariant)return autoCaseVariant;if(!allowAutoAlias)return null;const autoProduct=/-AUTO$/i.test(product)?product:`${product}-AUTO`;const autoRows=await findProductRows(pid,autoProduct,workType,lookupOptions);if(autoRows.length===1)return autoRows[0];const exactAuto=pickExactRow(autoRows,autoProduct);if(exactAuto)return exactAuto;const equivalentAuto=pickEquivalentRow(autoRows);if(equivalentAuto)return equivalentAuto;return resolveUniqueAutoCaseVariant(autoProduct);}
   async function resolveProduct({processId,productCode,workDate,standardVersionId=null,allowAutoAlias=false,workType=null}) {
     const pid=Number(processId), product=String(productCode||'').trim(), date=normalizeWorkDate(workDate), normalizedWorkType=normalizeWorkType(workType);
     if((pid===60006||pid===30002)&&!product)return{processId:pid,productCode:null,productStandardId:null,standardVersionId:null,machineStandardId:null,standardOutput:0,standardTimeSeconds:null,excludeKqdFromTt:0,effectiveFrom:null,effectiveTo:null,source:'NON_PRODUCT_WORK',workDate:date,historicalVersionAvailable:false,nonProductWork:true};
@@ -75,6 +85,18 @@ function createStandardResolver({query=defaultQuery}={}) {
       if(!selectedProduct && normalizedWorkType && pid!==1){
         selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutoAlias&&!requestedVersionId,workType:null,includeInactive:historicalSnapshotLookup});
         fallbackToProcessProduct=Boolean(selectedProduct);
+      }
+    }
+    if(!selectedProduct&&normalizedWorkType){
+      // Distinguish "product has no standard" from "product has standards, but stored under a
+      // different work_type". Never fall back to another work type (fail closed).
+      const anyTypeRows=await findProductRows(pid,product,null,{includeInactive:historicalSnapshotLookup});
+      // Only a stored value that is not a supported Cắt/Lồng spelling (e.g. generic 'GC', NULL)
+      // is a configuration mismatch; a real standard of the OTHER type stays a plain not-found.
+      const unsupportedRows=anyTypeRows.filter(row=>!['CUT','LONG'].includes(normalizeWorkType(row?.work_type)));
+      if(unsupportedRows.length){
+        const stored=[...new Set(unsupportedRows.map(row=>String(row?.work_type??'').trim()||'(trống)'))];
+        throw businessError('STANDARD_WORK_TYPE_MISMATCH',`Sản phẩm ${product} có định mức nhưng loại công việc lưu trong danh mục (${stored.join(', ')}) không khớp loại ${normalizedWorkType==='CUT'?'Cắt':'Lồng'} của máy; cần quản trị viên cập nhật danh mục định mức`,{process_id:pid,product_code:product,requested_work_type:normalizedWorkType,stored_work_types:stored});
       }
     }
     if(!selectedProduct)throw businessError('HISTORICAL_STANDARD_NOT_FOUND',`Không xác định duy nhất định mức sản phẩm ${product}${normalizedWorkType?` / ${normalizedWorkType}`:''} trong công đoạn`,{process_id:pid,product_code:product,work_type:normalizedWorkType||null});

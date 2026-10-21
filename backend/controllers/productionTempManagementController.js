@@ -353,6 +353,7 @@ exports.updateTempReport = async (req, res) => {
             ttOk: operationMode === "MANUAL" ? validation.normalized.tt_ok : undefined,
             actualOutput: operationMode === "MANUAL" ? validation.normalized.actual_output : undefined,
             allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
+            operationType: validation.normalized.operation_type ?? payload.operation_type,
             workDate: payload.work_date
         });
         if (!master.valid) return res.status(422).json({ success: false, message: "Dữ liệu danh mục không hợp lệ", errors: master.errors });
