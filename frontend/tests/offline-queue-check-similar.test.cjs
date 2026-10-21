@@ -113,3 +113,22 @@ test('network and 5xx on create keep the existing retry policy; 4xx other than 4
     assert.equal(items(store)[0].status, expected);
   }
 });
+
+test('persistently failing duplicate check stops retrying after the cap and blocks with the original error', async () => {
+  let creates = 0;
+  const { mod, store } = await loadQueue({
+    create: async () => { creates += 1; throw httpError(422, { message: 'Dữ liệu không khớp danh mục hệ thống', code: 'A_B' }); },
+    check: async () => { throw httpError(503, {}); }
+  });
+  mod.enqueueOfflineReport(payload);
+  for (let i = 0; i < 8; i += 1) {
+    // let the backoff elapse without using force (force may intentionally retry blocked items)
+    store.set('ktcOfflineReportQueueV1', JSON.stringify(items(store).map((x) => (x.status === 'retrying' || x.status === 'queued' ? { ...x, nextRetryAt: 0 } : x))));
+    await mod.flushOfflineReportQueue();
+  }
+  const [it] = items(store);
+  assert.equal(it.status, 'blocked');
+  assert.equal(it.similarCheck, 'failed-transient');
+  assert.equal(it.lastError, 'Dữ liệu không khớp danh mục hệ thống');
+  assert.ok(creates <= 6, `create attempts bounded, got ${creates}`);
+});

@@ -28,7 +28,7 @@ exports.checkSimilarReport = async (req, res) => {
         // Optional, backward-compatible: the queued report's own mode lets this check apply
         // the same standard-resolution rule as createTempReport. Absent -> legacy inference.
         const operationMode = normalizeOperationMode(req.body?.operation_mode);
-        const workType = String(req.body?.work_type || "").trim() || null;
+        const workType = String(req.body?.work_type || "").trim().slice(0, 40) || null;
 
         if (!workerId || !processId || !workDate || !shift || !machineNo || !productName) {
             return res.status(400).json({ success: false, message: "Thiếu thông tin kiểm tra báo cáo trùng" });
