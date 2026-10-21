@@ -8,6 +8,8 @@ const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReport
 const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
 const DAILY_HOURS_LIMIT = 12;
+// total_time is stored rounded to 4 decimals; allow 0.001h (3.6s) so an exact 12h total is not rejected by rounding.
+const DAILY_HOURS_TOLERANCE = 0.001;
 const getStoredWorkType = (value) => {
     if (value && typeof value === "object") return String(value.work_type || "").trim();
     if (typeof value === "string") {
@@ -37,7 +39,7 @@ const enforceDailyHoursLocked = async (executor, data) => {
     );
     const existing = (rows || []).reduce((sum, row) => sum + Number(row?.counted_hours || 0), 0);
     const projected = existing + incoming;
-    if (projected > DAILY_HOURS_LIMIT + 0.000001) {
+    if (projected > DAILY_HOURS_LIMIT + DAILY_HOURS_TOLERANCE) {
         const remaining = Math.max(0, DAILY_HOURS_LIMIT - existing);
         const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remaining.toFixed(2)} giờ.`);
         error.status = 422;
