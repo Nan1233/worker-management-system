@@ -108,3 +108,41 @@ test('check-similar style input (no work_type / operation_mode / machine_id) res
   assert.equal(checkSimilar.productStandardId, create.productStandardId);
   assert.equal(checkSimilar.standardOutput, create.standardOutput);
 });
+
+// resolveStandard looks up product_machine_standards FIRST (machine id + canonical product after
+// alias + effective dates) and only falls through to resolveProduct (product_standards) when that
+// finds nothing usable. These tests pin the three ways a C13/R7236/690 machine standard can be missed.
+function withMachineStandard(base, machineStandards) {
+  const seen = [];
+  const query = async (sql, params = []) => {
+    if (/from product_machine_standards/i.test(String(sql))) {
+      const [pid, machineId, product, date] = params;
+      seen.push({ product, date });
+      return machineStandards.filter((m) => m.product_code === String(product).trim() && m.machine_id === machineId
+        && (!m.effective_from || m.effective_from <= date) && (!m.effective_to || m.effective_to >= date));
+    }
+    return base(sql, params);
+  };
+  return { query, seen };
+}
+const MS_R7236 = { id: 9, process_id: 1, product_code: 'R7236', machine_id: 1, standard_output: 690, calculated_output_per_hour: 690, standard_time_seconds: 5.2, effective_from: '2026-10-20', effective_to: null, is_active: 1 };
+const run = (query, workDate = '2026-10-21') => createStandardResolver({ query }).resolveStandard({ processId: 1, productCode: 'C7236', machineCode: 'C13', workDate });
+
+test('alias present + machine standard in effect: resolves from the machine standard (690), independent of product_standards.work_type', async () => {
+  const { query, seen } = withMachineStandard(makeDb({ standards: [std('GC')], aliases: ALIAS_C7236 }), [MS_R7236]);
+  const r = await run(query);
+  assert.equal(Number(r.standardOutput), 690);
+  assert.equal(r.source.startsWith('MACHINE'), true);
+  assert.equal(seen[0].product, 'R7236', 'machine standard is looked up by the alias target');
+});
+
+test('alias MISSING: machine standard is looked up as C7236, finds nothing, falls to product_standards and fails closed', async () => {
+  const { query, seen } = withMachineStandard(makeDb({ standards: [std('GC')], aliases: [] }), [MS_R7236]);
+  await assert.rejects(run(query), (e) => e.code === 'HISTORICAL_STANDARD_NOT_FOUND');
+  assert.equal(seen[0].product, 'C7236');
+});
+
+test('work_date BEFORE the machine standard effective_from: machine standard not in effect, falls to product_standards', async () => {
+  const { query } = withMachineStandard(makeDb({ standards: [std('GC')], aliases: ALIAS_C7236 }), [MS_R7236]);
+  await assert.rejects(run(query, '2026-10-10'), (e) => e.code === 'STANDARD_WORK_TYPE_MISMATCH');
+});
