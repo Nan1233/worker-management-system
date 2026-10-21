@@ -146,6 +146,7 @@ export async function serverAlreadyHasQueuedReport(payload: ProductionReport): P
             product_name: payload.product_name,
             operation_mode: payload.operation_mode,
             work_type: payload.work_type,
+            operation_type: payload.operation_type,
         });
         return result?.duplicate && result?.data?.id ? "exists" : "absent";
     } catch (error) {

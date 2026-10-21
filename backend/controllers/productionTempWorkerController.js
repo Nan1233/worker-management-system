@@ -48,6 +48,7 @@ exports.checkSimilarReport = async (req, res) => {
             deductions: [],
             workDate,
             operationMode,
+            operationType: normalizeOperationType(req.body?.operation_type),
             workType
         });
 
@@ -351,6 +352,7 @@ exports.createTempReport = async (req, res) => {
                 skipActualOutputValidation: Array.isArray(machineValidation.lines) && machineValidation.lines.length > 0,
                 allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
                 operationMode,
+                operationType: validation.normalized.operation_type ?? req.body.operation_type,
                 workDate: req.body.work_date,
                 workType: req.body.work_type || extraDataInput.work_type,
                 nonProductWork: isNonProductWorkWithinProcess

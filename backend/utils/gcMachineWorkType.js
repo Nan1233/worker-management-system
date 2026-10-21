@@ -19,6 +19,14 @@ function gcWorkTypeLabel(value) {
   return normalized ? LABELS[normalized] : null;
 }
 
+// The worker's explicit Cắt/Lồng choice arrives as operation_type (CUT | NEST, with the usual
+// spellings). Returns 'Cắt' | 'Lồng' | null. Anything else (e.g. non-product work) is null.
+function gcWorkTypeFromOperationType(value) {
+  const text = String(value ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (text === 'NEST' || text === 'NESTING') return LABELS.LONG;
+  return gcWorkTypeLabel(text);
+}
+
 const isMissingColumnError = (error) =>
   Boolean(error) && (Number(error.errno) === 1054 || error.code === 'ER_BAD_FIELD_ERROR');
 
@@ -35,4 +43,4 @@ async function queryWithOptionalGcWorkType(query, buildSql, params = []) {
   }
 }
 
-module.exports = { normalizeMachineGcWorkType, gcWorkTypeLabel, isMissingColumnError, queryWithOptionalGcWorkType };
+module.exports = { normalizeMachineGcWorkType, gcWorkTypeLabel, gcWorkTypeFromOperationType, isMissingColumnError, queryWithOptionalGcWorkType };
