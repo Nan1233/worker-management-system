@@ -1,4 +1,5 @@
 import api from "./api";
+import { gcWorkTypeOfMachine, type GcWorkType } from "./gcMachineWorkType";
 
 export interface MachineOption {
     id: number;
@@ -8,6 +9,8 @@ export interface MachineOption {
     is_automatic?: number;
     max_workers_per_machine?: number;
     output_basis?: "MACHINE" | "PRODUCT";
+    /** Cắt/Lồng type from the machine master (migration 059); null when not configured. */
+    gc_work_type?: "CUT" | "LONG" | string | null;
 }
 
 export interface ProductStandardOption {
@@ -145,17 +148,9 @@ const resolveCanonicalProductCode = async (processId: number, productCode: strin
     return String((positiveAlias ?? aliasCandidates[0])?.product_code || productCode).trim();
 };
 
-const inferGcWorkType = (machineCode: string): "CUT" | "LONG" | null => {
-    const code = String(machineCode || "").trim().toUpperCase().replace(/\s+/g, "");
-    if (/^ML\d+$/.test(code)) return "LONG";
-    if (/^C\d+/.test(code)) return "CUT";
-    return null;
-};
-
-const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProduct: string, canonicalProduct: string, machineCode = ""): ProductStandardOption | undefined => {
+const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProduct: string, canonicalProduct: string, workType: GcWorkType | null = null): ProductStandardOption | undefined => {
     const normalizedCanonical = String(canonicalProduct || "").trim().toUpperCase();
     const normalizedInput = String(normalizedProduct || "").trim().toUpperCase();
-    const workType = inferGcWorkType(machineCode);
     const isPositive = (row: ProductStandardOption) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0;
     const hasExactCode = (row: ProductStandardOption) => [row?.product_code, row?.alias_code]
         .some((value) => String(value || "").trim().toUpperCase() === normalizedInput);
@@ -223,7 +218,11 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     const lookupProduct = automaticAlias?.product_code ? String(automaticAlias.product_code).trim() : normalizedProduct;
     const productExistsInProcess = await hasExactProcessProduct(processId, normalizedProduct, normalizedMachine);
     const canonicalProduct = await resolveCanonicalProductCode(processId, normalizedProduct, normalizedMachine);
-    const localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct, normalizedMachine);
+    // Cắt/Lồng comes from the machine master (gc_work_type), never from the machine-code prefix.
+    const machineWorkType = normalizedMachine && Number(processId) === 1
+        ? gcWorkTypeOfMachine(await getMachinesByProcess(processId).catch(() => []), normalizedMachine)
+        : null;
+    const localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct, machineWorkType);
 
     // Business rule:
     // 1) TAY/MANUAL: resolve by product code only; machine is ignored.

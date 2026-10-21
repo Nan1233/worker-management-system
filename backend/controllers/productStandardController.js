@@ -8,7 +8,7 @@ const query = (sql, params = []) => db.promise().query(sql, params);
 const GC_NO_STANDARD_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
 // Cache-key versions deliberately invalidate stale master data after external DB updates.
-const MACHINE_CACHE_VERSION = "v2";
+const MACHINE_CACHE_VERSION = "v3";
 const PRODUCT_STANDARD_CACHE_VERSION = "v2";
 
 const loadGcProductStandardsDirect = async (processId, processCode) => {

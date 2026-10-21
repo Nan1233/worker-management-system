@@ -15,6 +15,7 @@ const normalizeDefectName = (value) => String(value || "")
     .replace(/[^A-Z0-9]+/g, "")
     .trim();
 const { validateEncodedGcMachineProduct } = require("../utils/productMachineEligibility");
+const { queryWithOptionalGcWorkType } = require("../utils/gcMachineWorkType");
 const { createStandardResolver } = require("./standardResolutionService");
 const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
 
@@ -188,8 +189,9 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
         // The machine master is also loaded once. This removes another
         // per-machine DB round-trip and keeps the worst-case request comfortably
         // below Cloudflare's subrequest ceiling.
-        const machineRows = await query(
-            `SELECT m.id, m.machine_code, COALESCE(m.is_automatic,0) AS is_automatic, p.process_code
+        const machineRows = await queryWithOptionalGcWorkType(
+            query,
+            (withType) => `SELECT m.id, m.machine_code${withType ? ', m.gc_work_type' : ''}, COALESCE(m.is_automatic,0) AS is_automatic, p.process_code
                FROM machines m
                JOIN processes p ON p.id=m.process_id
               WHERE m.process_id=? AND m.status='active'`,
@@ -306,7 +308,8 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                 productCode,
                 machineCode: machine.machine_code,
                 isAutomatic: machine.is_automatic,
-                operationMode: "MACHINE"
+                operationMode: "MACHINE",
+                machineGcWorkType: machine.gc_work_type
             });
             if (encodedScopeError) {
                 errors[`machine_lines.${index}.product_code`] = encodedScopeError;

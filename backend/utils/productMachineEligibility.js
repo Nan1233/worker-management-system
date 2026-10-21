@@ -1,3 +1,5 @@
+const { normalizeMachineGcWorkType } = require('./gcMachineWorkType');
+
 const normalize = (value) => String(value ?? '').trim().toUpperCase();
 
 const normalizeMachineKey = (value) => {
@@ -23,7 +25,7 @@ const isGcAutomaticMachine = (machineCode) =>
 
 const isGcLongMachine = (machineCode) => /^ML\d+$/i.test(normalize(machineCode).replace(/\s+/g, ''));
 
-const validateEncodedGcMachineProduct = ({ processCode, productCode, machineCode, isAutomatic, operationMode }) => {
+const validateEncodedGcMachineProduct = ({ processCode, productCode, machineCode, isAutomatic, operationMode, machineGcWorkType }) => {
   if (normalize(processCode) !== 'GC') return null;
 
   const normalizedProduct = normalize(productCode);
@@ -34,7 +36,11 @@ const validateEncodedGcMachineProduct = ({ processCode, productCode, machineCode
   // Cắt machine even when the generic product standard exists as a fallback.
   if (normalizedProduct === '2801-LT') {
     if (mode === 'MANUAL') return 'Sản phẩm 2801-LT chỉ được dùng trên máy Lồng';
-    if (mode === 'MACHINE' && !isGcLongMachine(normalizedMachine)) {
+    // Prefer the machine master (machines.gc_work_type). The ML prefix is only a
+    // restrictive fallback when the caller has no machine type to supply.
+    const machineType = normalizeMachineGcWorkType(machineGcWorkType);
+    const onLongMachine = machineType ? machineType === 'LONG' : isGcLongMachine(normalizedMachine);
+    if (mode === 'MACHINE' && !onLongMachine) {
       return 'Sản phẩm 2801-LT chỉ được dùng trên máy Lồng (ML1-ML20)';
     }
   }
