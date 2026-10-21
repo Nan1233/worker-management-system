@@ -13,6 +13,8 @@ const TTL_MS = 30 * 60 * 1000;
 // v15: invalidate stale process-scoped NG/Tru H snapshots after correcting DO process ID mapping and DB catalogues.
 // v18: invalidate cached K2 master lists after applying the approved K2-only UI filters.
 const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v18";
+// p2: invalidate browser/session and offline product snapshots after adding GC product C0575 (Cắt, 1460) and KCT work_type fix.
+const PRODUCT_MASTER_VERSION = "p2";
 const DEDUCTION_MASTER_VERSION = "v12";
 const DEFECT_MASTER_VERSION = "v11";
 
@@ -58,7 +60,7 @@ export const getCachedMachines = (processId: number): Promise<MachineOption[]> =
 export const getCachedProductStandards = (processId: number, processCode?: string): Promise<ProductStandardOption[]> => {
   const canonicalId = normalizeProcessId(processId);
   const code = processCode ? processCode.trim().toUpperCase() : "NONE";
-  const key = `products:${canonicalId}:${code}`;
+  const key = `products:${canonicalId}:${code}:${PRODUCT_MASTER_VERSION}`;
   return getSessionCached(
     epochKey(key),
     TTL_MS,
