@@ -71,7 +71,22 @@ exports.checkSimilarReport = async (req, res) => {
                 : "Không có báo cáo tương tự"
         });
     } catch (error) {
-        console.error("CHECK SIMILAR REPORT ERROR:", error);
+        // Structured, non-sensitive diagnostics: which step failed and with which
+        // business code. No tokens, no worker identity, no request body dump.
+        console.error("CHECK SIMILAR REPORT ERROR:", JSON.stringify({
+            event: "check_similar_failed",
+            requestId: req.headers?.["x-request-id"] || null,
+            rayId: req.headers?.["cf-ray"] || null,
+            processId: toPositiveInteger(req.body?.process_id) || null,
+            machineNo: String(req.body?.machine_no || "").trim().slice(0, 40) || null,
+            productName: String(req.body?.product_name || "").trim().slice(0, 80) || null,
+            status: error.status || 500,
+            code: error.code || null,
+            businessError: Boolean(error.isPublic),
+            sqlCode: error.sqlState || error.code && String(error.code).startsWith("ER_") ? String(error.code) : null,
+            message: String(error.message || "").slice(0, 300),
+            failedAt: String(error.stack || "").split("\n").slice(1, 4).map((line) => line.trim().replace(/\(.*[\\/]/, "(")),
+        }));
         return res.status(error.status || 500).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể kiểm tra báo cáo trùng") });
     }
 };
