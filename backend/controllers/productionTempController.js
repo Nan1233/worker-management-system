@@ -3,6 +3,7 @@ const workerController = require("./productionTempWorkerController");
 const managementController = require("./productionTempManagementController");
 const ProductionTemp = require("../models/productionTempModel");
 const { resolveStandard } = require("../services/standardResolutionService");
+const { explicitGcWorkType } = require("../utils/gcMachineWorkType");
 const { rejectSelectedTempReports } = require("../services/rejectSelectedTempReportsService");
 const { issueDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
@@ -74,7 +75,10 @@ const validateManualOutputCeiling = async (req, res) => {
         return true;
     }
 
-    const resolved = await resolveStandard({ processId, productCode, machineId: null, machineCode: null, workDate, operationMode: "MANUAL" });
+    // GC manual reports have no machine: the worker's Cắt/Lồng choice (operation_type) is the only source
+    // of the work type. Without it (or for other processes) the resolver behaves exactly as before.
+    const workType = explicitGcWorkType({ isGc: processCode === "GC", operationType: body.operation_type });
+    const resolved = await resolveStandard({ processId, productCode, machineId: null, machineCode: null, workDate, operationMode: "MANUAL", workType });
     const standardOutput = finiteNumber(resolved?.standardOutput);
     if (standardOutput <= 0) return true;
     const maximumOk = standardOutput * actualTime * 2;
@@ -200,4 +204,4 @@ const rejectSelectedReports = async (req, res) => {
     }
 };
 
-module.exports = { ...workerController, ...managementController, createTempReport, rejectSelectedReports };
+module.exports = { ...workerController, ...managementController, createTempReport, rejectSelectedReports, validateManualOutputCeiling };
