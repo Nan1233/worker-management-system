@@ -116,6 +116,7 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
       productName: validation.normalized.product_name,
       defects: validation.normalized.defects,
       deductions: validation.normalized.deductions,
+      operationType: validation.normalized.operation_type ?? payload.operation_type,
       workDate: validation.normalized.work_date
     });
     if (!master.valid) throw httpError(422, 'MASTER_DATA_INVALID', 'Dữ liệu danh mục không hợp lệ', master.errors);

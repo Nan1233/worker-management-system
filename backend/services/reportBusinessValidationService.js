@@ -1,6 +1,6 @@
 const db = require("../config/db");
 const { validateEncodedGcMachineProduct } = require("../utils/productMachineEligibility");
-const { gcWorkTypeLabel, queryWithOptionalGcWorkType } = require("../utils/gcMachineWorkType");
+const { gcWorkTypeLabel, gcWorkTypeFromOperationType, queryWithOptionalGcWorkType } = require("../utils/gcMachineWorkType");
 const { resolveStandard } = require("./standardResolutionService");
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
@@ -11,7 +11,7 @@ const normalizeText = (value) => String(value ?? "").trim();
 const uniquePositiveIds = (items, key) => [...new Set((Array.isArray(items) ? items : []).map((item) => Number(item?.[key])).filter((id) => Number.isInteger(id) && id > 0))];
 const ZERO_STANDARD_GC_LONG_MANUAL_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
-const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, skipActualOutputValidation = false, allowEmptyMachine = false, operationMode = null, workDate, workType = null, nonProductWork = false }) => {
+const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, skipActualOutputValidation = false, allowEmptyMachine = false, operationMode = null, operationType = null, workDate, workType = null, nonProductWork = false }) => {
     const errors = {};
     const normalizedMachineNo = normalizeText(machineNo);
     const normalizedProductName = normalizeText(productName);
@@ -99,9 +99,15 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             machineStandardId = null;
             productStandardId = Number(products[0].id) || null;
         } else {
-            const normalizedGcWorkType = processCode === "GC" && normalizedMachineNo
+            // Cắt/Lồng: the worker's explicit choice (operation_type) is authoritative when given, so a
+            // manual report without a machine resolves. With a machine, the resolver rejects a choice
+            // that contradicts the machine master (GC_WORK_TYPE_MISMATCH); a machine without a configured
+            // type is rejected (GC_WORK_TYPE_UNRESOLVED). Nothing is inferred from the machine-code prefix.
+            const explicitGcWorkType = processCode === "GC" ? gcWorkTypeFromOperationType(operationType) : null;
+            const machineGcWorkType = processCode === "GC" && normalizedMachineNo
                 ? gcWorkTypeLabel(machines[0]?.gc_work_type)
                 : null;
+            const normalizedGcWorkType = explicitGcWorkType || machineGcWorkType;
             const resolvedStandard = await resolveStandard({
                 processId,
                 productCode: normalizedProductName,

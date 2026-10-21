@@ -38,7 +38,7 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
   const machineNo=text(data.machine_no)||null, productName=text(data.product_name)||null;
   if(machineNo && machineNo.includes(',')) throw httpError(422,'EXCEL_MULTI_MACHINE_NOT_SUPPORTED','Dòng Excel mới chỉ hỗ trợ một máy. Báo cáo nhiều máy hãy tạo trên màn hình chi tiết.');
 
-  let master = await validateMasterData({workerId,processId,machineNo,productName,defects,deductions,allowEmptyMachine:operationMode==='MANUAL',workDate:data.work_date});
+  let master = await validateMasterData({workerId,processId,machineNo,productName,defects,deductions,allowEmptyMachine:operationMode==='MANUAL',operationType,workDate:data.work_date});
   if(!master.valid) throw httpError(422,'MASTER_DATA_INVALID','Dữ liệu danh mục không hợp lệ',master.errors);
   let standardOutput=Number(master.standardOutput||0);
   let parentKqdPolicySnapshot=Number(master.excludeKqdFromTt||0)===1?1:0;

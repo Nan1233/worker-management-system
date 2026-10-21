@@ -47,8 +47,8 @@ function createGcFixtureQuery() {
     }
 
     if (text.includes('from product_standards')) {
-      const isLong = /upper\(trim\(ps\.work_type\)\)\s*=\s*'lồng'/.test(text);
-      const isCut = /upper\(trim\(ps\.work_type\)\)\s*=\s*'cắt'/.test(text);
+      const isLong = /upper\(trim\(ps\.work_type\)\)\s*in\s*\('lồng'/.test(text);
+      const isCut = /upper\(trim\(ps\.work_type\)\)\s*in\s*\('cắt'/.test(text);
       const requestedProduct = String(params[1] || '').trim().toUpperCase();
 
       if (!isLong && !isCut) {
@@ -313,7 +313,7 @@ test('GC conflicting active standards fail with a business conflict instead of s
   const query = async (sql, params = []) => {
     const text = String(sql).replace(/\\s+/g, ' ').trim().toLowerCase();
     if (text.includes('from product_standards')) {
-      if (text.includes("upper(trim(ps.work_type))='lồng'") && text.includes('binary trim(product_code)=binary trim(?)')) {
+      if (text.includes("upper(trim(ps.work_type)) in ('lồng'") && text.includes('binary trim(product_code)=binary trim(?)')) {
         return [
           { product_standard_id: 11, product_code: '5770', encoding_code: null, work_type: 'Lồng', standard_output: 605, exclude_kqd_from_tt: 0 },
           { product_standard_id: 12, product_code: '5770', encoding_code: null, work_type: 'Lồng', standard_output: 605, exclude_kqd_from_tt: 0 },
@@ -367,7 +367,7 @@ test('GC alias lookup preserves the requested work_type when resolving the canon
     if (text.includes('from product_standards')) {
       const requestedProduct = String(params[1] || '').trim().toUpperCase();
       if (requestedProduct !== 'QC3-2801') return [];
-      if (text.includes("upper(trim(ps.work_type))='lồng'")) {
+      if (text.includes("upper(trim(ps.work_type)) in ('lồng'")) {
         return [{ product_standard_id: 8801, product_code: 'QC3-2801', encoding_code: null, work_type: 'Lồng', standard_output: 180, exclude_kqd_from_tt: 0 }];
       }
       return [];
