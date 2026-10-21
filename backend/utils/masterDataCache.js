@@ -4,8 +4,9 @@ const masterDataCache = new TtlCache({ maxEntries: 300 });
 const pendingLoads = new Map();
 
 const TTL = Object.freeze({
-  machines: 30 * 60 * 1000,
-  productStandards: 30 * 60 * 1000,
+  // Short TTL so manual SQL/master edits reach workers within ~1 minute.
+  machines: 60 * 1000,
+  productStandards: 60 * 1000,
   defects: 60 * 60 * 1000,
   deductions: 60 * 60 * 1000,
 });
