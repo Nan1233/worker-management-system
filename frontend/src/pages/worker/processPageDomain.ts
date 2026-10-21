@@ -68,11 +68,12 @@ export function filterProductsForProcessScope(args: {
     const processMatches = !expectedProcessCode || !returnedProcessCode || returnedProcessCode === expectedProcessCode;
     if (!processMatches) return false;
 
-    // GC / Lồng: the worker must be able to choose any GC product code
-    // regardless of whether the selected execution method is Máy or Tay.
-    // The actual machine/standard resolution is handled later when a machine
-    // is selected. Do not restrict the product list by work_type here.
-    if (expectedProcessCode === "GC" && expectedWorkType === "LONG") return true;
+    // GC / Lồng: the list is the same for Máy and Tay, but rows stored as Cắt
+    // never belong to the Lồng form (a code that exists for both types keeps its
+    // own Lồng row). Rows with an unknown/blank type stay visible so nothing is lost.
+    if (expectedProcessCode === "GC" && expectedWorkType === "LONG") {
+      return normalizeWorkType(product.work_type) !== "CUT";
+    }
 
     if (expectedProcessCode === "GC" && expectedWorkType) {
       return normalizeWorkType(product.work_type) === expectedWorkType;
