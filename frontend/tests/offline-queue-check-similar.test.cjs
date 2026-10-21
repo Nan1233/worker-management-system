@@ -59,8 +59,8 @@ test('blocked business errors are not retried automatically (no endless loop)', 
     check: async () => ({ duplicate: false, data: null })
   });
   mod.enqueueOfflineReport(payload);
-  await mod.flushOfflineReportQueue({ force: true });
-  await mod.flushOfflineReportQueue({ force: true });
+  await mod.flushOfflineReportQueue({ force: true }); // first delivery attempt
+  await mod.flushOfflineReportQueue(); // automatic flushes must not resend a blocked business error
   await mod.flushOfflineReportQueue();
   assert.equal(creates, 1);
   assert.equal(items(store)[0].status, 'blocked');
