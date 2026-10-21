@@ -94,3 +94,19 @@ test('log keeps request/ray id, process id, business code and a sanitized messag
     assert.equal(res.code, 422, 'a failing logger must not change the business response');
   } finally { console.error = orig; h.restore(); }
 });
+
+test('log keeps business-error details (process/product/work types) for diagnosis, without the request body', async () => {
+  const err = Object.assign(new Error('Sản phẩm C7236 có định mức nhưng loại công việc lưu trong danh mục (GC) không khớp'), {
+    status: 422, code: 'STANDARD_WORK_TYPE_MISMATCH', isPublic: true,
+    details: { process_id: 1, product_code: 'C7236', requested_work_type: 'CUT', stored_work_types: ['GC'] }
+  });
+  const h = load({ validate: async () => { throw err; } });
+  try {
+    const { logs } = await call(h, { 'x-request-id': 'r1' });
+    const log = JSON.parse(logs[0].replace('CHECK SIMILAR REPORT ERROR: ', ''));
+    assert.equal(log.processId, 1);
+    assert.equal(log.code, 'STANDARD_WORK_TYPE_MISMATCH');
+    assert.deepEqual(JSON.parse(log.details).stored_work_types, ['GC']);
+    assert.doesNotMatch(logs[0], /shift|work_date|worker_id/);
+  } finally { h.restore(); }
+});

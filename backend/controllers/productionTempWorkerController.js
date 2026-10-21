@@ -92,6 +92,8 @@ exports.checkSimilarReport = async (req, res) => {
                 businessError: Boolean(error.isPublic),
                 sqlCode: /^ER_/.test(String(error.code || "")) ? String(error.code) : (error.sqlState ? String(error.sqlState) : null),
                 message: String(error.message || "").slice(0, 300),
+                // Business-error details are ids/codes only (process, product, work types); never request bodies.
+                details: error.isPublic && error.details && typeof error.details === "object" ? JSON.stringify(error.details).slice(0, 500) : null,
                 failedAt: String(error.stack || "").split("\n").slice(1, 4).map((line) => line.trim().replace(/\(.*[\\/]/, "(")),
             }));
         } catch (_logError) { /* logging must never change the business response */ }
