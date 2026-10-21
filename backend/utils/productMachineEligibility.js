@@ -10,10 +10,15 @@ const normalizeMachineKey = (value) => {
 };
 
 const parseProductMachineHint = (productCode) => {
-  const match = normalize(productCode).match(/-(AUTO|AUTOMATIC|\d+)$/i);
+  const code = normalize(productCode);
+  const match = code.match(/-(AUTO|AUTOMATIC|\d+)$/i);
   if (!match) return null;
   const suffix = normalize(match[1]);
   if (suffix === 'AUTO' || suffix === 'AUTOMATIC') return { kind: 'AUTO', value: 'AUTO' };
+  // A trailing "-<number>" means "machine <number>" only for the legacy Cắt alias
+  // form (C5770-1). Other product codes with a dashed number (T-6495, 9140-3) are
+  // ordinary product names and must stay usable in manual mode and on any machine.
+  if (!/^C\d[0-9A-Z]*-\d+$/i.test(code)) return null;
   return { kind: 'NUMBER', value: String(Number(suffix)) };
 };
 
