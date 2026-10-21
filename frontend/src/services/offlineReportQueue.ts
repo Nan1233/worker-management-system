@@ -6,6 +6,8 @@ import { checkSimilarTempReport, createTempReport } from "./productionService";
 const STORAGE_KEY = "ktcOfflineReportQueueV1";
 const MAX_ITEMS_PER_OWNER = 50;
 const MAX_TOTAL_ITEMS = 100;
+// A 422 whose duplicate check keeps failing transiently is retried with backoff, but not forever.
+const MAX_UNKNOWN_SIMILAR_RETRIES = 5;
 export const OFFLINE_QUEUE_CHANGED_EVENT = "ktc:offline-queue-changed";
 
 interface QueueOwner {
@@ -269,7 +271,7 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
                     sent += 1;
                     continue;
                 }
-                if (outcome === "unknown-transient") {
+                if (outcome === "unknown-transient" && attempts < MAX_UNKNOWN_SIMILAR_RETRIES) {
                     // Cannot tell whether the server already has it: retry later (backoff), keep the original error.
                     remaining.push({
                         ...item,
@@ -284,6 +286,7 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
                     break;
                 }
                 if (outcome === "unknown-business") similarCheck = "failed-business";
+                if (outcome === "unknown-transient") similarCheck = "failed-transient";
             }
 
             if (isTransientNetworkFailure(error)) {
