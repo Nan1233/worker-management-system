@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
   approveSelectedTempReports,
@@ -16,6 +16,8 @@ import { getAllReportDefects } from "../../utils/reportDetails";
 import { formatMinutes, sumDeductionMinutes } from "../../utils/timeDisplay";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
+import MachineEventPanel from "./MachineEventPanel";
+import { describeApprovalError } from "../../utils/approvalError";
 import { useToast } from "../../components/feedback/toastContext";
 import "./ReportReviewDetail.css";
 
@@ -26,10 +28,6 @@ const dateText = (v: unknown) => {
   const s = String(v || "").slice(0, 10);
   const [y, m, d] = s.split("-");
   return y && m && d ? `${d}/${m}/${y}` : s || "—";
-};
-const dateFromText = (v: string) => {
-  const m = v.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
 };
 const rowKey = (r: ProductionReport) => [
   String(r.work_date || "").slice(0, 10),
@@ -59,7 +57,6 @@ const mergeDeductions = (options: ProductionDeduction[], saved: ProductionDeduct
 
 export default function ReportReviewDetail() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [params] = useSearchParams();
   const source = params.get("source") === "approved" ? "approved" : "pending";
   const requestedDate = params.get("date") || "";
@@ -87,8 +84,8 @@ export default function ReportReviewDetail() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("Sai sản lượng");
   const [rejectDetail, setRejectDetail] = useState("");
-  const [defectOptions, setDefectOptions] = useState<ProductionDefect[]>([]);
-  const [deductionOptions, setDeductionOptions] = useState<ProductionDeduction[]>([]);
+  const [, setDefectOptions] = useState<ProductionDefect[]>([]);
+  const [, setDeductionOptions] = useState<ProductionDeduction[]>([]);
   const approveRef = useRef<HTMLButtonElement>(null);
   const firstLoad = useRef(true);
 
@@ -224,7 +221,7 @@ export default function ReportReviewDetail() {
       await approveSelectedTempReports([{ id: reportId, expected_updated_at: report.updated_at || null }]);
       await advanceAfterAction(Number(report.id));
     } catch (err: unknown) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể duyệt báo cáo." : err instanceof Error ? err.message : "Không thể duyệt báo cáo.");
+      setError(describeApprovalError(err, "Không thể duyệt báo cáo."));
     } finally { setActionLoading(false); }
   };
 
@@ -238,7 +235,7 @@ export default function ReportReviewDetail() {
       setRejectOpen(false); setRejectDetail("");
       await advanceAfterAction(Number(report.id));
     } catch (err: unknown) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể từ chối báo cáo." : "Không thể từ chối báo cáo.");
+      setError(describeApprovalError(err, "Không thể từ chối báo cáo."));
     } finally { setActionLoading(false); }
   };
 
@@ -371,6 +368,15 @@ export default function ReportReviewDetail() {
               <div><span>Thời gian thực tế</span><strong>{fmt(report.actual_time)} giờ</strong></div>
             </div>
           </section>
+
+          {source === "pending" && Array.isArray(report.machine_lines) && report.machine_lines.length > 0 && (
+            <details className="review-card" open data-testid="machine-event-panels">
+              <summary>Production event máy dùng chung ({report.machine_lines.length} dòng máy)</summary>
+              {report.machine_lines.map((line, index) => (
+                <MachineEventPanel key={`${line.id || line.machine_code}-${index}`} report={report} line={line} source={source} onChanged={() => loadOne(report)} />
+              ))}
+            </details>
+          )}
 
           {!nonStandard && <section className="review-card">
             <div className="review-card-title"><h2>Sản lượng & kiểm soát</h2>{outputWarning && <span className="badge warning">⚠ Vượt định mức</span>}</div>
