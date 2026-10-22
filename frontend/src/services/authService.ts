@@ -139,7 +139,11 @@ export const refreshSession = async (): Promise<RefreshResponse> => {
 
 export const logout = async (): Promise<void> => {
     const refreshToken = getRefreshToken();
+    // Retire the session immediately for this user, then bind delayed completion
+    // to the epoch created by this logout. A new login must never be cleared by
+    // the finally block of an older logout request.
     clearAuthSession();
+    const logoutEpoch = getAuthEpoch();
 
     try {
         await api.post(
@@ -149,7 +153,9 @@ export const logout = async (): Promise<void> => {
     } catch {
         // Local identity is already retired. Server-side expiry/revocation is best-effort.
     } finally {
-        clearAuthSession();
+        if (getAuthEpoch() === logoutEpoch) {
+            clearAuthSession();
+        }
     }
 };
 
