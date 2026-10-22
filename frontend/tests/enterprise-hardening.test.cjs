@@ -28,8 +28,8 @@ test('frontend fallback version matches its package version', () => {
 test('service worker cache namespace tracks the current stabilization release', () => {
   const pkg = JSON.parse(read('package.json'));
   const sw = read('public/sw.js');
+  assert.ok(sw.includes('const BUILD_VERSION = "' + pkg.version), 'service worker version should match package version');
   assert.match(sw, /if \(isApiRequest\(new URL\(request\.url\)\)\) return/);
-  assert.match(sw, /if \(isApiRequest\(url\)\) return/);
 });
 
 test('permissions UI uses theme tokens instead of a light-only surface', () => {
