@@ -17,7 +17,7 @@ test('F11 FE 01 same-tab refresh keeps one shared refreshPromise', () => {
   assert.match(api(), /if \(refreshPromise\)[\s\S]*?return refreshPromise/);
 });
 test('F11 FE 02 refreshPromise wraps coordinated refresh for all same-tab waiters', () => {
-  assert.match(api(), /refreshPromise = coordinatedRefresh\(\)/);
+  assert.match(api(), /refreshPromise\s*=\s*coordinatedRefresh\(\)(?:\.finally\([\s\S]*?\))?/);
 });
 test('F11 FE 03 response interceptor retries original request only once', () => {
   const source = api();
