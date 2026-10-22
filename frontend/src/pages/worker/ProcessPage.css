@@ -221,3 +221,22 @@
   grid-column: 1 / -1;
   min-width: 0;
 }
+
+
+/* Release interaction/accessibility baseline. */
+.worker-choice-row button { min-height: 44px; }
+.duplicate-dialog-actions button { min-height: 44px; }
+.worker-floating-save:disabled { background: #7b8da2; color: #fff; opacity: 1; cursor: not-allowed; }
+.worker-dropdown-title { background: var(--ktc-surface-subtle); }
+.worker-quality-card.total-output { background: var(--ktc-surface-subtle); }
+@media (max-width: 390px) {
+  .worker-sticky-meta { display: grid; grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .worker-form-page *, .worker-form-page *::before, .worker-form-page *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
