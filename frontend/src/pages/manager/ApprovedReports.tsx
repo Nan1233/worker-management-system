@@ -71,7 +71,7 @@ export default function ApprovedReports() {
     const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
-    const [reportImportPreview, setReportImportPreview] = useState<{ filePath: string; fileName?: string; detected: number; creates?: number; updates?: number } | null>(null);
+    const [reportImportPreview, setReportImportPreview] = useState<{ filePath?: string; fileName?: string; detected: number; creates?: number; updates?: number } | null>(null);
     const [reportImportStatus, setReportImportStatus] = useState<{ tone: "success" | "warning" | "error"; message: string } | null>(null);
     const [reportImportBusy, setReportImportBusy] = useState(false);
     const [counts, setCounts] = useState({ day: 0, week: 0, month: 0, year: 0 });
