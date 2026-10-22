@@ -15,11 +15,14 @@ type Item = {
 };
 
 const items: Item[] = [
-  { label: "Trang chủ", path: "/worker", icon: Home },
-  { label: "Báo cáo", path: "/worker/process/select", icon: ClipboardPenLine, permission: "WORKER_ENTRY" },
+  { label: "Sản xuất", path: "/worker/process/select", icon: ClipboardPenLine, permission: "WORKER_ENTRY" },
   { label: "Lịch sử", path: "/worker/history", icon: History, permission: "WORKER_HISTORY" },
   { label: "Thông báo", path: "/worker/notifications", icon: Bell, permission: "NOTIFICATION_VIEW" },
   { label: "Cá nhân", path: "/worker/profile", icon: UserRound, permission: "PROFILE_VIEW" },
+];
+const desktopItems: Item[] = [
+  { label: "Trang chủ", path: "/worker", icon: Home },
+  ...items,
 ];
 
 export default function WorkerLayout() {
@@ -28,13 +31,14 @@ export default function WorkerLayout() {
   const { can } = usePermissions();
   const { unreadCount } = useNotificationBadge(can("NOTIFICATION_VIEW"));
   const visible = items.filter((item) => !item.permission || can(item.permission));
+  const desktopVisible = desktopItems.filter((item) => !item.permission || can(item.permission));
   const user = getStoredUser();
   const displayName = user?.full_name || "Công nhân";
   const initials = displayName.trim().split(/\s+/).slice(-2).map((part) => part[0]).join("").toUpperCase().slice(0, 2) || "KT";
 
   const active = (item: Item) => {
     if (item.path === "/worker") return location.pathname === "/worker";
-    if (item.label === "Báo cáo") return location.pathname.startsWith("/worker/process/");
+    if (item.label === "Sản xuất") return location.pathname.startsWith("/worker/process/");
     return location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
   };
 
@@ -55,7 +59,7 @@ export default function WorkerLayout() {
         </button>
 
         <nav className="worker-nav" aria-label="Điều hướng công nhân">
-          {visible.map((item) => {
+          {desktopVisible.map((item) => {
             const Icon = item.icon;
             return (
               <button key={`${item.path}-${item.label}`} type="button" className={active(item) ? "active" : ""} onClick={() => navigate(item.path)}>
