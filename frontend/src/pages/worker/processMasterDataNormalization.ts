@@ -25,6 +25,7 @@ type RawOption = {
   code?: string | null;
   label?: string | null;
   name?: string | null;
+  key?: string | null;
 };
 
 const clean = (value: unknown): string => String(value ?? "").trim();
@@ -33,20 +34,19 @@ const normalizeRows = (rows: RawOption[], processId?: number): WorkerMasterOptio
   .map((row, index) => {
     const id = Number(row.id ?? row.defect_type_id ?? 0) || undefined;
     const code = clean(row.defect_code ?? row.code);
+    const configured = row as RawOption & { key?: string | null; label?: string | null };
     const name = clean(row.defect_name ?? row.label ?? row.name);
-    // The selected option must remain tied to its DB row. Never substitute a
-    // frontend fallback code such as CUT_04 for a missing/blank DB code.
-    const key = id
-      ? `defect:${id}`
-      : code
-        ? `code:${code.toUpperCase()}`
-        : `defect-row:${processId ?? 0}:${index + 1}`;
+    // Keep an explicitly configured key when present; otherwise derive a stable
+    // identifier from the DB code/ID rather than inventing a process code.
+    const canonicalCode = code ? `code:${code.toUpperCase()}` : id ? `defect:${id}` : `defect-row:${processId ?? 0}:${index + 1}`;
+    const key = clean(configured?.key) || canonicalCode;
+    const label = name || clean(configured?.label) || code || `Lỗi NG ${index + 1}`;
     return {
       id,
       process_id: processId,
       defect_type_id: id,
       code,
-      label: name || code || `Lỗi NG ${index + 1}`,
+      label,
       key,
       defect_code: code,
       defect_name: name,
