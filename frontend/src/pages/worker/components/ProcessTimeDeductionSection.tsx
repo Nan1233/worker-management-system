@@ -64,7 +64,7 @@ export default function ProcessTimeDeductionSection({ processCode = "", form, se
                     <small>Nhập thời gian thực tế. Thời gian trừ cộng thêm để tính tổng, tổng không quá 12 giờ.</small>
                 </div>
                 <div className="worker-time-item worker-time-computed" data-worker-time="deduction">
-                    <label>{String(processCode).toUpperCase() === "K1" ? "Nhập giờ trừ" : "Thời gian trừ"}</label>
+                    {String(processCode).toUpperCase() === "K1" ? <label>Nhập giờ trừ</label> : <label>Thời gian trừ</label>}
                     <input data-worker-time-value="deduction" value={form.deductionTime} readOnly aria-readonly="true" />
                     <small>{decimalHoursToText(form.deductionTime)}</small>
                 </div>
