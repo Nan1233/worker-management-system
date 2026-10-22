@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
@@ -72,6 +72,7 @@ function SelectedReportsReview() {
     const [reports, setReports] = useState<ProductionReport[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const actionLockRef = useRef(false);
     const [loadAttempt, setLoadAttempt] = useState(0);
     const [error, setError] = useState("");
     const [rejectOpen, setRejectOpen] = useState(false);
@@ -157,8 +158,9 @@ function SelectedReportsReview() {
     );
 
     const handleApprove = async () => {
-        if (source !== "pending" || reportIds.length === 0 || submitting) return;
+        if (source !== "pending" || reportIds.length === 0 || submitting || actionLockRef.current) return;
 
+        actionLockRef.current = true;
         try {
             setSubmitting(true);
             setError("");
@@ -170,6 +172,7 @@ function SelectedReportsReview() {
             console.error("APPROVE SELECTED REPORTS ERROR:", err);
             setError(describeApprovalError(err, "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."));
         } finally {
+            actionLockRef.current = false;
             setSubmitting(false);
         }
     };
