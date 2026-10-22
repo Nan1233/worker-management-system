@@ -109,6 +109,13 @@ const PROCESS_TEMPLATE_SCHEMAS = Object.freeze({
     deductions: [],
     defects: ['CHÂN KHÔNG','RÁCH VỠ','XLBV','BẨN KHUÔN','TNL','DỊ VẬT','DẬP KO HẾT','BIẾN DẠNG','HỞ SẮT','Xước trục','CHỜ XL LẠI BV','KHÁC MÀU','BẨN']
   },
+  CVK: {
+    extras: [
+      { key: 'work_type', header: 'Mã công việc CVK', kind: 'text' }
+    ],
+    deductions: [],
+    defects: []
+  },
   SX3: {
     extras: [
       { key: 'work_minutes', header: 'Thời gian làm việc', kind: 'decimal' },
