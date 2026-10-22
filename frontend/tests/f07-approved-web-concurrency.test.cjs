@@ -16,7 +16,7 @@ test('F07 FE 01 approved report editor stores server updated_at in an immutable 
 test('F07 FE 02 approved update request sends expected_updated_at from the immutable baseline', () => {
   const page = read('src/pages/worker/WorkerReportEditV2.tsx');
   const service = read('src/services/productionService.ts');
-  assert.match(page, /updateReport\(Number\(report\.id\), payload as ProductionReport, source, approvedBaseline \|\| report\.updated_at \|\| null\)/);
+  assert.match(page, /updateReport\(Number\(report\.id\), requestPayload as ProductionReport, source, approvedBaseline \|\| report\.updated_at \|\| null\)/);
   assert.match(page, /payload\.expected_updated_at = approvedBaseline \|\| report\.updated_at/);
   assert.match(service, /expected_updated_at: expectedUpdatedAt \|\| undefined/);
   assert.doesNotMatch(service, /expected_updated_at:\s*new Date/);
