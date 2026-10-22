@@ -16,7 +16,7 @@ test('global feedback styles are loaded and do not block controls', () => {
 
 test('service worker click-fix release invalidates stale cache namespace', () => {
   const sw = read('public/sw.js');
-  assert.match(sw, /BUILD_VERSION\s*=\s*"1\.9\.14/);
+  assert.match(sw, /BUILD_VERSION\s*=\s*"1\.9\.31/);
   assert.match(sw, /self\.skipWaiting\(\)/);
   assert.match(sw, /self\.clients\.claim\(\)/);
 });
