@@ -268,7 +268,7 @@ export function clearCurrentTabAuthSession(): void {
     }
 
     // Access token and user are stored in localStorage and shared by same-origin tabs.
-    // A stale tab must not delete the newer tab's session. This function retires
+    // Never remove refresh/session-hint in this tab-only cleanup. A stale tab must not delete the newer tab's session. This function retires
     // only this renderer's tab-scoped state; clearAuthSession() remains the
     // explicit global logout/account-retirement operation.
 
