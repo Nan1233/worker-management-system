@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
   approveSelectedTempReports,
@@ -29,10 +29,6 @@ const dateText = (v: unknown) => {
   const [y, m, d] = s.split("-");
   return y && m && d ? `${d}/${m}/${y}` : s || "—";
 };
-const dateFromText = (v: string) => {
-  const m = v.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
-};
 const rowKey = (r: ProductionReport) => [
   String(r.work_date || "").slice(0, 10),
   String(r.worker_code || ""),
@@ -61,7 +57,6 @@ const mergeDeductions = (options: ProductionDeduction[], saved: ProductionDeduct
 
 export default function ReportReviewDetail() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [params] = useSearchParams();
   const source = params.get("source") === "approved" ? "approved" : "pending";
   const requestedDate = params.get("date") || "";
@@ -89,8 +84,8 @@ export default function ReportReviewDetail() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("Sai sản lượng");
   const [rejectDetail, setRejectDetail] = useState("");
-  const [defectOptions, setDefectOptions] = useState<ProductionDefect[]>([]);
-  const [deductionOptions, setDeductionOptions] = useState<ProductionDeduction[]>([]);
+  const [, setDefectOptions] = useState<ProductionDefect[]>([]);
+  const [, setDeductionOptions] = useState<ProductionDeduction[]>([]);
   const approveRef = useRef<HTMLButtonElement>(null);
   const firstLoad = useRef(true);
 

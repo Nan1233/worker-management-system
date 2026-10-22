@@ -9,7 +9,7 @@ import {
 } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
-import { decimalHoursToMinutes, formatMinutes } from "../../utils/timeDisplay";
+import { formatMinutes } from "../../utils/timeDisplay";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 const REJECT_REASONS = [
@@ -71,7 +71,7 @@ function SelectedReportsReview() {
     const [reports, setReports] = useState<ProductionReport[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [loadAttempt, setLoadAttempt] = useState(0);
+    const [loadAttempt] = useState(0);
     const [error, setError] = useState("");
     const [rejectOpen, setRejectOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);

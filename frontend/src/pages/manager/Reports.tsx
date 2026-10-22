@@ -12,7 +12,7 @@ const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n
 const text = (v: unknown, fallback = "—") => v === null || v === undefined || v === "" ? fallback : String(v);
 const getStoredExtraData = (value: unknown): Record<string, unknown> => {
     if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
-    if (typeof value === "string") { try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {}; } catch {} }
+    if (typeof value === "string") { try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {}; } catch { /* malformed saved filter: use defaults */ } }
     return {};
 };
 const processLabel = (report: ProductionReport) => {
