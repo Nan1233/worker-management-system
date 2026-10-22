@@ -51,7 +51,7 @@ function storedStandardSource(value) {
   const base = machineFallback ? source.slice(0, -'_MACHINE_FALLBACK'.length)
     : processFallback ? source.slice(0, -'_PROCESS_FALLBACK'.length) : source;
   const baseCode = exact[base] || (base.startsWith('PRODUCT_VERSION') ? 'PROD_VERSION'
-    : base.startsWith('LEGACY_PRODUCT_STANDARD') ? 'LEGACY_PRODUCT'
+    : base.startsWith('LEGACY_PRODUCT_STANDARD') ? (machineFallback ? 'LEGACY' : 'LEGACY_PRODUCT')
     : base.startsWith('MACHINE') ? 'MACHINE' : null);
   if (baseCode) {
     const code = baseCode + (machineFallback ? '_MACH_FB' : processFallback ? '_PROC_FB' : '');
