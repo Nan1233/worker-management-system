@@ -33,38 +33,11 @@ const { app, initializeRuntime, runtimeReadiness } = require("./server.js");
 const db = require("./config/db");
 const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
-const runPendingMigrations = require("./scripts/runPendingMigrations");
 const { masterDataCache } = require("./utils/masterDataCache");
 const productionTempCreateModel = require("./models/productionTempCreateModel");
 
-let cloudflareMigrationReady = false;
-let cloudflareMigrationPromise = null;
-async function ensureCloudflareTestMigrations() {
-  const enabled = String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || "").toLowerCase() === "true";
-  if (!enabled || cloudflareMigrationReady) return true;
-  if (cloudflareMigrationPromise) return cloudflareMigrationPromise;
-  cloudflareMigrationPromise = (async () => {
-    try {
-      const ok = await runPendingMigrations();
-      cloudflareMigrationReady = ok !== false;
-      if (cloudflareMigrationReady) console.log("[KTC][MIGRATION] Cloudflare test runtime migrations completed");
-      else console.log("[KTC][MIGRATION] statement batch applied; migrations still pending, continuing on a later request");
-      return cloudflareMigrationReady;
-    } catch (error) {
-      console.error("[KTC][MIGRATION] Cloudflare test runtime migration failed", error?.message || String(error), error);
-      throw error;
-    } finally {
-      // Always release the in-flight latch. The runner applies a bounded batch
-      // of statements per invocation (KTC_MIGRATION_BATCH_SIZE, max 8) and
-      // returns false while work remains. Keeping the settled promise cached
-      // made every later call reuse that resolved result, so migrations stalled
-      // after the first batch until the isolate was recycled - while the log
-      // still claimed they had completed.
-      cloudflareMigrationPromise = null;
-    }
-  })();
-  return cloudflareMigrationPromise;
-}
+// The Worker never applies schema changes. Migrations are a manual, backed-up operator action
+// (see scripts/ and the runbook); nothing in this file may start one.
 
 const originalDbPromise = db.promise.bind(db);
 db.promise = () => {
@@ -148,7 +121,6 @@ function expectedMigrationManifest() {
 
 async function handleMigrationStatus() {
   try {
-    await ensureCloudflareTestMigrations();
     const [appliedRows] = await db.promise().query(`SELECT migration_id, applied_at FROM schema_migrations ORDER BY CAST(SUBSTRING_INDEX(migration_id, '_', 1) AS UNSIGNED) DESC, migration_id DESC`);
     const applied = (appliedRows || []).map((row) => ({ migration_id: String(row.migration_id), applied_at: row.applied_at }));
     const latestAppliedVersion = applied.length ? Math.max(...applied.map((row) => Number(String(row.migration_id).split("_", 1)[0]) || 0)) : 0;
@@ -161,7 +133,7 @@ async function handleMigrationStatus() {
     } catch (_) {}
     return migrationStatusJson({
       success: true,
-      migration_enabled: String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || "").toLowerCase() === "true",
+      migration_enabled: false,
       ...expectedMigrationManifest(),
       applied_count: applied.length,
       latest_applied_version: latestAppliedVersion,
@@ -191,15 +163,8 @@ const wrappedServer = { async fetch(request, envArg, ctx) {
   const pathname = new URL(request.url).pathname;
   if (pathname === "/api/health/migrations") return handleMigrationStatus();
   if (pathname === "/api/health" || pathname === "/api/health/ready") {
-    try { await ensureCloudflareTestMigrations(); } catch (error) { return new Response(JSON.stringify({ success: false, code: "TEST_DB_MIGRATION_FAILED", message: error?.message || String(error) }), { status: 503, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } }); }
     if (!runtimeReadiness.ready) await initializeRuntime();
   } else if (shouldBootstrapBeforeRequest(request)) {
-    // Fail open, exactly as the master-data seed below already does: a migration
-    // that cannot be applied must not take down login and normal API traffic.
-    // Whether the schema is actually usable is decided by the contract check on
-    // /api/health/ready, which reports the structural diff; turning every request
-    // into a 503 here is what made this bootstrap path get disabled outright.
-    try { await ensureCloudflareTestMigrations(); } catch (error) { console.error("[KTC][MIGRATION] request migration failed; continuing without it", error?.message || String(error), error); }
     const seeded = await ensureCloudflareSeeded(); if (!seeded) console.warn("[KTC] Continuing request without master-data bootstrap; seed will retry on a later request.");
   }
   const response = await httpHandler.fetch(request, envArg, ctx); return enrichApprovedReportMachineDefects(request, response);

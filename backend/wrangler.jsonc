@@ -8,8 +8,10 @@
   "keep_vars": true,
   "observability": { "enabled": true, "redact_query_string": true },
   "vars": {
-    "KTC_RUN_BUILD_DB_MIGRATIONS": "true",
+    "KTC_RUN_BUILD_DB_MIGRATIONS": "false",
     "KTC_CLOUDFLARE_WORKER": "true",
+    // Migrations are manual only (scripts/runPendingMigrations.js). The KTC_MIGRATION_* values below apply
+    // solely to a manual run and are not read by the Worker at request time.
     "KTC_MIGRATION_REF": "test",
     "KTC_MIGRATION_REPOSITORY": "Nan1233/worker-management-system",
     // Ceiling for unattended migration. The runner may advance by itself only up

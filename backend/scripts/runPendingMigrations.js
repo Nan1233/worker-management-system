@@ -389,22 +389,23 @@ async function runPendingMigrations(){
   }finally{await connection.release();}
 }
 
-let cloudflareBootMigrationPromise=null;
-function getCloudflareBootMigrationPromise(){
-  const enabled=String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS||'').toLowerCase()==='true';
-  if(!isCloudflareWorker||!enabled) return null;
-  if(!cloudflareBootMigrationPromise){
-    cloudflareBootMigrationPromise=runPendingMigrations()
-      .then(ok=>{ cloudflareBootMigrationPromise=null; return ok; })
-      .catch(error=>{ cloudflareBootMigrationPromise=null; console.error(`[KTC][MIGRATION] Cloudflare boot migration failed: ${getMigrationError(error)}`,error); throw error; });
-  }
-  return cloudflareBootMigrationPromise;
+// Manual operator tool only. It must never run from the Worker, a build, or a server start.
+// (Tests and operator scripts may call the export directly; inside a Worker it refuses.)
+async function runPendingMigrationsForRuntime(){
+  if(isCloudflareWorker) throw new Error('Automatic migrations are disabled: run scripts/runPendingMigrations.js manually after a backup (KTC_MANUAL_MIGRATION_CONFIRM=YES).');
+  return runPendingMigrations();
 }
 
-async function runPendingMigrationsForRuntime(){
-  const boot=getCloudflareBootMigrationPromise();
-  return boot?boot:runPendingMigrations();
+function manualRunAllowed(){
+  if(isDryRunRequested()) return true;
+  return String(process.env.KTC_MANUAL_MIGRATION_CONFIRM||'')==='YES';
 }
 
 module.exports=runPendingMigrationsForRuntime;
-if(require.main===module) runPendingMigrations().then(()=>process.exit(0)).catch(error=>{ console.error(`[KTC][MIGRATION] fatal: ${getMigrationError(error)}`,error); process.exit(1); });
+if(require.main===module){
+  if(!manualRunAllowed()){
+    console.error('[KTC][MIGRATION] refused: set KTC_MANUAL_MIGRATION_CONFIRM=YES to run migrations manually (after a backup), or KTC_MIGRATION_DRY_RUN=true to preview.');
+    process.exit(2);
+  }
+  runPendingMigrations().then(()=>process.exit(0)).catch(error=>{ console.error(`[KTC][MIGRATION] fatal: ${getMigrationError(error)}`,error); process.exit(1); });
+}
