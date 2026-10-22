@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useNavigate } from "react-router-dom";
 import { describeApprovalError } from "../../utils/approvalError";
 import { getStoredUser } from "../../utils/authStorage";
-import { approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
+import { approveSelectedTempReports, approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import "./ReportsSplitReference.css";
@@ -146,7 +146,8 @@ export default function Reports() {
         if (!detail || approving) return;
         setApproving(true);
         try {
-            await approveTempReport(Number(detail.id));
+            // Use the same selected-approval API contract as the review workflow.
+            await approveSelectedTempReports([Number(detail.id)]);
             setDetail(null);
             await load();
             window.alert("Đã duyệt báo cáo thành công.");
