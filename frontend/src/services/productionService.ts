@@ -31,7 +31,12 @@ export const getReports=async():Promise<ProductionReport[]> =>(await getApproved
 export const getReportById=async(id:number,source?:string|null)=>{const normalizedSource=String(source||"").toLowerCase();const url=normalizedSource==="pending"||normalizedSource==="temp"?`/production-temp/${id}`:`/production/${id}`;const res=await api.get(url,{params:{_t:Date.now()},headers:{"Cache-Control":"no-cache","Pragma":"no-cache"}});const data=res.data.data||res.data;if(normalizedSource!=="pending"&&normalizedSource!=="temp"){const remembered=approvedTrainingPercentCache.get(Number(id));if(Number.isFinite(remembered))return{...data,training_percent:remembered};}return data;};
 export const updateReport=async(id:number,data:ProductionReport,source:"pending"|"approved"="approved",expectedUpdatedAt:string|null=null)=>{const endpoint=source==="pending"?`/production-temp/${id}`:`/production/${id}`;const payload=source==="approved"?{...data,expected_updated_at:expectedUpdatedAt||undefined}:data;const res=await api.put(endpoint,payload);return res.data;};
 export const updateTempReport=async(id:number,data:ProductionReport)=>{const res=await api.put(`/production-temp/${id}`,{...data,expected_updated_at:data.updated_at||undefined});return res.data;};
-export const deleteReport=async(id:number,reason:string)=>{const res=await api.delete(`/production/${id}`,{data:{reason:String(reason||"").trim()}});return res.data;};
+export const deleteReport = async (id: number, reason: string) => {
+  const res = await api.delete(`/production/${id}`, {
+    data: { reason: String(reason || "").trim() },
+  });
+  return res.data;
+};
 export const createApprovedReportFromExcel=async(data:ProductionReport)=>{const res=await api.post("/production/excel-sync",{changes:[{create:true,data,source:{file:"Manager Web",sheet:"Quản lý báo cáo"}}]});const result=res.data?.results?.[0];if(!result?.success)throw new Error(result?.message||res.data?.message||"Không thể thêm báo cáo");return result;};
 const downloadExcel=(data:BlobPart,filename:string)=>{const blob=new Blob([data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=window.URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();window.URL.revokeObjectURL(url);};
 export const exportProductionExcel=async(date:string)=>{const res=await api.get(`/reports/export-excel?date=${date}&type=pending`,{responseType:"blob"});downloadExcel(res.data,`BaoCaoChoDuyet_${date}.xlsx`);};
