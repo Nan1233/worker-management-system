@@ -30,7 +30,7 @@ export default function LeadManagerMasterData(){
   return <>
     <style>{`
       /* Explicit Manager-workspace master navigation: NG is a first-class tab. */
-      .ktc-manager-master-tabs{display:flex!important;align-items:stretch;gap:0;border-bottom:1px solid #dbe5f2;margin:0 0 14px;position:relative;z-index:10;visibility:visible!important;}
+      .ktc-manager-master-tabs{display:flex!important;align-items:stretch;gap:0;max-width:100%;overflow-x:auto;border-bottom:1px solid #dbe5f2;margin:0 0 14px;position:relative;z-index:10;visibility:visible!important;}
       .ktc-manager-master-tabs button{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;padding:12px 24px;margin:0;color:#163b68;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap;visibility:visible!important;}
       .ktc-manager-master-tabs button:hover{color:#1268e8;background:#f5f9ff}
       .ktc-manager-master-tabs button.active{color:#1268e8;border-bottom-color:#1268e8}
