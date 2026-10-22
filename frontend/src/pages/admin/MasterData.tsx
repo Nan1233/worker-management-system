@@ -28,7 +28,7 @@ deductions:[{key:'process_id',label:'Công đoạn',type:'select',required:true}
 const roleLabels:Record<string,string>={manager:'Quản lý',lead:'Tổ trưởng',worker:'Công nhân'};
 function parseProcessIds(value:unknown):string[]{if(Array.isArray(value))return value.map(String);return String(value||'').split(',').map(item=>item.trim()).filter(Boolean)}
 function MasterData(){
-const navigate=useNavigate();const location=useLocation();const params=useParams<{resource?:string}>();const currentUser=useMemo(()=>getStoredUser(),[]);const {can}=usePermissions();
+const navigate=useNavigate();useLocation();const params=useParams<{resource?:string}>();const currentUser=useMemo(()=>getStoredUser(),[]);const {can}=usePermissions();
 // The workspace base is always the signed-in role (/admin, /manager, /lead); never hard-code /manager.
 const workspaceBase=`/${currentUser?.role||'manager'}`;
 const effectiveRole=currentUser?.role||'';

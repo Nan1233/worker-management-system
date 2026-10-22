@@ -24,7 +24,7 @@ function Login() {
     const [username, setUsername] = useState(() => localStorage.getItem(REMEMBERED_CODE_KEY) || "");
     const [password, setPassword] = useState("");
     const [step, setStep] = useState<LoginStep>("employee-code");
-    const [accessType, setAccessType] = useState<AccessType | null>(null);
+    const [, setAccessType] = useState<AccessType | null>(null);
     const [rememberAccount, setRememberAccount] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");

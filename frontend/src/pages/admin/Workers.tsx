@@ -24,7 +24,7 @@ const processIds = (value?:string|number[]|null) => {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) return [...new Set(parsed.map(Number).filter(n => Number.isInteger(n) && n > 0))];
-  } catch {}
+  } catch { /* ignore: optional stored value */ }
   return [...new Set(raw.split(/[;,]/).map(Number).filter(n => Number.isInteger(n) && n > 0))];
 };
 const normalizeProcessName = (value:string) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();

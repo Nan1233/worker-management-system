@@ -20,7 +20,7 @@ self.addEventListener("activate", (event) => {
 });
 
 function isApiRequest(url) {
-  const pathname = url.pathname.replace(/\\/+$/, "");
+  const pathname = url.pathname.replace(/\/+$/, "");
   return pathname === "/api" || pathname.startsWith("/api/");
 }
 

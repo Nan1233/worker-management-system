@@ -1,14 +1,11 @@
 import { DESKTOP_DOWNLOAD_URL } from "../../config/env";
+import { isDesktopApp } from "../../utils/desktopApp";
 
 /**
  * Excel workbooks are built by the KTC Desktop app (the server never builds
  * monthly workbooks). In a browser this explains that, instead of leaving users
  * to hunt for a missing button. Inside the Desktop app it renders nothing.
  */
-export function isDesktopApp(): boolean {
-    return typeof window !== "undefined" && Boolean(window.ktcDesktop?.isDesktop);
-}
-
 export default function DesktopExcelNotice({ compact = false }: { compact?: boolean }) {
     if (isDesktopApp()) return null;
     return (

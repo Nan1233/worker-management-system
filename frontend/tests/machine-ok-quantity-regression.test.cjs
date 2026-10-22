@@ -11,9 +11,9 @@ test('machine report payload preserves each machine line OK quantity', () => {
   const basicInfo = read('src/pages/worker/components/ProcessBasicInfoSection.tsx');
 
   assert.match(basicInfo, /value=\{line\.okQuantity\}/);
-  assert.match(basicInfo, /updateMachineLine\(index, \{ okQuantity: event\.target\.value\.replace\(\/assert.match(submission, /tt_ok:\\([^)]*isMachineLineAccounting\\)\\s*\\?\\s*0/);D\/g, ""\) \}\)/);
+  assert.match(basicInfo, /updateMachineLine\(index, \{ okQuantity: event\.target\.value\.replace\(\/\\D\/g, ""\) \}\)/);
   assert.match(submission, /ok_quantity:num\(l\.okQuantity\)/);
-  assert.match(submission, /tt_ok:\(noStandardLongWork \|\| isMachineLineAccounting\) \? 0/);
+  assert.match(submission, /tt_ok:\([^)]*noStandardLongWork[^)]*isMachineLineAccounting\) \? 0/);
 });
 
 test('single-machine payload does not overwrite line OK/NG with stale parent totals', () => {

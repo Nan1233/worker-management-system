@@ -1,4 +1,4 @@
-import axios, { AxiosHeaders, type AxiosError, type InternalAxiosRequestConfig } from "axios";
+import { AxiosHeaders, type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { api } from "./api";
 import { getStoredUser } from "../utils/authStorage";
 import type { ProductionReport } from "../types/production";

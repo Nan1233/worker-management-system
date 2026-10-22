@@ -3,7 +3,7 @@ import AutocompleteInput from "../../../components/common/AutocompleteInput";
 import type { AutocompleteOption } from "../../../components/common/AutocompleteInput";
 import type { ProductStandardOption } from "../../../services/masterDataService";
 import AppIcon from "../../../components/common/AppIcon";
-import type { DeductionKey, DeductionState, FormState, MachineLineState, NgKey, OperationMode, OperationType } from "../processPageConfig";
+import type { DeductionKey, FormState, MachineLineState, NgKey, OperationMode, OperationType } from "../processPageConfig";
 import { MAX_TOTAL_WORK_MINUTES } from "../processFormUtils";
 import { getVisibleGcMachineOptions } from "../cutExecutionMode.js";
 
@@ -56,7 +56,6 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
     // ProcessTimeDeductionSection.tsx cho báo cáo không có máy.
     const getMachineActualMinutes = (line: MachineLineState): number => (Number(line.hours) || 0) * 60 + (Number(line.minutes) || 0);
     const getMachineDeductionMinutes = (line: MachineLineState): number => Object.values(line.deductions || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
-    const getMachineGrossMinutes = (line: MachineLineState): number => getMachineActualMinutes(line) + getMachineDeductionMinutes(line);
     const updateMachineActualHours = (lineIndex: number, rawValue: string) => {
         const line = machineLines[lineIndex];
         if (!line) return;
