@@ -14,13 +14,13 @@ test('SOURCE_CONTRACT: ApprovedReports defaults to current month, not a single d
   // Keep this focused on behavior, not the exact TypeScript generic or unrelated import paths.
   assert.match(
     source,
-    /const\s*\[\s*range\s*,\s*setRange\s*\]\s*=\s*useState(?:<[^;\n]*?>)?\s*\(\s*\(\)\s*=>\s*rangeFor\(getToday\(\),\s*["']month["']\)\s*\)/,
+    /const\s*\[\s*range\s*,\s*setRange\s*\]\s*=\s*useState[\s\S]{0,220}?rangeFor\(getToday\(\),\s*["']month["']\)/,
     'Initial range state must default to the current month via rangeFor(getToday(), "month")',
   );
 
   assert.doesNotMatch(
     source,
-    /const\s*\[\s*range\s*,\s*setRange\s*\]\s*=\s*useState(?:<[^;\n]*?>)?\s*\(\s*null\s*\)/,
+    /const\s*\[\s*range\s*,\s*setRange\s*\]\s*=\s*useState[\s\S]{0,220}?\(\s*null\s*\)/,
     'Initial range state must not be null (that would show only today)',
   );
 });
