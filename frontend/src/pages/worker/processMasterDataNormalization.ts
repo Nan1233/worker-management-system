@@ -38,9 +38,9 @@ const normalizeRows = (rows: RawOption[], processId?: number): WorkerMasterOptio
     const name = clean(row.defect_name ?? row.label ?? row.name);
     // Keep an explicitly configured key when present; otherwise derive a stable
     // identifier from the DB code/ID rather than inventing a process code.
-    const canonicalCode = code ? `code:${code.toUpperCase()}` : id ? `defect:${id}` : `defect-row:${processId ?? 0}:${index + 1}`;
+    const canonicalCode = code ? code.toUpperCase() : id ? `defect:${id}` : `defect-row:${processId ?? 0}:${index + 1}`;
     const key = clean(configured?.key) || canonicalCode;
-    const label = name || clean(configured?.label) || code || `Lỗi NG ${index + 1}`;
+    const label = name || clean(configured?.label) || canonicalCode;
     return {
       id,
       process_id: processId,
