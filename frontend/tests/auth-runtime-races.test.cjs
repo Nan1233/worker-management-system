@@ -177,7 +177,7 @@ function makeHarness() {
     const diskPath = path.join(root, relativePath);
     let source = fs.readFileSync(diskPath, 'utf8');
     if (relativePath === 'src/services/api.ts') {
-      source = source.replace('String(import.meta.env.VITE_BUILD_VERSION || "1.8.22")', 'String("runtime-test")');
+      source = source.replace('String(import.meta.env.VITE_BUILD_VERSION || "1.9.31")', 'String("runtime-test")');
     }
     const compiled = ts.transpileModule(source, {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true }
