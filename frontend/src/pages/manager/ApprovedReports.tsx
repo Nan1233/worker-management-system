@@ -143,7 +143,7 @@ export default function ApprovedReports() {
             const preview = await desktop.previewReportImport(token);
             if (preview?.canceled) { setReportImportPreview(null); return; }
             if (!preview?.filePath) throw new Error("Không nhận được đường dẫn file import hợp lệ.");
-            setReportImportPreview(preview);
+            setReportImportPreview({ ...preview, filePath: preview.filePath });
             if (Number(preview.detected || 0) === 0) {
                 setReportImportStatus({ tone: "warning", message: "File không có dòng mới hoặc thay đổi cần import." });
             } else {
