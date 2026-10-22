@@ -61,8 +61,8 @@ test('manager approve and reject mutations share a synchronous action lock', () 
   assert.match(reports, /rejectTargets = async \(\) => \{[\s\S]{0,180}managerActionLockRef\.current/);
   const sets = reports.match(/managerActionLockRef\.current = true/g) || [];
   const clears = reports.match(/managerActionLockRef\.current = false/g) || [];
-  assert.equal(sets.length, 2);
-  assert.equal(clears.length, 2);
+  assert.equal(sets.length, 3);
+  assert.equal(clears.length, 3);
 });
 
 test('approved conflict keeps draft state and reports an actionable 409 message', () => {
