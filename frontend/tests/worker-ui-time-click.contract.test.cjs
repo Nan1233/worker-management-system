@@ -13,7 +13,8 @@ assert.match(css, /\.single-machine-product-scope,[\s\S]*grid-column:\s*1\s*\/\s
 assert.match(toastCss, /\.ktc-toast-container\s*\{[\s\S]*pointer-events:\s*none\s*!important/);
 assert.match(toastCss, /\.ktc-toast-container\s*>\s*\.ktc-toast\s*\{[\s\S]*pointer-events:\s*auto/);
 assert.match(timeUi, /Thời gian làm việc thực tế/);
-assert.match(timeUi, /label>Thời gian trừ/);
+// K1 intentionally uses a different label; other processes show "Thời gian trừ".
+assert.match(timeUi, /<label>\{String\(processCode\)\.toUpperCase\(\) === "K1" \? "Nhập giờ trừ" : "Thời gian trừ"\}<\/label>/);
 assert.match(timeUi, /label>Tổng thời gian/);
 assert.match(timeLogic, /actualTime:\s*actualMinutesTotal\s*\/\s*60/);
 assert.match(timeLogic, /totalTime:\s*\(actualMinutesTotal \+ deduction\)\s*\/\s*60/);
