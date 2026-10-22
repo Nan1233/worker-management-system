@@ -13,7 +13,7 @@ const FIXED = Date.parse('2026-10-21T20:00:00Z'); // 2026-10-22 03:00 in Vietnam
 const RealDate = Date;
 class FakeDate extends RealDate { constructor(...a) { if (a.length === 0) super(FIXED); else super(...a); } static now() { return FIXED; } }
 global.Date = FakeDate;
-const { validateProductionReport } = require('./utils/reportValidation');
+const { validateProductionReport } = require(${JSON.stringify(path.join(backend, 'utils', 'reportValidation'))});
 const out = {};
 for (const [label, work_date] of Object.entries({ today: '2026-10-22', tomorrow: '2026-10-23', minus14: '2026-10-08', minus15: '2026-10-07' })) {
   out[label] = validateProductionReport({ work_date, shift: 'A' }, {}).errors.work_date || null;
