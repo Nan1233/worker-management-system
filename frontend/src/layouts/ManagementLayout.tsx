@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Bell, Boxes, ClipboardCheck, Cog, Download, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { getStoredUser, clearAuthSession } from "../utils/authStorage";
+import { getStoredUser } from "../utils/authStorage";
+import { logout as logoutSession } from "../services/authService";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
 import type { PermissionCode } from "../security/permissions";
@@ -39,7 +40,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const [mobileMoreOpen,setMobileMoreOpen]=useState(false); const visible=items.filter(item=>item.roles.includes(role)&&can(item.permission));
  const mobilePrimaryItems=visible.slice(0,2),mobileOverflowItems=visible.slice(2); const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel[role]; const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
- const logout=()=>{setMobileMoreOpen(false);clearAuthSession();navigate("/login",{replace:true});};
+ const logout=()=>{setMobileMoreOpen(false);void logoutSession();navigate("/login",{replace:true});};
  useEffect(()=>{if(role!=="manager")return;const forbiddenMasterPath=/^\/manager\/master\/(users|processes)(?:\/|$)/.test(location.pathname);if(forbiddenMasterPath)navigate(`${base}/master/machines`,{replace:true});},[role,location.pathname,navigate,base]);
  const today=new Intl.DateTimeFormat("vi-VN",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date()).replace(/^./,m=>m.toUpperCase());
  return <div className="management-layout" data-management-role={role}>
