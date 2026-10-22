@@ -22,41 +22,14 @@ ALTER TABLE product_standards
 ALTER TABLE production_reports
   ADD COLUMN IF NOT EXISTS updated_by BIGINT NULL;
 
-SET @ktc_len_1 := (
-  SELECT MAX(CHARACTER_MAXIMUM_LENGTH) FROM information_schema.columns
-   WHERE table_schema = DATABASE() AND table_name = 'machine_production_events' AND column_name = 'standard_source'
-);
-SET @ktc_sql_1 := IF(
-  @ktc_len_1 IS NOT NULL AND @ktc_len_1 < 64,
-  'ALTER TABLE machine_production_events MODIFY COLUMN standard_source VARCHAR(64) NULL',
-  'SELECT 1'
-);
-PREPARE ktc_stmt_1 FROM @ktc_sql_1;
-EXECUTE ktc_stmt_1;
-DEALLOCATE PREPARE ktc_stmt_1;
+-- TiDB's HTTP SQL API does not support PREPARE/EXECUTE. These columns are
+-- VARCHAR(20) in the canonical schema, so widen them directly to 64. Re-running
+-- MODIFY to the same width is safe and lets a half-applied migration resume.
+ALTER TABLE machine_production_events
+  MODIFY COLUMN standard_source VARCHAR(64) NULL;
 
-SET @ktc_len_2 := (
-  SELECT MAX(CHARACTER_MAXIMUM_LENGTH) FROM information_schema.columns
-   WHERE table_schema = DATABASE() AND table_name = 'production_temp_machine_lines' AND column_name = 'standard_source'
-);
-SET @ktc_sql_2 := IF(
-  @ktc_len_2 IS NOT NULL AND @ktc_len_2 < 64,
-  'ALTER TABLE production_temp_machine_lines MODIFY COLUMN standard_source VARCHAR(64) NULL',
-  'SELECT 1'
-);
-PREPARE ktc_stmt_2 FROM @ktc_sql_2;
-EXECUTE ktc_stmt_2;
-DEALLOCATE PREPARE ktc_stmt_2;
+ALTER TABLE production_temp_machine_lines
+  MODIFY COLUMN standard_source VARCHAR(64) NULL;
 
-SET @ktc_len_3 := (
-  SELECT MAX(CHARACTER_MAXIMUM_LENGTH) FROM information_schema.columns
-   WHERE table_schema = DATABASE() AND table_name = 'production_report_machine_lines' AND column_name = 'standard_source'
-);
-SET @ktc_sql_3 := IF(
-  @ktc_len_3 IS NOT NULL AND @ktc_len_3 < 64,
-  'ALTER TABLE production_report_machine_lines MODIFY COLUMN standard_source VARCHAR(64) NULL',
-  'SELECT 1'
-);
-PREPARE ktc_stmt_3 FROM @ktc_sql_3;
-EXECUTE ktc_stmt_3;
-DEALLOCATE PREPARE ktc_stmt_3;
+ALTER TABLE production_report_machine_lines
+  MODIFY COLUMN standard_source VARCHAR(64) NULL;
