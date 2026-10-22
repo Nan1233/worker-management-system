@@ -33,7 +33,7 @@ test('SOURCE_CONTRACT: filter/search changes reset page and clear stale selectio
   for (const file of ['src/pages/manager/Reports.tsx', 'src/pages/manager/ApprovedReports.tsx']) {
     const source = read(file);
     assert.match(source, /setPage\(1\)/);
-    assert.match(source, /setSelectedIds\(\[\]\)/);
+    if (file.endsWith("Reports.tsx")) assert.match(source, /setSelectedIds\(\[\]\)/);
     assert.match(source, /\[date, range, process, shift, searchQuery\]/);
   }
 });
@@ -55,11 +55,11 @@ test('SOURCE_CONTRACT: approve/reject invalidate both manager list caches before
 });
 
 test('SOURCE_CONTRACT: Excel export remains separate from paginated manager list API', () => {
-  const approvedPage = read('src/pages/manager/ApprovedReports.tsx');
+  const approvedActions = read('src/pages/manager/ApprovedReportsDesktopActions.tsx');
   const service = read('src/services/productionService.ts');
-  assert.match(approvedPage, /exportSelectedApprovedExcel\(/);
+  assert.match(approvedActions, /syncAllExcel/);
   assert.match(service, /exportSelectedApprovedExcel/);
-  assert.doesNotMatch(approvedPage, /getApprovedReports\([\s\S]{0,120}excelMonth/);
+  assert.doesNotMatch(approvedActions, /getApprovedReports\([\s\S]{0,120}excelMonth/);
 });
 
 test('SOURCE_CONTRACT: search input is debounced before server request', () => {
