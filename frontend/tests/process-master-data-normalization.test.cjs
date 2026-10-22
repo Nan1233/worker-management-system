@@ -6,8 +6,10 @@ const root = path.resolve(__dirname, '..');
 const hook = fs.readFileSync(path.join(root, 'src/pages/worker/useProcessMasterData.ts'), 'utf8');
 const normalizer = fs.readFileSync(path.join(root, 'src/pages/worker/processMasterDataNormalization.ts'), 'utf8');
 
-assert.match(hook, /normalizeDefectOptions\(defects\.value\)/);
-assert.match(hook, /normalizeDeductionOptions\(deductions\.value\)/);
+// The normalizer accepts the resolved process ID so legacy rows can be interpreted
+// in the correct process context.
+assert.match(hook, /normalizeDefectOptions\(defects\.value(?:,\s*resolvedProcessId)?\)/);
+assert.match(hook, /normalizeDeductionOptions\(deductions\.value(?:,\s*resolvedProcessId)?\)/);
 assert.match(normalizer, /row\.defect_code \?\? row\.code/);
 assert.match(normalizer, /row\.defect_name \?\? row\.label/);
 assert.match(normalizer, /row\.deduction_code \?\? row\.code/);
