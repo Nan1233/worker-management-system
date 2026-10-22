@@ -1,8 +1,6 @@
 const db = require('../config/db');
 
 const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
-const isRuntimeBootstrapEnabled = String(process.env.KTC_RUN_MASTER_DATA_BOOTSTRAP || '').toLowerCase() === 'true';
-
 const query = (sql, params = []) => new Promise((resolve, reject) => {
   db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
 });
@@ -31,37 +29,39 @@ async function queryWithRetry(sql, params = [], attempts = 3) {
   throw lastError;
 }
 
-async function ensureGcDefectMasterData() {
-  // TEST DB is provisioned from the clean SQL snapshot. Runtime writes are
-  // opt-in only, preventing concurrent API requests from repeatedly seeding
-  // defect_types and producing transient TiDB 520 errors.
-  if (isCloudflareWorker && !isRuntimeBootstrapEnabled) return;
+// Manual first-time initialisation of the GC defect master (defect_types of the GC process).
+//
+// It is NOT part of `npm start` and never runs inside the Cloudflare Worker: the defect master is edited by
+// admins (name, order, status) through the master-data screens and Excel import, and an automatic run used to
+// overwrite those edits and deactivate every other GC defect on each restart.
+//
+// Behaviour:
+//  * default / KTC_MANUAL_SEED_CONFIRM unset  -> DRY RUN: reads only and reports which canonical codes are missing.
+//  * KTC_MANUAL_SEED_CONFIRM=YES (or --apply) -> INSERTs only the canonical codes that do not exist yet for the GC
+//    process. Existing rows are never updated, re-activated, renamed, re-ordered or deactivated, and nothing is deleted.
+async function ensureGcDefectMasterData({ apply = false } = {}) {
+  if (isCloudflareWorker) return { skipped: true, reason: 'cloudflare-worker' };
 
   const processes = await queryWithRetry(`SELECT id FROM processes WHERE UPPER(TRIM(process_code))='GC' AND COALESCE(status,'active') IN ('active','enabled','1') ORDER BY id LIMIT 1`);
   if (!processes.length) throw new Error('GC process master was not found.');
   const processId = Number(processes[0].id);
-  const canonicalCodes = CANONICAL_GC_DEFECTS.map(([code]) => code);
-  const placeholders = canonicalCodes.map(() => '?').join(', ');
-  await queryWithRetry(`UPDATE defect_types SET status='inactive' WHERE process_id=? AND defect_code IS NOT NULL AND UPPER(TRIM(defect_code)) NOT IN (${placeholders})`, [processId, ...canonicalCodes]);
-  for (const [code, name, sort] of CANONICAL_GC_DEFECTS) {
-    await queryWithRetry(`INSERT INTO defect_types (process_id,defect_code,defect_name,sort_order,status) VALUES (?,?,?,?, 'active') ON DUPLICATE KEY UPDATE defect_name=VALUES(defect_name),sort_order=VALUES(sort_order),status='active'`, [processId, code, name, sort]);
+  const existing = await queryWithRetry(`SELECT defect_code FROM defect_types WHERE process_id=?`, [processId]);
+  const existingCodes = new Set((existing || []).map((row) => normalize(row.defect_code)));
+  const missing = CANONICAL_GC_DEFECTS.filter(([code]) => !existingCodes.has(normalize(code)));
+
+  if (!apply) {
+    console.log(`GC_DEFECT_MASTER_DRY_RUN process_id=${processId} existing=${existingCodes.size} missing=${missing.map(([code]) => code).join(',') || 'none'} (no changes made)`);
+    return { dryRun: true, processId, missing: missing.map(([code]) => code) };
   }
-  const canonical = new Set(CANONICAL_GC_DEFECTS.map(([code]) => normalize(code)));
-  const rows = await queryWithRetry(`SELECT id,defect_code FROM defect_types WHERE process_id=? ORDER BY id`, [processId]);
-  const seen = new Set();
-  for (const row of rows || []) {
-    const code = normalize(row.defect_code);
-    if (!canonical.has(code)) continue;
-    if (seen.has(code)) await queryWithRetry("UPDATE defect_types SET status='inactive' WHERE id=?", [Number(row.id)]); else seen.add(code);
+  for (const [code, name, sort] of missing) {
+    await queryWithRetry(`INSERT INTO defect_types (process_id,defect_code,defect_name,sort_order,status) VALUES (?,?,?,?, 'active')`, [processId, code, name, sort]);
   }
-  const verifyRows = await queryWithRetry(`SELECT defect_code,defect_name,sort_order FROM defect_types WHERE process_id=? AND COALESCE(status,'active') IN ('active','enabled','1') ORDER BY sort_order,id`, [processId]);
-  if (verifyRows.length !== CANONICAL_GC_DEFECTS.length) {
-    const error = new Error(`GC defect master verification failed: expected ${CANONICAL_GC_DEFECTS.length} active rows, got ${verifyRows.length}`);
-    error.details = { processId, actual: verifyRows };
-    throw error;
-  }
-  console.log(`GC_DEFECT_MASTER_OK process_id=${processId} active=${verifyRows.length}`);
+  console.log(`GC_DEFECT_MASTER_APPLIED process_id=${processId} inserted=${missing.map(([code]) => code).join(',') || 'none'} (existing rows untouched)`);
+  return { dryRun: false, processId, inserted: missing.map(([code]) => code) };
 }
 
 module.exports = ensureGcDefectMasterData;
-if (require.main === module) ensureGcDefectMasterData().then(() => process.exit(0)).catch(error => { console.error('[KTC] Failed to ensure exact GC NG master data:', errorDetails(error)); process.exit(1); });
+if (require.main === module) {
+  const apply = process.argv.includes('--apply') || process.env.KTC_MANUAL_SEED_CONFIRM === 'YES';
+  ensureGcDefectMasterData({ apply }).then(() => process.exit(0)).catch(error => { console.error('[KTC] GC defect master seed failed:', errorDetails(error)); process.exit(1); });
+}

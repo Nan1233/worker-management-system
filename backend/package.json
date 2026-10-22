@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "postinstall": "node scripts/fixCloudflareWorkerSyntax.cjs && node scripts/patchCvkProcessId.cjs",
-    "start": "node scripts/ensureGcDefectMasterData.js && node scripts/ensureGcLong2801Lt.js && node --require ./scripts/approvedReportConcurrencyPatch.cjs --expose-gc server.js",
+    "start": "node scripts/ensureGcLong2801Lt.js && node --require ./scripts/approvedReportConcurrencyPatch.cjs --expose-gc server.js",
     "worker": "node worker.js",
     "dev": "node --watch server.js",
     "check": "node --check server.js && node scripts/checkSource.js",
