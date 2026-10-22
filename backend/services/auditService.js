@@ -181,7 +181,23 @@ async function createReportVersion(
           normalizedReportId,
         ],
       );
-      const versionNo = Number(result?.insertId ?? result?.lastInsertId ?? 0);
+      let versionNo = Number(result?.insertId ?? result?.lastInsertId ?? 0);
+
+      // TiDB Serverless HTTP SQL may omit MySQL's insertId/LAST_INSERT_ID
+      // metadata even when the INSERT succeeded. Fall back to reading the
+      // report-scoped version number on the same executor/transaction.
+      if (!Number.isInteger(versionNo) || versionNo <= 0) {
+        const rows = await query(
+          executor,
+          `SELECT version_no
+             FROM report_versions
+            WHERE report_type=? AND report_id=?
+            ORDER BY version_no DESC
+            LIMIT 1`,
+          [normalizedType, normalizedReportId],
+        );
+        versionNo = Number(rows?.[0]?.version_no ?? rows?.[0]?.versionNo ?? 0);
+      }
       if (!Number.isInteger(versionNo) || versionNo <= 0) {
         throw new Error('Không thể xác định version_no vừa tạo');
       }
