@@ -174,6 +174,27 @@ function normalizeCloudflareMigrationStatements(sql,migrationFilename=''){
     );
 }
 
+// Statements that must share one connection: from a `SET @ktc_…` assignment through the closing
+// `DEALLOCATE PREPARE`. A group that starts with `SET @ktc_` but cannot be closed is an error, not
+// something to fall back from: running its statements one by one on whatever connection comes next
+// would silently skip or break the conditional DDL.
+const SESSION_GROUP_MEMBER=/^(?:SET\s+@ktc_|PREPARE\b|EXECUTE\b)/i;
+const SESSION_GROUP_CLOSE=/^DEALLOCATE\s+PREPARE\b/i;
+function findSessionGroup(statements,startIndex,migrationFilename=''){
+  let first=startIndex;
+  // Progress saved by an older runner may point into the middle of a group: restart at the group start
+  // (the groups are idempotent: they re-read information_schema before changing anything).
+  const isGroupStatement=(index)=>SESSION_GROUP_MEMBER.test(String(statements[index]||'').trim()) || SESSION_GROUP_CLOSE.test(String(statements[index]||'').trim());
+  while(first>0 && isGroupStatement(first) && SESSION_GROUP_MEMBER.test(String(statements[first-1]||'').trim())) first-=1;
+  if(!/^SET\s+@ktc_/i.test(String(statements[first]||'').trim())) return {first:startIndex,last:startIndex};
+  for(let index=first+1; index<statements.length; index+=1){
+    const statement=String(statements[index]||'').trim();
+    if(SESSION_GROUP_CLOSE.test(statement)) return {first,last:index};
+    if(!SESSION_GROUP_MEMBER.test(statement)) break;
+  }
+  throw new Error(`Migration ${migrationFilename}: statement ${first + 1} opens a session-bound SET @ktc_… group that is not closed by DEALLOCATE PREPARE`);
+}
+
 async function sha256(value){
   const bytes=new TextEncoder().encode(value);
   const digest=await globalThis.crypto.subtle.digest('SHA-256',bytes);
@@ -182,6 +203,69 @@ async function sha256(value){
 
 const MIGRATION_STATEMENTS_PER_INVOCATION = Math.max(1, Math.min(8, Number.parseInt(process.env.KTC_MIGRATION_BATCH_SIZE || '8', 10) || 8));
 
+// KTC_MIGRATION_DRY_RUN=true: report which migrations a real run would apply, then stop. It only issues
+// SELECT statements (it does not even create the tracking tables) and never executes migration SQL, so it can
+// be pointed at a database to confirm "pending = exactly the reviewed migration" before anything is applied.
+// Anything unexpected (unreadable state, a half-applied migration, a checksum that no longer matches) throws.
+function isDryRunRequested(){
+  return String(process.env.KTC_MIGRATION_DRY_RUN || '').trim().toLowerCase() === 'true';
+}
+
+async function dryRunPendingMigrations(connection,{entries,ceiling}){
+  const read=async (sql,params)=>{
+    if(!/^\s*SELECT\b/i.test(sql)) throw new Error(`Dry-run refuses to run a non-SELECT statement: ${String(sql).slice(0,80)}`);
+    return connection.query(sql,params);
+  };
+  const tag='[KTC][MIGRATION][DRY-RUN]';
+  let databaseName='unknown';
+  try{
+    const [rows]=await read('SELECT DATABASE() AS db_name');
+    databaseName=String(rows?.[0]?.db_name || 'unknown');
+  }catch(error){
+    throw new Error(`${tag} cannot read the target database name: ${getMigrationError(error)}`);
+  }
+  console.log(`${tag} target: database=${databaseName} repository=${repository} ref=${migrationRef} ceiling=${ceiling === null ? 'none' : ceiling}`);
+
+  let appliedRows;
+  let stepRows;
+  try{
+    [appliedRows]=await read('SELECT migration_id, checksum FROM schema_migrations');
+    [stepRows]=await read('SELECT id, migration_id, checksum, statement_index FROM schema_migration_steps WHERE id=1 LIMIT 1');
+  }catch(error){
+    throw new Error(`${tag} cannot read migration state (schema_migrations / schema_migration_steps): ${getMigrationError(error)}. Dry-run does not create these tables.`);
+  }
+  if(stepRows && stepRows[0]){
+    throw new Error(`${tag} migration ${stepRows[0].migration_id} is half-applied (statement ${stepRows[0].statement_index}); finish or inspect it before planning anything else.`);
+  }
+
+  const appliedById=new Map((appliedRows || []).map(row=>[String(row.migration_id),String(row.checksum || '')]));
+  const mismatched=[];
+  for(const migration of entries){
+    if(!appliedById.has(migration.filename)) continue;
+    const stored=appliedById.get(migration.filename);
+    if(!stored) throw new Error(`${tag} applied migration ${migration.filename} has no recorded checksum; stop and inspect migration history before planning anything else.`);
+    const checksum=await sha256(await fetchText(migration.downloadUrl));
+    if(checksum !== stored) mismatched.push(migration.filename);
+  }
+  if(mismatched.length){
+    throw new Error(`${tag} checksum differs from what was applied for: ${mismatched.join(', ')} (ref=${migrationRef}). Stop and review before running anything.`);
+  }
+
+  const pending=entries.filter(migration=>!appliedById.has(migration.filename));
+  console.log(`${tag} applied=${entries.length - pending.length} pending=${pending.length}`);
+  let position=0;
+  for(const migration of pending){
+    position += 1;
+    const sql=await fetchText(migration.downloadUrl);
+    const statements=normalizeCloudflareMigrationStatements(sql,migration.filename);
+    if(!statements.length) throw new Error(`${tag} migration has no executable SQL statements: ${migration.filename}`);
+    for(let index=0; index<statements.length;){ index=findSessionGroup(statements,index,migration.filename).last + 1; }
+    console.log(`${tag} pending[${position}]=${migration.filename} checksum=${await sha256(sql)} statements=${statements.length}`);
+  }
+  console.log(`${tag} nothing was executed`);
+  return false;
+}
+
 async function runPendingMigrations(){
   const {entries,versions,ceiling}=loadMigrationManifest();
   const db=require('../config/db');
@@ -189,6 +273,7 @@ async function runPendingMigrations(){
   if(missingDb.length) throw new Error(`Migration database configuration missing: ${missingDb.join(', ')}`);
   const connection=await db.promise().getConnection();
   try{
+    if(isDryRunRequested()) return await dryRunPendingMigrations(connection,{entries,ceiling});
     await connection.query('CREATE TABLE IF NOT EXISTS schema_migrations (migration_id VARCHAR(160) NOT NULL PRIMARY KEY, checksum CHAR(64) NOT NULL, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)');
     await connection.query('CREATE TABLE IF NOT EXISTS schema_migration_steps (id TINYINT NOT NULL PRIMARY KEY, migration_id VARCHAR(160) NOT NULL, checksum CHAR(64) NOT NULL, statement_index INT NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)');
     console.log(`[KTC][MIGRATION] manifest loaded: ${entries.length} SQL files / ${versions.length} ordered migrations, ref=${migrationRef}`);
@@ -259,15 +344,25 @@ async function runPendingMigrations(){
         }
       }
 
-      console.log(`[KTC][MIGRATION] applying ${migration.filename}: statement ${statementIndex + 1}/${statements.length}`);
-      try{
-        await connection.query(statements[statementIndex]);
-      }catch(error){
-        throw new Error(`Migration failed: ${migration.filename}: statement ${statementIndex + 1}/${statements.length}: ${statements[statementIndex].slice(0,500)} | ${getMigrationError(error)}`);
+      // A session-bound group (SET @ktc_… ; PREPARE … ; EXECUTE … ; DEALLOCATE PREPARE …) depends on
+      // user variables and a prepared-statement handle that only exist on ONE connection. The runner
+      // applies a bounded batch per invocation and may resume on a different connection, so such a
+      // group must run to completion in this invocation as a single step.
+      const group=findSessionGroup(statements,statementIndex,migration.filename);
+      const groupEnd=group.last;
+      statementIndex=group.first;
+
+      console.log(`[KTC][MIGRATION] applying ${migration.filename}: statement ${statementIndex + 1}${groupEnd > statementIndex ? `-${groupEnd + 1}` : ''}/${statements.length}`);
+      for(let index=statementIndex; index<=groupEnd; index+=1){
+        try{
+          await connection.query(statements[index]);
+        }catch(error){
+          throw new Error(`Migration failed: ${migration.filename}: statement ${index + 1}/${statements.length}: ${statements[index].slice(0,500)} | ${getMigrationError(error)}`);
+        }
       }
 
       processedStatements += 1;
-      const nextStatementIndex=statementIndex+1;
+      const nextStatementIndex=groupEnd+1;
       if(nextStatementIndex < statements.length){
         await connection.query(
           'INSERT INTO schema_migration_steps (id, migration_id, checksum, statement_index) VALUES (1, ?, ?, ?) ON DUPLICATE KEY UPDATE migration_id=VALUES(migration_id), checksum=VALUES(checksum), statement_index=VALUES(statement_index)',
