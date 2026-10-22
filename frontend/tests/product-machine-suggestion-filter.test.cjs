@@ -74,11 +74,11 @@ test('DO and EP remain limited to one machine and mode helpers cannot both be tr
 
 test('machine-line payload does not duplicate worker-level time and OK/NG totals', () => {
   const submission = fs.readFileSync(path.join(root, 'src/pages/worker/processReportSubmission.ts'), 'utf8');
-  assert.ok(submission.includes('total_time:isMachineLineAccounting ? 0 : totalTime'));
-  assert.ok(submission.includes('actual_time:isMachineLineAccounting ? 0 : actualTime'));
-  assert.ok(submission.includes('deduction_time:isMachineLineAccounting ? 0 : deductionTime'));
-  assert.ok(submission.includes('tt_ok:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttOk)'));
-  assert.ok(submission.includes('machine_lines:useMachineLinesPayload?lines:[]'));
+  assert.match(submission, /total_time:\s*isMachineLineAccounting\s*\?\s*0\s*:\s*totalTime/);
+  assert.match(submission, /actual_time:\s*isMachineLineAccounting\s*\?\s*0\s*:\s*actualTime/);
+  assert.match(submission, /deduction_time:\s*isMachineLineAccounting\s*\?\s*0\s*:\s*deductionTime/);
+  assert.match(submission, /tt_ok:\s*\(isCvk\s*\|\|\s*isNonProductWorkWithinProcess\s*\|\|\s*noStandardLongWork\s*\|\|\s*isMachineLineAccounting\)\s*\?\s*0\s*:\s*num\(args\.form\.ttOk\)/);
+  assert.match(submission, /machine_lines:\s*useMachineLinesPayload\s*\?\s*lines\s*:\s*\[\]/);
 });
 
 test('basic info section destructures machineOptions before rendering machine labels', () => {
