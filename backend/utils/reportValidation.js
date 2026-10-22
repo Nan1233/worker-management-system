@@ -1,6 +1,7 @@
 const { calculateActualOutput } = require('./outputCalculation');
 const { normalizeTrainingPercent } = require('./trainingPercent');
 const { getProcessMachinePolicy } = require('../services/processMachinePolicy');
+const { getVietnamDateKey } = require('./dateKey');
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_SHIFTS = new Set(["A", "B", "C", "D", "Ca 1", "Ca 2", "Ca 3"]);
 const EPSILON = 0.02;
@@ -92,7 +93,7 @@ const finiteMinutes = (hours) => Math.round((Number(hours) || 0) * 60);
 const validateProductionReport = (payload = {}, options = {}) => {
     const errors = {};
     const workDate = String(payload.work_date || '').slice(0, 10);
-    const parsedDate = DATE_PATTERN.test(workDate) ? new Date(`${workDate}T00:00:00`) : null;
+    const parsedDate = DATE_PATTERN.test(workDate) ? new Date(`${workDate}T00:00:00Z`) : null;
     const isNonProductWork = Number(payload.process_id) === 60006 || Number(payload.process_id) === 30002 ||
         String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK' ||
         payload.extra_data?.non_product_work === true || payload.non_product_work === true;
@@ -128,14 +129,14 @@ const validateProductionReport = (payload = {}, options = {}) => {
     if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
         errors.work_date = 'Ngày làm việc không hợp lệ';
     } else {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Both sides are UTC midnights of calendar dates: "today" is the Vietnam date, not the server's.
+        const today = new Date(`${getVietnamDateKey()}T00:00:00Z`);
         if (parsedDate > today) errors.work_date = 'Không được nhập báo cáo cho ngày tương lai';
 
         const maxBackDays = Number(options.maxBackDays ?? 14);
         if (Number.isFinite(maxBackDays) && maxBackDays >= 0 && options.enforceBackDate !== false) {
             const oldest = new Date(today);
-            oldest.setDate(oldest.getDate() - maxBackDays);
+            oldest.setUTCDate(oldest.getUTCDate() - maxBackDays);
             if (parsedDate < oldest) errors.work_date = `Chỉ được nhập báo cáo trong ${maxBackDays} ngày gần nhất`;
         }
     }
