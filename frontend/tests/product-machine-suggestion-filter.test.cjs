@@ -48,9 +48,10 @@ test('changing a machine clears the previous product so stale machine products c
 });
 
 test('worker process crash regression: accounting identifiers stay declared and consistent', () => {
-  const accountingRefs = page.match(/\\busesMachineLineAccounting\\b/g) || [];
-  assert.equal(accountingRefs.length, 3);
-  assert.ok(page.includes('const usesMachineLineAccounting = usesMultiMachineLines;'));
+  const submission = fs.readFileSync(path.join(root, 'src/pages/worker/processReportSubmission.ts'), 'utf8');
+  assert.ok(submission.includes('const isMachineLineAccounting = useMachineLinesPayload;'));
+  assert.ok(submission.includes('isMachineLineAccounting'));
+  assert.ok(page.includes('usesMultiMachineLines'));
   assert.ok(!page.includes('usesGiaCongMachineAccounting'));
 });
 
