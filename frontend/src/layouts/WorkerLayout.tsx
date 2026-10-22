@@ -21,7 +21,7 @@ const items: Item[] = [
   { label: "Cá nhân", path: "/worker/profile", icon: UserRound, permission: "PROFILE_VIEW" },
 ];
 const desktopItems: Item[] = [
-  { label: "Trang chủ", path: "/worker", icon: Home },
+  { label: "Tổng quan", path: "/worker", icon: Home },
   ...items,
 ];
 
