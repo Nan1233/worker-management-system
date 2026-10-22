@@ -140,8 +140,9 @@ export default function Reports() {
     };
 
     const navigate = useNavigate();
-    const role = String(getStoredUser()?.role || "manager").toLowerCase();
-    const basePath = role === "lead" ? "/lead" : role === "admin_ops" ? "/admin-ops" : "/manager";
+    const currentUser = getStoredUser();
+    const role = String(currentUser?.role || "manager").toLowerCase();
+    const basePath = currentUser?.role === "admin" ? "/admin" : role === "lead" ? "/lead" : role === "admin_ops" ? "/admin-ops" : "/manager";
 
     const approveDetail = async () => {
         if (!detail || approving || managerActionLockRef.current) return;
