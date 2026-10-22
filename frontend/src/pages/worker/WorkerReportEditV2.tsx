@@ -60,6 +60,7 @@ function WorkerReportEditV2() {
   const [loading, setLoading] = useState(true);
   const [loadingMasterData, setLoadingMasterData] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [auditReason, setAuditReason] = useState("");
   // Immutable concurrency token captured when an approved report edit session loads.
   const approvedEditBaselineRef = useRef<string | null>(null);
   const [error, setError] = useState("");
@@ -147,6 +148,7 @@ function WorkerReportEditV2() {
         if (!data) throw new Error("Không tìm thấy báo cáo.");
         if (!alive) return;
         setReport(data);
+        setAuditReason("");
         approvedEditBaselineRef.current = managerRoute && source === "approved" && data.updated_at ? String(data.updated_at) : null;
         const rawMachineLines = Array.isArray(data.machine_lines) ? data.machine_lines : Array.isArray(data.machineLines) ? data.machineLines : [];
         const isMachineReport = String(data.operation_mode || "").toUpperCase() === "MACHINE" || rawMachineLines.length > 0;
@@ -319,6 +321,10 @@ function WorkerReportEditV2() {
   const save = async () => {
     if (!report || (!managerRoute && remaining <= 0) || readOnly) return;
     setError("");
+    if (managerRoute && source === "approved" && !auditReason.trim()) {
+      setError("Vui lòng nhập lý do chỉnh sửa báo cáo đã duyệt.");
+      return;
+    }
     const actualHours = n(form.actualHours) + n(form.actualMinutes) / 60;
     const deductionHours = parseFlexibleTime(form.deductionTime);
     const totalHours = actualHours + (Number.isFinite(deductionHours) ? deductionHours : 0);
@@ -338,10 +344,11 @@ function WorkerReportEditV2() {
     }
     payload.updated_at = approvedBaseline || report.updated_at;
     payload.expected_updated_at = approvedBaseline || report.updated_at;
+    const requestPayload = managerRoute && source === "approved" ? { ...payload, reason: auditReason.trim() } : payload;
     try {
       setSaving(true);
       if (managerRoute) {
-        const savedResponse: any = await updateReport(Number(report.id), payload as ProductionReport, source, approvedBaseline || report.updated_at || null);
+        const savedResponse: any = await updateReport(Number(report.id), requestPayload as ProductionReport, source, approvedBaseline || report.updated_at || null);
         const savedUpdatedAt = savedResponse?.data?.updated_at ?? savedResponse?.updated_at;
         if (source === "approved" && savedUpdatedAt) approvedEditBaselineRef.current = String(savedUpdatedAt);
         const roleBasePath = storedRole === "lead" ? "/lead" : storedRole === "admin" ? "/admin" : storedRole === "admin_ops" ? "/admin-ops" : "/manager";
@@ -378,7 +385,12 @@ function WorkerReportEditV2() {
       {report.process_code === "CVK" && <section className="worker-form-card"><h2 className="worker-card-title">Thông tin công việc</h2><div className="worker-basic-grid"><div className="worker-field-block"><label className="worker-field-label">Loại công việc</label><select className="worker-text-input" value={workType} onChange={(e) => setWorkType(e.target.value)}><option>Xuất nhập</option><option>Hỗ trợ</option><option>Kho</option><option>Vệ sinh</option><option>Công việc khác</option></select></div></div></section>}
       {!report.process_code || report.process_code !== "CVK" ? <ProcessQualitySection form={form} activeNgOptions={editNgOptions as any} selectedNg={selectedNg} showNg={showNg} setShowNg={setShowNg} usesMultiMachineLines={usesMultiMachineLines} operationMode={operationMode} formatIntegerDisplay={formatIntegerDisplay} onTtOkChange={onTtOkChange} onNumberBlur={onNumberBlur} onToggleNg={toggleNg} onNgValue={updateNg} /> : null}
       <ProcessTimeDeductionSection processCode={String(report?.process_code || (Number(report?.process_id) === 4 ? "K1" : ""))} form={form} setForm={setForm} deductions={deductions} activeDeductionOptions={editDeductionOptions as any} selectedDeduction={selectedDeduction} showDeduction={showDeduction} setShowDeduction={setShowDeduction} onToggleDeduction={toggleDeduction} onUpdateDeduction={updateDeduction} onNormalizeDeduction={normalizeDeduction} onWarning={warning} />
-{!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : `Còn ${timeText} để sửa báo cáo.`}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || (!managerRoute && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
+{managerRoute && source === "approved" && !readOnly && <section className="worker-form-card approved-edit-audit-reason">
+        <label className="worker-field-label" htmlFor="approvedEditAuditReason">Lý do chỉnh sửa báo cáo đã duyệt <em>*</em></label>
+        <textarea id="approvedEditAuditReason" className="worker-text-input" value={auditReason} onChange={(event) => setAuditReason(event.target.value)} maxLength={500} rows={3} required disabled={saving} placeholder="Nhập lý do thay đổi để lưu vào lịch sử kiểm toán..." />
+        <small>Lý do này được lưu cùng phiên bản báo cáo và nhật ký kiểm toán.</small>
+      </section>}
+      {!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : `Còn ${timeText} để sửa báo cáo.`}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || (!managerRoute && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
     </main>
   </div>;
 }
