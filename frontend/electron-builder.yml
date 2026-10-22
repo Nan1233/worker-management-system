@@ -1,0 +1,29 @@
+appId: vn.ktc.mes
+productName: KTC MES
+artifactName: KTC-MES-Setup-${version}.${ext}
+
+directories:
+  output: release-exe
+
+extraMetadata:
+  main: electron-main.cjs
+  version: 1.0.0
+
+files:
+  - electron-main.cjs
+  - package.json
+  - node_modules/**/*
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: KTC MES
+  perMachine: false
