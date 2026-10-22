@@ -17,13 +17,36 @@ const AUTH_EPOCH_KEY = "ktcAuthEpoch";
 const AUTH_SESSION_ID_KEY = "ktcAuthSessionId";
 const REFRESH_SESSION_HINT_KEY = "ktcRefreshSessionHint";
 
+let pendingPreviousRefreshTokenForLogin: string | null = null;
+
 export function isElectronRuntime(): boolean {
     return typeof navigator !== "undefined" && /electron/i.test(navigator.userAgent);
 }
 
-/** Whether this runtime can send the legacy Electron refresh-token body. */
+/**
+ * The login API may accept a previous refresh token in the request body only
+ * for Electron's opaque/native origin. HTTP(S) clients must use the HttpOnly
+ * refresh cookie and must never send this credential through JavaScript.
+ */
 export function supportsElectronRefreshTokenBody(): boolean {
-    return isElectronRuntime();
+    if (!isElectronRuntime() || typeof window === "undefined") return false;
+    const origin = String(window.location.origin || "").trim().toLowerCase();
+    return !origin || origin === "null" || origin.startsWith("file:");
+}
+
+/** Preserve the Electron token in memory before login-page cleanup removes it. */
+export function preservePreviousRefreshTokenForLogin(): void {
+    if (!supportsElectronRefreshTokenBody() || pendingPreviousRefreshTokenForLogin) return;
+    const token = getRefreshToken();
+    if (token) pendingPreviousRefreshTokenForLogin = token;
+}
+
+export function getPreviousRefreshTokenForLogin(): string | null {
+    return supportsElectronRefreshTokenBody() ? pendingPreviousRefreshTokenForLogin : null;
+}
+
+export function clearPreviousRefreshTokenForLogin(): void {
+    pendingPreviousRefreshTokenForLogin = null;
 }
 
 /**
@@ -112,7 +135,7 @@ export function clearRefreshSessionHint(): void {
 }
 
 export function getRefreshToken(): string | null {
-    if (isElectronRuntime()) {
+    if (supportsElectronRefreshTokenBody()) {
         return localStorage.getItem(REFRESH_TOKEN_KEY);
     }
     localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -121,7 +144,7 @@ export function getRefreshToken(): string | null {
 }
 
 export function setRefreshToken(token: string): void {
-    if (isElectronRuntime()) {
+    if (supportsElectronRefreshTokenBody()) {
         localStorage.setItem(REFRESH_TOKEN_KEY, token);
         return;
     }
@@ -130,7 +153,7 @@ export function setRefreshToken(token: string): void {
 }
 
 export function clearLegacyRefreshToken(): void {
-    if (isElectronRuntime()) return;
+    if (supportsElectronRefreshTokenBody()) return;
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     sessionStorage.removeItem(REFRESH_TOKEN_KEY);
 }
@@ -243,18 +266,10 @@ export function clearCurrentTabAuthSession(): void {
         sessionStorage.removeItem(key);
     }
 
-    if (!isElectronRuntime()) {
-        for (const key of [
-            "auth",
-            "authUser",
-            "currentUser",
-            ACCESS_TOKEN_KEY,
-            LEGACY_TOKEN_KEY,
-            USER_KEY
-        ]) {
-            localStorage.removeItem(key);
-        }
-    }
+    // Access token and user are stored in localStorage and shared by same-origin tabs.
+    // A stale tab must not delete the newer tab's session. This function retires
+    // only this renderer's tab-scoped state; clearAuthSession() remains the
+    // explicit global logout/account-retirement operation.
 
     if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("ktc:tab-auth-cleared"));
