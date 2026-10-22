@@ -333,7 +333,7 @@ function WorkerReportEditV2() {
     });
     const approvedBaseline = approvedEditBaselineRef.current;
     if (managerRoute && source === "approved" && !approvedBaseline) {
-      setError("Không thể lưu an toàn vì thiếu mốc cập nhật của báo cáo. Tải lại báo cáo trước khi sửa.");
+      setError("Không thể lưu an toàn do thiếu thông tin phiên bản cập nhật. Tải lại báo cáo trước khi sửa.");
       return;
     }
     payload.updated_at = approvedBaseline || report.updated_at;
@@ -351,8 +351,9 @@ function WorkerReportEditV2() {
         navigate(`/worker/history/${report.id}`, { replace: true });
       }
     } catch (e: any) {
-      if (Number(e?.response?.status) === 409) {
-        setError("Báo cáo đã được người khác cập nhật. Bản nháp hiện tại vẫn được giữ; hãy tải lại để xem dữ liệu mới trước khi lưu tiếp.");
+      if (Number(e?.response?.status) === 409 || e?.response?.data?.code === "REPORT_VERSION_CONFLICT") {
+        setError("Báo cáo đã được người khác cập nhật. Vui lòng tải lại dữ liệu trước khi lưu. Các thay đổi bạn đang nhập vẫn được giữ trên màn hình.");
+        return;
       } else {
         setError(e?.response?.data?.message || e?.response?.data?.errors?.machine_lines || "Không thể lưu thay đổi.");
       }
