@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import axios from "axios";
 import { getApprovedReports, getReportById } from "../../services/productionService";
+import { getAccessToken } from "../../utils/authStorage";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import "./ReportsSplitReference.css";
@@ -70,6 +71,9 @@ export default function ApprovedReports() {
     const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
+    const [reportImportPreview, setReportImportPreview] = useState<{ filePath: string; fileName?: string; detected: number; creates?: number; updates?: number } | null>(null);
+    const [reportImportStatus, setReportImportStatus] = useState<{ tone: "success" | "warning" | "error"; message: string } | null>(null);
+    const [reportImportBusy, setReportImportBusy] = useState(false);
     const [counts, setCounts] = useState({ day: 0, week: 0, month: 0, year: 0 });
     const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false);
 
@@ -120,6 +124,63 @@ export default function ApprovedReports() {
         finally { setDetailLoading(false); }
     };
 
+    const desktopImportApi = () => (window as Window & { ktcDesktop?: {
+        isDesktop?: boolean;
+        previewReportImport?: (token: string) => Promise<any>;
+        applyReportImport?: (token: string, filePath: string) => Promise<any>;
+    } }).ktcDesktop;
+
+    const previewExcelImport = async () => {
+        const desktop = desktopImportApi();
+        const token = getAccessToken() || "";
+        if (!token) { setReportImportStatus({ tone: "error", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." }); return; }
+        if (!desktop?.isDesktop || typeof desktop.previewReportImport !== "function") {
+            setReportImportStatus({ tone: "warning", message: "Nhập Excel chỉ khả dụng trên ứng dụng KTC Desktop." });
+            return;
+        }
+        setReportImportBusy(true); setReportImportStatus(null);
+        try {
+            const preview = await desktop.previewReportImport(token);
+            if (preview?.canceled) { setReportImportPreview(null); return; }
+            if (!preview?.filePath) throw new Error("Không nhận được đường dẫn file import hợp lệ.");
+            setReportImportPreview(preview);
+            if (Number(preview.detected || 0) === 0) {
+                setReportImportStatus({ tone: "warning", message: "File không có dòng mới hoặc thay đổi cần import." });
+            } else {
+                setReportImportStatus({ tone: "success", message: "Đã đọc " + Number(preview.detected) + " thay đổi từ " + (preview.fileName || "file Excel") + "." });
+            }
+        } catch (error) {
+            setReportImportStatus({ tone: "error", message: error instanceof Error ? error.message : "Không thể đọc file import." });
+        } finally { setReportImportBusy(false); }
+    };
+
+    const applyExcelImport = async () => {
+        if (!reportImportPreview?.filePath) return;
+        const desktop = desktopImportApi();
+        const token = getAccessToken() || "";
+        if (!token) { setReportImportStatus({ tone: "error", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." }); return; }
+        if (!desktop?.isDesktop || typeof desktop.applyReportImport !== "function") {
+            setReportImportStatus({ tone: "warning", message: "Nhập Excel chỉ khả dụng trên ứng dụng KTC Desktop." });
+            return;
+        }
+        setReportImportBusy(true); setReportImportStatus(null);
+        try {
+            const result = await desktop.applyReportImport(token, reportImportPreview.filePath);
+            if (Number(result?.failed || 0) > 0) {
+                setReportImportStatus({ tone: "warning", message: "Import một phần: " + Number(result?.succeeded || 0) + " thành công, " + Number(result.failed) + " lỗi. Có thể kiểm tra và thử lại." });
+            } else if (Number(result?.detected || 0) === 0 || Number(result?.succeeded || 0) === 0) {
+                setReportImportStatus({ tone: "warning", message: "File không có dòng mới hoặc thay đổi cần import." });
+                setReportImportPreview(null);
+            } else {
+                setReportImportStatus({ tone: "success", message: "Import thành công " + Number(result.succeeded) + " báo cáo." });
+                setReportImportPreview(null);
+                await load();
+            }
+        } catch (error) {
+            setReportImportStatus({ tone: "error", message: error instanceof Error ? error.message : "Không thể import báo cáo." });
+        } finally { setReportImportBusy(false); }
+    };
+
     const detailKpi = detail ? kpi(detail) : null;
     const detailAny = detail as (ProductionReport & Record<string, unknown>) | null;
     const detailDeductions = Array.isArray(detailAny?.deductions) ? (detailAny?.deductions as any[]).filter(x => num(x.hours) > 0) : [];
@@ -136,6 +197,12 @@ export default function ApprovedReports() {
                 <label><span>Công đoạn</span><select value={process} onChange={e => setProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p} value={p}>{p}</option>)}</select></label>
                 <label><span>Ca làm việc</span><select value={shift} onChange={e => setShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
             </div>
+            <section className="pending-filter-card approved-report-import" aria-label="Nhập báo cáo Excel" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginTop: 10, padding: 12, border: "1px solid #dbe6f2", borderRadius: 10, background: "#fff" }}>
+                <button type="button" onClick={() => void previewExcelImport()} disabled={reportImportBusy} aria-label="Chọn file Excel để import">{reportImportBusy ? "Đang xử lý..." : "Nhập từ Excel"}</button>
+                {reportImportPreview && Number(reportImportPreview.detected || 0) > 0 && <span>{reportImportPreview.fileName || "File Excel"} · {reportImportPreview.detected} thay đổi ({reportImportPreview.creates || 0} thêm, {reportImportPreview.updates || 0} cập nhật)</span>}
+                {reportImportPreview && Number(reportImportPreview.detected || 0) > 0 && <button type="button" onClick={() => void applyExcelImport()} disabled={reportImportBusy}>Xác nhận import</button>}
+                {reportImportStatus && <p role="status" aria-live="polite" data-tone={reportImportStatus.tone} className={reportImportStatus.tone === "warning" ? "warning" : reportImportStatus.tone} style={{ flexBasis: "100%", margin: 0 }}>{reportImportStatus.message}</p>}
+            </section>
             <div className="pending-kpis" style={{ display: "grid", gap: 12, marginTop: 12 }}>{[["Hôm nay", counts.day, "kpi-orange", "day"], ["Tuần này", counts.week, "kpi-slate", "week"], ["Tháng này", counts.month, "", "month"], ["Năm này", counts.year, "", "year"]].map(([label, value, tone, type]) => <button key={String(label)} type="button" className={`pending-kpi ${tone}`} onClick={() => quick(type as "day" | "week" | "month" | "year")} style={{ border: "1px solid #dbe6f2", borderRadius: 10, padding: "12px 14px", background: tone === "kpi-orange" ? "#fff8ef" : tone === "kpi-slate" ? "#f7f9fc" : "#fff", textAlign: "left" }}><span>{label}</span><strong>{value}</strong><small>Báo cáo đã duyệt · Bấm để xem</small></button>)}</div>
             <div className={`pending-workspace ${detail ? "" : "list-only"}`} style={{ marginTop: 12 }}>
                 <section className="pending-list-card">
