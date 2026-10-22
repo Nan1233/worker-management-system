@@ -174,6 +174,19 @@ function normalizeCloudflareMigrationStatements(sql,migrationFilename=''){
     );
 }
 
+// Statements that must share one connection: from a `SET @ktc_…` assignment through the closing
+// `DEALLOCATE PREPARE`. Returns the index of the last statement of the group that starts at
+// `startIndex` (or `startIndex` itself when it is not a group start / has no closing statement).
+function findSessionGroupEnd(statements,startIndex){
+  if(!/^SET\s+@ktc_/i.test(String(statements[startIndex]||'').trim())) return startIndex;
+  for(let index=startIndex+1; index<statements.length; index+=1){
+    const statement=String(statements[index]||'').trim();
+    if(/^DEALLOCATE\s+PREPARE\b/i.test(statement)) return index;
+    if(!/^(?:SET\s+@ktc_|PREPARE\b|EXECUTE\b)/i.test(statement)) return startIndex;
+  }
+  return startIndex;
+}
+
 async function sha256(value){
   const bytes=new TextEncoder().encode(value);
   const digest=await globalThis.crypto.subtle.digest('SHA-256',bytes);
@@ -259,15 +272,23 @@ async function runPendingMigrations(){
         }
       }
 
-      console.log(`[KTC][MIGRATION] applying ${migration.filename}: statement ${statementIndex + 1}/${statements.length}`);
-      try{
-        await connection.query(statements[statementIndex]);
-      }catch(error){
-        throw new Error(`Migration failed: ${migration.filename}: statement ${statementIndex + 1}/${statements.length}: ${statements[statementIndex].slice(0,500)} | ${getMigrationError(error)}`);
+      // A session-bound group (SET @ktc_… ; PREPARE … ; EXECUTE … ; DEALLOCATE PREPARE …) depends on
+      // user variables and a prepared-statement handle that only exist on ONE connection. The runner
+      // applies a bounded batch per invocation and may resume on a different connection, so such a
+      // group must run to completion in this invocation as a single step.
+      const groupEnd=findSessionGroupEnd(statements,statementIndex);
+
+      console.log(`[KTC][MIGRATION] applying ${migration.filename}: statement ${statementIndex + 1}${groupEnd > statementIndex ? `-${groupEnd + 1}` : ''}/${statements.length}`);
+      for(let index=statementIndex; index<=groupEnd; index+=1){
+        try{
+          await connection.query(statements[index]);
+        }catch(error){
+          throw new Error(`Migration failed: ${migration.filename}: statement ${index + 1}/${statements.length}: ${statements[index].slice(0,500)} | ${getMigrationError(error)}`);
+        }
       }
 
       processedStatements += 1;
-      const nextStatementIndex=statementIndex+1;
+      const nextStatementIndex=groupEnd+1;
       if(nextStatementIndex < statements.length){
         await connection.query(
           'INSERT INTO schema_migration_steps (id, migration_id, checksum, statement_index) VALUES (1, ?, ?, ?) ON DUPLICATE KEY UPDATE migration_id=VALUES(migration_id), checksum=VALUES(checksum), statement_index=VALUES(statement_index)',
