@@ -203,6 +203,69 @@ async function sha256(value){
 
 const MIGRATION_STATEMENTS_PER_INVOCATION = Math.max(1, Math.min(8, Number.parseInt(process.env.KTC_MIGRATION_BATCH_SIZE || '8', 10) || 8));
 
+// KTC_MIGRATION_DRY_RUN=true: report which migrations a real run would apply, then stop. It only issues
+// SELECT statements (it does not even create the tracking tables) and never executes migration SQL, so it can
+// be pointed at a database to confirm "pending = exactly the reviewed migration" before anything is applied.
+// Anything unexpected (unreadable state, a half-applied migration, a checksum that no longer matches) throws.
+function isDryRunRequested(){
+  return String(process.env.KTC_MIGRATION_DRY_RUN || '').trim().toLowerCase() === 'true';
+}
+
+async function dryRunPendingMigrations(connection,{entries,ceiling}){
+  const read=async (sql,params)=>{
+    if(!/^\s*SELECT\b/i.test(sql)) throw new Error(`Dry-run refuses to run a non-SELECT statement: ${String(sql).slice(0,80)}`);
+    return connection.query(sql,params);
+  };
+  const tag='[KTC][MIGRATION][DRY-RUN]';
+  let databaseName='unknown';
+  try{
+    const [rows]=await read('SELECT DATABASE() AS db_name');
+    databaseName=String(rows?.[0]?.db_name || 'unknown');
+  }catch(error){
+    throw new Error(`${tag} cannot read the target database name: ${getMigrationError(error)}`);
+  }
+  console.log(`${tag} target: database=${databaseName} repository=${repository} ref=${migrationRef} ceiling=${ceiling === null ? 'none' : ceiling}`);
+
+  let appliedRows;
+  let stepRows;
+  try{
+    [appliedRows]=await read('SELECT migration_id, checksum FROM schema_migrations');
+    [stepRows]=await read('SELECT id, migration_id, checksum, statement_index FROM schema_migration_steps WHERE id=1 LIMIT 1');
+  }catch(error){
+    throw new Error(`${tag} cannot read migration state (schema_migrations / schema_migration_steps): ${getMigrationError(error)}. Dry-run does not create these tables.`);
+  }
+  if(stepRows && stepRows[0]){
+    throw new Error(`${tag} migration ${stepRows[0].migration_id} is half-applied (statement ${stepRows[0].statement_index}); finish or inspect it before planning anything else.`);
+  }
+
+  const appliedById=new Map((appliedRows || []).map(row=>[String(row.migration_id),String(row.checksum || '')]));
+  const mismatched=[];
+  for(const migration of entries){
+    if(!appliedById.has(migration.filename)) continue;
+    const stored=appliedById.get(migration.filename);
+    if(!stored) continue;
+    const checksum=await sha256(await fetchText(migration.downloadUrl));
+    if(checksum !== stored) mismatched.push(migration.filename);
+  }
+  if(mismatched.length){
+    throw new Error(`${tag} checksum differs from what was applied for: ${mismatched.join(', ')} (ref=${migrationRef}). Stop and review before running anything.`);
+  }
+
+  const pending=entries.filter(migration=>!appliedById.has(migration.filename));
+  console.log(`${tag} applied=${entries.length - pending.length} pending=${pending.length}`);
+  let position=0;
+  for(const migration of pending){
+    position += 1;
+    const sql=await fetchText(migration.downloadUrl);
+    const statements=normalizeCloudflareMigrationStatements(sql,migration.filename);
+    if(!statements.length) throw new Error(`${tag} migration has no executable SQL statements: ${migration.filename}`);
+    for(let index=0; index<statements.length;){ index=findSessionGroup(statements,index,migration.filename).last + 1; }
+    console.log(`${tag} pending[${position}]=${migration.filename} checksum=${await sha256(sql)} statements=${statements.length}`);
+  }
+  console.log(`${tag} nothing was executed`);
+  return false;
+}
+
 async function runPendingMigrations(){
   const {entries,versions,ceiling}=loadMigrationManifest();
   const db=require('../config/db');
@@ -210,6 +273,7 @@ async function runPendingMigrations(){
   if(missingDb.length) throw new Error(`Migration database configuration missing: ${missingDb.join(', ')}`);
   const connection=await db.promise().getConnection();
   try{
+    if(isDryRunRequested()) return await dryRunPendingMigrations(connection,{entries,ceiling});
     await connection.query('CREATE TABLE IF NOT EXISTS schema_migrations (migration_id VARCHAR(160) NOT NULL PRIMARY KEY, checksum CHAR(64) NOT NULL, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)');
     await connection.query('CREATE TABLE IF NOT EXISTS schema_migration_steps (id TINYINT NOT NULL PRIMARY KEY, migration_id VARCHAR(160) NOT NULL, checksum CHAR(64) NOT NULL, statement_index INT NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)');
     console.log(`[KTC][MIGRATION] manifest loaded: ${entries.length} SQL files / ${versions.length} ordered migrations, ref=${migrationRef}`);
