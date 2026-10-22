@@ -40,7 +40,8 @@ function wait(ms: number): Promise<void> {
 async function postLoginRequest(
     username: string,
     accessType: LoginAccessType,
-    password: string
+    password: string,
+    previousRefreshToken?: string | null
 ): Promise<LoginResponse> {
     let lastError: unknown;
 
@@ -99,7 +100,7 @@ export const login = async (
     const loginSessionId = createAuthSessionId();
 
     try {
-        const data = await postLoginRequest(username, accessType, password);
+        const data = await postLoginRequest(username, accessType, password, previousRefreshToken);
 
         if (getAuthEpoch() !== loginEpoch) {
             throw new axios.CanceledError("Lần đăng nhập đã bị thay thế bởi một phiên mới hơn.");
