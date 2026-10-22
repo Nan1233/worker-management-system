@@ -335,8 +335,12 @@ async function runPendingMigrations(){
       // 032 was already partially executed on the test DB before its prerequisite
       // table fix was committed. Its writes are idempotent, so restart it safely.
       if(activeStep && String(activeStep.checksum||'') !== checksum){
-        if(migration.filename === '032_add_2801_lt_long_machine_20260908.sql'){
-          console.warn(`[KTC][MIGRATION] checksum changed for recoverable 032; resetting progress to statement 1`);
+        if(migration.filename === '032_add_2801_lt_long_machine_20260908.sql' ||
+           migration.filename === '060_schema_gaps_encoding_updated_by_standard_source_20261022.sql'){
+          // Both migrations are safe to restart from statement 1: 032 has its
+          // existing recovery contract; 060 uses ADD COLUMN IF NOT EXISTS and
+          // repeatable widening ALTERs so TiDB can resume after PREPARE failure.
+          console.warn(`[KTC][MIGRATION] checksum changed for recoverable ${migration.filename}; resetting progress to statement 1`);
           statementIndex=0;
           await connection.query('UPDATE schema_migration_steps SET checksum=?, statement_index=0 WHERE id=1',[checksum]);
         }else{
