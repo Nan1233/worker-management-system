@@ -431,7 +431,7 @@ api.interceptors.request.use(
 
         config.headers.set(
             "X-Frontend-Version",
-            String(import.meta.env.VITE_BUILD_VERSION || "1.8.22")
+            String(import.meta.env.VITE_BUILD_VERSION || "1.9.31")
         );
 
         return config;
