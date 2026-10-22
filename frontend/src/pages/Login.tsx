@@ -19,7 +19,7 @@ const normalizeWorkerLoginCode = (value: string): string => { const trimmed = va
 
 function Login() {
     const navigate = useNavigate();
-    const initializedRef = useRef(false);
+    const loginPageInitializedRef = useRef(false);
     const [username, setUsername] = useState(() => localStorage.getItem(REMEMBERED_CODE_KEY) || "");
     const [password, setPassword] = useState("");
     const [step, setStep] = useState<LoginStep>("employee-code");
@@ -31,8 +31,8 @@ function Login() {
     const [loginLogoSrc, setLoginLogoSrc] = useState(LOGIN_LOGO_URL);
 
     useEffect(() => {
-        if (initializedRef.current) return;
-        initializedRef.current = true;
+        if (loginPageInitializedRef.current) return;
+        loginPageInitializedRef.current = true;
         const passiveCrossTabRedirect = sessionStorage.getItem(CROSS_TAB_LOGIN_MARKER_KEY) === "1";
         sessionStorage.removeItem(CROSS_TAB_LOGIN_MARKER_KEY);
         if (passiveCrossTabRedirect) clearCurrentTabAuthSession(); else { beginLoginTransition(); clearAuthSession({ bumpEpoch: false }); finishLoginTransition(); }
