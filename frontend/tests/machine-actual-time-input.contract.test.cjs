@@ -22,7 +22,6 @@ test("machine line shows actual-time input and deduction input without rendering
   assert.match(basic, /machine-detail-values-row/);
   assert.match(basic, /Chi tiết trừ giờ/);
   assert.match(basic, /Chi tiết lỗi NG/);
-  assert.match(basic, /label>Tổng thời gian/);
   // The gross total is derived for validation and deliberately has no editable or visible input.
   // No editable field should still be labelled as the old "Thời gian máy" (direct gross input).
   assert.doesNotMatch(basic, />Thời gian máy</);
