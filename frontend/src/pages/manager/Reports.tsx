@@ -91,6 +91,7 @@ export default function Reports() {
     const [rejectReason, setRejectReason] = useState(""); const [rejectNote, setRejectNote] = useState(""); const [rejecting, setRejecting] = useState(false); const [rejectDialogOpen, setRejectDialogOpen] = useState(false); const [rejectTargetIds, setRejectTargetIds] = useState<number[]>([]);
 
     const reportLoadSeqRef = useRef(0);
+    const managerActionLockRef = useRef(false);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -143,7 +144,8 @@ export default function Reports() {
     const basePath = role === "lead" ? "/lead" : role === "admin_ops" ? "/admin-ops" : "/manager";
 
     const approveDetail = async () => {
-        if (!detail || approving) return;
+        if (!detail || approving || managerActionLockRef.current) return;
+        managerActionLockRef.current = true;
         setApproving(true);
         try {
             await approveTempReport(Number(detail.id));
@@ -156,6 +158,7 @@ export default function Reports() {
             // so take the manager there instead of leaving them at a dead end.
             if (e?.response?.data?.code === "MACHINE_EVENT_REQUIRED") navigate(`${basePath}/report/${Number(detail.id)}?source=pending`);
         } finally {
+            managerActionLockRef.current = false;
             setApproving(false);
         }
     };
@@ -170,7 +173,7 @@ export default function Reports() {
     };
 
     const rejectTargets = async () => {
-        if (rejecting || !rejectTargetIds.length) return;
+        if (rejecting || !rejectTargetIds.length || managerActionLockRef.current) return;
         const reason = rejectReason === "Khác" ? rejectNote.trim() : rejectReason.trim();
         if (!reason) { window.alert("Vui lòng chọn lý do từ chối."); return; }
         const targets = reports.filter(report => rejectTargetIds.includes(Number(report.id)));
@@ -179,6 +182,7 @@ export default function Reports() {
             return;
         }
         if (!window.confirm(`Từ chối ${targets.length} báo cáo đã chọn? Lý do: ${reason}`)) return;
+        managerActionLockRef.current = true;
         setRejecting(true);
         try {
             const failedIds: number[] = [];
@@ -194,7 +198,7 @@ export default function Reports() {
             setRejectTargetIds([]);
             await load();
             window.alert(`Đã từ chối ${succeeded}/${targets.length} báo cáo.${failures.length ? `\\n\\nCác báo cáo chưa từ chối:\\n• ${failures.join("\\n• ")}` : ""}`);
-        } finally { setRejecting(false); }
+        } finally { managerActionLockRef.current = false; setRejecting(false); }
     };
 
     const visibleIds = reports.map(r => Number(r.id)).filter(id => Number.isInteger(id) && id > 0);
@@ -203,8 +207,9 @@ export default function Reports() {
     const toggleVisibleSelection = () => setSelectedIds(previous => allVisibleSelected ? previous.filter(id => !visibleIds.includes(id)) : [...new Set([...previous, ...visibleIds])]);
     const approveBulk = async () => {
         const targets = reports.filter(r => selectedIds.includes(Number(r.id)));
-        if (!targets.length || bulkApproving) return;
+        if (!targets.length || bulkApproving || managerActionLockRef.current) return;
         if (!window.confirm(`Duyệt lần lượt ${targets.length} báo cáo đã chọn? Báo cáo lỗi sẽ được giữ lại để xử lý sau.`)) return;
+        managerActionLockRef.current = true;
         setBulkApproving(true); setError("");
         const failedIds: number[] = [];
         const failures: string[] = [];
@@ -228,7 +233,7 @@ export default function Reports() {
             await load();
             const summary = `Duyệt thành công ${succeeded}/${targets.length} báo cáo.${failedIds.length ? `\\n\\nGiữ lại ${failedIds.length} báo cáo chưa duyệt để xử lý tiếp:${`\\n• ${failures.join("\\n• ")}`}` : ""}`;
             window.alert(summary);
-        } finally { setBulkApproving(false); }
+        } finally { managerActionLockRef.current = false; setBulkApproving(false); }
     };
 
     const detailKpi = detail ? kpi(detail) : null;
