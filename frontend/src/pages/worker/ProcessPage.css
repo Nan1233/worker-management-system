@@ -214,3 +214,9 @@
   .worker-field-block select, .worker-field-block textarea { font-size: 14px; }
   .worker-form-actions { bottom: calc(64px + env(safe-area-inset-bottom)); }
 }
+
+/* Keep the single-machine product selector spanning the full form grid. */
+.single-machine-product-scope,
+.single-machine-product-scope .worker-field-full {
+  grid-column: 1 / -1;
+}
