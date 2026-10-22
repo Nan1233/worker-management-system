@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.9.30-mai-options-filter-20261012";
+const BUILD_VERSION = "1.9.31-worker-accessibility-20261022";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];
