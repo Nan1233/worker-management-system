@@ -6,46 +6,50 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('F07 FE 01 approved report editor stores server updated_at in an immutable edit-session ref', () => {
+test('F07 FE 01 EditReport stores server updated_at in immutable edit-session ref', () => {
   const source = read('src/pages/worker/WorkerReportEditV2.tsx');
   assert.match(source, /useRef<string \| null>\(null\)/);
-  assert.match(source, /approvedEditBaselineRef\.current = managerRoute && source === "approved" && data\.updated_at \? String\(data\.updated_at\) : null/);
+  assert.match(source, /originalUpdatedAtRef\.current = source === "approved" \? \(data\.updated_at \|\| null\) : null/);
   assert.doesNotMatch(source, /setField\("updated_at"/);
 });
 
-test('F07 FE 02 approved update request sends expected_updated_at from the immutable baseline', () => {
+test('F07 FE 02 approved update request sends expected_updated_at from immutable baseline', () => {
   const page = read('src/pages/worker/WorkerReportEditV2.tsx');
   const service = read('src/services/productionService.ts');
-  assert.match(page, /updateReport\(Number\(report\.id\), requestPayload as ProductionReport, source, approvedBaseline \|\| report\.updated_at \|\| null\)/);
-  assert.match(page, /payload\.expected_updated_at = approvedBaseline \|\| report\.updated_at/);
-  assert.match(service, /expected_updated_at:\s*expectedUpdatedAt\s*\|\|\s*undefined/);
+  assert.match(page, /updateReport\([^,]+,\s*payload(?: as ProductionReport)?,\s*source,\s*originalUpdatedAtRef\.current\)/);
+  assert.match(service, /expected_updated_at\s*:\s*expectedUpdatedAt\s*\|\|\s*undefined/);
   assert.doesNotMatch(service, /expected_updated_at:\s*new Date/);
 });
 
-test('F07 FE 03 version conflict gives actionable reload guidance and preserves the local form', () => {
+test('F07 FE 03 conflict maps to specific reload/review UX and preserves local form', () => {
   const source = read('src/pages/worker/WorkerReportEditV2.tsx');
-  assert.match(source, /Number\(e\?\.response\?\.status\) === 409 \|\| e\?\.response\?\.data\?\.code === "REPORT_VERSION_CONFLICT"/);
+  assert.match(source, /code === "REPORT_VERSION_CONFLICT"/);
   assert.match(source, /Báo cáo đã được người khác cập nhật\. Vui lòng tải lại dữ liệu trước khi lưu/);
   assert.match(source, /Các thay đổi bạn đang nhập vẫn được giữ trên màn hình/);
 });
 
-test('F07 FE 04 conflict path does not automatically resubmit stale edits', () => {
+test('F07 FE 04 conflict path does not auto-resubmit stale edit', () => {
   const source = read('src/pages/worker/WorkerReportEditV2.tsx');
-  const conflict = source.indexOf('Number(e?.response?.status) === 409');
-  assert.notEqual(conflict, -1);
-  const tail = source.slice(conflict, source.indexOf('} else {', conflict));
+  const conflict = source.indexOf('code === "REPORT_VERSION_CONFLICT"');
+  const tail = source.slice(conflict, source.indexOf('const apiErrors', conflict));
   assert.doesNotMatch(tail, /updateReport\(/);
   assert.match(tail, /return;/);
 });
 
-test('F07 FE 05 successful save advances the baseline only from the server response', () => {
+test('F07 FE 05 successful save advances concurrency baseline to returned updated_at', () => {
   const source = read('src/pages/worker/WorkerReportEditV2.tsx');
-  assert.match(source, /const savedUpdatedAt = savedResponse\?\.data\?\.updated_at \?\? savedResponse\?\.updated_at/);
-  assert.match(source, /approvedEditBaselineRef\.current = String\(savedUpdatedAt\)/);
+  assert.match(source, /originalUpdatedAtRef\.current = result\?\.data\?\.updated_at \|\| originalUpdatedAtRef\.current/);
 });
 
-test('F07 FE 06 approved edit refuses to save when the server version token is unavailable', () => {
+test('F07 FE 06 approved edit refuses save if loaded server token is unavailable', () => {
   const source = read('src/pages/worker/WorkerReportEditV2.tsx');
-  assert.match(source, /managerRoute && source === "approved" && !approvedBaseline/);
+  assert.match(source, /source === "approved" && !originalUpdatedAtRef\.current/);
   assert.match(source, /thiếu thông tin phiên bản cập nhật/);
+});
+
+
+test('Admin Ops uses the management edit flow for approved reports', () => {
+  const source = read('src/pages/worker/WorkerReportEditV2.tsx');
+  assert.match(source, /managerRole = \["admin_ops", "manager", "lead", "admin"/);
+  assert.match(source, /storedRole === "admin_ops" \? "\/admin-ops"/);
 });

@@ -549,7 +549,9 @@ const calculateActualOutput = (values: FormState): number =>
         setDuplicatePrompt,
     } = useDuplicateReportFlow();
 
-    // Bind duplicate confirmation to the complete form snapshot, including machine lines and deductions.
+    // The duplicate prompt is bound to the entire form snapshot that produced its payload.
+    // Include machine lines, deductions and operation modes too; checking only parent totals
+    // could allow a stale duplicate payload after a machine-line edit.
     const getDuplicateFormSignature = useCallback(() => JSON.stringify({
         processId: processInfo.id,
         process,
@@ -1271,9 +1273,6 @@ const updateDeductionValue = (
     // =====================================================
 
     const validateForm = (): string => {
-        const cvkWorkType = String(form.workType || "").trim().toUpperCase();
-        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);
-
         if (
             loadingWorker
         ) {

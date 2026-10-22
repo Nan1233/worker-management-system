@@ -1,0 +1,31 @@
+name: F03 Worker Report Submission Checks
+run-name: F03 Worker Report Submission Checks / ${{ github.ref_name }} / ${{ github.sha }}
+
+on:
+  push:
+    branches:
+      - test
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker-report-submission:
+    name: Worker report submission regression + frontend typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Worker single-click and duplicate-confirmation regression tests
+        run: node --test tests/worker-single-click-submit.test.cjs
+      - name: Frontend TypeScript typecheck
+        run: npm run typecheck

@@ -107,3 +107,19 @@ test('submitLockRef still guards against duplicate submits from rapid repeat cli
   assert.match(handlerBody, /submitLockRef\.current = true;/);
   assert.match(handlerBody, /setSubmitting\(true\);/);
 });
+
+test('duplicate confirmation signature covers the full worker form snapshot, including machine lines and deductions', () => {
+  const page = read('src/pages/worker/ProcessPage.tsx');
+  const signatureStart = page.indexOf('const getDuplicateFormSignature');
+  const signatureEnd = page.indexOf('const finishDuplicateAction', signatureStart);
+  assert.ok(signatureStart >= 0 && signatureEnd > signatureStart, 'duplicate signature helper must exist');
+  const signature = page.slice(signatureStart, signatureEnd);
+  for (const field of [
+    'form,', 'extraData,', 'operationType,', 'isCvkMode,', 'cutExecutionMode,',
+    'operationMode,', 'machineLines,', 'machineCount,', 'deductions,',
+    'selectedDeduction,', 'selectedNg,', 'resolvedReportKqdPolicy,',
+  ]) {
+    assert.ok(signature.includes(field), `duplicate signature must include ${field}`);
+  }
+  assert.match(signature, /\[\s*processInfo\.id[\s\S]*resolvedReportKqdPolicy[\s\S]*\]/);
+});

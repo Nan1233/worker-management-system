@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const { pipeline } = require('node:stream/promises');
 const path = require('node:path');
-const { buildMonthlyWorkbook } = require('../services/monthlyExcelService');
+const { buildMonthlyWorkbookInWorker } = require('../services/monthlyExcelWorkerRunner');
 
 async function sendFile(res, result) {
   const filePath = result?.path || result?.archivePath;
@@ -57,7 +57,9 @@ exports.exportGiaCongExcel = async (req, res, next) => {
     // Desktop endpoint vẫn trả binary như contract cũ. Không tạo Excel job
     // nữa vì job worker đang gây HTTP 500 trong runtime backend hiện tại.
     // monthlyExcelService đã có inFlightBuilds để chống chạy trùng cùng tháng.
-    const result = await buildMonthlyWorkbook(yearMonth);
+    // Built in a worker thread: ExcelJS work on the template is CPU-bound and synchronous and used to
+    // freeze the whole API (health checks included) for the duration of the export.
+    const result = await buildMonthlyWorkbookInWorker(yearMonth);
     await sendFile(res, result);
   } catch (error) {
     if (res.headersSent) return res.end();

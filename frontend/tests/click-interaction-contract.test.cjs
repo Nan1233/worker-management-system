@@ -14,9 +14,14 @@ test('global feedback styles are loaded and do not block controls', () => {
   assert.match(css, /\.ktc-toast-container\s*>\s*\.ktc-toast\s*\{[\s\S]*pointer-events:\s*auto/);
 });
 
-test('service worker click-fix release invalidates stale cache namespace', () => {
+test('service worker release invalidates stale cache namespaces', () => {
   const sw = read('public/sw.js');
-  assert.match(sw, /BUILD_VERSION\s*=\s*"1\.9\.31/);
+  const version = sw.match(/const BUILD_VERSION = "([^"]+)";/);
+  assert.ok(version, 'service worker must declare a build version');
+  assert.ok(version[1].trim().length > 0, 'build version must not be empty');
+  assert.match(sw, /const APP_CACHE = `ktc-\$\{BUILD_VERSION\}-app`;/);
+  assert.match(sw, /const STATIC_CACHE = `ktc-\$\{BUILD_VERSION\}-static`;/);
   assert.match(sw, /self\.skipWaiting\(\)/);
   assert.match(sw, /self\.clients\.claim\(\)/);
+  assert.match(sw, /keys\.filter\(\(key\) => key !== APP_CACHE && key !== STATIC_CACHE\)\.map\(\(key\) => caches\.delete\(key\)\)/);
 });

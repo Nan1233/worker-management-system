@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import axios from "axios";
+import { describeApprovalError } from "../../utils/approvalError";
 import {
     approveSelectedTempReports,
     getReportById,
@@ -9,10 +9,9 @@ import {
 } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
-import { decimalHoursToMinutes, formatMinutes } from "../../utils/timeDisplay";
+import { formatMinutes } from "../../utils/timeDisplay";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
-import { describeApprovalError } from "../../utils/approvalError";
 const REJECT_REASONS = [
     "Báo cáo trùng",
     "Sai sản lượng",
@@ -73,7 +72,7 @@ function SelectedReportsReview() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const actionLockRef = useRef(false);
-    const [loadAttempt, setLoadAttempt] = useState(0);
+    const [loadAttempt] = useState(0);
     const [error, setError] = useState("");
     const [rejectOpen, setRejectOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);

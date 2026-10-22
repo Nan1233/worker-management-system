@@ -61,6 +61,7 @@ test('clean 04 template: 49 columns A:AW, AB formula, no September data', async 
   await workbook.xlsx.readFile(TEMPLATE);
   assert.equal(workbook.worksheets.length, 1);
   const sheet = workbook.getWorksheet('Báo cáo công nhân');
+  // F:H (TG nộp, TG làm thực tế, Tổng TG trừ giờ) were added after the original 48-column layout.
   assert.equal(sheet.actualColumnCount, 49);
   assert.equal(sheet.getCell('A3').value, 'STT');
   assert.equal(sheet.getCell('AW3').value, 'thiếu cao su');
@@ -83,13 +84,13 @@ test('report with 2 machine lines produces exactly 2 rows with per-line data', a
   assert.equal(sheet.getCell('E5').value, 'A');
   assert.equal(sheet.getCell('Y5').value, '5770');
   assert.equal(sheet.getCell('Y6').value, '9116');
-  // F = raw machine hours (fixed.totalHours), G = worked hours = F - deductions
-  // (fixed.workedHours). The previous version of this test had these two
-  // swapped, independent of the column-letter shift above.
+  // F = TG nộp (machine time), G = TG làm thực tế (machine time - deductions), H = SUM(I:X) formula
   assert.equal(sheet.getCell('F5').value, 6);
   assert.equal(sheet.getCell('G5').value, 4.5);
   assert.equal(sheet.getCell('F6').value, 6);
   assert.equal(sheet.getCell('G6').value, 4);
+  assert.equal(sheet.getCell('H5').value.formula, 'SUM(I5:X5)');
+  assert.equal(sheet.getCell('H6').value.formula, 'SUM(I6:X6)');
 });
 
 test('deductions I:X and defects AE:AW are per line and not duplicated from the report', async () => {
@@ -149,10 +150,10 @@ test('manual rows follow the 04 sample and date rows / STT reset per day', async
   assert.ok(sheet.getCell('A4').value instanceof Date);
   assert.equal(sheet.getCell('A7').value, 3);
   assert.equal(sheet.getCell('D7').value, null);
-  assert.equal(sheet.getCell('F7').value, 1.17);
-  assert.equal(sheet.getCell('G7').value, 1.17); // no deductions, so worked hours == total hours
+  assert.equal(sheet.getCell('F7').value, 1.17); // TG nộp
+  assert.equal(sheet.getCell('G7').value, 1.17); // TG làm thực tế (no deductions)
   assert.equal(sheet.getCell('Y7').value, 'ltx');
-  assert.equal(sheet.getCell('AA7').value, 960); // tt = tt_ok + tt_ng = 960 + 0
+  assert.equal(sheet.getCell('AA7').value, 960);
   assert.ok(sheet.getCell('A8').value instanceof Date);
   assert.equal(sheet.getCell('A8').value.toISOString().slice(0, 10), '2026-09-04');
   assert.equal(sheet.getCell('A9').value, 1);

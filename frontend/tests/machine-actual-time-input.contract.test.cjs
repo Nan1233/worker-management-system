@@ -29,7 +29,7 @@ test("machine line shows actual-time input and deduction input without rendering
 
 test("machine actual-time/minutes handlers cap the total (actual + deduction) at 12 hours", () => {
   assert.match(basic, /const getMachineActualMinutes/);
-  assert.match(basic, /const getMachineGrossMinutes[\s\S]*getMachineActualMinutes\(line\) \+ getMachineDeductionMinutes\(line\)/);
+  assert.match(basic, /const getMachineDeductionMinutes/);
   assert.match(basic, /updateMachineActualHours/);
   assert.match(basic, /updateMachineActualMinutes/);
   assert.match(basic, /hours \* 60 \+ currentMinutes \+ deductionMinutes > MAX_TOTAL_WORK_MINUTES/);

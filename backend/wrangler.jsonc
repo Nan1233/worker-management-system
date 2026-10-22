@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
   "workers_dev": true,
   "keep_vars": true,
-  "observability": { "enabled": true },
+  "observability": { "enabled": true, "redact_query_string": true },
   "vars": {
     "KTC_RUN_BUILD_DB_MIGRATIONS": "true",
     "KTC_CLOUDFLARE_WORKER": "true",
@@ -18,10 +18,14 @@
     // they are deliberately held back. Raise this only after reviewing the next
     // migrations and taking a backup.
     "KTC_MIGRATION_MAX": "30",
-    // Explicit allowlist beyond the ceiling: 053 restores GC deduction types;
-    // 060 is an idempotent schema-gap repair (missing columns / widened source
-    // fields). Keep the ceiling at 30 so unreviewed migrations 031-052 stay blocked.
-    "KTC_MIGRATION_INCLUDE": "53,60",
+    // Explicit allowlist beyond the ceiling: 053 only restores 6 GC deduction
+    // types (idempotent status flip + guarded insert, no DELETE/DROP). The
+    // ceiling stays at 30 so the destructive 031-052 migrations are NOT run.
+    // 054 upserts GC machine C13 (no DELETE/DROP); 059 adds machines.gc_work_type
+    // and backfills it only from seeded machine_name (idempotent, additive).
+    // 060 only adds product_standards.encoding_code / production_reports.updated_by when missing
+    // (ADD COLUMN IF NOT EXISTS; no PREPARE, no narrowing, no DELETE/DROP/TRUNCATE).
+    "KTC_MIGRATION_INCLUDE": "53,54,59,60",
     // Test-only: lets /api/health/ready return missingTables/missingColumns so
     // DATABASE_CONTRACT_INVALID is diagnosable. Do not set on production.
     "KTC_EXPOSE_SCHEMA_DIAGNOSTICS": "true"

@@ -7,8 +7,6 @@ export type ExtraFieldDefinition = {
   unit?: string;
 };
 
-const slugs = ["cat-long", "mai", "do", "kiem-1", "kiem-2", "can", "ep", "bavia", "sx3"] as const;
-
 /**
  * NGUYÊN TẮC:
  * Đây là nguồn cấu hình duy nhất cho "Thông tin riêng công đoạn".

@@ -119,18 +119,18 @@ export function buildProductionReportPayload(args: {
   }
 
   if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
-    const singleLineDefects = lines[0]?.defects?.length ? lines[0].defects.map((item) => ({
+    const selectedMachineLine = lines.find((line) =>
+      String(line.machine_code || "").trim().toUpperCase() === args.form.machineNo.trim().toUpperCase()
+    );
+    // Defect detail must come from the same selected machine as its OK/NG totals.
+    // Never borrow defects from lines[0], which may be a stale/different machine.
+    const singleLineDefects = selectedMachineLine?.defects?.length ? selectedMachineLine.defects.map((item) => ({
       defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     })) : defects.map((item) => ({
       defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     }));
     const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions);
-    // For machine reports, the per-machine fields are the source of truth. The
-    // parent form totals may lag behind the machine-line state (or be stale),
-    // so do not overwrite a valid line quantity with form.ttOk/form.ttNg.
-    const selectedMachineLine = lines.find((line) =>
-      String(line.machine_code || "").trim().toUpperCase() === args.form.machineNo.trim().toUpperCase()
-    );
+    // For machine reports, the selected machine line is the source of truth.
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, actual_time_hours:parseHours(args.form.actualTime), machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
       adjustment_count:num(args.form.adjustmentCount), deduction_time_hours:0, deductions:[],
@@ -144,7 +144,15 @@ export function buildProductionReportPayload(args: {
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
   const isMachineLineAccounting = useMachineLinesPayload;
-  if (isMachineLineAccounting && lines.length && deductions.length) {
+  // GC machine-line reports intentionally keep parent time fields at zero; their
+  // machine time is validated and persisted per line. Other machine workflows
+  // still need worker-level actual_time for the daily-hours cap.
+  const isGcMachineLineAccounting = isMachineLineAccounting
+    && String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase() === "GC";
+  // A parent-level deduction is only safely transferable when this is a
+  // single-machine report. For multi-machine reports, assigning all parent
+  // deductions to lines[0] silently misattributes time to the first machine.
+  if (args.usesSingleMachine && !args.usesMultiMachineLines && isMachineLineAccounting && lines.length && deductions.length) {
     const hasLineDeductions = lines.some((line) => Array.isArray(line.deductions) && line.deductions.length);
     if (!hasLineDeductions) {
       const machineDeductionHours = deductions.reduce((sum, item) => sum + num(item.hours), 0);
@@ -160,7 +168,19 @@ export function buildProductionReportPayload(args: {
     }
   }
   const actualOutput=noStandardLongWork ? 0 : num(args.form.actualOutput);
-  const actualTime=parseHours(args.form.actualTime), deductionTime=parseHours(args.form.deductionTime), totalTime=parseHours(args.form.totalTime);
+  // Multi-machine forms do not expose a separate worker-time field. Use the
+  // longest machine run as the worker's elapsed shift time (parallel machines
+  // must not be added together). GC retains its dedicated machine-line-only
+  // parent-time contract below.
+  const machineElapsedHours = lines.reduce((max, line) => Math.max(max, num((line as { actual_time_hours?: number }).actual_time_hours)), 0);
+  const derivedWorkerActualTime = args.usesMultiMachineLines && !(
+    String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase() === "GC"
+  ) ? machineElapsedHours : parseHours(args.form.actualTime);
+  // Keep the worker-level gross/deduction totals for non-GC machine workflows without
+  // assigning a parent-level deduction to an arbitrary machine line. GC continues
+  // to zero these parent fields in the final payload below.
+  const workerDeductionTime = parseHours(args.form.deductionTime);
+  const actualTime=derivedWorkerActualTime, deductionTime=workerDeductionTime, totalTime=args.usesMultiMachineLines ? derivedWorkerActualTime + workerDeductionTime : parseHours(args.form.totalTime);
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT" ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO") : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE") ? args.form.executionMethod : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
@@ -184,9 +204,11 @@ export function buildProductionReportPayload(args: {
     product_name:submittedProductName,
     work_type:(isCvk || isNonProductWorkWithinProcess) ? cvkWorkType : undefined,
     operation_type:isNonProductWorkWithinProcess ? null : args.operationType, operation_mode:submittedOperationMode,
-    total_time:isMachineLineAccounting ? 0 : totalTime,
-    actual_time:isMachineLineAccounting ? 0 : actualTime,
-    deduction_time:isMachineLineAccounting ? 0 : deductionTime,
+    // Parent time fields represent worker time for non-GC machine workflows.
+    // GC machine reports intentionally store time only in machine_lines.
+    total_time:isGcMachineLineAccounting ? 0 : totalTime,
+    actual_time:isGcMachineLineAccounting ? 0 : actualTime,
+    deduction_time:isGcMachineLineAccounting ? 0 : deductionTime,
     standard_output:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork) ? 0 : (useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput)),
     actual_output:(isCvk || isNonProductWorkWithinProcess || isMachineLineAccounting) ? 0 : actualOutput, tt_ok:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttOk), tt_ng:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttNg),
     kqd_dap_lai:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.kqdDapLai), kqd_tuot:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.kqdTuot), vo_do_long:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.voDoLong), xuoc_do_long:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.xuocDoLong), cong_gay:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.congGay), xoay:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.xoay), khong_dut:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.khongDut), bavia_hut:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.baviaHut), ppcm:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.ppcm), loi_cao_su:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.loiCaoSu), ng_kich_thuoc:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.ngKichThuoc), cat_lem:(isCvk || isNonProductWorkWithinProcess) ? 0 : num(args.form.catLem),

@@ -26,9 +26,9 @@ export default function WorkerReportFormDetail() {
   const [params] = useSearchParams();
   const source = String(params.get("source") || "pending").toLowerCase() === "approved" ? "approved" : "pending";
   const navigate = useNavigate();
-  const [report,setReport] = useState<any>(null); const [loading,setLoading] = useState(true); const [error,setError] = useState(""); const [now,setNow] = useState(Date.now());
+  const [report,setReport] = useState<any>(null); const [loading,setLoading] = useState(true); const [error,setError] = useState(""); const [now,setNow] = useState(0);
   useEffect(() => { let live=true; (async()=>{ try { const rid=Number(id); if(!Number.isInteger(rid)||rid<=0) throw new Error("ID báo cáo không hợp lệ."); const raw:any=await getReportById(rid,source); const data=raw?.report||raw?.data||raw; if(!data) throw new Error("Không tìm thấy báo cáo."); if(live) setReport(data); } catch(e:any){ if(live) setError(e?.response?.data?.message||e?.message||"Không thể tải chi tiết báo cáo."); } finally { if(live) setLoading(false); } })(); return ()=>{live=false;}; },[id,source]);
-  useEffect(()=>{const t=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(t);},[]);
+  useEffect(()=>{setNow(Date.now());const t=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(t);},[]);
   const remaining=useMemo(()=>{if(!report||source==="approved")return 0;const created=dateMs(report.created_at);return Number.isFinite(created)?Math.max(0,created+EDIT_WINDOW_MS-now):0;},[report,source,now]);
   if(loading) return <main className="worker-form-page"><div className="wrfd-shell">Đang tải báo cáo...</div></main>;
   if(error) return <main className="worker-form-page"><div className="wrfd-shell"><div className="wrfd-error">{error}</div></div></main>;

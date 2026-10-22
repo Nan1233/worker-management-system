@@ -6,7 +6,7 @@ const reviewModel = require("./productionTempReviewModel");
 const historyModel = require("./productionTempHistoryModel");
 const updateModel = require("./productionTempUpdateModel");
 const AuditService = require("../services/auditService");
-const { query, getConnection, beginTransaction, commit, rollback } = require("./productionTempModelShared");
+const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback } = require("./productionTempModelShared");
 const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
@@ -63,24 +63,35 @@ const recoverAfter1205 = async (data) => {
     throw error;
 };
 
-const enforceDailyWorkerHours = async (data, executor = db) => {
+const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
-    const incoming = Number(data?.actual_time ?? data?.total_time) || 0;
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
-    const rows = await query(executor, `
-        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports
-        WHERE worker_id=? AND work_date=? AND status='approved'
-        UNION ALL
-        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports_temp
-        WHERE worker_id=? AND work_date=? AND status IN ('pending','need_fix')`,
-        [workerId, workDate, workerId, workDate]);
-    const existing = (rows || []).reduce((sum, row) => sum + Number(row?.counted_hours || 0), 0);
-    if (exceedsDailyHoursLimit(existing + incoming)) {
+    const processRows = await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
+    const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
+    const incoming = isGc && machineLines.length ? Math.max(...machineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0))) : (Number(data?.actual_time) || 0);
+    const rows = await query(executor, `SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
+            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
+                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
+                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
+            FROM production_reports pr JOIN processes p ON p.id=pr.process_id
+            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status='approved'
+            UNION ALL
+            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
+                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
+                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
+            FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
+            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status IN ('pending','need_fix')
+        ) daily_hours`, [workerId, workDate, workerId, workDate]);
+    const existing = Number(rows?.[0]?.counted_hours || 0);
+    const projected = existing + incoming;
+    if (exceedsDailyHoursLimit(projected)) {
         const error = new Error(`Tổng giờ làm trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ.`);
-        error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true; throw error;
+        error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
+        error.details = { worker_id: workerId, work_date: workDate, existing_hours: Number(existing.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projected.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, counted_field: "actual_time_or_gc_machine_line_actual_time" };
+        throw error;
     }
-    return { existingHours: existing, incomingTotalHours: incoming, projectedHours: existing + incoming, limitHours: DAILY_HOURS_LIMIT };
+    return { existingHours: existing, incomingActualHours: incoming, projectedHours: existing + incoming, limitHours: DAILY_HOURS_LIMIT };
 };
 
 createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) => {
@@ -231,7 +242,8 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         return nonProductWorkModel.createCompleteReport({ data, defects: defectsInput, deductions: deductionsInput, audit });
     }
 
-    await enforceDailyWorkerHours(data);
+    await enforceDailyWorkerHours(data, db, machineLines);
+    data._daily_hours_machine_lines = machineLines;
     return runSerialized(queueKey(data, machineLines), async () => {
         const existingBefore = await findExistingClientRequest(data);
         if (existingBefore) return idempotent(existingBefore);
@@ -282,7 +294,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         let tempId;
         const parentConnection = await getConnection();
         try {
-            await beginTransaction(parentConnection);
+            await beginReadCommittedTransaction(parentConnection);
             const race = await findExistingClientRequest(data, parentConnection);
             if (race) { await commit(parentConnection); return idempotent(race); }
             try { tempId = await createModel.create(data, parentConnection); }

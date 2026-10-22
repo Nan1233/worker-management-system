@@ -35,8 +35,6 @@ module.exports = async (req,res,next) => {
         const role = normalize(currentUser.role), userStatus = normalize(currentUser.status), workerStatus = normalize(currentUser.worker_status);
         if (userStatus !== "active" || (role === "worker" && (!currentUser.worker_id || workerStatus !== "active"))) return res.status(403).json({code:userStatus!=="active"?"USER_INACTIVE":"WORKER_INACTIVE",message:"Tài khoản đã bị khóa. Vui lòng liên hệ quản lý"});
         req.user = {...decoded,id:Number(currentUser.id),username:currentUser.username,role,worker_id:currentUser.worker_id?Number(currentUser.worker_id):null};
-        // Diagnostic only: records the role actually loaded from DB for requests to the approved-report API.
-        if (String(req.path || "").startsWith("/production/") && req.method === "PUT") console.info("[AUTH DEBUG] PRODUCTION_PUT_USER", JSON.stringify({userId:req.user.id,role:req.user.role,workerId:req.user.worker_id,path:req.originalUrl||req.path,requestId:req.requestId||null}));
         return next();
     } catch(error) {
         if (isDatabaseUnavailable(error)) return res.status(503).json({code:"AUTH_DATABASE_UNAVAILABLE",message:"Không thể xác thực tài khoản lúc này"});

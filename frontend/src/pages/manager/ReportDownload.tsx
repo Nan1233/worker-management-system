@@ -1,6 +1,7 @@
 import { useState } from "react";
 import AppIcon from "../../components/common/AppIcon";
-import DesktopExcelNotice, { isDesktopApp } from "../../components/system/DesktopExcelNotice";
+import DesktopExcelNotice from "../../components/system/DesktopExcelNotice";
+import { isDesktopApp } from "../../utils/desktopApp";
 
 /**
  * "Xuất Excel" page for every role that holds REPORT_EXPORT (lead, manager, admin).

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useNavigate } from "react-router-dom";
 import { describeApprovalError } from "../../utils/approvalError";
 import { getStoredUser } from "../../utils/authStorage";
-import { approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
+import { approveSelectedTempReports, approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import "./ReportsSplitReference.css";
@@ -149,7 +149,8 @@ export default function Reports() {
         managerActionLockRef.current = true;
         setApproving(true);
         try {
-            await approveTempReport(Number(detail.id));
+            // Use the same selected-approval API contract as the review workflow.
+            await approveSelectedTempReports([Number(detail.id)]);
             setDetail(null);
             await load();
             window.alert("Đã duyệt báo cáo thành công.");
@@ -250,7 +251,7 @@ export default function Reports() {
             </div>
 
             <div className="pending-filter-card" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(140px, .9fr)", gridTemplateAreas: '"search date process shift" "quick quick quick quick"', gap: "10px 12px", alignItems: "end", padding: 14, border: "1px solid #dbe6f2", borderRadius: 12, background: "#fff", boxShadow: "0 4px 14px rgba(35,76,125,.045)" }}>
-                <label className="pending-search" style={{ gridArea: "search", display: "flex", flexDirection: "column", alignSelf: "end", gap: 4, minWidth: 0, position: "relative" }}><span style={{ position: "static", display: "block", width: "auto", height: "auto", border: 0, fontSize: 12, lineHeight: "16px", color: "#526b88", zIndex: "auto" }}>Tìm kiếm</span><input aria-label="Tìm báo cáo chờ duyệt" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
+                <label className="pending-search" style={{ gridArea: "search", display: "flex", flexDirection: "column", alignSelf: "end", gap: 4, minWidth: 0, position: "relative" }}><span style={{ position: "static", display: "block", width: "auto", height: "auto", border: 0, fontSize: 12, lineHeight: "16px", color: "#526b88", zIndex: "auto" }}>Tìm kiếm</span><input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} aria-label="Tìm báo cáo theo mã hoặc công nhân" placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
                 <label className="pending-date-filter" style={{ gridArea: "date", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setRange(null); }} /></label>
                 <div className="pending-quick-filters" style={{ gridArea: "quick", minWidth: 0 }}>
                     {(["Hôm nay", "Tuần này", "Tháng này", "Năm này"] as const).map(label => {
@@ -295,7 +296,7 @@ export default function Reports() {
                         </table>
                     </div>
                     <div className="pending-table-footer" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 13 }}>
-                        <span role="status">Trang {page}/{pages} · {total} báo cáo</span>
+                        <span role="status" aria-live="polite">Trang {page}/{pages} · {total} báo cáo</span>
                         <nav className="management-pagination" aria-label="Phân trang báo cáo"><button type="button" aria-label="Trang trước" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button><button type="button" aria-label="Trang sau" disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button></nav>
                     </div>
                 </section>

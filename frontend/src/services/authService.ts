@@ -8,6 +8,10 @@ import {
     getAccessToken,
     getAuthEpoch,
     getRefreshToken,
+    getPreviousRefreshTokenForLogin,
+    preservePreviousRefreshTokenForLogin,
+    supportsElectronRefreshTokenBody,
+    clearPreviousRefreshTokenForLogin,
     getStoredUser,
     saveAuthSession
 } from "../utils/authStorage";
@@ -41,18 +45,19 @@ async function postLoginRequest(
     username: string,
     accessType: LoginAccessType,
     password: string,
-    previousRefreshToken?: string | null
+    previousRefreshToken: string | null
 ): Promise<LoginResponse> {
     let lastError: unknown;
 
-    // Web requests omit previous_refresh_token because getRefreshToken() returns null
-    // for HttpOnly-cookie sessions. Electron may send its native fallback token so
-    // the backend can revoke the previous session family during an account switch.
+    // Browser HTTP(S) clients keep refresh credentials in the HttpOnly cookie.
+    // Only Electron's opaque/file origin may send its native fallback token.
     const payload = {
         username: username.trim(),
         access_type: accessType,
         password,
-        previous_refresh_token: previousRefreshToken || undefined
+        ...(supportsElectronRefreshTokenBody() && previousRefreshToken
+            ? { previous_refresh_token: previousRefreshToken }
+            : {})
     };
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -90,12 +95,15 @@ function assertCommittedLoginSession(userId: number): void {
     }
 }
 
-export const login = async (
+let loginInFlight: Promise<LoginResponse> | null = null;
+
+const performLogin = async (
     username: string,
     accessType: LoginAccessType,
     password = ""
 ): Promise<LoginResponse> => {
-    const previousRefreshToken = getRefreshToken();
+    preservePreviousRefreshTokenForLogin();
+    const previousRefreshToken = getPreviousRefreshTokenForLogin();
     const loginEpoch = beginLoginTransition();
     clearAuthSession({ bumpEpoch: false });
     const loginSessionId = createAuthSessionId();
@@ -124,6 +132,7 @@ export const login = async (
         });
 
         assertCommittedLoginSession(data.user.id);
+        clearPreviousRefreshTokenForLogin();
         window.dispatchEvent(new CustomEvent("ktc:auth-session-saved"));
         return data;
     } catch (error) {
@@ -136,6 +145,26 @@ export const login = async (
     }
 };
 
+/**
+ * Only one login request may mutate auth state in this renderer at a time.
+ * The UI disables repeat submissions too, but this guard protects other callers.
+ */
+export const login = (
+    username: string,
+    accessType: LoginAccessType,
+    password = ""
+): Promise<LoginResponse> => {
+    if (loginInFlight) {
+        return Promise.reject(new axios.CanceledError("Đang xử lý một yêu cầu đăng nhập khác."));
+    }
+
+    const attempt = performLogin(username, accessType, password);
+    loginInFlight = attempt;
+    return attempt.finally(() => {
+        if (loginInFlight === attempt) loginInFlight = null;
+    });
+};
+
 export const refreshSession = async (): Promise<RefreshResponse> => {
     const accessToken = await refreshAccessToken(true);
     return { success: true, message: "Phiên đã được làm mới", accessToken };
@@ -143,9 +172,7 @@ export const refreshSession = async (): Promise<RefreshResponse> => {
 
 export const logout = async (): Promise<void> => {
     const refreshToken = getRefreshToken();
-    // Retire the session immediately for this user, then bind delayed completion
-    // to the epoch created by this logout. A new login must never be cleared by
-    // the finally block of an older logout request.
+    clearPreviousRefreshTokenForLogin();
     clearAuthSession();
     const logoutEpoch = getAuthEpoch();
 
@@ -157,8 +184,10 @@ export const logout = async (): Promise<void> => {
     } catch {
         // Local identity is already retired. Server-side expiry/revocation is best-effort.
     } finally {
+        // A logout request may finish after another account has signed in.
+        // Never let this stale completion clear the newer session.
         if (getAuthEpoch() === logoutEpoch) {
-            clearAuthSession();
+            clearAuthSession({ bumpEpoch: false });
         }
     }
 };

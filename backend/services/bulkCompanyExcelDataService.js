@@ -5,7 +5,7 @@ const { hasColumn } = require('./schemaCompatibilityService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
 const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
 
-const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
+const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3','CVK'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
 
 function monthRange(yearMonth) {

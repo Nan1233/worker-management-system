@@ -1,12 +1,39 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const permissionService = require('../services/permissionService');
 const db = require('../config/db');
+const realDbPromise = db.promise;
+
+function useDefaultOnlySchemaMock() {
+  db.promise = () => ({
+    query: async (sql) => {
+      if (/information_schema\.tables/i.test(sql)) return [[{ total: 0 }], []];
+      throw new Error(`Unexpected database query in default-only permission matrix test: ${sql}`);
+    }
+  });
+}
+
+useDefaultOnlySchemaMock();
+const permissionService = require('../services/permissionService');
 
 test.after(async () => {
+  db.promise = realDbPromise;
   if (typeof db.closePool === 'function') await db.closePool();
 });
+
+async function withPermissionDb(query, run) {
+  const servicePath = require.resolve('../services/permissionService');
+  const previousPromise = db.promise;
+  db.promise = () => ({ query });
+  delete require.cache[servicePath];
+  const service = require('../services/permissionService');
+  try {
+    await run(service);
+  } finally {
+    delete require.cache[servicePath];
+    db.promise = previousPromise;
+  }
+}
 
 function testMatrixForRole(role) { return permissionService.getEffectivePermissions({ id: 900000 + role.length, role }); }
 
@@ -76,4 +103,68 @@ test('system health stays management-level, not inherited by Lead', async () => 
   assert.equal(lead.has('SYSTEM_HEALTH_VIEW'), false);
   assert.equal(manager.has('SYSTEM_HEALTH_VIEW'), true);
   assert.equal(admin.has('SYSTEM_HEALTH_VIEW'), true);
+});
+
+
+test('missing permission override tables use role defaults only when metadata query succeeds', async () => {
+  await withPermissionDb(async (sql) => {
+    assert.match(sql, /information_schema\.tables/i);
+    return [[{ total: 0 }], []];
+  }, async (service) => {
+    const permissions = await service.getEffectivePermissions({ id: 940001, role: 'worker' });
+    assert.equal(permissions.has('WORKER_ENTRY'), true);
+    assert.equal(permissions.has('REPORT_APPROVE'), false);
+  });
+});
+
+test('permission overrides are applied when both override tables exist', async () => {
+  await withPermissionDb(async (sql) => {
+    if (/information_schema\.tables/i.test(sql)) return [[{ total: 2 }], []];
+    if (/FROM role_permission_overrides/i.test(sql)) {
+      return [[{ permission_code: 'REPORT_APPROVE', allowed: 0 }], []];
+    }
+    if (/FROM user_permission_overrides/i.test(sql)) return [[], []];
+    throw new Error(`Unexpected query: ${sql}`);
+  }, async (service) => {
+    const permissions = await service.getEffectivePermissions({ id: 940002, role: 'lead' });
+    assert.equal(permissions.has('REPORT_APPROVE'), false, 'explicit role deny must override the default');
+  });
+});
+
+test('permission schema lookup errors propagate and do not poison schema cache', async () => {
+  const timeout = Object.assign(new Error('simulated database timeout'), { code: 'ETIMEDOUT' });
+  let schemaLookups = 0;
+  await withPermissionDb(async (sql) => {
+    assert.match(sql, /information_schema\.tables/i);
+    schemaLookups += 1;
+    if (schemaLookups === 1) throw timeout;
+    return [[{ total: 0 }], []];
+  }, async (service) => {
+    await assert.rejects(
+      service.getEffectivePermissions({ id: 940003, role: 'lead' }),
+      (error) => error === timeout
+    );
+    const recovered = await service.getEffectivePermissions({ id: 940003, role: 'lead' });
+    assert.equal(recovered.has('REPORT_APPROVE'), true);
+    assert.equal(schemaLookups, 2, 'a transient failure must be retried, not cached as missing schema');
+  });
+});
+
+test('permission schema privilege and SQL errors do not silently fall back to role defaults', async () => {
+  const failures = [
+    Object.assign(new Error('simulated information_schema access denied'), { code: 'ER_TABLEACCESS_DENIED_ERROR' }),
+    Object.assign(new Error('simulated schema query syntax error'), { code: 'ER_PARSE_ERROR' }),
+    Object.assign(new Error('simulated connection reset'), { code: 'ECONNRESET' })
+  ];
+  for (const failure of failures) {
+    await withPermissionDb(async (sql) => {
+      assert.match(sql, /information_schema\.tables/i);
+      throw failure;
+    }, async (service) => {
+      await assert.rejects(
+        service.getEffectivePermissions({ id: 940004, role: 'manager' }),
+        (error) => error === failure
+      );
+    });
+  }
 });

@@ -108,3 +108,26 @@ test('full authorization audit: frontend permission catalog matches backend cata
   for (const code of new Set(backendCodes)) assert.ok(frontendCodes.includes(code), `frontend missing ${code}`);
   assert.doesNotMatch(frontend, /FORMULA_VIEW|FORMULA_EDIT|PERIOD_LOCK|PERIOD_UNLOCK/);
 });
+
+test('authentication and role middleware do not emit debug logs containing user identity or request URLs', () => {
+  const auth = read('middleware/authMiddleware.js');
+  const role = read('middleware/roleMiddleware.js');
+  assert.doesNotMatch(auth, /\[AUTH DEBUG\]/);
+  assert.doesNotMatch(role, /\[AUTH DEBUG\]/);
+  assert.doesNotMatch(auth, /console\.(?:info|log|warn)\([^\n]*req\.originalUrl/);
+  assert.doesNotMatch(role, /console\.(?:info|log|warn)\([^\n]*req\.originalUrl/);
+});
+
+test('Cloudflare test Worker configuration redacts query strings from observability logs', () => {
+  const config = read('wrangler.jsonc');
+  assert.match(config, /"observability"\s*:\s*\{[^}]*"redact_query_string"\s*:\s*true/);
+});
+
+
+test('approved report edits require an explicit audit reason at the API boundary', () => {
+  const routes = read('routes/productionRoutes.js');
+  assert.match(routes, /const ensureApprovedEditReason=\(req,res,next\)=>\{/);
+  assert.match(routes, /if\(!reason\)return res\.status\(422\)\.json\(\{success:false,code:"CHANGE_REASON_REQUIRED"/);
+  assert.match(routes, /permission\("REPORT_APPROVED_EDIT"\),ensureApprovedEditReason,approvedReportEditLock/);
+  assert.doesNotMatch(routes, /req\.body\.reason=String\(req\.body\.reason\|\|req\.body\.change_reason\|\|"Cập nhật báo cáo đã duyệt"\)/);
+});

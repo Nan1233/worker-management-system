@@ -217,7 +217,7 @@
 
 
 /* Single-machine product selector spans the full form grid on compact layouts. */
-.single-machine-product-scope, .worker-dynamic-grid > .single-machine-product-scope {
+.single-machine-product-scope, .single-machine-product-scope .worker-field-full, .worker-dynamic-grid > .single-machine-product-scope {
   grid-column: 1 / -1;
   min-width: 0;
 }

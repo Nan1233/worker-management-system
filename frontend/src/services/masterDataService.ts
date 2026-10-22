@@ -260,7 +260,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
         // product/process standard for the machine's inferred Cắt/Lồng type.
         if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
         if (!productExistsInProcess) {
-            throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn và không có định mức máy/phương án fallback`);
+            throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn và không có định mức máy/phương án fallback`, { cause: error });
         }
         throw error;
     }

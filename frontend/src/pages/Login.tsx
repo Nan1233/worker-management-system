@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { login } from "../services/authService";
 import { beginLoginTransition, finishLoginTransition } from "../services/api";
-import { clearAuthSession, clearCurrentTabAuthSession } from "../utils/authStorage";
+import { clearAuthSession, clearCurrentTabAuthSession, preservePreviousRefreshTokenForLogin } from "../utils/authStorage";
 import type { User, UserRole } from "../types/auth";
 
 type LoginStep = "employee-code" | "role-choice" | "management-password";
@@ -19,11 +19,12 @@ const normalizeWorkerLoginCode = (value: string): string => { const trimmed = va
 
 function Login() {
     const navigate = useNavigate();
-    const loginPageInitializedRef = useRef(false);
+    const initializedRef = useRef(false);
+    const loginInFlightRef = useRef(false);
     const [username, setUsername] = useState(() => localStorage.getItem(REMEMBERED_CODE_KEY) || "");
     const [password, setPassword] = useState("");
     const [step, setStep] = useState<LoginStep>("employee-code");
-    const [accessType, setAccessType] = useState<AccessType | null>(null);
+    const [, setAccessType] = useState<AccessType | null>(null);
     const [rememberAccount, setRememberAccount] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
@@ -31,11 +32,11 @@ function Login() {
     const [loginLogoSrc, setLoginLogoSrc] = useState(LOGIN_LOGO_URL);
 
     useEffect(() => {
-        if (loginPageInitializedRef.current) return;
-        loginPageInitializedRef.current = true;
+        if (initializedRef.current) return;
+        initializedRef.current = true;
         const passiveCrossTabRedirect = sessionStorage.getItem(CROSS_TAB_LOGIN_MARKER_KEY) === "1";
         sessionStorage.removeItem(CROSS_TAB_LOGIN_MARKER_KEY);
-        if (passiveCrossTabRedirect) clearCurrentTabAuthSession(); else { beginLoginTransition(); clearAuthSession({ bumpEpoch: false }); finishLoginTransition(); }
+        if (passiveCrossTabRedirect) clearCurrentTabAuthSession(); else { preservePreviousRefreshTokenForLogin(); beginLoginTransition(); clearAuthSession({ bumpEpoch: false }); finishLoginTransition(); }
         sessionStorage.removeItem("redirectAfterLogin");
         if (/\/login\/?$/.test(window.location.pathname)) {
             const canonicalUrl = `${window.location.origin}/#${window.location.hash.replace(/^#/, "") || "/login"}`;
@@ -60,10 +61,12 @@ function Login() {
     };
     const chooseRole = (type: AccessType) => { blurActiveLoginField(); setAccessType(type); setPassword(""); setError(""); if (type === "worker") { void completeLogin("worker"); return; } setStep("management-password"); };
     const completeLogin = async (type: AccessType) => {
+        if (loginInFlightRef.current) return;
         blurActiveLoginField();
         const rawUsername = username.trim();
         if (!rawUsername) { setError("Vui lòng nhập mã nhân viên."); setStep("employee-code"); return; }
         if (type === "management" && !password) { setError("Vui lòng nhập mật khẩu quản lý."); setStep("management-password"); return; }
+        loginInFlightRef.current = true;
         setError(""); setLoading(true);
         try {
             const loginUsername = type === "worker" ? normalizeWorkerLoginCode(rawUsername) : rawUsername;
@@ -74,12 +77,13 @@ function Login() {
             const redirectAfterLogin = sessionStorage.getItem("redirectAfterLogin"); sessionStorage.removeItem("redirectAfterLogin");
             navigate(redirectAfterLogin && redirectAfterLogin !== "/login" ? redirectAfterLogin : homeByRole[user.role] || "/", { replace: true });
         } catch (err: unknown) {
+            if (axios.isCancel(err)) return;
             blurActiveLoginField();
             beginLoginTransition(); clearAuthSession({ bumpEpoch: false }); finishLoginTransition();
             if (axios.isAxiosError(err)) { const responseData = err.response?.data as { message?: string; error?: string } | undefined; setError(responseData?.message || responseData?.error || "Mã nhân viên hoặc thông tin đăng nhập không hợp lệ."); }
             else setError(err instanceof Error ? err.message : "Không thể đăng nhập. Vui lòng thử lại.");
             setStep(type === "management" ? "management-password" : "role-choice");
-        } finally { setLoading(false); }
+        } finally { loginInFlightRef.current = false; setLoading(false); }
     };
     const submitManagementLogin = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); blurActiveLoginField(); void completeLogin("management"); };
     const backToCode = () => { blurActiveLoginField(); setPassword(""); setError(""); setAccessType(null); setStep("employee-code"); };

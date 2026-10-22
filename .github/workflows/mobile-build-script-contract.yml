@@ -1,0 +1,22 @@
+name: Mobile Build Script Contract
+
+on:
+  push:
+    branches:
+      - test
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-build-script-contract:
+    name: Validate mobile build scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Mobile build script regression tests
+        run: node --test frontend/tests/mobile-build-scripts.test.cjs

@@ -25,6 +25,8 @@ test('single machine line with missing hours and valid worker time still require
     id: 10, work_date: '2026-09-01', total_time: 8, deduction_time: 1,
     operation_mode: 'MACHINE', machineLines: [{ id: 20, machine_code: 'GC01', machine_time_hours: 0 }]
   });
+  // Current policy (see classifyReport): worker time is not proof of physical machine time,
+  // so even a single machine line with missing hours is never auto-qualified.
   assert.equal(result.action, 'REVIEW');
   assert.equal(result.reason, 'MISSING_MACHINE_TIME_CANNOT_BE_INFERRED_FROM_WORKER_TIME');
 });

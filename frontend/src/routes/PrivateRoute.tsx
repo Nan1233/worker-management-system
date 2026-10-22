@@ -20,7 +20,7 @@ const homeByRole: Record<Role, string> = {
 };
 
 const PrivateRoute = ({ children, allowedRoles }: PrivateRouteProps) => {
-    const location = useLocation();
+    useLocation();
     const token = getAccessToken();
     const storedUser = getStoredUser() || recoverUserFromAccessToken();
 

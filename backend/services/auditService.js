@@ -133,6 +133,12 @@ async function logActivity(
   );
 }
 
+// Cloudflare Workers talk to TiDB Serverless over HTTP, where insertId metadata and session state
+// (LAST_INSERT_ID) are not reliable. Evaluated per call so tests can switch it.
+function usesExplicitVersionAllocation() {
+  return process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+}
+
 async function createReportVersion(
   {
     reportType,
@@ -154,16 +160,46 @@ async function createReportVersion(
   const changeReason = reason ? String(reason).slice(0, 500) : null;
   const createdBy = Number(userId) || null;
 
-  // Generate the next version and insert it in one SQL statement. On Cloudflare
-  // each TiDB Serverless execute consumes a Worker subrequest, so a separate
-  // SELECT MAX(version_no) followed by INSERT needlessly doubles this operation.
-  // LAST_INSERT_ID(expr) overrides the session's last-insert-id with the computed
-  // version_no, so result.insertId below returns the per-report version number —
-  // not report_versions.id, which is a global, unrelated AUTO_INCREMENT PK that
-  // callers (e.g. restoring back to a specific version_no) must never receive.
-  // Keep duplicate-key retries for concurrent writers.
+  // report_versions.id is a global AUTO_INCREMENT key; callers (e.g. restoring back to a specific
+  // version_no) must receive the per-report version_no, never that id.
+  //
+  // The version number is always one this call itself allocated or one the database reported for
+  // this very INSERT. It is never guessed by reading "the latest row" afterwards, because a
+  // concurrent writer for the same report could be that latest row.
+  //
+  // Both paths rely on UNIQUE KEY uq_report_version (report_type, report_id, version_no): a
+  // concurrent writer that takes the same number makes the INSERT fail with a duplicate-key error
+  // and this call retries with a fresh number.
+  const explicitAllocation = usesExplicitVersionAllocation();
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
+      if (explicitAllocation) {
+        // Cloudflare / TiDB Serverless (HTTP): the driver may not return insertId or LAST_INSERT_ID(expr)
+        // for INSERT ... SELECT, and every statement outside a transaction can be a separate session,
+        // so nothing can be read back afterwards. Allocate the number first, then insert it explicitly.
+        const nextRows = await query(
+          executor,
+          `SELECT COALESCE(MAX(version_no), 0) + 1 AS next_version
+             FROM report_versions
+            WHERE report_type=? AND report_id=?`,
+          [normalizedType, normalizedReportId],
+        );
+        const nextVersion = Number(nextRows?.[0]?.next_version ?? nextRows?.[0]?.nextVersion ?? 0);
+        if (!Number.isInteger(nextVersion) || nextVersion <= 0) {
+          throw new Error('Không thể xác định version_no tiếp theo');
+        }
+        await query(
+          executor,
+          `INSERT INTO report_versions
+            (report_type, report_id, version_no, snapshot_json, change_reason, created_by)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [normalizedType, normalizedReportId, nextVersion, snapshotJson, changeReason, createdBy],
+        );
+        return nextVersion;
+      }
+
+      // MySQL driver path: one statement; LAST_INSERT_ID(expr) overrides the session's last-insert-id
+      // with the computed version_no, so result.insertId is the per-report version number.
       const result = await query(
         executor,
         `INSERT INTO report_versions
@@ -181,24 +217,9 @@ async function createReportVersion(
           normalizedReportId,
         ],
       );
-      let versionNo = Number(result?.insertId ?? result?.lastInsertId ?? 0);
-
-      // TiDB Serverless HTTP SQL may omit MySQL's insertId/LAST_INSERT_ID
-      // metadata even when the INSERT succeeded. Fall back to reading the
-      // report-scoped version number on the same executor/transaction.
+      const versionNo = Number(result?.insertId ?? result?.lastInsertId ?? 0);
       if (!Number.isInteger(versionNo) || versionNo <= 0) {
-        const rows = await query(
-          executor,
-          `SELECT version_no
-             FROM report_versions
-            WHERE report_type=? AND report_id=?
-            ORDER BY version_no DESC
-            LIMIT 1`,
-          [normalizedType, normalizedReportId],
-        );
-        versionNo = Number(rows?.[0]?.version_no ?? rows?.[0]?.versionNo ?? 0);
-      }
-      if (!Number.isInteger(versionNo) || versionNo <= 0) {
+        // The row may exist but its number is unknown. Fail loudly rather than guess.
         throw new Error('Không thể xác định version_no vừa tạo');
       }
       return versionNo;

@@ -3,9 +3,22 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+// The models import the real DB pool, which keeps `node --test` alive forever. Every query in this file goes
+// through an explicit fake executor, so load the models with an inert db module.
+const Module = require('node:module');
+const originalLoad = Module._load;
+Module._load = function (request, parent, isMain) {
+  if (/(^|\/)config\/db$/.test(request)) {
+    const inert = () => { throw new Error('real database must not be used in this test'); };
+    return { promise: inert, query: inert, getConnection: inert, execute: inert };
+  }
+  return originalLoad.call(this, request, parent, isMain);
+};
+
 const createModel = require('../models/productionTempCreateModel');
 const reportModel = require('../models/productionTempModel');
 const updateModel = require('../models/productionTempUpdateModel');
+Module._load = originalLoad;
 
 function callbackExecutor(handler) {
   const statements = [];

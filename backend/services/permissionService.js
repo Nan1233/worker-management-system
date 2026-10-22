@@ -116,10 +116,12 @@ function applyMandatoryRolePermissions(role, permissions) {
 }
 async function ensureSchemaAvailable() {
   if (schemaAvailable !== undefined) return schemaAvailable;
-  try {
-    const [rows] = await db.promise().query(`SELECT COUNT(*) total FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('role_permission_overrides','user_permission_overrides')`);
-    schemaAvailable = Number(rows?.[0]?.total || 0) === 2;
-  } catch { schemaAvailable = false; }
+
+  // Missing override tables are a supported legacy-schema state: the metadata
+  // query succeeds and returns a count below 2. A query/connection/privilege
+  // error is different: do not silently ignore configured permission overrides.
+  const [rows] = await db.promise().query(`SELECT COUNT(*) total FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('role_permission_overrides','user_permission_overrides')`);
+  schemaAvailable = Number(rows?.[0]?.total || 0) === 2;
   return schemaAvailable;
 }
 function clearPermissionCache(userId) { if (userId) cache.delete(Number(userId)); else cache.clear(); }

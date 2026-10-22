@@ -338,8 +338,8 @@ async function runPendingMigrations(){
         if(migration.filename === '032_add_2801_lt_long_machine_20260908.sql' ||
            migration.filename === '060_schema_gaps_encoding_updated_by_standard_source_20261022.sql'){
           // Both migrations are safe to restart from statement 1: 032 has its
-          // existing recovery contract; 060 uses ADD COLUMN IF NOT EXISTS and
-          // repeatable widening ALTERs so TiDB can resume after PREPARE failure.
+          // existing recovery contract; 060 is only ADD COLUMN IF NOT EXISTS
+          // (earlier drafts of 060 used PREPARE/MODIFY, which may have left progress behind).
           console.warn(`[KTC][MIGRATION] checksum changed for recoverable ${migration.filename}; resetting progress to statement 1`);
           statementIndex=0;
           await connection.query('UPDATE schema_migration_steps SET checksum=?, statement_index=0 WHERE id=1',[checksum]);

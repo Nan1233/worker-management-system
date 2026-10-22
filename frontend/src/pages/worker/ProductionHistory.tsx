@@ -289,12 +289,12 @@ function ProductionHistory() {
 
                 {error && <div className="history-error">{error}</div>}
 
-                {filteredReports.length === 0 ? (
+                {!error && filteredReports.length === 0 ? (
                     <div className="history-empty">
                         <strong>Không tìm thấy báo cáo</strong>
                         <p>Thử thay đổi từ khóa hoặc bộ lọc.</p>
                     </div>
-                ) : (
+                ) : !error && filteredReports.length > 0 ? (
                     <section className="report-card">
                         <div className="table-container">
                             <table className="history-table">
@@ -345,7 +345,7 @@ function ProductionHistory() {
                             )}
                         </div>
                     </section>
-                )}
+                ) : null}
             </div>
         </main>
     );

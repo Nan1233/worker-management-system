@@ -43,4 +43,7 @@ test('desktop validates generated workbooks with smoke test before packaging', (
   // fixed phrase in that free-text summary drifts independently of whether the
   // underlying behavior it originally described is still verified.
   assert.match(smokeSource, /không được đổ từ DB khi tên\/code DB khác tên template/);
+  // The smoke script's success label was reworded; assert the substance it still covers.
+  assert.match(smokeSource, /DEF_KQD_DB/);
+  assert.match(smokeSource, /18 CAT\/LONG headers/);
 });
