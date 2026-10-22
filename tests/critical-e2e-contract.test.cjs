@@ -5,7 +5,9 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const e2e = fs.readFileSync(path.join(root, 'scripts/zero-cost/critical-e2e.cjs'), 'utf8');
-const workflow = fs.readFileSync(path.join(root, '.github/workflows/quality-gate.yml'), 'utf8');
+const workflowPath = path.join(root, '.github/workflows/quality-gate.yml');
+const workflowExists = fs.existsSync(workflowPath);
+const workflow = workflowExists ? fs.readFileSync(workflowPath, 'utf8') : '';
 
 test('critical E2E covers the required worker flows', () => {
   for (const marker of [
@@ -20,7 +22,10 @@ test('critical E2E covers the required worker flows', () => {
   ]) assert.match(e2e, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
-test('quality gate runs the critical E2E contract on test and main', () => {
+// quality-gate.yml was removed on purpose (commit 5f71f64a, "disable GitHub Actions for release gate"; absent since
+// 89b97e80). The other contracts in this file do not depend on it and keep running; this one is skipped
+// explicitly (not silently passed) and applies again as soon as the workflow is restored.
+test('quality gate runs the critical E2E contract on test and main', { skip: workflowExists ? false : 'quality-gate.yml is not in the repository' }, () => {
   assert.match(workflow, /branches:\s*\[main, test\]/);
   assert.match(workflow, /node --test tests\/critical-e2e-contract\.test\.cjs/);
 });
