@@ -7,10 +7,10 @@ const root = path.resolve(__dirname, '..');
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 
 test('approved report editing requires an audit reason in the UI', () => {
-  const source = read('src/pages/manager/EditReport.tsx');
-  assert.match(source, /source === "approved" && !changeReason\.trim\(\)/);
-  assert.match(source, /changeReason/);
-  assert.match(source, /reason: source === "approved" \? changeReason\.trim\(\) : undefined/);
+  const source = read('src/pages/worker/WorkerReportEditV2.tsx');
+  assert.match(source, /managerRoute && source === "approved" && !auditReason\.trim\(\)/);
+  assert.match(source, /auditReason/);
+  assert.match(source, /reason: auditReason\.trim\(\)/);
 });
 
 test('approved report delete API sends an explicit deletion reason', () => {
