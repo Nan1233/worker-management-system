@@ -74,14 +74,8 @@ async function buildDatabase() {
       await connection.query(fs.readFileSync(path.join(BACKEND_DIR, 'migrations', file), 'utf8'));
     }
 
-    // KNOWN SCHEMA GAPS (see report): application code uses columns that no SQL file in
-    // this repository creates (the live database has them from earlier rebuilds). Until a
-    // reviewed migration exists the harness adds them so the real code paths can run.
-    // product_standards.encoding_code is selected by every report submission.
-    await connection.query('ALTER TABLE product_standards ADD COLUMN IF NOT EXISTS encoding_code VARCHAR(180) NULL');
-    // Same gap: approved-report edits run "UPDATE production_reports SET updated_by=?" but
-    // only production_reports_temp.updated_by is created by a migration (029).
-    await connection.query('ALTER TABLE production_reports ADD COLUMN IF NOT EXISTS updated_by BIGINT NULL');
+    // Schema gaps that used to be patched here (product_standards.encoding_code, production_reports.updated_by,
+    // standard_source width) are now closed by migration 060, so these tests exercise the repository's own SQL.
 
     // Keep master data (processes, machines, products, deduction/defect types);
     // drop every person, session and report so each test starts deterministic.

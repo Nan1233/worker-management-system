@@ -1,6 +1,6 @@
 const db = require("../config/db");
 const AuditService = require("../services/auditService");
-const { query, getConnection, beginTransaction, commit, rollback } = require("./productionTempModelShared");
+const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback } = require("./productionTempModelShared");
 const createModel = require("./productionTempCreateModel");
 const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
 const { buildLogicalDuplicateKey, normalizeNonProductWorkType } = require("../services/logicalDuplicateReportService");
@@ -79,7 +79,7 @@ async function createCompleteReport(payload = {}) {
   data.logical_duplicate_key = logicalDuplicateKey;
   const connection = await getConnection();
   try {
-    await beginTransaction(connection);
+    await beginReadCommittedTransaction(connection);
     const clientRequestId = String(data.client_request_id || "").trim();
     if (!clientRequestId) { const error = new Error("Thiếu mã yêu cầu gửi báo cáo"); error.status = 400; error.code = "CLIENT_REQUEST_ID_REQUIRED"; error.isPublic = true; throw error; }
     const previousRequest = await createModel.findByClientRequest(workerId, clientRequestId, connection);

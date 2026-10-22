@@ -2,10 +2,10 @@ const AuditService = require("../services/auditService");
 const createModel = require("./productionTempCreateModel");
 const { recalculateReportOutput } = require("../services/kqdReportCalculationService");
 const { validateMachineLines } = require("../services/machineLineValidationService");
-const { query, getConnection, beginTransaction, commit, rollback, editableFields } = require("./productionTempModelShared");
+const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback, editableFields } = require("./productionTempModelShared");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
-const DAILY_HOURS_LIMIT = 12;
+const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
 const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isGc = false, excludeTempReportId = null }) => {
@@ -32,7 +32,7 @@ const checkDailyHours = async (connection, { workerId, workDate, incomingActualH
         ? Math.max(...incomingMachineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0)))
         : (Number(incomingActualHours) || 0);
     const projectedHours = existingHours + incoming;
-    if (projectedHours > DAILY_HOURS_LIMIT + 0.000001) {
+    if (exceedsDailyHoursLimit(projectedHours)) {
         const remainingHours = Math.max(0, DAILY_HOURS_LIMIT - existingHours);
         const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existingHours.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remainingHours.toFixed(2)} giờ.`);
         error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
@@ -66,7 +66,7 @@ module.exports = {
     async updateReport(id, data, changedBy, reason = null, options = {}) {
         const connection = await getConnection();
         try {
-            await beginTransaction(connection);
+            await beginReadCommittedTransaction(connection);
             const { isAdmin = false, workerId = null } = options;
             const isWorkerEdit = Number(workerId) > 0;
             const scopeJoin = isAdmin || isWorkerEdit ? "" : "JOIN manager_processes mp ON mp.process_id = pr.process_id";

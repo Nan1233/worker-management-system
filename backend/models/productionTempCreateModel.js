@@ -1,13 +1,13 @@
 const crypto = require("node:crypto");
 const db = require("../config/db");
 const AuditService = require("../services/auditService");
-const { query, getConnection, beginTransaction, commit, rollback } = require("./productionTempModelShared");
+const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback } = require("./productionTempModelShared");
 const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
-const DAILY_HOURS_LIMIT = 12;
+const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const getStoredWorkType = (value) => {
     if (value && typeof value === "object") return String(value.work_type || "").trim();
     if (typeof value === "string") {
@@ -40,7 +40,7 @@ const enforceDailyHoursLocked = async (executor, data) => {
         ) daily_hours`, [workerId, workDate, workerId, workDate]);
     const existing = Number(rows?.[0]?.counted_hours || 0);
     const projected = existing + incoming;
-    if (projected > DAILY_HOURS_LIMIT + 0.000001) {
+    if (exceedsDailyHoursLimit(projected)) {
         const remaining = Math.max(0, DAILY_HOURS_LIMIT - existing);
         const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remaining.toFixed(2)} giờ.`);
         error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
@@ -489,7 +489,7 @@ module.exports = {
         const connection = await getConnection();
 
         try {
-            await beginTransaction(connection);
+            await beginReadCommittedTransaction(connection);
 
             const clientRequestId = String(data.client_request_id || "").trim();
             if (!clientRequestId) {

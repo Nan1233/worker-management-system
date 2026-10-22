@@ -6,13 +6,13 @@ const reviewModel = require("./productionTempReviewModel");
 const historyModel = require("./productionTempHistoryModel");
 const updateModel = require("./productionTempUpdateModel");
 const AuditService = require("../services/auditService");
-const { query, getConnection, beginTransaction, commit, rollback } = require("./productionTempModelShared");
+const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback } = require("./productionTempModelShared");
 const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
-const DAILY_HOURS_LIMIT = 12;
+const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const submissionQueues = new Map();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -86,7 +86,7 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
         ) daily_hours`, [workerId, workDate, workerId, workDate]);
     const existing = Number(rows?.[0]?.counted_hours || 0);
     const projected = existing + incoming;
-    if (projected > DAILY_HOURS_LIMIT + 0.000001) {
+    if (exceedsDailyHoursLimit(projected)) {
         const error = new Error(`Tổng giờ làm trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ.`);
         error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
         error.details = { worker_id: workerId, work_date: workDate, existing_hours: Number(existing.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projected.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, counted_field: "actual_time_or_gc_machine_line_actual_time" };
@@ -295,7 +295,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         let tempId;
         const parentConnection = await getConnection();
         try {
-            await beginTransaction(parentConnection);
+            await beginReadCommittedTransaction(parentConnection);
             const race = await findExistingClientRequest(data, parentConnection);
             if (race) { await commit(parentConnection); return idempotent(race); }
             try { tempId = await createModel.create(data, parentConnection); }
