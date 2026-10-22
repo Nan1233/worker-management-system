@@ -15,9 +15,9 @@ test('SOURCE_CONTRACT: manager list service sends bounded server pagination and 
 
 test('SOURCE_CONTRACT: pending page consumes server pagination and total count instead of client slice', () => {
   const source = read('src/pages/manager/Reports.tsx');
-  assert.match(source, /setTotalCount\(result\.pagination\.total\)/);
-  assert.match(source, /setTotalPages\(result\.pagination\.total_pages\)/);
-  assert.match(source, /page:\s*currentPage/);
+  assert.match(source, /setTotal\(result\.pagination\?\.total \|\| 0\)/);
+  assert.match(source, /setPages\(Math\.max\(1, result\.pagination\?\.total_pages \|\| 1\)\)/);
+  assert.match(source, /page, pageSize: 8/);
   assert.doesNotMatch(source, /filteredReports\.slice/);
 });
 
@@ -32,9 +32,9 @@ test('SOURCE_CONTRACT: approved page consumes server pagination and total count 
 test('SOURCE_CONTRACT: filter/search changes reset page and clear stale selection', () => {
   for (const file of ['src/pages/manager/Reports.tsx', 'src/pages/manager/ApprovedReports.tsx']) {
     const source = read(file);
-    assert.match(source, /setCurrentPage\(1\)/);
+    assert.match(source, /setPage\(1\)/);
     assert.match(source, /setSelectedIds\(\[\]\)/);
-    assert.match(source, /selectedShift, selectedProcess/);
+    assert.match(source, /\[date, range, process, shift, searchQuery\]/);
   }
 });
 
