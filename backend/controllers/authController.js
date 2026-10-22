@@ -61,10 +61,10 @@ function clearRefreshCookie(res) {
 }
 
 function shouldReturnRefreshToken(req) {
-    // Electron keeps a body-token fallback because file:// renderer cookie behavior
-    // differs by platform. Chromium file:// requests may omit Origin or send the
-    // opaque value "null". HTTP(S) browser origins must keep refresh tokens
-    // HttpOnly-only. Browser JavaScript cannot set a forged User-Agent header.
+    // Compatibility discriminator only, NOT client authentication: arbitrary HTTP
+    // clients can spoof both User-Agent and Origin. Never use this predicate to
+    // bypass account/role/password checks. Electron retains a body-token fallback
+    // because file:// cookie behavior varies; HTTP(S) browser origins stay cookie-only.
     const userAgent = String(req.headers["user-agent"] || "");
     const origin = String(req.headers.origin || "").trim().toLowerCase();
     const isOpaqueNativeOrigin = !origin || origin === "null" || origin.startsWith("file:");
@@ -180,18 +180,27 @@ function generateAccessToken(user) {
 }
 
 async function issueLoginSession(req, res, user) {
+    const bodyPreviousRefreshToken = shouldReturnRefreshToken(req) &&
+        typeof req.body?.previous_refresh_token === "string"
+        ? req.body.previous_refresh_token.trim()
+        : "";
     const previousRefreshToken =
-        (typeof req.body?.previous_refresh_token === "string"
-            ? req.body.previous_refresh_token.trim()
-            : "") || parseCookie(req, REFRESH_COOKIE_NAME);
+        bodyPreviousRefreshToken || parseCookie(req, REFRESH_COOKIE_NAME);
 
     // Khi đổi tài khoản, thu hồi phiên cũ trước khi tạo phiên mới. Điều này
     // ngăn tab/PWA cũ dùng refresh token trước đó để ghi đè tài khoản vừa đăng nhập.
     if (previousRefreshToken) {
         try {
+            // A missing/expired token is an allowed no-op (service returns found:false).
+            // Infrastructure failures must stop login before creating a new family.
             await refreshSessionService.revokeFamilyByRefreshToken(previousRefreshToken);
-        } catch (revokeError) {
-            console.warn("Không thể thu hồi phiên trước khi đổi tài khoản:", revokeError?.message || revokeError);
+        } catch {
+            console.error("AUTH_PREVIOUS_SESSION_REVOCATION_FAILED");
+            return res.status(503).json({
+                success: false,
+                code: "AUTH_PREVIOUS_SESSION_REVOCATION_FAILED",
+                message: "Không thể hoàn tất đăng nhập an toàn. Vui lòng thử lại."
+            });
         }
     }
 
@@ -403,7 +412,10 @@ exports.login = async (req, res) => {
 
         return issueLoginSession(req, res, user);
     } catch (error) {
-        console.error("Lỗi đăng nhập:", error);
+        console.error("AUTH_LOGIN_ERROR", {
+            code: typeof error?.code === "string" ? error.code : "AUTH_LOGIN_FAILED",
+            name: typeof error?.name === "string" ? error.name : "Error"
+        });
 
         const databaseUnavailable = [
             "ECONNREFUSED",
@@ -530,7 +542,10 @@ exports.logout = async (req, res) => {
             message: "Đăng xuất thành công"
         });
     } catch (error) {
-        console.error("Lỗi đăng xuất:", error);
+        console.error("AUTH_LOGOUT_ERROR", {
+            code: typeof error?.code === "string" ? error.code : "AUTH_LOGOUT_FAILED",
+            name: typeof error?.name === "string" ? error.name : "Error"
+        });
 
         return res.status(500).json({
             success: false,
