@@ -49,7 +49,8 @@ async function postLoginRequest(
     const payload = {
         username: username.trim(),
         access_type: accessType,
-        password
+        password,
+        previous_refresh_token: previousRefreshToken || undefined
     };
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -92,6 +93,7 @@ export const login = async (
     accessType: LoginAccessType,
     password = ""
 ): Promise<LoginResponse> => {
+    const previousRefreshToken = getRefreshToken();
     const loginEpoch = beginLoginTransition();
     clearAuthSession({ bumpEpoch: false });
     const loginSessionId = createAuthSessionId();
