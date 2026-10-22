@@ -214,3 +214,11 @@
   .worker-field-block select, .worker-field-block textarea { font-size: 14px; }
   .worker-form-actions { bottom: calc(64px + env(safe-area-inset-bottom)); }
 }
+
+
+/* Single-machine product selector spans the full form grid on compact layouts. */
+.single-machine-product-scope,
+.worker-dynamic-grid > .single-machine-product-scope {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
