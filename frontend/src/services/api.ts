@@ -33,7 +33,8 @@ import {
     hasRefreshSessionHint,
     isElectronRuntime,
     saveAuthSession,
-    setRefreshToken
+    setRefreshToken,
+    supportsElectronRefreshTokenBody
 } from "../utils/authStorage";
 
 import type {
@@ -83,10 +84,14 @@ let authGeneration = getAuthEpoch();
 let loginTransitionActive = false;
 let transientRefreshBlockedUntil = 0;
 let redirectingToLogin = false;
+let crossTabAuthInvalidated = false;
+let crossTabObservedEpoch = getAuthEpoch();
 
 export function beginLoginTransition(): number {
     loginTransitionActive = true;
+    crossTabAuthInvalidated = false;
     authGeneration = bumpAuthEpoch();
+    crossTabObservedEpoch = authGeneration;
     refreshAbortController?.abort();
     refreshAbortController = null;
     refreshPromise = null;
@@ -202,17 +207,26 @@ async function performNetworkRefresh(): Promise<CoordinatedRefreshSuccess> {
     const epochAtStart = getAuthEpoch();
     const sessionIdAtStart = getAuthSessionId();
 
-    refreshAbortController = new AbortController();
-    const response = await axios.post<RefreshResponse>(
-        `${API_BASE_URL}/auth/refresh`,
-        refreshToken ? { refreshToken } : {},
-        {
-            timeout: REFRESH_REQUEST_TIMEOUT_MS,
-            withCredentials: true,
-            headers: { "Content-Type": "application/json" },
-            signal: refreshAbortController.signal
+    const requestController = new AbortController();
+    refreshAbortController = requestController;
+    let response: Awaited<ReturnType<typeof axios.post<RefreshResponse>>>;
+    try {
+        response = await axios.post<RefreshResponse>(
+            `${API_BASE_URL}/auth/refresh`,
+            refreshToken ? { refreshToken } : {},
+            {
+                timeout: REFRESH_REQUEST_TIMEOUT_MS,
+                withCredentials: true,
+                headers: { "Content-Type": "application/json" },
+                signal: requestController.signal
+            }
+        );
+    } finally {
+        // A superseded refresh must not clear the controller for a newer one.
+        if (refreshAbortController === requestController) {
+            refreshAbortController = null;
         }
-    );
+    }
 
     const newAccessToken = response.data.accessToken || response.data.token;
     if (!newAccessToken) throw new Error("Backend không trả về access token mới");
@@ -234,7 +248,7 @@ async function performNetworkRefresh(): Promise<CoordinatedRefreshSuccess> {
         throw new axios.CanceledError("Phiên làm mới thuộc tài khoản khác. Tab hiện tại đã được đăng xuất.");
     }
 
-    if (isElectronRuntime()) {
+    if (supportsElectronRefreshTokenBody()) {
         if (!response.data.refreshToken) {
             throw new Error("ELECTRON_REFRESH_TOKEN_SUCCESSOR_MISSING");
         }
@@ -275,6 +289,12 @@ export async function refreshAccessToken(
         throw new Error("Backend đang khởi động lại. Giữ nguyên phiên đăng nhập.");
     }
 
+    // Bind every refresh result, including failures, to the auth generation
+    // that initiated it. A late 401 from the previous account must not clear
+    // a session created while the refresh request was in flight.
+    const generationAtStart = authGeneration;
+    const epochAtStart = getAuthEpoch();
+
     const coordinatedRefresh = async (): Promise<string> => {
         try {
             const result = isElectronRuntime()
@@ -284,23 +304,32 @@ export async function refreshAccessToken(
             redirectingToLogin = false;
             return result.accessToken;
         } catch (error) {
+            if (
+                generationAtStart !== authGeneration ||
+                epochAtStart !== getAuthEpoch() ||
+                loginTransitionActive
+            ) {
+                throw new axios.CanceledError("Kết quả refresh thuộc phiên đăng nhập cũ đã bị bỏ qua.");
+            }
             if (isConfirmedInvalidRefresh(error)) {
                 invalidateSessionAndRedirect();
             } else {
                 transientRefreshBlockedUntil = Date.now() + TRANSIENT_REFRESH_COOLDOWN_MS;
             }
             throw error;
-        } finally {
-            refreshAbortController = null;
         }
     };
 
-    refreshPromise = coordinatedRefresh()
-        .finally(() => {
+    const pendingRefresh = coordinatedRefresh().finally(() => {
+        // beginLoginTransition may detach this promise and a later account may
+        // start another refresh before this older promise settles.
+        if (refreshPromise === pendingRefresh) {
             refreshPromise = null;
-        });
+        }
+    });
+    refreshPromise = pendingRefresh;
 
-    return refreshPromise;
+    return pendingRefresh;
 }
 
 export function isAuthRefreshInProgress(): boolean {
@@ -345,6 +374,30 @@ api.interceptors.request.use(
             requestUrl.includes("/auth/login") ||
             requestUrl.includes("/auth/refresh") ||
             requestUrl.includes("/auth/logout");
+
+        // After another tab changes the account, this renderer is stale even
+        // though localStorage now contains the newer tab's shared credentials.
+        // Permit only a fresh login; never send the new account's token or let
+        // a stale tab's logout/refresh mutate the active session.
+        if (crossTabAuthInvalidated && !requestUrl.includes("/auth/login")) {
+            return Promise.reject(staleSessionError());
+        }
+
+        // Storage events are delivered asynchronously. Also compare the shared
+        // epoch immediately before any request so a tab cannot act as account A
+        // in the gap between another tab switching to B and this event arriving.
+        const currentEpoch = getAuthEpoch();
+        if (currentEpoch !== crossTabObservedEpoch && !requestUrl.includes("/auth/login")) {
+            crossTabObservedEpoch = currentEpoch;
+            crossTabAuthInvalidated = true;
+            refreshAbortController?.abort();
+            refreshAbortController = null;
+            refreshPromise = null;
+            clearCurrentTabAuthSession();
+            sessionStorage.setItem(CROSS_TAB_LOGIN_MARKER_KEY, "1");
+            return Promise.reject(staleSessionError());
+        }
+
         let accessToken = getAccessToken();
         if (
             !loginTransitionActive &&
@@ -389,9 +442,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => {
         const requestConfig = response.config as RetryableRequestConfig;
+        const responseEpoch = getAuthEpoch();
         if (
             requestConfig._authGeneration !== undefined &&
-            requestConfig._authGeneration !== authGeneration
+            (
+                requestConfig._authGeneration !== authGeneration ||
+                requestConfig._authGeneration !== responseEpoch
+            )
         ) {
             return Promise.reject(staleSessionError());
         }
@@ -407,9 +464,13 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
+        const responseEpoch = getAuthEpoch();
         if (
             originalRequest._authGeneration !== undefined &&
-            originalRequest._authGeneration !== authGeneration
+            (
+                originalRequest._authGeneration !== authGeneration ||
+                originalRequest._authGeneration !== responseEpoch
+            )
         ) {
             return Promise.reject(staleSessionError());
         }
@@ -419,17 +480,15 @@ api.interceptors.response.use(
 
         const transientRetryCount =
             originalRequest._transientRetryCount || 0;
-        const retryAfterHeader =
-            error.response?.headers?.["retry-after"] ??
-            null;
 
         if (
+            // The policy reads `response.status`, `code` and `retryCount`. Passing a flat
+            // `{status}` object made `response` undefined, so EVERY failure (422/403/409/500...)
+            // was treated as a dropped connection and the POST was replayed twice.
             isRetryableTransientFailure({
-                method: originalRequest.method,
-                status,
+                response: error.response,
                 code: error.code,
                 retryCount: transientRetryCount,
-                retryAfterHeader: String(retryAfterHeader || "") || null,
             })
         ) {
             const delayMs = transientRetryDelayMs(transientRetryCount);
@@ -519,6 +578,8 @@ if (typeof window !== "undefined") {
         if (event.key !== "ktcAuthEpoch") return;
 
         authGeneration = getAuthEpoch();
+        crossTabObservedEpoch = authGeneration;
+        crossTabAuthInvalidated = true;
         refreshAbortController?.abort();
         refreshAbortController = null;
         refreshPromise = null;
