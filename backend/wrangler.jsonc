@@ -23,7 +23,9 @@
     // ceiling stays at 30 so the destructive 031-052 migrations are NOT run.
     // 054 upserts GC machine C13 (no DELETE/DROP); 059 adds machines.gc_work_type
     // and backfills it only from seeded machine_name (idempotent, additive).
-    "KTC_MIGRATION_INCLUDE": "53,54,59",
+    // 060 adds product_standards.encoding_code / production_reports.updated_by when missing and widens
+    // *.standard_source to VARCHAR(64) only when shorter (never narrows; no DELETE/DROP/TRUNCATE).
+    "KTC_MIGRATION_INCLUDE": "53,54,59,60",
     // Test-only: lets /api/health/ready return missingTables/missingColumns so
     // DATABASE_CONTRACT_INVALID is diagnosable. Do not set on production.
     "KTC_EXPOSE_SCHEMA_DIAGNOSTICS": "true"
