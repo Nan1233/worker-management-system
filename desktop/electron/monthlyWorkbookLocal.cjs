@@ -11,7 +11,8 @@ const PROCESS_SHEETS = Object.freeze({
   DO: { sheet: 'ĐO', title: 'ĐO', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
   K1: { sheet: 'KIỂM 1', title: 'KIỂM 1', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
   K2: { sheet: 'KIỂM 2', title: 'KIỂM 2', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
-  SX3: { sheet: 'SẢN XUẤT 3', title: 'SẢN XUẤT 3', deductionGroup: 'LỖI MÁY / THỜI GIAN TRỪ', defectGroup: 'NG PART' }
+  SX3: { sheet: 'SẢN XUẤT 3', title: 'SẢN XUẤT 3', deductionGroup: 'LỖI MÁY / THỜI GIAN TRỪ', defectGroup: 'NG PART' },
+  CVK: { sheet: 'CÔNG VIỆC KHÁC', title: 'CÔNG VIỆC KHÁC (CVK)', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' }
 });
 
 
@@ -26,7 +27,8 @@ const PROCESS_FILE_PREFIXES = Object.freeze({
   DO: '06_DO',
   K1: '07_KIEM_1',
   K2: '08_KIEM_2',
-  SX3: '09_SAN_XUAT_3'
+  SX3: '09_SAN_XUAT_3',
+  CVK: '10_CONG_VIEC_KHAC'
 });
 
 function monthlyFileSuffix(date, payload) {
