@@ -109,3 +109,15 @@ test('linked machine event missing from map does not fall back to worker partici
   assert.equal(result.netHours, 0);
   assert.equal(result.source, 'MACHINE_EVENT_MISSING');
 });
+
+test('monthly Excel delegates GC accounting to the canonical shared implementation', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(
+    path.join(__dirname, '../services/monthlyExcelService.js'),
+    'utf8'
+  );
+  assert.match(source, /require\(["']\.\/giaCongMachineAccounting["']\)/);
+  assert.match(source, /buildSharedGiaCongMachineAccounting\(\{ \.\.\.report, machineLines \}, eventMap\)/);
+  assert.match(source, /deduction_type_code:\s*item\.deduction_code/);
+});
