@@ -12,6 +12,7 @@ export interface AuthUser {
 const ACCESS_TOKEN_KEY = "accessToken";
 const LEGACY_TOKEN_KEY = "token";
 const REFRESH_TOKEN_KEY = "refreshToken";
+// Normal web sessions never persist a JS-readable refresh token; refresh uses the HttpOnly cookie.
 const USER_KEY = "user";
 const AUTH_EPOCH_KEY = "ktcAuthEpoch";
 const AUTH_SESSION_ID_KEY = "ktcAuthSessionId";
