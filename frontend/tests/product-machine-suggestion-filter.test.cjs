@@ -11,12 +11,12 @@ const basic = fs.readFileSync(path.join(root, 'src/pages/worker/components/Proce
 
 
 test('product suggestions are scoped by operation mode and selected machine', () => {
-  assert.ok(rules.includes('getProductMachineHint'));
+  assert.ok(rules.includes('eligibleMachineCodes'));
   assert.ok(rules.includes('AUTO|AUTOMATIC|\\d+'));
   assert.ok(rules.includes('mode === "MANUAL"'));
   assert.ok(rules.includes('mappedMachines.includes(selectedMachine)'));
-  assert.ok(rules.includes('hint.value === selectedNumber'));
-  assert.ok(rules.includes('isAutomatic'));
+  assert.ok(rules.includes('const selectedMachine = normalizeMachineKey(machineCode)'));
+  assert.ok(rules.includes('Number(machine?.is_automatic || 0) === 1'));
   assert.ok(page.includes('filterProductsForSelection'));
   assert.ok(page.includes('getMachineProductOptions(line.machineCode)'));
   assert.ok(page.includes('useEncodedMachineSuffix: processCode === "GC"'));
@@ -76,7 +76,7 @@ test('machine-line payload does not duplicate worker-level time and OK/NG totals
   assert.ok(submission.includes('total_time:isMachineLineAccounting ? 0 : totalTime'));
   assert.ok(submission.includes('actual_time:isMachineLineAccounting ? 0 : actualTime'));
   assert.ok(submission.includes('deduction_time:isMachineLineAccounting ? 0 : deductionTime'));
-  assert.ok(submission.includes('tt_ok:(noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttOk)'));
+  assert.ok(submission.includes('tt_ok:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttOk)'));
   assert.ok(submission.includes('machine_lines:useMachineLinesPayload?lines:[]'));
 });
 
@@ -106,8 +106,10 @@ test('Mài worker master only exposes the approved time deductions and NG types'
   assert.ok(hook.includes('MAI_ALLOWED_DEFECT_NAMES'));
   assert.ok(hook.includes('MAI_DISPLAY_LABELS'));
   assert.ok(hook.includes('PPCM Mất điện'));
-  assert.ok(hook.includes('filterMaiMasterOptions(normalizeDefectOptions'));
-  assert.ok(hook.includes('filterMaiMasterOptions(normalizeDeductionOptions'));
+  assert.ok(hook.includes('normalizeDefectOptions(defects.value, resolvedProcessId)'));
+  assert.ok(hook.includes('filterMaiMasterOptions(normalized, processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES'));
+  assert.ok(hook.includes('normalizeDeductionOptions(deductions.value, resolvedProcessId)'));
+  assert.ok(hook.includes('filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId)'));
 });
 
 test('production bundle version replacement matches the frontend and service-worker version', () => {
