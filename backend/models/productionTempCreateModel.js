@@ -1,15 +1,49 @@
 const crypto = require("node:crypto");
 const db = require("../config/db");
+
+// Persist a stable, semantic source code compatible with production VARCHAR(20).
+// Do not truncate source labels: truncation can make distinct resolution paths ambiguous.
+function storedStandardSource(value) {
+  const source = String(value || 'DEFAULT').trim().toUpperCase();
+  const exact = {
+    NON_PRODUCT_WORK: 'NON_PRODUCT_WORK',
+    PRODUCT_VERSION_PROCESS_FALLBACK: 'PROD_VER_PROC_FBK',
+    PRODUCT_VERSION_SNAPSHOT: 'PROD_VER_SNAPSHOT',
+    LEGACY_PRODUCT_STANDARD_PROCESS_FALLBACK: 'LEGACY_PROC_FBK',
+    LEGACY_PRODUCT_STANDARD: 'LEGACY_PRODUCT',
+    PRODUCT_VERSION: 'PROD_VERSION',
+    PRODUCT_VERSION_HISTORICAL: 'PROD_VER_HIST',
+    MACHINE: 'MACHINE',
+    MACHINE_HISTORICAL: 'MACHINE_HIST',
+    DEFAULT: 'DEFAULT',
+  };
+  if (exact[source]) return exact[source];
+  // Resolver may append a fallback marker to product/machine source names.
+  const machineFallback = source.endsWith('_MACHINE_FALLBACK');
+  const processFallback = source.endsWith('_PROCESS_FALLBACK');
+  const base = machineFallback ? source.slice(0, -'_MACHINE_FALLBACK'.length)
+    : processFallback ? source.slice(0, -'_PROCESS_FALLBACK'.length) : source;
+  const baseCode = exact[base] || (base.startsWith('PRODUCT_VERSION') ? 'PROD_VERSION'
+    : base.startsWith('LEGACY_PRODUCT_STANDARD') ? (machineFallback ? 'LEGACY' : 'LEGACY_PRODUCT')
+    : base.startsWith('MACHINE') ? 'MACHINE' : null);
+  if (baseCode) {
+    const code = baseCode + (machineFallback ? '_MACH_FB' : processFallback ? '_PROC_FB' : '');
+    if (code.length <= 20) return code;
+  }
+  if (source.length <= 20) return source;
+  const error = new Error('Nguồn định mức vượt giới hạn lưu trữ và chưa có mã tương thích: ' + source);
+  error.code = 'STANDARD_SOURCE_CODE_UNMAPPED';
+  throw error;
+}
+
 const AuditService = require("../services/auditService");
-const { query, getConnection, beginTransaction, commit, rollback } = require("./productionTempModelShared");
+const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback } = require("./productionTempModelShared");
 const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
-const DAILY_HOURS_LIMIT = 12;
-// total_time is stored rounded to 4 decimals; allow 0.001h (3.6s) so an exact 12h total is not rejected by rounding.
-const DAILY_HOURS_TOLERANCE = 0.001;
+const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const getStoredWorkType = (value) => {
     if (value && typeof value === "object") return String(value.work_type || "").trim();
     if (typeof value === "string") {
@@ -21,41 +55,32 @@ const getStoredWorkType = (value) => {
 const enforceDailyHoursLocked = async (executor, data) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
-    const incoming = Number(data?.total_time) || 0;
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
-
-    // The worker row is the canonical serialization point shared by CREATE
-    // and EDIT. The caller is already inside the same transaction, so every
-    // daily-hours read below happens after the lock is acquired.
     await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
-
-    const rows = await query(executor, `
-        SELECT COALESCE(SUM(total_time),0) AS counted_hours FROM production_reports
-        WHERE worker_id=? AND work_date=? AND status <> 'deleted'
-        UNION ALL
-        SELECT COALESCE(SUM(total_time),0) AS counted_hours FROM production_reports_temp
-        WHERE worker_id=? AND work_date=? AND status IN ('pending','need_fix')`,
-        [workerId, workDate, workerId, workDate]
-    );
-    const existing = (rows || []).reduce((sum, row) => sum + Number(row?.counted_hours || 0), 0);
+    const processRows = await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
+    const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
+    const machineLines = Array.isArray(data?._daily_hours_machine_lines) ? data._daily_hours_machine_lines : [];
+    const incoming = isGc && machineLines.length ? Math.max(...machineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0))) : (Number(data?.actual_time) || 0);
+    const rows = await query(executor, `SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
+            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
+                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
+                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
+            FROM production_reports pr JOIN processes p ON p.id=pr.process_id
+            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
+            UNION ALL
+            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
+                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
+                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
+            FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
+            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status IN ('pending','need_fix')
+        ) daily_hours`, [workerId, workDate, workerId, workDate]);
+    const existing = Number(rows?.[0]?.counted_hours || 0);
     const projected = existing + incoming;
-    if (projected > DAILY_HOURS_LIMIT + DAILY_HOURS_TOLERANCE) {
+    if (exceedsDailyHoursLimit(projected)) {
         const remaining = Math.max(0, DAILY_HOURS_LIMIT - existing);
         const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remaining.toFixed(2)} giờ.`);
-        error.status = 422;
-        error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED";
-        error.isPublic = true;
-        error.details = {
-            worker_id: workerId,
-            work_date: workDate,
-            existing_hours: Number(existing.toFixed(4)),
-            incoming_hours: Number(incoming.toFixed(4)),
-            projected_hours: Number(projected.toFixed(4)),
-            limit_hours: DAILY_HOURS_LIMIT,
-            remaining_hours: Number(remaining.toFixed(4)),
-            counted_field: "total_time",
-            excluded_from_daily_limit: "deduction_time / support hours"
-        };
+        error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
+        error.details = { worker_id: workerId, work_date: workDate, existing_hours: Number(existing.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projected.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, remaining_hours: Number(remaining.toFixed(4)), counted_field: "actual_time_or_gc_machine_line_actual_time", excluded_from_daily_limit: "deduction_time / support hours" };
         throw error;
     }
 };
@@ -445,7 +470,7 @@ module.exports = {
                 Number(line.machine_time_hours) || 0,
                 Number(line.standard_output) || 0,
                 Number(line.standard_time_seconds) || null,
-                String(line.standard_source || "DEFAULT").trim().toUpperCase(),
+                storedStandardSource(line.standard_source),
                 Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
                 Math.max(0, Math.trunc(Number(line.ok_quantity) || 0)),
                 Math.max(0, Math.trunc(Number(line.ng_quantity) || 0)),
@@ -500,7 +525,7 @@ module.exports = {
         const connection = await getConnection();
 
         try {
-            await beginTransaction(connection);
+            await beginReadCommittedTransaction(connection);
 
             const clientRequestId = String(data.client_request_id || "").trim();
             if (!clientRequestId) {
@@ -738,5 +763,6 @@ module.exports = {
         } finally {
             connection.release();
         }
-    }
+    },
+    _enforceDailyHoursLocked: enforceDailyHoursLocked
 };

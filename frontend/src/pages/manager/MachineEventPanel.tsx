@@ -146,7 +146,7 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
       <button type="button" disabled={busy} onClick={()=>void createEvent()}>Tạo event từ dòng này</button>
       <input aria-label="Existing event ID" placeholder="Event ID" value={eventIdInput} disabled={busy} onChange={(e)=>setEventIdInput(e.target.value)}/>
       <button type="button" disabled={busy} onClick={()=>void linkExisting()}>Liên kết event có sẵn</button>
-    </div> : <div className="detail-warning">{source === "approved" ? "Chi tiết physical machine của báo cáo đã duyệt ở chế độ chỉ đọc." : "Bạn không có quyền sửa physical machine event của báo cáo này."}</div>) : <div className="machine-event-actions">
+    </div> : <div className="detail-warning">{source === "approved" ? "Legacy approved line chưa có physical event. Chi tiết physical machine của báo cáo đã duyệt ở chế độ chỉ đọc." : "Bạn không có quyền sửa physical machine event của báo cáo này."}</div>) : <div className="machine-event-actions">
       {canManage ? <><button type="button" disabled={busy} onClick={()=>void updateEvent()}>Lưu physical truth</button>{event.status !== "approved" && <button type="button" disabled={busy} onClick={()=>void approveEvent()}>Duyệt event</button>}</> : <div className="detail-warning">Physical machine event đang ở chế độ chỉ đọc.</div>}
     </div>}
   </section>;

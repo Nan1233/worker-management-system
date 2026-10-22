@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
+import { describeApprovalError } from "../../utils/approvalError";
+import { getStoredUser } from "../../utils/authStorage";
 import { approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
@@ -9,7 +12,7 @@ const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n
 const text = (v: unknown, fallback = "—") => v === null || v === undefined || v === "" ? fallback : String(v);
 const getStoredExtraData = (value: unknown): Record<string, unknown> => {
     if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
-    if (typeof value === "string") { try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {}; } catch {} }
+    if (typeof value === "string") { try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {}; } catch { /* malformed saved filter: use defaults */ } }
     return {};
 };
 const processLabel = (report: ProductionReport) => {
@@ -80,26 +83,43 @@ const metricStyle = (type: "productivity" | "pp", value: number, ngTypeCount = 0
 export default function Reports() {
     const [date, setDate] = useState(getToday());
     const [range, setRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
-    const [search, setSearch] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
+    const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
     const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false);
     const [rejectReason, setRejectReason] = useState(""); const [rejectNote, setRejectNote] = useState(""); const [rejecting, setRejecting] = useState(false); const [rejectDialogOpen, setRejectDialogOpen] = useState(false); const [rejectTargetIds, setRejectTargetIds] = useState<number[]>([]);
 
+    const reportLoadSeqRef = useRef(0);
+    const managerActionLockRef = useRef(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchQuery(searchKeyword.trim());
+        }, 250);
+        return () => clearTimeout(timer);
+    }, [searchKeyword]);
+
     const load = useCallback(async () => {
+        const requestSeq = ++reportLoadSeqRef.current;
+        const isCurrentRequest = () => reportLoadSeqRef.current === requestSeq;
         try {
             setLoading(true); setError("");
             const r = range || { dateFrom: date, dateTo: date };
-            const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: search.trim() || undefined, page, pageSize: 8 });
+            const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page, pageSize: 8 });
+            if (!isCurrentRequest()) return;
             setReports(result.data || []); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
         } catch (e: any) {
+            if (!isCurrentRequest()) return;
             setError(e?.response?.data?.message || "Không thể tải báo cáo chờ duyệt"); setReports([]); setTotal(0); setPages(1);
-        } finally { setLoading(false); }
-    }, [date, range, process, shift, search, page]);
+        } finally { if (isCurrentRequest()) setLoading(false); }
+    }, [date, range, process, shift, searchQuery, page]);
 
-    useEffect(() => { void load(); }, [load]);
-    useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, search]);
+    useEffect(() => {
+        void load();
+        return () => { reportLoadSeqRef.current += 1; };
+    }, [load]);
+    useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, searchQuery]);
     useEffect(() => { setSelectedIds([]); }, [page]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
@@ -119,8 +139,14 @@ export default function Reports() {
         }
     };
 
+    const navigate = useNavigate();
+    const currentUser = getStoredUser();
+    const role = String(currentUser?.role || "manager").toLowerCase();
+    const basePath = currentUser?.role === "admin" ? "/admin" : role === "lead" ? "/lead" : role === "admin_ops" ? "/admin-ops" : "/manager";
+
     const approveDetail = async () => {
-        if (!detail || approving) return;
+        if (!detail || approving || managerActionLockRef.current) return;
+        managerActionLockRef.current = true;
         setApproving(true);
         try {
             await approveTempReport(Number(detail.id));
@@ -128,8 +154,12 @@ export default function Reports() {
             await load();
             window.alert("Đã duyệt báo cáo thành công.");
         } catch (e: any) {
-            window.alert(e?.response?.data?.message || e?.message || "Không thể duyệt báo cáo. Vui lòng thử lại.");
+            window.alert(describeApprovalError(e, "Không thể duyệt báo cáo. Vui lòng thử lại."));
+            // A shared GC machine needs an approved physical event first; that is created on the report detail page,
+            // so take the manager there instead of leaving them at a dead end.
+            if (e?.response?.data?.code === "MACHINE_EVENT_REQUIRED") navigate(`${basePath}/report/${Number(detail.id)}?source=pending`);
         } finally {
+            managerActionLockRef.current = false;
             setApproving(false);
         }
     };
@@ -144,7 +174,7 @@ export default function Reports() {
     };
 
     const rejectTargets = async () => {
-        if (rejecting || !rejectTargetIds.length) return;
+        if (rejecting || !rejectTargetIds.length || managerActionLockRef.current) return;
         const reason = rejectReason === "Khác" ? rejectNote.trim() : rejectReason.trim();
         if (!reason) { window.alert("Vui lòng chọn lý do từ chối."); return; }
         const targets = reports.filter(report => rejectTargetIds.includes(Number(report.id)));
@@ -153,6 +183,7 @@ export default function Reports() {
             return;
         }
         if (!window.confirm(`Từ chối ${targets.length} báo cáo đã chọn? Lý do: ${reason}`)) return;
+        managerActionLockRef.current = true;
         setRejecting(true);
         try {
             const failedIds: number[] = [];
@@ -168,7 +199,7 @@ export default function Reports() {
             setRejectTargetIds([]);
             await load();
             window.alert(`Đã từ chối ${succeeded}/${targets.length} báo cáo.${failures.length ? `\\n\\nCác báo cáo chưa từ chối:\\n• ${failures.join("\\n• ")}` : ""}`);
-        } finally { setRejecting(false); }
+        } finally { managerActionLockRef.current = false; setRejecting(false); }
     };
 
     const visibleIds = reports.map(r => Number(r.id)).filter(id => Number.isInteger(id) && id > 0);
@@ -177,8 +208,9 @@ export default function Reports() {
     const toggleVisibleSelection = () => setSelectedIds(previous => allVisibleSelected ? previous.filter(id => !visibleIds.includes(id)) : [...new Set([...previous, ...visibleIds])]);
     const approveBulk = async () => {
         const targets = reports.filter(r => selectedIds.includes(Number(r.id)));
-        if (!targets.length || bulkApproving) return;
+        if (!targets.length || bulkApproving || managerActionLockRef.current) return;
         if (!window.confirm(`Duyệt lần lượt ${targets.length} báo cáo đã chọn? Báo cáo lỗi sẽ được giữ lại để xử lý sau.`)) return;
+        managerActionLockRef.current = true;
         setBulkApproving(true); setError("");
         const failedIds: number[] = [];
         const failures: string[] = [];
@@ -193,7 +225,7 @@ export default function Reports() {
                 } catch (e: any) {
                     failedIds.push(id);
                     const code = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || id}`;
-                    const message = e?.response?.data?.message || e?.message || "Không thể duyệt";
+                    const message = describeApprovalError(e, "Không thể duyệt");
                     failures.push(`${code} (#${id}): ${message}`);
                 }
             }
@@ -202,7 +234,7 @@ export default function Reports() {
             await load();
             const summary = `Duyệt thành công ${succeeded}/${targets.length} báo cáo.${failedIds.length ? `\\n\\nGiữ lại ${failedIds.length} báo cáo chưa duyệt để xử lý tiếp:${`\\n• ${failures.join("\\n• ")}`}` : ""}`;
             window.alert(summary);
-        } finally { setBulkApproving(false); }
+        } finally { managerActionLockRef.current = false; setBulkApproving(false); }
     };
 
     const detailKpi = detail ? kpi(detail) : null;
@@ -218,7 +250,7 @@ export default function Reports() {
             </div>
 
             <div className="pending-filter-card" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(140px, .9fr)", gridTemplateAreas: '"search date process shift" "quick quick quick quick"', gap: "10px 12px", alignItems: "end", padding: 14, border: "1px solid #dbe6f2", borderRadius: 12, background: "#fff", boxShadow: "0 4px 14px rgba(35,76,125,.045)" }}>
-                <label className="pending-search" style={{ gridArea: "search", display: "flex", flexDirection: "column", alignSelf: "end", gap: 4, minWidth: 0, position: "relative" }}><span style={{ position: "static", display: "block", width: "auto", height: "auto", border: 0, fontSize: 12, lineHeight: "16px", color: "#526b88", zIndex: "auto" }}>Tìm kiếm</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
+                <label className="pending-search" style={{ gridArea: "search", display: "flex", flexDirection: "column", alignSelf: "end", gap: 4, minWidth: 0, position: "relative" }}><span style={{ position: "static", display: "block", width: "auto", height: "auto", border: 0, fontSize: 12, lineHeight: "16px", color: "#526b88", zIndex: "auto" }}>Tìm kiếm</span><input aria-label="Tìm báo cáo chờ duyệt" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
                 <label className="pending-date-filter" style={{ gridArea: "date", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setRange(null); }} /></label>
                 <div className="pending-quick-filters" style={{ gridArea: "quick", minWidth: 0 }}>
                     {(["Hôm nay", "Tuần này", "Tháng này", "Năm này"] as const).map(label => {
@@ -263,8 +295,8 @@ export default function Reports() {
                         </table>
                     </div>
                     <div className="pending-table-footer" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 13 }}>
-                        <span>Trang {page}/{pages} · {total} báo cáo</span>
-                        <div style={{ display: "flex", gap: 6 }}><button type="button" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button><button type="button" disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button></div>
+                        <span role="status">Trang {page}/{pages} · {total} báo cáo</span>
+                        <nav className="management-pagination" aria-label="Phân trang báo cáo"><button type="button" aria-label="Trang trước" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button><button type="button" aria-label="Trang sau" disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button></nav>
                     </div>
                 </section>
                 {detail && <aside className="pending-detail-card pending-detail-card-compact">

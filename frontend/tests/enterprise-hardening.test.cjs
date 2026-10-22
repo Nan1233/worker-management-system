@@ -7,16 +7,16 @@ const root = path.resolve(__dirname, '..');
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 
 test('approved report editing requires an audit reason in the UI', () => {
-  const source = read('src/pages/manager/EditReport.tsx');
-  assert.match(source, /source === "approved" && !changeReason\.trim\(\)/);
-  assert.match(source, /changeReason/);
-  assert.match(source, /reason: source === "approved" \? changeReason\.trim\(\) : undefined/);
+  const source = read('src/pages/worker/WorkerReportEditV2.tsx');
+  assert.match(source, /managerRoute && source === "approved" && !auditReason\.trim\(\)/);
+  assert.match(source, /auditReason/);
+  assert.match(source, /reason: auditReason\.trim\(\)/);
 });
 
 test('approved report delete API sends an explicit deletion reason', () => {
   const source = read('src/services/productionService.ts');
   assert.match(source, /deleteReport\s*=\s*async\s*/);
-  assert.match(source, /\{ data: \{ reason: String\(reason \|\| ""\)\.trim\(\) \} \}/);
+  assert.match(source, /data:\s*\{\s*reason:\s*String\(reason\s*\|\|\s*""\)\.trim\(\)\s*\}/);
 });
 
 test('frontend fallback version matches its package version', () => {
@@ -28,8 +28,8 @@ test('frontend fallback version matches its package version', () => {
 test('service worker cache namespace tracks the current stabilization release', () => {
   const pkg = JSON.parse(read('package.json'));
   const sw = read('public/sw.js');
-  assert.match(sw, new RegExp(`BUILD_VERSION\\s*=\\s*"${pkg.version.replaceAll('.', '\\.')}`));
-  assert.match(sw, /if \(isApiRequest\(url\)\) return/);
+  assert.ok(sw.includes('const BUILD_VERSION = "' + pkg.version), 'service worker version should match package version');
+  assert.match(sw, /if \(isApiRequest\(new URL\(request\.url\)\)\) return/);
 });
 
 test('permissions UI uses theme tokens instead of a light-only surface', () => {

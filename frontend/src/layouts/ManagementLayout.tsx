@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Bell, Boxes, ClipboardCheck, Cog, Download, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { getStoredUser, clearAuthSession } from "../utils/authStorage";
+import { getStoredUser } from "../utils/authStorage";
+import { logout } from "../services/authService";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
 import type { PermissionCode } from "../security/permissions";
@@ -39,7 +40,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const [mobileMoreOpen,setMobileMoreOpen]=useState(false); const visible=items.filter(item=>item.roles.includes(role)&&can(item.permission));
  const mobilePrimaryItems=visible.slice(0,2),mobileOverflowItems=visible.slice(2); const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel[role]; const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
- const logout=()=>{setMobileMoreOpen(false);clearAuthSession();navigate("/login",{replace:true});};
+ const handleLogout=()=>{setMobileMoreOpen(false);void logout();navigate("/login",{replace:true});};
  useEffect(()=>{if(role!=="manager")return;const forbiddenMasterPath=/^\/manager\/master\/(users|processes)(?:\/|$)/.test(location.pathname);if(forbiddenMasterPath)navigate(`${base}/master/machines`,{replace:true});},[role,location.pathname,navigate,base]);
  const today=new Intl.DateTimeFormat("vi-VN",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date()).replace(/^./,m=>m.toUpperCase());
  return <div className="management-layout" data-management-role={role}>
@@ -47,7 +48,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
    <nav className="management-menu" aria-label="Management navigation">
     {visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={21}/><span>{item.label}</span></button>;})}
     <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={21}/><span>Tài khoản</span></button>
-    <button type="button" className="management-logout" onClick={logout}><LogOut size={21}/><span>Đăng xuất</span></button>
+    <button type="button" className="management-logout" onClick={handleLogout}><LogOut size={21}/><span>Đăng xuất</span></button>
    </nav>
    <div className="management-sidebar-footer"><strong>KTC (HANOI) CO., LTD</strong><span>Production Management System</span><small>v1.0.0</small></div>
   </aside>
@@ -69,7 +70,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
    {mobilePrimaryItems.map(item=>{const Icon=item.icon;return <button key={`mobile-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={18}/><span>{item.label}</span></button>;})}
    {can("NOTIFICATION_VIEW")&&<button type="button" className={location.pathname===`${base}/notifications`||location.pathname.startsWith(`${base}/notifications/`)?"active":""} onClick={()=>navigate(`${base}/notifications`)}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>}
    <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Cá nhân</span></button>
-   <button type="button" className="management-mobile-logout" onClick={logout}><LogOut size={18}/><span>Đăng xuất</span></button>
+   <button type="button" className="management-mobile-logout" onClick={handleLogout}><LogOut size={18}/><span>Đăng xuất</span></button>
    {mobileOverflowItems.length>0&&<button type="button" className={mobileMoreOpen?"active":""} onClick={()=>setMobileMoreOpen(open=>!open)} aria-expanded={mobileMoreOpen} aria-controls="management-mobile-overflow"><MoreHorizontal size={18}/><span>Thêm</span></button>}
   </nav>
  </div>;

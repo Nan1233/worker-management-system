@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import axios from "axios";
 import { getApprovedReports, getReportById } from "../../services/productionService";
+import { getAccessToken } from "../../utils/authStorage";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import "./ReportsSplitReference.css";
@@ -67,30 +68,50 @@ const parseMachineDefects = (detail: Record<string, unknown> | null) => {
 export default function ApprovedReports() {
     const [date, setDate] = useState(getToday());
     const [range, setRange] = useState<{ dateFrom: string; dateTo: string } | null>(() => rangeFor(getToday(), "month"));
-    const [search, setSearch] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
+    const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
+    const [reportImportPreview, setReportImportPreview] = useState<{ filePath?: string; fileName?: string; detected: number; creates?: number; updates?: number } | null>(null);
+    const [reportImportStatus, setReportImportStatus] = useState<{ tone: "success" | "warning" | "error"; message: string } | null>(null);
+    const [reportImportBusy, setReportImportBusy] = useState(false);
     const [counts, setCounts] = useState({ day: 0, week: 0, month: 0, year: 0 });
     const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false);
 
+    const reportLoadSeqRef = useRef(0);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchQuery(searchKeyword.trim());
+        }, 250);
+        return () => clearTimeout(timer);
+    }, [searchKeyword]);
+
     const load = useCallback(async () => {
+        const requestSeq = ++reportLoadSeqRef.current;
+        const isCurrentRequest = () => reportLoadSeqRef.current === requestSeq;
         try {
             setLoading(true); setError("");
             const r = range || { dateFrom: date, dateTo: date };
-            const filters = { dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: search.trim() || undefined };
+            const filters = { dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined };
             const result = await getApprovedReports({ ...filters, page, pageSize: 8 });
+            if (!isCurrentRequest()) return;
             setReports(result.data || []); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
             const ranges = (["day", "week", "month", "year"] as const).map(type => ({ type, ...rangeFor(date, type) }));
-            const values = await Promise.all(ranges.map(x => getApprovedReports({ dateFrom: x.dateFrom, dateTo: x.dateTo, processName: process || undefined, shift: shift || undefined, search: search.trim() || undefined, page: 1, pageSize: 1 })));
+            const values = await Promise.all(ranges.map(x => getApprovedReports({ dateFrom: x.dateFrom, dateTo: x.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page: 1, pageSize: 1 })));
+            if (!isCurrentRequest()) return;
             setCounts({ day: values[0].pagination?.total || 0, week: values[1].pagination?.total || 0, month: values[2].pagination?.total || 0, year: values[3].pagination?.total || 0 });
         } catch (e: unknown) {
+            if (!isCurrentRequest()) return;
             setError(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể tải báo cáo đã duyệt" : "Không thể tải báo cáo đã duyệt");
             setReports([]); setTotal(0); setPages(1);
-        } finally { setLoading(false); }
-    }, [date, range, process, shift, search, page]);
+        } finally { if (isCurrentRequest()) setLoading(false); }
+    }, [date, range, process, shift, searchQuery, page]);
 
-    useEffect(() => { void load(); }, [load]);
-    useEffect(() => { setPage(1); setDetail(null); }, [date, range, process, shift, search]);
+    useEffect(() => {
+        void load();
+        return () => { reportLoadSeqRef.current += 1; };
+    }, [load]);
+    useEffect(() => { setPage(1); setDetail(null); }, [date, range, process, shift, searchQuery]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
     const shifts = useMemo(() => Array.from(new Set(reports.map(r => r.shift).filter(Boolean))).sort(), [reports]);
@@ -103,6 +124,63 @@ export default function ApprovedReports() {
         finally { setDetailLoading(false); }
     };
 
+    const desktopImportApi = () => (window as Window & { ktcDesktop?: {
+        isDesktop?: boolean;
+        previewReportImport?: (token: string) => Promise<any>;
+        applyReportImport?: (token: string, filePath: string) => Promise<any>;
+    } }).ktcDesktop;
+
+    const previewExcelImport = async () => {
+        const desktop = desktopImportApi();
+        const token = getAccessToken() || "";
+        if (!token) { setReportImportStatus({ tone: "error", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." }); return; }
+        if (!desktop?.isDesktop || typeof desktop.previewReportImport !== "function") {
+            setReportImportStatus({ tone: "warning", message: "Nhập Excel chỉ khả dụng trên ứng dụng KTC Desktop." });
+            return;
+        }
+        setReportImportBusy(true); setReportImportStatus(null);
+        try {
+            const preview = await desktop.previewReportImport(token);
+            if (preview?.canceled) { setReportImportPreview(null); return; }
+            if (!preview?.filePath) throw new Error("Không nhận được đường dẫn file import hợp lệ.");
+            setReportImportPreview({ ...preview, filePath: preview.filePath });
+            if (Number(preview.detected || 0) === 0) {
+                setReportImportStatus({ tone: "warning", message: "File không có dòng mới hoặc thay đổi cần import." });
+            } else {
+                setReportImportStatus({ tone: "success", message: "Đã đọc " + Number(preview.detected) + " thay đổi từ " + (preview.fileName || "file Excel") + "." });
+            }
+        } catch (error) {
+            setReportImportStatus({ tone: "error", message: error instanceof Error ? error.message : "Không thể đọc file import." });
+        } finally { setReportImportBusy(false); }
+    };
+
+    const applyExcelImport = async () => {
+        if (!reportImportPreview?.filePath) return;
+        const desktop = desktopImportApi();
+        const token = getAccessToken() || "";
+        if (!token) { setReportImportStatus({ tone: "error", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." }); return; }
+        if (!desktop?.isDesktop || typeof desktop.applyReportImport !== "function") {
+            setReportImportStatus({ tone: "warning", message: "Nhập Excel chỉ khả dụng trên ứng dụng KTC Desktop." });
+            return;
+        }
+        setReportImportBusy(true); setReportImportStatus(null);
+        try {
+            const result = await desktop.applyReportImport(token, reportImportPreview.filePath);
+            if (Number(result?.failed || 0) > 0) {
+                setReportImportStatus({ tone: "warning", message: "Import một phần: " + Number(result?.succeeded || 0) + " thành công, " + Number(result.failed) + " lỗi. Có thể kiểm tra và thử lại." });
+            } else if (Number(result?.detected || 0) === 0 || Number(result?.succeeded || 0) === 0) {
+                setReportImportStatus({ tone: "warning", message: "File không có dòng mới hoặc thay đổi cần import." });
+                setReportImportPreview(null);
+            } else {
+                setReportImportStatus({ tone: "success", message: "Import thành công " + Number(result.succeeded) + " báo cáo." });
+                setReportImportPreview(null);
+                await load();
+            }
+        } catch (error) {
+            setReportImportStatus({ tone: "error", message: error instanceof Error ? error.message : "Không thể import báo cáo." });
+        } finally { setReportImportBusy(false); }
+    };
+
     const detailKpi = detail ? kpi(detail) : null;
     const detailAny = detail as (ProductionReport & Record<string, unknown>) | null;
     const detailDeductions = Array.isArray(detailAny?.deductions) ? (detailAny?.deductions as any[]).filter(x => num(x.hours) > 0) : [];
@@ -113,12 +191,18 @@ export default function ApprovedReports() {
         <div className="pending-reference-page">
             <div className="pending-page-title"><h1 style={{ margin: 0, color: "#12385f", fontSize: 26, fontWeight: 800 }}>Báo cáo đã duyệt</h1><div style={{ marginTop: 5, color: "#6f89a8", fontSize: 13 }}>Xem lại các báo cáo sản xuất đã được duyệt.</div></div>
             <div className="pending-filter-card" style={{ display: "grid", gap: 10, alignItems: "end", padding: 14, border: "1px solid #dbe6f2", borderRadius: 12, background: "#fff", boxShadow: "0 4px 14px rgba(35,76,125,.045)" }}>
-                <label className="pending-search"><span>Tìm kiếm</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
+                <label className="pending-search"><span>Tìm kiếm</span><input aria-label="Tìm báo cáo đã duyệt" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
                 <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setRange(null); }} /></label>
                 <div className="pending-quick-filters">{(["Hôm nay", "Tuần này", "Tháng này", "Năm này"] as const).map(label => { const type = label === "Hôm nay" ? "day" : label === "Tuần này" ? "week" : label === "Tháng này" ? "month" : "year"; const active = type === "day" ? !range : Boolean(range && range.dateFrom === rangeFor(date, type).dateFrom && range.dateTo === rangeFor(date, type).dateTo); return <button key={label} type="button" className={active ? "active" : ""} onClick={() => quick(type)}>{label}</button>; })}</div>
                 <label><span>Công đoạn</span><select value={process} onChange={e => setProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p} value={p}>{p}</option>)}</select></label>
                 <label><span>Ca làm việc</span><select value={shift} onChange={e => setShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
             </div>
+            <section className="pending-filter-card approved-report-import" aria-label="Nhập báo cáo Excel" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginTop: 10, padding: 12, border: "1px solid #dbe6f2", borderRadius: 10, background: "#fff" }}>
+                <button type="button" onClick={() => void previewExcelImport()} disabled={reportImportBusy} aria-label="Chọn file Excel để import">{reportImportBusy ? "Đang xử lý..." : "Nhập từ Excel"}</button>
+                {reportImportPreview && Number(reportImportPreview.detected || 0) > 0 && <span>{reportImportPreview.fileName || "File Excel"} · {reportImportPreview.detected} thay đổi ({reportImportPreview.creates || 0} thêm, {reportImportPreview.updates || 0} cập nhật)</span>}
+                {reportImportPreview && Number(reportImportPreview.detected || 0) > 0 && <button type="button" onClick={() => void applyExcelImport()} disabled={reportImportBusy}>Xác nhận import</button>}
+                {reportImportStatus && <p role="status" aria-live="polite" data-tone={reportImportStatus.tone} className={reportImportStatus.tone === "warning" ? "warning" : reportImportStatus.tone} style={{ flexBasis: "100%", margin: 0 }}>{reportImportStatus.message}</p>}
+            </section>
             <div className="pending-kpis" style={{ display: "grid", gap: 12, marginTop: 12 }}>{[["Hôm nay", counts.day, "kpi-orange", "day"], ["Tuần này", counts.week, "kpi-slate", "week"], ["Tháng này", counts.month, "", "month"], ["Năm này", counts.year, "", "year"]].map(([label, value, tone, type]) => <button key={String(label)} type="button" className={`pending-kpi ${tone}`} onClick={() => quick(type as "day" | "week" | "month" | "year")} style={{ border: "1px solid #dbe6f2", borderRadius: 10, padding: "12px 14px", background: tone === "kpi-orange" ? "#fff8ef" : tone === "kpi-slate" ? "#f7f9fc" : "#fff", textAlign: "left" }}><span>{label}</span><strong>{value}</strong><small>Báo cáo đã duyệt · Bấm để xem</small></button>)}</div>
             <div className={`pending-workspace ${detail ? "" : "list-only"}`} style={{ marginTop: 12 }}>
                 <section className="pending-list-card">
@@ -131,7 +215,7 @@ export default function ApprovedReports() {
                             <td style={metricStyle("productivity", x.nangSuat, x.ngTypeCount)}>{pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td style={metricStyle("pp", x.pp, x.ngTypeCount)}>{pct(x.pp)}{x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}</td><td><span className="pending-detail-status">Đã duyệt</span></td>
                         </tr>; })}</tbody>
                     </table></div>
-                    <div className="pending-table-footer" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 13 }}><span>Trang {page}/{pages} · {total} báo cáo</span><div style={{ display: "flex", gap: 6 }}><button type="button" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button><button type="button" disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button></div></div>
+                    <div className="pending-table-footer" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 13 }}><span role="status">Trang {page}/{pages} · {total} báo cáo</span><nav className="management-pagination" aria-label="Phân trang báo cáo"><button type="button" aria-label="Trang trước" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button><button type="button" aria-label="Trang sau" disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button></nav></div>
                 </section>
                 {detail && <aside className="pending-detail-card">
                     <div className="pending-detail-head"><div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status">Đã duyệt</span><span className="pending-detail-code">#{detail.id}</span></div><button type="button" className="pending-detail-close" onClick={() => setDetail(null)} aria-label="Đóng">×</button></div>

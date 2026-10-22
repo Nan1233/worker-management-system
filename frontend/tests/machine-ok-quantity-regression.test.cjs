@@ -13,7 +13,7 @@ test('machine report payload preserves each machine line OK quantity', () => {
   assert.match(basicInfo, /value=\{line\.okQuantity\}/);
   assert.match(basicInfo, /updateMachineLine\(index, \{ okQuantity: event\.target\.value\.replace\(\/\\D\/g, ""\) \}\)/);
   assert.match(submission, /ok_quantity:num\(l\.okQuantity\)/);
-  assert.match(submission, /tt_ok:\(noStandardLongWork \|\| isMachineLineAccounting\) \? 0/);
+  assert.match(submission, /tt_ok:\(isCvk \|\| isNonProductWorkWithinProcess \|\| noStandardLongWork \|\| isMachineLineAccounting\) \? 0/);
 });
 
 test('single-machine payload does not overwrite line OK/NG with stale parent totals', () => {
@@ -26,7 +26,7 @@ test('single-machine payload does not overwrite line OK/NG with stale parent tot
 
 test('backend accepts camelCase machine quantities without defaulting submitted OK to zero', () => {
   const controller = fs.readFileSync(
-    path.join(root, '..', '..', 'backend', 'controllers', 'productionTempWorkerController.js'),
+    path.join(root, '..', 'backend', 'controllers', 'productionTempWorkerController.js'),
     'utf8'
   );
 

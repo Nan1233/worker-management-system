@@ -121,14 +121,22 @@ function resolveReportExportTimes(report) {
 }
 
 function clearSheetData(sheet) {
-  for (const range of [...(sheet.mergedCells || [])]) { try { sheet.unMergeCells(range); } catch (_) {} }
-  for (let r = 1; r <= sheet.rowCount; r += 1) {
-    const row = sheet.getRow(r);
-    for (let c = 1; c <= sheet.columnCount; c += 1) row.getCell(c).value = null;
-  }
+  // ExcelJS has no `sheet.mergedCells`: the old `[...(sheet.mergedCells || [])]` was always empty, so no
+  // template merge was ever removed and the first writeDateRow() -> mergeCells() on a merged template row
+  // threw "Cannot merge already merged cells" as soon as the (previously hung) clear loop finished.
+  // The merge registry is `sheet._merges` ({masterAddress: Range}); it is the same data ExcelJS serialises.
+  for (const merge of Object.values(sheet._merges || {})) { try { sheet.unMergeCells(merge.range); } catch (_) {} }
+  // Only visit cells that exist in the template. The previous nested loop used
+  // `c <= sheet.columnCount` as its condition: ExcelJS recomputes columnCount by scanning EVERY row on
+  // each access, and getRow()/getCell() materialise a cell at every (row, column) position, so a
+  // template whose used range is ~1M cells made the export O(n^2) and pinned the CPU at 100 % for
+  // minutes (POST /api/reports/export-excel never answered). Styles are kept; only values are cleared.
+  sheet.eachRow({ includeEmpty: true }, (row) => {
+    row.eachCell({ includeEmpty: true }, (cell) => { cell.value = null; });
+  });
   if (Array.isArray(sheet.conditionalFormattings)) sheet.conditionalFormattings.length = 0;
-  if (sheet.model) sheet.model.conditionalFormattings = [];
-  for (let c = LAST_COLUMN + 1; c <= sheet.columnCount; c += 1) sheet.getColumn(c).hidden = true;
+  const columnCount = sheet.columnCount; // read once: see above
+  for (let c = LAST_COLUMN + 1; c <= columnCount; c += 1) sheet.getColumn(c).hidden = true;
 }
 
 function captureRowStyles(sheet, rowNumber) {
@@ -278,4 +286,4 @@ async function buildCommonProcessMonthlyWorkbook(reports, yearMonth, options = {
   return { archivePath: target.filePath, fileName: target.fileName, reportCount: reportList.length, templateFile: path.basename(templatePath), layout: 'common-process-daily-blocks' };
 }
 
-module.exports = { buildCommonProcessMonthlyWorkbook };
+module.exports = { buildCommonProcessMonthlyWorkbook, __test: { clearSheetData } };

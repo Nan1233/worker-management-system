@@ -11,16 +11,17 @@ test('SOURCE_CONTRACT: ApprovedReports defaults to current month, not a single d
     'utf8',
   );
 
+  // Keep this focused on behavior, not the exact TypeScript generic or unrelated import paths.
   assert.match(
     source,
-    /useState.*rangeFor\(getToday\(\),\s*["']month["']\)/,
+    /const\s*\[\s*range\s*,\s*setRange\s*\]\s*=\s*useState[\s\S]{0,220}?rangeFor\(getToday\(\),\s*["']month["']\)/,
     'Initial range state must default to the current month via rangeFor(getToday(), "month")',
   );
 
   assert.doesNotMatch(
     source,
-    /useState<\{[^}]*\}[^>]*>\(null\)/,
-    'Initial range state must NOT be null (that shows only today)',
+    /const\s*\[\s*range\s*,\s*setRange\s*\]\s*=\s*useState[\s\S]{0,220}?\(\s*null\s*\)/,
+    'Initial range state must not be null (that would show only today)',
   );
 });
 

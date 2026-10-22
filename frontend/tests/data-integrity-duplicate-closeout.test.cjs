@@ -30,9 +30,9 @@ test('approved duplicate prompt disables edit-existing worker action', () => {
 
 test('duplicate prompt still preserves explicit cancel/edit/create UX for temp collision', () => {
   const actions = read('src/pages/worker/components/ProcessSubmitActions.tsx');
-  assert.match(actions, /Phát hiện báo cáo tương tự/);
-  assert.match(actions, /Chỉnh sửa báo cáo cũ/);
-  assert.match(actions, /Vẫn tạo báo cáo mới/);
+  assert.match(actions, /Đã tồn tại báo cáo tương tự/);
+  assert.match(actions, /Tiếp tục báo cáo cũ/);
+  assert.match(actions, /Tạo báo cáo mới/);
 });
 
 test('duplicate classification reads the token from the Axios response payload', () => {

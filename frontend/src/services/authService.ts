@@ -40,16 +40,19 @@ function wait(ms: number): Promise<void> {
 async function postLoginRequest(
     username: string,
     accessType: LoginAccessType,
-    password: string
+    password: string,
+    previousRefreshToken?: string | null
 ): Promise<LoginResponse> {
     let lastError: unknown;
 
-    // Keep the login request deliberately minimal: this is the exact contract
-    // accepted by the test backend and avoids sending stale refresh-session data.
+    // Web requests omit previous_refresh_token because getRefreshToken() returns null
+    // for HttpOnly-cookie sessions. Electron may send its native fallback token so
+    // the backend can revoke the previous session family during an account switch.
     const payload = {
         username: username.trim(),
         access_type: accessType,
-        password
+        password,
+        previous_refresh_token: previousRefreshToken || undefined
     };
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -92,12 +95,13 @@ export const login = async (
     accessType: LoginAccessType,
     password = ""
 ): Promise<LoginResponse> => {
+    const previousRefreshToken = getRefreshToken();
     const loginEpoch = beginLoginTransition();
     clearAuthSession({ bumpEpoch: false });
     const loginSessionId = createAuthSessionId();
 
     try {
-        const data = await postLoginRequest(username, accessType, password);
+        const data = await postLoginRequest(username, accessType, password, previousRefreshToken);
 
         if (getAuthEpoch() !== loginEpoch) {
             throw new axios.CanceledError("Lần đăng nhập đã bị thay thế bởi một phiên mới hơn.");
@@ -139,7 +143,11 @@ export const refreshSession = async (): Promise<RefreshResponse> => {
 
 export const logout = async (): Promise<void> => {
     const refreshToken = getRefreshToken();
+    // Retire the session immediately for this user, then bind delayed completion
+    // to the epoch created by this logout. A new login must never be cleared by
+    // the finally block of an older logout request.
     clearAuthSession();
+    const logoutEpoch = getAuthEpoch();
 
     try {
         await api.post(
@@ -149,7 +157,9 @@ export const logout = async (): Promise<void> => {
     } catch {
         // Local identity is already retired. Server-side expiry/revocation is best-effort.
     } finally {
-        clearAuthSession();
+        if (getAuthEpoch() === logoutEpoch) {
+            clearAuthSession();
+        }
     }
 };
 

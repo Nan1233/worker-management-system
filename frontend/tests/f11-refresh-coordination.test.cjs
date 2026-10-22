@@ -17,7 +17,7 @@ test('F11 FE 01 same-tab refresh keeps one shared refreshPromise', () => {
   assert.match(api(), /if \(refreshPromise\)[\s\S]*?return refreshPromise/);
 });
 test('F11 FE 02 refreshPromise wraps coordinated refresh for all same-tab waiters', () => {
-  assert.match(api(), /refreshPromise = coordinatedRefresh\(\)/);
+  assert.match(api(), /const pendingRefresh = coordinatedRefresh\(\)\.finally\([\s\S]*?if \(refreshPromise === pendingRefresh\) \{[\s\S]*?refreshPromise = null;[\s\S]*?refreshPromise = pendingRefresh;/);
 });
 test('F11 FE 03 response interceptor retries original request only once', () => {
   const source = api();
@@ -177,7 +177,7 @@ test('F11 FE 35 desktop currently creates one renderer BrowserWindow', () => {
 // Static security boundaries.
 test('F11 FE 36 normal web setRefreshToken removes JS-readable refresh token', () => {
   const source = storage();
-  assert.match(source, /Web uses an HttpOnly cookie and never exposes the refresh token to JS/);
+  assert.match(source, /Refresh credentials remain HttpOnly on the web; Electron uses localStorage/);
   assert.match(source, /return null;/);
   assert.match(source, /localStorage\.removeItem\(REFRESH_TOKEN_KEY\)/);
   assert.match(source, /sessionStorage\.removeItem\(REFRESH_TOKEN_KEY\)/);

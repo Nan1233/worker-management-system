@@ -51,23 +51,23 @@ test('duplicate confirmation is bound to the current form snapshot and synchrono
 test('manager pending flow keeps admin navigation inside the admin route family', () => {
   const reports = read('src/pages/manager/Reports.tsx');
   assert.match(reports, /currentUser\?\.role === "admin"[\s\S]{0,80}\? "\/admin"/);
-  assert.match(reports, /navigate\(\s*`\$\{basePath\}\/reports\/review`/);
+  assert.match(reports, /navigate\(`\$\{basePath\}\/report\/\$\{Number\(detail\.id\)\}\?source=pending`\)/);
 });
 
 test('manager approve and reject mutations share a synchronous action lock', () => {
   const reports = read('src/pages/manager/Reports.tsx');
-  assert.match(reports, /const actionLockRef = useRef\(false\)/);
-  assert.match(reports, /handleApproveSelected = async \(\) => \{[\s\S]{0,160}actionLockRef\.current \|\| actionLoading/);
-  assert.match(reports, /handleRejectSelected = async \(\) => \{[\s\S]{0,160}actionLockRef\.current \|\| actionLoading/);
-  const sets = reports.match(/actionLockRef\.current = true/g) || [];
-  const clears = reports.match(/actionLockRef\.current = false/g) || [];
-  assert.equal(sets.length, 2);
-  assert.equal(clears.length, 2);
+  assert.match(reports, /const managerActionLockRef = useRef\(false\)/);
+  assert.match(reports, /approveDetail = async \(\) => \{[\s\S]{0,160}managerActionLockRef\.current/);
+  assert.match(reports, /rejectTargets = async \(\) => \{[\s\S]{0,180}managerActionLockRef\.current/);
+  const sets = reports.match(/managerActionLockRef\.current = true/g) || [];
+  const clears = reports.match(/managerActionLockRef\.current = false/g) || [];
+  assert.equal(sets.length, 3);
+  assert.equal(clears.length, 3);
 });
 
 test('approved conflict keeps draft state and reports an actionable 409 message', () => {
-  const edit = read('src/pages/manager/EditReport.tsx');
-  const conflict = edit.indexOf('code === "REPORT_VERSION_CONFLICT"');
+  const edit = read('src/pages/worker/WorkerReportEditV2.tsx');
+  const conflict = edit.indexOf('e?.response?.data?.code === "REPORT_VERSION_CONFLICT"');
   assert.ok(conflict >= 0);
   const window = edit.slice(conflict, conflict + 500);
   assert.match(window, /Các thay đổi bạn đang nhập vẫn được giữ trên màn hình/);
@@ -77,7 +77,7 @@ test('approved conflict keeps draft state and reports an actionable 409 message'
 test('Excel import UI distinguishes no-change, partial success and full success', () => {
   const approved = read('src/pages/manager/ApprovedReports.tsx');
   assert.match(approved, /File không có dòng mới hoặc thay đổi cần import/);
-  assert.match(approved, /result\.failed > 0[\s\S]{0,180}warning/);
-  assert.match(approved, /Import thành công \$\{result\.succeeded\} báo cáo/);
+  assert.match(approved, /Number\(result\?\.failed \|\| 0\) > 0[\s\S]{0,220}tone: "warning"/);
+  assert.match(approved, /Import thành công " \+ Number\(result\.succeeded\) \+ " báo cáo/);
   assert.match(approved, /applyReportImport\(token, reportImportPreview\.filePath\)/);
 });

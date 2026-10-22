@@ -11,7 +11,7 @@ test('Worker KQD preview shares the explicit configured registry and never prefi
   const config = fs.readFileSync(path.join(__dirname, '../src/pages/worker/processPageConfig.ts'), 'utf8');
   const utils = fs.readFileSync(path.join(__dirname, '../src/pages/worker/processFormUtils.ts'), 'utf8');
   assert.match(config, /kqdExclusionRegistry\.json/);
-  assert.match(config, /new Set\(kqdExclusionRegistry/);
+  assert.match(config, /new Set\(\s*kqdExclusionRegistry\.map/);
   assert.match(utils, /kqdCodes\.has\(code\)/);
   assert.doesNotMatch(utils, /startsWith\(['"]KQD/);
 });

@@ -210,8 +210,10 @@ exports.approveSelectedReports = async (req, res) => {
             data: result
         });
     } catch (error) {
-        console.error("APPROVE SELECTED REPORTS ERROR:", error);
-        return res.status(error.status || 400).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể duyệt báo cáo") });
+        // requestId ties this line to the http access log and to the X-Request-Id the browser saw; errno/sqlState
+        // identify masked database failures (the client only gets a generic message in production).
+        console.error(`APPROVE SELECTED REPORTS ERROR: requestId=${req.requestId || ""} status=${error.status || 400} code=${error.code || ""} errno=${error.errno || ""} sqlState=${error.sqlState || ""}`, error);
+        return res.status(error.status || 400).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể duyệt báo cáo"), requestId: req.requestId || undefined });
     }
 };
 
@@ -239,8 +241,8 @@ exports.rejectSelectedReports = async (req, res) => {
         invalidateManagerReportLists();
         return res.status(200).json({ success: true, message: "Đã từ chối báo cáo", data: result });
     } catch (error) {
-        console.error("REJECT SELECTED REPORTS ERROR:", error);
-        return res.status(error.status || 400).json({ success: false, message: publicMessage(error, "Không thể từ chối báo cáo") });
+        console.error(`REJECT SELECTED REPORTS ERROR: requestId=${req.requestId || ""} status=${error.status || 400} code=${error.code || ""} errno=${error.errno || ""}`, error);
+        return res.status(error.status || 400).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể từ chối báo cáo"), requestId: req.requestId || undefined });
     }
 };
 

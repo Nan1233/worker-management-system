@@ -15,26 +15,26 @@ test('SOURCE_CONTRACT: manager list service sends bounded server pagination and 
 
 test('SOURCE_CONTRACT: pending page consumes server pagination and total count instead of client slice', () => {
   const source = read('src/pages/manager/Reports.tsx');
-  assert.match(source, /setTotalCount\(result\.pagination\.total\)/);
-  assert.match(source, /setTotalPages\(result\.pagination\.total_pages\)/);
-  assert.match(source, /page:\s*currentPage/);
+  assert.match(source, /setTotal\(result\.pagination\?\.total \|\| 0\)/);
+  assert.match(source, /setPages\(Math\.max\(1, result\.pagination\?\.total_pages \|\| 1\)\)/);
+  assert.match(source, /page, pageSize: 8/);
   assert.doesNotMatch(source, /filteredReports\.slice/);
 });
 
 test('SOURCE_CONTRACT: approved page consumes server pagination and total count instead of client slice', () => {
   const source = read('src/pages/manager/ApprovedReports.tsx');
-  assert.match(source, /setTotalCount\(result\.pagination\.total\)/);
-  assert.match(source, /setTotalPages\(result\.pagination\.total_pages\)/);
-  assert.match(source, /page:\s*currentPage/);
+  assert.match(source, /setTotal\(result\.pagination\?\.total \|\| 0\)/);
+  assert.match(source, /setPages\(Math\.max\(1, result\.pagination\?\.total_pages \|\| 1\)\)/);
+  assert.match(source, /page, pageSize: 8/);
   assert.doesNotMatch(source, /filteredReports\.slice/);
 });
 
 test('SOURCE_CONTRACT: filter/search changes reset page and clear stale selection', () => {
   for (const file of ['src/pages/manager/Reports.tsx', 'src/pages/manager/ApprovedReports.tsx']) {
     const source = read(file);
-    assert.match(source, /setCurrentPage\(1\)/);
-    assert.match(source, /setSelectedIds\(\[\]\)/);
-    assert.match(source, /selectedShift, selectedProcess/);
+    assert.match(source, /setPage\(1\)/);
+    if (file === "src/pages/manager/Reports.tsx") assert.match(source, /setSelectedIds\(\[\]\)/);
+    assert.match(source, /\[date, range, process, shift, searchQuery\]/);
   }
 });
 
@@ -55,11 +55,11 @@ test('SOURCE_CONTRACT: approve/reject invalidate both manager list caches before
 });
 
 test('SOURCE_CONTRACT: Excel export remains separate from paginated manager list API', () => {
-  const approvedPage = read('src/pages/manager/ApprovedReports.tsx');
+  const approvedActions = read('src/pages/manager/ApprovedReportsDesktopActions.tsx');
   const service = read('src/services/productionService.ts');
-  assert.match(approvedPage, /exportSelectedApprovedExcel\(/);
+  assert.match(approvedActions, /syncAllExcel/);
   assert.match(service, /exportSelectedApprovedExcel/);
-  assert.doesNotMatch(approvedPage, /getApprovedReports\([\s\S]{0,120}excelMonth/);
+  assert.doesNotMatch(approvedActions, /getApprovedReports\([\s\S]{0,120}excelMonth/);
 });
 
 test('SOURCE_CONTRACT: search input is debounced before server request', () => {

@@ -25,6 +25,7 @@ interface DuplicateResponseShape {
     } | null;
 }
 
+// Accept a raw payload or an AxiosResponse-like wrapper whose .data contains the payload.
 function unwrapDuplicatePayload(
     response: DuplicateResponseShape | null | undefined
 ): DuplicateResponseShape | null {

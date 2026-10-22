@@ -549,10 +549,38 @@ const calculateActualOutput = (values: FormState): number =>
         setDuplicatePrompt,
     } = useDuplicateReportFlow();
 
+    // Bind duplicate confirmation to the complete form snapshot, including machine lines and deductions.
     const getDuplicateFormSignature = useCallback(() => JSON.stringify({
-        process: processInfo.id, workDate: form.workDate, shift: form.shift, machineNo: form.machineNo,
-        productName: form.productName, actualTime: form.actualTime, ttOk: form.ttOk, ttNg: form.ttNg,
-    }), [processInfo.id, form.workDate, form.shift, form.machineNo, form.productName, form.actualTime, form.ttOk, form.ttNg]);
+        processId: processInfo.id,
+        process,
+        form,
+        extraData,
+        operationType,
+        isCvkMode,
+        cutExecutionMode,
+        operationMode,
+        machineLines,
+        machineCount,
+        deductions,
+        selectedDeduction,
+        selectedNg,
+        resolvedReportKqdPolicy,
+    }), [
+        processInfo.id,
+        process,
+        form,
+        extraData,
+        operationType,
+        isCvkMode,
+        cutExecutionMode,
+        operationMode,
+        machineLines,
+        machineCount,
+        deductions,
+        selectedDeduction,
+        selectedNg,
+        resolvedReportKqdPolicy,
+    ]);
 
     const finishDuplicateAction = useCallback(() => {
         setDuplicatePrompt(null);

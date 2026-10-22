@@ -246,7 +246,7 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
 
     for (let index = 0; index < mine.length; index += 1) {
         const item = mine[index];
-        if (item.status === "blocked" || (!force && Number(item.nextRetryAt || 0) > now)) {
+        if ((!force && item.status === "blocked") || (!force && Number(item.nextRetryAt || 0) > now)) {
             remaining.push(item);
             continue;
         }

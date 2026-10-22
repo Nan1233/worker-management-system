@@ -1,7 +1,7 @@
 /* KTC Worker — Production Report / Page 04
    Visual layer only. Existing JSX, fields, validation, API and business rules are unchanged. */
 
-.worker-form-page{--ktc-primary:#1767c8;--ktc-primary-dark:#0f4f9d;--ktc-primary-soft:#edf5ff;--ktc-surface:#fff;--ktc-bg:#f4f7fb;--ktc-text:#173553;--ktc-muted:#73859a;--ktc-border:#dce6f0;--ktc-border-strong:#cbd9e7;min-height:100%;padding:24px 20px 52px;background:var(--ktc-bg);color:var(--ktc-text)}
+.worker-form-page{--ktc-primary-dark:#0f4f9d;--ktc-primary-soft:#edf5ff;--ktc-surface:#fff;--ktc-muted:#73859a;--ktc-border:#dce6f0;--ktc-border-strong:#cbd9e7;min-height:100%;padding:24px 20px 52px;background:var(--ktc-bg);color:var(--ktc-text)}
 .worker-form-shell{width:min(100%,780px);margin:0 auto}
 .worker-sticky-context{position:sticky;top:var(--worker-topbar-height,0px);z-index:70;margin:-4px 0 18px;padding:4px 0 14px;background:rgba(244,247,251,.94);backdrop-filter:blur(14px)}
 .worker-form-header{margin:0 0 12px}.worker-form-title-row{display:flex;align-items:center;gap:12px}.worker-form-title-row h1{margin:0;color:#124b8f;font-size:clamp(23px,2.6vw,30px);line-height:1.18;letter-spacing:-.035em;font-weight:820}
@@ -98,7 +98,7 @@
 }
 
 /* Modern Industrial MES trial — flatter hierarchy, restrained radius, no decorative left rails. */
-.worker-form-page{--ktc-bg:#f6f8fb;--ktc-border:#dfe6ee;--ktc-border-strong:#cfd9e4;--ktc-text:#1f3449;--ktc-muted:#6f8092}
+.worker-form-page{--ktc-border:#dfe6ee;--ktc-border-strong:#cfd9e4;--ktc-muted:#6f8092}
 .worker-form-shell{width:min(100%,820px)}
 .worker-form-card{margin-top:18px;padding:22px 20px 24px;border-radius:8px;box-shadow:none}
 .worker-card-title{border-bottom:1px solid #e8edf2;padding-bottom:12px}
@@ -213,4 +213,30 @@
   .worker-field-block input:not([type="checkbox"]):not([type="radio"]),
   .worker-field-block select, .worker-field-block textarea { font-size: 14px; }
   .worker-form-actions { bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+
+
+/* Single-machine product selector spans the full form grid on compact layouts. */
+.single-machine-product-scope, .worker-dynamic-grid > .single-machine-product-scope {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+
+/* Release interaction/accessibility baseline. */
+.worker-choice-row button { min-height: 44px; }
+.duplicate-dialog-actions button { min-height: 44px; }
+.worker-floating-save:disabled { background: #7b8da2; color: #fff; opacity: 1; cursor: not-allowed; }
+.worker-dropdown-title { background: var(--ktc-surface-subtle); }
+.worker-quality-card.total-output { background: var(--ktc-surface-subtle); }
+@media (max-width:390px) {
+  .worker-sticky-meta { display: grid; grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .worker-form-page *, .worker-form-page *::before, .worker-form-page *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

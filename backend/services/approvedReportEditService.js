@@ -153,7 +153,29 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
     const allowed = ['machine_no','product_name','note','shift','work_date','operation_type','operation_mode','total_time','actual_time','deduction_time','standard_output','standard_version_id','machine_standard_id','exclude_kqd_from_tt_snapshot','actual_output','tt_ok','tt_ng'];
     await createApprovedReportVersion({ reportId: Number(reportId), reason: changeReason, userId }, connection);
     const values = allowed.map((key) => validation.normalized[key]);
-    await connection.query(`UPDATE production_reports SET ${allowed.map((key) => `${key}=?`).join(',')}, updated_by=?, updated_at=NOW() WHERE id=?`, [...values, userId, Number(reportId)]);
+    // Production databases may predate production_reports.updated_by. Preserve
+    // compatibility without changing schema: audit/version records still capture
+    // the actor, and updated_at remains the optimistic-concurrency timestamp.
+    const [updatedByColumn] = await connection.query(
+      `SELECT 1 AS present
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'production_reports'
+          AND column_name = 'updated_by'
+        LIMIT 1`
+    );
+    const hasUpdatedBy = Array.isArray(updatedByColumn) && updatedByColumn.length > 0;
+    const updateColumns = [...allowed.map((key) => `${key}=?`)];
+    const updateValues = [...values];
+    if (hasUpdatedBy) {
+      updateColumns.push('updated_by=?');
+      updateValues.push(userId);
+    }
+    updateColumns.push('updated_at=NOW()');
+    await connection.query(
+      `UPDATE production_reports SET ${updateColumns.join(',')} WHERE id=?`,
+      [...updateValues, Number(reportId)]
+    );
 
     await connection.query('DELETE FROM production_report_defects WHERE report_id=?', [Number(reportId)]);
     for (const item of validation.normalized.defects) {

@@ -11,12 +11,12 @@ const basic = fs.readFileSync(path.join(root, 'src/pages/worker/components/Proce
 
 
 test('product suggestions are scoped by operation mode and selected machine', () => {
-  assert.ok(rules.includes('getProductMachineHint'));
-  assert.ok(rules.includes('AUTO|AUTOMATIC|\\d+'));
+  assert.ok(rules.includes('eligibleMachineCodes'));
+  assert.ok(rules.includes('GC_AUTOMATIC_MACHINE_CODES'));
   assert.ok(rules.includes('mode === "MANUAL"'));
   assert.ok(rules.includes('mappedMachines.includes(selectedMachine)'));
-  assert.ok(rules.includes('hint.value === selectedNumber'));
-  assert.ok(rules.includes('isAutomatic'));
+  assert.ok(rules.includes('const selectedMachine = normalizeMachineKey(machineCode)'));
+  assert.ok(rules.includes('Number(machine?.is_automatic || 0) === 1'));
   assert.ok(page.includes('filterProductsForSelection'));
   assert.ok(page.includes('getMachineProductOptions(line.machineCode)'));
   assert.ok(page.includes('useEncodedMachineSuffix: processCode === "GC"'));
@@ -48,9 +48,10 @@ test('changing a machine clears the previous product so stale machine products c
 });
 
 test('worker process crash regression: accounting identifiers stay declared and consistent', () => {
-  const accountingRefs = page.match(/\\busesMachineLineAccounting\\b/g) || [];
-  assert.equal(accountingRefs.length, 3);
-  assert.ok(page.includes('const usesMachineLineAccounting = usesMultiMachineLines;'));
+  const submission = fs.readFileSync(path.join(root, 'src/pages/worker/processReportSubmission.ts'), 'utf8');
+  assert.ok(submission.includes('const isMachineLineAccounting = useMachineLinesPayload;'));
+  assert.ok(submission.includes('isMachineLineAccounting'));
+  assert.ok(page.includes('usesMultiMachineLines'));
   assert.ok(!page.includes('usesGiaCongMachineAccounting'));
 });
 
@@ -73,11 +74,11 @@ test('DO and EP remain limited to one machine and mode helpers cannot both be tr
 
 test('machine-line payload does not duplicate worker-level time and OK/NG totals', () => {
   const submission = fs.readFileSync(path.join(root, 'src/pages/worker/processReportSubmission.ts'), 'utf8');
-  assert.ok(submission.includes('total_time:isMachineLineAccounting ? 0 : totalTime'));
-  assert.ok(submission.includes('actual_time:isMachineLineAccounting ? 0 : actualTime'));
-  assert.ok(submission.includes('deduction_time:isMachineLineAccounting ? 0 : deductionTime'));
-  assert.ok(submission.includes('tt_ok:(noStandardLongWork || isMachineLineAccounting) ? 0 : num(args.form.ttOk)'));
-  assert.ok(submission.includes('machine_lines:useMachineLinesPayload?lines:[]'));
+  assert.match(submission, /total_time:\s*isMachineLineAccounting\s*\?\s*0\s*:\s*totalTime/);
+  assert.match(submission, /actual_time:\s*isMachineLineAccounting\s*\?\s*0\s*:\s*actualTime/);
+  assert.match(submission, /deduction_time:\s*isMachineLineAccounting\s*\?\s*0\s*:\s*deductionTime/);
+  assert.match(submission, /tt_ok:\s*\(isCvk\s*\|\|\s*isNonProductWorkWithinProcess\s*\|\|\s*noStandardLongWork\s*\|\|\s*isMachineLineAccounting\)\s*\?\s*0\s*:\s*num\(args\.form\.ttOk\)/);
+  assert.match(submission, /machine_lines:\s*\(isCvk \|\| isNonProductWorkWithinProcess\) \? \[\] : \(useMachineLinesPayload\s*\?\s*lines\s*:\s*\[\]\)/);
 });
 
 test('basic info section destructures machineOptions before rendering machine labels', () => {
@@ -106,8 +107,10 @@ test('Mài worker master only exposes the approved time deductions and NG types'
   assert.ok(hook.includes('MAI_ALLOWED_DEFECT_NAMES'));
   assert.ok(hook.includes('MAI_DISPLAY_LABELS'));
   assert.ok(hook.includes('PPCM Mất điện'));
-  assert.ok(hook.includes('filterMaiMasterOptions(normalizeDefectOptions'));
-  assert.ok(hook.includes('filterMaiMasterOptions(normalizeDeductionOptions'));
+  assert.ok(hook.includes('normalizeDefectOptions(defects.value, resolvedProcessId)'));
+  assert.ok(hook.includes('filterMaiMasterOptions(normalized, processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES'));
+  assert.ok(hook.includes('normalizeDeductionOptions(deductions.value, resolvedProcessId)'));
+  assert.ok(hook.includes('filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId)'));
 });
 
 test('production bundle version replacement matches the frontend and service-worker version', () => {

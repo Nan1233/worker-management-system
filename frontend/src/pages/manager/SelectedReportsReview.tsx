@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
@@ -12,6 +12,7 @@ import { useToast } from "../../components/feedback/toastContext";
 import { decimalHoursToMinutes, formatMinutes } from "../../utils/timeDisplay";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
+import { describeApprovalError } from "../../utils/approvalError";
 const REJECT_REASONS = [
     "Báo cáo trùng",
     "Sai sản lượng",
@@ -71,6 +72,7 @@ function SelectedReportsReview() {
     const [reports, setReports] = useState<ProductionReport[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const actionLockRef = useRef(false);
     const [loadAttempt, setLoadAttempt] = useState(0);
     const [error, setError] = useState("");
     const [rejectOpen, setRejectOpen] = useState(false);
@@ -156,8 +158,9 @@ function SelectedReportsReview() {
     );
 
     const handleApprove = async () => {
-        if (source !== "pending" || reportIds.length === 0 || submitting) return;
+        if (source !== "pending" || reportIds.length === 0 || submitting || actionLockRef.current) return;
 
+        actionLockRef.current = true;
         try {
             setSubmitting(true);
             setError("");
@@ -167,16 +170,15 @@ function SelectedReportsReview() {
             navigate(`${basePath}/reports`);
         } catch (err) {
             console.error("APPROVE SELECTED REPORTS ERROR:", err);
-            setError(axios.isAxiosError(err)
-                ? err.response?.data?.message || "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."
-                : "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu.");
+            setError(describeApprovalError(err, "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."));
         } finally {
+            actionLockRef.current = false;
             setSubmitting(false);
         }
     };
 
     const handleReject = async () => {
-        if (source !== "pending" || reportIds.length === 0 || submitting) return;
+        if (source !== "pending" || reportIds.length === 0 || submitting || actionLockRef.current) return;
 
         const reason = rejectReason === "Lý do khác"
             ? rejectDetail.trim()
@@ -187,6 +189,7 @@ function SelectedReportsReview() {
             return;
         }
 
+        actionLockRef.current = true;
         try {
             setSubmitting(true);
             setError("");
@@ -196,10 +199,9 @@ function SelectedReportsReview() {
             navigate(`${basePath}/reports`);
         } catch (err) {
             console.error("REJECT SELECTED REPORTS ERROR:", err);
-            setError(axios.isAxiosError(err)
-                ? err.response?.data?.message || "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."
-                : "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu.");
+            setError(describeApprovalError(err, "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."));
         } finally {
+            actionLockRef.current = false;
             setSubmitting(false);
         }
     };
