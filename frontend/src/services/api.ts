@@ -480,17 +480,15 @@ api.interceptors.response.use(
 
         const transientRetryCount =
             originalRequest._transientRetryCount || 0;
-        const retryAfterHeader =
-            error.response?.headers?.["retry-after"] ??
-            null;
 
         if (
+            // The policy reads `response.status`, `code` and `retryCount`. Passing a flat
+            // `{status}` object made `response` undefined, so EVERY failure (422/403/409/500...)
+            // was treated as a dropped connection and the POST was replayed twice.
             isRetryableTransientFailure({
-                method: originalRequest.method,
-                status,
+                response: error.response,
                 code: error.code,
                 retryCount: transientRetryCount,
-                retryAfterHeader: String(retryAfterHeader || "") || null,
             })
         ) {
             const delayMs = transientRetryDelayMs(transientRetryCount);

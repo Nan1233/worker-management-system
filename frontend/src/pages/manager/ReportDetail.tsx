@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   approveSelectedTempReports,
@@ -10,6 +10,7 @@ import {
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 import WorkerReportEditV2 from "../worker/WorkerReportEditV2";
+import MachineEventPanel from "./MachineEventPanel";
 import "./ReportDetail.css";
 
 const REJECT_REASONS = ["Báo cáo trùng", "Sai sản lượng", "Sai thời gian", "Sai máy hoặc sản phẩm", "Thiếu dữ liệu", "Lý do khác"];
@@ -36,24 +37,27 @@ export default function ReportDetail() {
   const [rejectDetail, setRejectDetail] = useState("");
   const [error, setError] = useState("");
 
+  // Loaded through a stable callback so MachineEventPanel can refresh the report after the manager
+  // creates / links / approves a physical machine event (the approval hard-block depends on it).
+  const loadReport = useCallback(async (isAlive: () => boolean = () => true) => {
+    try {
+      if (!Number.isInteger(reportId) || reportId <= 0) throw new Error("ID báo cáo không hợp lệ.");
+      if (source === "pending") {
+        const data = await getTempReportById(reportId);
+        if (!isAlive()) return;
+        setReport(data);
+        setLogs(await getTempReportActionLogs(reportId).catch(() => []));
+      }
+    } catch (e: any) {
+      if (isAlive()) setError(e?.response?.data?.message || e?.message || "Không thể tải báo cáo.");
+    }
+  }, [reportId, source]);
+
   useEffect(() => {
     let alive = true;
-    const load = async () => {
-      try {
-        if (!Number.isInteger(reportId) || reportId <= 0) throw new Error("ID báo cáo không hợp lệ.");
-        if (source === "pending") {
-          const data = await getTempReportById(reportId);
-          if (!alive) return;
-          setReport(data);
-          setLogs(await getTempReportActionLogs(reportId).catch(() => []));
-        }
-      } catch (e: any) {
-        if (alive) setError(e?.response?.data?.message || e?.message || "Không thể tải báo cáo.");
-      }
-    };
-    void load();
+    void loadReport(() => alive);
     return () => { alive = false; };
-  }, [reportId, source]);
+  }, [loadReport]);
 
   const approve = async () => {
     if (!report || submitting) return;
@@ -106,6 +110,7 @@ export default function ReportDetail() {
       </div>
       {error && <div className="detail-inline-error" style={{ margin: "10px 16px" }}>{error}</div>}
       <WorkerReportEditV2 />
+      {source === "pending" && Array.isArray(report?.machine_lines) && report.machine_lines.length > 0 && <details className="detail-collapsible manager-worker-log" open data-testid="machine-event-panels"><summary>Production event máy dùng chung ({report.machine_lines.length} dòng máy)</summary><div className="machine-event-panels">{report.machine_lines.map((line: any, index: number) => <MachineEventPanel key={line.id ?? `${line.machine_code}-${index}`} report={report} line={line} source={source} onChanged={() => loadReport()} />)}</div></details>}
       {source === "pending" && logs.length > 0 && <details className="detail-collapsible manager-worker-log"><summary>Lịch sử xử lý ({logs.length})</summary><div className="detail-timeline">{logs.map((log) => <div className="detail-timeline-item" key={log.id}><span className="detail-timeline-dot"/><div><strong>{log.action}</strong><p>{log.full_name || log.username || "Hệ thống"}{log.note ? ` · ${log.note}` : ""}</p></div></div>)}</div></details>}
       {rejectOpen && <div className="detail-reject-modal-backdrop" role="dialog" aria-modal="true"><div className="detail-reject-modal"><h3>Từ chối báo cáo</h3><label>Lý do<select value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}>{REJECT_REASONS.map((reason) => <option key={reason}>{reason}</option>)}</select></label><label>Chi tiết<textarea value={rejectDetail} onChange={(e) => setRejectDetail(e.target.value)} rows={3} placeholder="Nhập thêm nếu cần..." /></label><div className="detail-reject-modal-actions"><button type="button" onClick={() => setRejectOpen(false)} disabled={submitting}>Hủy</button><button type="button" className="detail-reject-button" onClick={() => void reject()} disabled={submitting}>{submitting ? "Đang xử lý..." : "Xác nhận từ chối"}</button></div></div></div>}
     </main>
