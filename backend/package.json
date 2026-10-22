@@ -7,7 +7,7 @@
     "postinstall": "node scripts/fixCloudflareWorkerSyntax.cjs && node scripts/patchCvkProcessId.cjs",
     "start": "node scripts/ensureGcDefectMasterData.js && node scripts/ensureGcLong2801Lt.js && node --require ./scripts/approvedReportConcurrencyPatch.cjs --expose-gc server.js",
     "worker": "node worker.js",
-    "dev": "nodemon server.js",
+    "dev": "node --watch server.js",
     "check": "node --check server.js && node scripts/checkSource.js",
     "db:indexes": "node scripts/ensureIndexes.js",
     "db:analyze": "node scripts/analyzeTables.js",
@@ -66,9 +66,6 @@
     "helmet": "8.3.0",
     "jsonwebtoken": "9.0.3",
     "mysql2": "3.23.2"
-  },
-  "devDependencies": {
-    "nodemon": "3.1.14"
   },
   "overrides": {
     "uuid": "11.1.1"
