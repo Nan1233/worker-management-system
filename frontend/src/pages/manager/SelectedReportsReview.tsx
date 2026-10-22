@@ -12,6 +12,7 @@ import { useToast } from "../../components/feedback/toastContext";
 import { decimalHoursToMinutes, formatMinutes } from "../../utils/timeDisplay";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
+import { describeApprovalError } from "../../utils/approvalError";
 const REJECT_REASONS = [
     "Báo cáo trùng",
     "Sai sản lượng",
@@ -167,9 +168,7 @@ function SelectedReportsReview() {
             navigate(`${basePath}/reports`);
         } catch (err) {
             console.error("APPROVE SELECTED REPORTS ERROR:", err);
-            setError(axios.isAxiosError(err)
-                ? err.response?.data?.message || "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."
-                : "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu.");
+            setError(describeApprovalError(err, "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."));
         } finally {
             setSubmitting(false);
         }
@@ -196,9 +195,7 @@ function SelectedReportsReview() {
             navigate(`${basePath}/reports`);
         } catch (err) {
             console.error("REJECT SELECTED REPORTS ERROR:", err);
-            setError(axios.isAxiosError(err)
-                ? err.response?.data?.message || "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."
-                : "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu.");
+            setError(describeApprovalError(err, "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."));
         } finally {
             setSubmitting(false);
         }
