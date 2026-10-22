@@ -37,5 +37,7 @@ test('desktop validates generated workbooks with smoke test before packaging', (
   assert.match(smokeSource, /assert\.ok\(values\.includes\('STT'/);
   assert.match(smokeSource, /Date row phải lấy work_date/);
   assert.match(smokeSource, /Cột B phải chứa submission timestamp/);
-  assert.match(smokeSource, /DB detail alias mapping/);
+  // The smoke script's success label was reworded; assert the substance it still covers.
+  assert.match(smokeSource, /DEF_KQD_DB/);
+  assert.match(smokeSource, /18 CAT\/LONG headers/);
 });
