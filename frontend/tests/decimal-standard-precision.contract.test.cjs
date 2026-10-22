@@ -13,11 +13,12 @@ test('worker standard display/state no longer rounds authoritative decimal', () 
 test('manager review/detail/edit preserve decimal standard semantics', () => {
   const review = read('src/pages/manager/SelectedReportsReview.tsx');
   const detail = read('src/pages/manager/ReportDetail.tsx');
-  const edit = read('src/pages/manager/EditReport.tsx');
+  const edit = read('src/pages/worker/WorkerReportEditV2.tsx');
   assert.doesNotMatch(review, /Math\.round\([^\n]*standard_output/);
   assert.doesNotMatch(detail, /Math\.round\([^\n]*standard_output/);
   assert.doesNotMatch(edit, /Math\.round\([^\n]*standard_output/);
-  assert.match(edit, /inputMode="decimal"[^>]*readOnly/);
+  assert.match(edit, /standardOutput: s\(data\.standard_output\)/);
+  assert.match(read("src/pages/worker/components/ProcessBasicInfoSection.tsx"), /String\(Number\(selectedProduct\.standard_output\)\)/);
 });
 
 test('master-data UI accepts decimal standards instead of integer-only contract', () => {
