@@ -91,7 +91,8 @@ test('migration 059 adds the column idempotently and classifies only by seeded m
   assert.doesNotMatch(code, /\b(DELETE|DROP|TRUNCATE)\b/i, 'no destructive statements');
   assert.doesNotMatch(code, /production_reports/i, 'must not touch historical production data');
   const manifest = JSON.parse(read('migrations/manifest.json'));
-  assert.equal(manifest.latestMigration, '059_gc_machine_work_type_20261021.sql');
+  assert.ok(manifest.migrations.includes('059_gc_machine_work_type_20261021.sql'));
+  assert.equal(manifest.latestMigration, '060_schema_gaps_encoding_updated_by_standard_source_20261022.sql');
   assert.equal(manifest.migrations[manifest.migrations.length - 1], manifest.latestMigration);
   assert.equal(manifest.latestVersion, manifest.migrations.length);
   const seeded = read('migrations/049_gc_machines_from_excel_20260924.sql') + read('migrations/054_add_gc_c13_manual_cutting_machine.sql');
