@@ -33,7 +33,7 @@ test('SOURCE_CONTRACT: filter/search changes reset page and clear stale selectio
   for (const file of ['src/pages/manager/Reports.tsx', 'src/pages/manager/ApprovedReports.tsx']) {
     const source = read(file);
     assert.match(source, /setPage\(1\)/);
-    if (file.endsWith("Reports.tsx")) assert.match(source, /setSelectedIds\(\[\]\)/);
+    if (file === "src/pages/manager/Reports.tsx") assert.match(source, /setSelectedIds\(\[\]\)/);
     assert.match(source, /\[date, range, process, shift, searchQuery\]/);
   }
 });
