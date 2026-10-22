@@ -12,7 +12,7 @@ const basic = fs.readFileSync(path.join(root, 'src/pages/worker/components/Proce
 
 test('product suggestions are scoped by operation mode and selected machine', () => {
   assert.ok(rules.includes('eligibleMachineCodes'));
-  assert.ok(rules.includes('AUTO|AUTOMATIC|\\d+'));
+  assert.ok(rules.includes('GC_AUTOMATIC_MACHINE_CODES'));
   assert.ok(rules.includes('mode === "MANUAL"'));
   assert.ok(rules.includes('mappedMachines.includes(selectedMachine)'));
   assert.ok(rules.includes('const selectedMachine = normalizeMachineKey(machineCode)'));
