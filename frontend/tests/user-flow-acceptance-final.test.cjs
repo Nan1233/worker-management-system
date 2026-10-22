@@ -51,12 +51,12 @@ test('duplicate confirmation is bound to the current form snapshot and synchrono
 test('manager pending flow keeps admin navigation inside the admin route family', () => {
   const reports = read('src/pages/manager/Reports.tsx');
   assert.match(reports, /currentUser\?\.role === "admin"[\s\S]{0,80}\? "\/admin"/);
-  assert.match(reports, /navigate\(\s*`\$\{basePath\}\/reports\/review`/);
+  assert.match(reports, /navigate\(`\$\{basePath\}\/report\/\$\{Number\(detail\.id\)\}\?source=pending`\)/);
 });
 
 test('manager approve and reject mutations share a synchronous action lock', () => {
   const reports = read('src/pages/manager/Reports.tsx');
-  assert.match(reports, /const actionLockRef = useRef\(false\)/);
+  assert.match(reports, /const managerActionLockRef = useRef\(false\)/);
   assert.match(reports, /approveDetail = async \(\) => \{[\s\S]{0,160}managerActionLockRef\.current/);
   assert.match(reports, /rejectTargets = async \(\) => \{[\s\S]{0,180}managerActionLockRef\.current/);
   const sets = reports.match(/managerActionLockRef\.current = true/g) || [];
