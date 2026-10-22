@@ -36,16 +36,16 @@
     "device:ios:check": "node scripts/deviceSmoke.cjs ios"
   },
   "dependencies": {
-    "@capacitor/android": "8.5.0",
-    "@capacitor/core": "8.5.0",
-    "axios": "1.18.1",
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "axios": "1.20.0",
     "lucide-react": "^0.468.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "react-router-dom": "6.30.3"
+    "react-router-dom": "6.30.6"
   },
   "devDependencies": {
-    "@capacitor/cli": "8.5.0",
+    "@capacitor/cli": "8.5.3",
     "@eslint/js": "10.0.1",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4.1.11",
@@ -61,7 +61,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "6.0.3",
     "typescript-eslint": "8.63.0",
-    "vite": "8.1.4"
+    "vite": "8.3.5"
   },
   "overrides": {
     "uuid": "11.1.1"
