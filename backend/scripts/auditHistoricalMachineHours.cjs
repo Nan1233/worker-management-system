@@ -12,7 +12,10 @@
  *   node scripts/auditHistoricalMachineHours.cjs > historical-machine-hours-audit.json
  */
 require('dotenv').config();
-const db = require('../config/db');
+// Loaded lazily: requiring the pool at import time keeps the process alive, which made
+// `node --test` hang (and the CI backend suite time out) when tests only import classifyReport.
+let dbModule = null;
+const getDb = () => (dbModule ||= require('../config/db'));
 
 const CUTOFF = '2026-10-08';
 const MAX_MACHINE_HOURS = 12;
@@ -97,6 +100,7 @@ function classifyReport(report, lines) {
 }
 
 async function main() {
+  const db = getDb();
   const [reports] = await db.promise().query(
     `SELECT pr.id, pr.work_date, pr.shift, pr.operation_mode,
             pr.total_time, pr.actual_time, pr.deduction_time,
@@ -173,7 +177,7 @@ if (require.main === module) {
       process.exitCode = 1;
     })
     .finally(async () => {
-      try { await db.end(); } catch {}
+      try { if (dbModule) await dbModule.end(); } catch { /* pool already closed */ }
     });
 }
 

@@ -19,8 +19,10 @@ test('single machine line with missing hours is eligible only with valid worker 
     id: 10, work_date: '2026-09-01', total_time: 8, deduction_time: 1,
     operation_mode: 'MACHINE', machineLines: [{ id: 20, machine_code: 'GC01', machine_time_hours: 0 }]
   });
-  assert.equal(result.action, 'ELIGIBLE_SINGLE_MACHINE');
-  assert.equal(result.reason, 'ONE_MACHINE_LINE_MISSING_TIME_WITH_VALID_WORKER_TIME');
+  // Current policy (see classifyReport): worker time is not proof of physical machine time,
+  // so even a single machine line with missing hours is never auto-qualified.
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'MISSING_MACHINE_TIME_CANNOT_BE_INFERRED_FROM_WORKER_TIME');
 });
 
 test('multi-machine allocation is flagged for review, not auto-split', () => {

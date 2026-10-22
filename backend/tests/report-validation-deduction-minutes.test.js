@@ -2,9 +2,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { validateProductionReport } = require('../utils/reportValidation');
 
+// The validator only accepts reports from the last 14 days (Vietnam date), so a hard-coded
+// date makes this test fail as time passes. Use a date two days ago in UTC+7.
+const RECENT_WORK_DATE = new Date(Date.now() + 7 * 3600e3 - 2 * 86400e3).toISOString().slice(0, 10);
+
 test('deduction detail minutes matches deduction_time in hours', () => {
   const result = validateProductionReport({
-    work_date: '2026-10-01',
+    work_date: RECENT_WORK_DATE,
     shift: 'A',
     total_time: 10 + 20 / 60,
     actual_time: 10,
@@ -27,7 +31,7 @@ test('deduction detail minutes matches deduction_time in hours', () => {
 
 test('canonical deduction hours still works', () => {
   const result = validateProductionReport({
-    work_date: '2026-10-01',
+    work_date: RECENT_WORK_DATE,
     shift: 'A',
     total_time: 10 + 20 / 60,
     actual_time: 10,

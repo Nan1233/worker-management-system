@@ -49,6 +49,8 @@ function buildFakeDb({ assignments = {} } = {}) {
     promise() {
       return {
         async query(sql, params = []) {
+          // permissionService probes for the optional override tables; a count below 2 is the supported legacy-schema state.
+          if (/information_schema\.tables/i.test(sql) && /role_permission_overrides/i.test(sql)) return [[{ total: 0 }], []];
           if (/manager_processes/i.test(sql)) {
             const actorId = Number(params[0]);
             return [(assignments[actorId] || []).map((process_id) => ({ process_id })), []];
