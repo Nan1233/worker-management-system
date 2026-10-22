@@ -1,5 +1,5 @@
 import { resolveCutExecutionMode } from "./cutExecutionMode.js";
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById, updateReport, updateTempReport } from "../../services/productionService";
 import { resolveProductStandard } from "../../services/masterDataService";
@@ -60,6 +60,8 @@ function WorkerReportEditV2() {
   const [loading, setLoading] = useState(true);
   const [loadingMasterData, setLoadingMasterData] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Immutable concurrency token captured when an approved report edit session loads.
+  const approvedEditBaselineRef = useRef<string | null>(null);
   const [error, setError] = useState("");
   const [remaining, setRemaining] = useState(0);
   const [showNg, setShowNg] = useState(false);
@@ -145,6 +147,7 @@ function WorkerReportEditV2() {
         if (!data) throw new Error("Không tìm thấy báo cáo.");
         if (!alive) return;
         setReport(data);
+        approvedEditBaselineRef.current = managerRoute && source === "approved" && data.updated_at ? String(data.updated_at) : null;
         const rawMachineLines = Array.isArray(data.machine_lines) ? data.machine_lines : Array.isArray(data.machineLines) ? data.machineLines : [];
         const isMachineReport = String(data.operation_mode || "").toUpperCase() === "MACHINE" || rawMachineLines.length > 0;
         const legacyMachine = s(data.machine_no).split(",").map((v) => v.trim()).filter(Boolean)[0] || "";
@@ -328,19 +331,32 @@ function WorkerReportEditV2() {
       machineLines: normalizedLines, machineOptions: editMachineOptions, productOptions: editProductOptions, activeNgOptions: editNgOptions, deductions, activeDeductionOptions: editDeductionOptions,
       excludeKqdFromTt: Number(report.exclude_kqd_from_tt ?? report.exclude_kqd_from_tt_snapshot ?? 0) === 1,
     });
-    payload.updated_at = report.updated_at;
-    payload.expected_updated_at = report.updated_at;
+    const approvedBaseline = approvedEditBaselineRef.current;
+    if (managerRoute && source === "approved" && !approvedBaseline) {
+      setError("Không thể lưu an toàn vì thiếu mốc cập nhật của báo cáo. Tải lại báo cáo trước khi sửa.");
+      return;
+    }
+    payload.updated_at = approvedBaseline || report.updated_at;
+    payload.expected_updated_at = approvedBaseline || report.updated_at;
     try {
       setSaving(true);
       if (managerRoute) {
-        await updateReport(Number(report.id), payload as ProductionReport, source, report.updated_at || null);
+        const savedResponse: any = await updateReport(Number(report.id), payload as ProductionReport, source, approvedBaseline || report.updated_at || null);
+        const savedUpdatedAt = savedResponse?.data?.updated_at ?? savedResponse?.updated_at;
+        if (source === "approved" && savedUpdatedAt) approvedEditBaselineRef.current = String(savedUpdatedAt);
         const roleBasePath = storedRole === "lead" ? "/lead" : storedRole === "admin" ? "/admin" : storedRole === "admin_ops" ? "/admin-ops" : "/manager";
         navigate(source === "pending" ? `${roleBasePath}/report/${report.id}?source=pending` : `${roleBasePath}/report/${report.id}?source=approved`, { replace: true });
       } else {
         await updateTempReport(Number(report.id), payload);
         navigate(`/worker/history/${report.id}`, { replace: true });
       }
-    } catch (e: any) { setError(e?.response?.data?.message || e?.response?.data?.errors?.machine_lines || "Không thể lưu thay đổi."); }
+    } catch (e: any) {
+      if (Number(e?.response?.status) === 409) {
+        setError("Báo cáo đã được người khác cập nhật. Bản nháp hiện tại vẫn được giữ; hãy tải lại để xem dữ liệu mới trước khi lưu tiếp.");
+      } else {
+        setError(e?.response?.data?.message || e?.response?.data?.errors?.machine_lines || "Không thể lưu thay đổi.");
+      }
+    }
     finally { setSaving(false); }
   };
 
