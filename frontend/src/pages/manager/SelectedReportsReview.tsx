@@ -178,7 +178,7 @@ function SelectedReportsReview() {
     };
 
     const handleReject = async () => {
-        if (source !== "pending" || reportIds.length === 0 || submitting) return;
+        if (source !== "pending" || reportIds.length === 0 || submitting || actionLockRef.current) return;
 
         const reason = rejectReason === "Lý do khác"
             ? rejectDetail.trim()
@@ -189,6 +189,7 @@ function SelectedReportsReview() {
             return;
         }
 
+        actionLockRef.current = true;
         try {
             setSubmitting(true);
             setError("");
@@ -200,6 +201,7 @@ function SelectedReportsReview() {
             console.error("REJECT SELECTED REPORTS ERROR:", err);
             setError(describeApprovalError(err, "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."));
         } finally {
+            actionLockRef.current = false;
             setSubmitting(false);
         }
     };
