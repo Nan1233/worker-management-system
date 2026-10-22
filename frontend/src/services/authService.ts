@@ -45,8 +45,9 @@ async function postLoginRequest(
 ): Promise<LoginResponse> {
     let lastError: unknown;
 
-    // Keep the login request deliberately minimal: this is the exact contract
-    // accepted by the test backend and avoids sending stale refresh-session data.
+    // Web requests omit previous_refresh_token because getRefreshToken() returns null
+    // for HttpOnly-cookie sessions. Electron may send its native fallback token so
+    // the backend can revoke the previous session family during an account switch.
     const payload = {
         username: username.trim(),
         access_type: accessType,
