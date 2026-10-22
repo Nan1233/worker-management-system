@@ -3,6 +3,10 @@ const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];
 
+function isApiRequest(url) {
+  return url.pathname === "/api" || url.pathname.startsWith("/api/");
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
@@ -22,6 +26,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
+  if (isApiRequest(new URL(request.url))) return;
 
   event.respondWith(
     fetch(request)
