@@ -18,7 +18,7 @@
     "db:migrate": "node scripts/runPendingMigrations.js",
     "db:migration-status": "node scripts/printMigrationStatus.js",
     "db:migration-inventory": "node scripts/verifyMigrationInventory.js",
-    "test": "node --test --test-concurrency=4 tests/*.test.js",
+    "test": "node --test --test-concurrency=4 --test-timeout=60000 tests/*.test.js",
     "test:integration": "node tests/integration/run-all.js",
     "verify": "npm run check && npm run db:migration-inventory && npm test",
     "backup:db": "node scripts/createDatabaseBackup.js",
