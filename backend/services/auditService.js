@@ -181,7 +181,16 @@ async function createReportVersion(
           normalizedReportId,
         ],
       );
-      const versionNo = Number(result?.insertId ?? result?.lastInsertId ?? 0);
+      let versionNo = Number(result?.insertId ?? result?.lastInsertId ?? 0);
+
+      // TiDB/MySQL drivers do not all expose LAST_INSERT_ID(expr) from an
+      // INSERT ... SELECT consistently in the returned ResultSetHeader.
+      // Read it from the same connection/session before failing. This preserves
+      // the computed per-report version_no (not report_versions.id).
+      if (!Number.isInteger(versionNo) || versionNo <= 0) {
+        const lastIdRows = await query(executor, 'SELECT LAST_INSERT_ID() AS version_no');
+        versionNo = Number(lastIdRows?.[0]?.version_no ?? 0);
+      }
       if (!Number.isInteger(versionNo) || versionNo <= 0) {
         throw new Error('Không thể xác định version_no vừa tạo');
       }
