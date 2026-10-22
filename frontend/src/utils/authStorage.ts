@@ -21,6 +21,11 @@ export function isElectronRuntime(): boolean {
     return typeof navigator !== "undefined" && /electron/i.test(navigator.userAgent);
 }
 
+/** Whether this runtime can send the legacy Electron refresh-token body. */
+export function supportsElectronRefreshTokenBody(): boolean {
+    return isElectronRuntime();
+}
+
 /**
  * Keep the web access token/user in localStorage so the PWA/browser can be
  * reopened without forcing the user through the login screen every time.
