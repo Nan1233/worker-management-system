@@ -175,16 +175,24 @@ function normalizeCloudflareMigrationStatements(sql,migrationFilename=''){
 }
 
 // Statements that must share one connection: from a `SET @ktc_…` assignment through the closing
-// `DEALLOCATE PREPARE`. Returns the index of the last statement of the group that starts at
-// `startIndex` (or `startIndex` itself when it is not a group start / has no closing statement).
-function findSessionGroupEnd(statements,startIndex){
-  if(!/^SET\s+@ktc_/i.test(String(statements[startIndex]||'').trim())) return startIndex;
-  for(let index=startIndex+1; index<statements.length; index+=1){
+// `DEALLOCATE PREPARE`. A group that starts with `SET @ktc_` but cannot be closed is an error, not
+// something to fall back from: running its statements one by one on whatever connection comes next
+// would silently skip or break the conditional DDL.
+const SESSION_GROUP_MEMBER=/^(?:SET\s+@ktc_|PREPARE\b|EXECUTE\b)/i;
+const SESSION_GROUP_CLOSE=/^DEALLOCATE\s+PREPARE\b/i;
+function findSessionGroup(statements,startIndex,migrationFilename=''){
+  let first=startIndex;
+  // Progress saved by an older runner may point into the middle of a group: restart at the group start
+  // (the groups are idempotent: they re-read information_schema before changing anything).
+  const isGroupStatement=(index)=>SESSION_GROUP_MEMBER.test(String(statements[index]||'').trim()) || SESSION_GROUP_CLOSE.test(String(statements[index]||'').trim());
+  while(first>0 && isGroupStatement(first) && SESSION_GROUP_MEMBER.test(String(statements[first-1]||'').trim())) first-=1;
+  if(!/^SET\s+@ktc_/i.test(String(statements[first]||'').trim())) return {first:startIndex,last:startIndex};
+  for(let index=first+1; index<statements.length; index+=1){
     const statement=String(statements[index]||'').trim();
-    if(/^DEALLOCATE\s+PREPARE\b/i.test(statement)) return index;
-    if(!/^(?:SET\s+@ktc_|PREPARE\b|EXECUTE\b)/i.test(statement)) return startIndex;
+    if(SESSION_GROUP_CLOSE.test(statement)) return {first,last:index};
+    if(!SESSION_GROUP_MEMBER.test(statement)) break;
   }
-  return startIndex;
+  throw new Error(`Migration ${migrationFilename}: statement ${first + 1} opens a session-bound SET @ktc_… group that is not closed by DEALLOCATE PREPARE`);
 }
 
 async function sha256(value){
@@ -276,7 +284,9 @@ async function runPendingMigrations(){
       // user variables and a prepared-statement handle that only exist on ONE connection. The runner
       // applies a bounded batch per invocation and may resume on a different connection, so such a
       // group must run to completion in this invocation as a single step.
-      const groupEnd=findSessionGroupEnd(statements,statementIndex);
+      const group=findSessionGroup(statements,statementIndex,migration.filename);
+      const groupEnd=group.last;
+      statementIndex=group.first;
 
       console.log(`[KTC][MIGRATION] applying ${migration.filename}: statement ${statementIndex + 1}${groupEnd > statementIndex ? `-${groupEnd + 1}` : ''}/${statements.length}`);
       for(let index=statementIndex; index<=groupEnd; index+=1){

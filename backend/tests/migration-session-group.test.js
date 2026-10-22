@@ -13,10 +13,11 @@ const path = require('node:path');
 const BACKEND = path.join(__dirname, '..');
 const MIGRATION_060 = '060_schema_gaps_encoding_updated_by_standard_source_20261022.sql';
 const SQL_060 = fs.readFileSync(path.join(BACKEND, 'migrations', MIGRATION_060), 'utf8');
+const SQL_060_CHECKSUM = require('node:crypto').createHash('sha256').update(SQL_060).digest('hex');
 
-function createFakeDatabase(widths) {
+function createFakeDatabase(widths, initialStepIndex = null) {
   const applied = new Map();
-  let step = null;
+  let step = initialStepIndex === null ? null : { id: 1, migration_id: MIGRATION_060, checksum: SQL_060_CHECKSUM, statement_index: initialStepIndex };
   let connectionCount = 0;
   const executed = [];
   const errors = [];
@@ -92,7 +93,7 @@ function createFakeDatabase(widths) {
   };
 }
 
-async function runAll(batchSize, widths) {
+async function runAll(batchSize, widths, { initialStepIndex = null, sql = SQL_060 } = {}) {
   const envBackup = { ...process.env };
   Object.assign(process.env, {
     KTC_MIGRATION_BATCH_SIZE: String(batchSize),
@@ -102,7 +103,7 @@ async function runAll(batchSize, widths) {
   });
   const dbPath = require.resolve(path.join(BACKEND, 'config', 'db'));
   const runnerPath = require.resolve(path.join(BACKEND, 'scripts', 'runPendingMigrations'));
-  const fakeDb = createFakeDatabase(widths);
+  const fakeDb = createFakeDatabase(widths, initialStepIndex);
   const dbBackup = require.cache[dbPath];
   const fetchBackup = globalThis.fetch;
   const logBackup = console.log;
@@ -113,7 +114,7 @@ async function runAll(batchSize, widths) {
       ok: true,
       status: 200,
       statusText: 'OK',
-      text: async () => (String(url).includes(MIGRATION_060) ? SQL_060 : 'SELECT 1;')
+      text: async () => (String(url).includes(MIGRATION_060) ? sql : 'SELECT 1;')
     });
     console.log = () => {};
     const run = require(runnerPath);
@@ -168,4 +169,27 @@ test('each SET @ktc_… … DEALLOCATE PREPARE group runs on one connection', as
     assert.equal(group.length, 5);
     assert.equal(new Set(group.map((item) => item.connection)).size, 1, 'one connection per group');
   }
+});
+
+test('resuming from progress saved in the middle of a group restarts that group and still widens every column', async () => {
+  for (let index = 0; index < 17; index += 1) {
+    const { fakeDb, finished } = await runAll(3, {
+      machine_production_events: 20,
+      production_temp_machine_lines: 20,
+      production_report_machine_lines: 100
+    }, { initialStepIndex: index });
+    assert.deepEqual(fakeDb.errors, [], `resume at statement index ${index}: no session errors`);
+    assert.equal(finished, true, `resume at statement index ${index}: finished`);
+    // Groups before the resume point were applied by an earlier run, so only check the ones not yet done.
+    if (index <= 11) assert.equal(fakeDb.widthsNow.production_temp_machine_lines, 64, `resume at ${index}: middle table widened`);
+    if (index <= 6) assert.equal(fakeDb.widthsNow.machine_production_events, 64, `resume at ${index}: first table widened`);
+  }
+});
+
+test('a SET @ktc_… group that is never closed fails loudly instead of being run statement by statement', async () => {
+  const broken = 'SET @ktc_len_1 := 20;\nSET @ktc_sql_1 := \'SELECT 1\';\nSELECT 2;\n';
+  await assert.rejects(
+    () => runAll(8, { machine_production_events: 20 }, { sql: broken }),
+    /not closed by DEALLOCATE PREPARE/
+  );
 });
