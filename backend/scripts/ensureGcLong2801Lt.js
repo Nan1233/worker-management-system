@@ -16,3 +16,16 @@ async function ensureGcLong2801Lt() {
 }
 
 module.exports = ensureGcLong2801Lt;
+
+// Command-line entry (`npm start` pre-step, `npm run db:ensure-gc-long-2801-lt`).
+// config/db keeps a connection pool and timers alive, so without an explicit exit the process
+// never terminated and `npm start` hung forever before it reached server.js. The sibling
+// ensureGcDefectMasterData.js already ends this way.
+if (require.main === module) {
+  ensureGcLong2801Lt()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error('[KTC] ensureGcLong2801Lt failed:', error && error.message ? error.message : error);
+      process.exit(1);
+    });
+}

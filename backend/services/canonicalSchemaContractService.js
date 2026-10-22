@@ -91,7 +91,10 @@ function normalizeDefault(value) {
 
 function parseColumnDefinition(definition) {
   const text = definition.trim();
-  if (/^(PRIMARY|UNIQUE|KEY|CONSTRAINT|FULLTEXT|SPATIAL)\b/i.test(text)) return null;
+  // Table-level clauses are not columns. `INDEX name (col)` is the MySQL spelling of `KEY name (col)`;
+  // it used to fall through to the column regex and surface as a bogus column called "index"
+  // (health/ready 503 DATABASE_CONTRACT_INVALID on a freshly built database).
+  if (/^(PRIMARY|UNIQUE|KEY|INDEX|CONSTRAINT|FULLTEXT|SPATIAL|FOREIGN|CHECK)\b/i.test(text)) return null;
   const match = /^`?([A-Za-z0-9_]+)`?\s+([A-Za-z]+(?:\s+UNSIGNED)?(?:\s*\([^)]*\))?)([\s\S]*)$/i.exec(text);
   if (!match) return null;
   const name = match[1].toLowerCase();
@@ -110,7 +113,7 @@ function parseIndexDefinition(definition) {
   const text = definition.trim();
   let match = /^PRIMARY\s+KEY\s*\(([\s\S]*)\)$/i.exec(text);
   if (match) return { name: 'primary', unique: true, columns: splitTopLevel(match[1]).map((s) => s.trim().replace(/^`|`$/g, '').toLowerCase()) };
-  match = /^(UNIQUE\s+)?KEY\s+`?([A-Za-z0-9_]+)`?\s*\(([\s\S]*)\)$/i.exec(text);
+  match = /^(UNIQUE\s+)?(?:KEY|INDEX)\s+`?([A-Za-z0-9_]+)`?\s*\(([\s\S]*)\)$/i.exec(text);
   if (!match) return null;
   return { name: match[2].toLowerCase(), unique: Boolean(match[1]), columns: splitTopLevel(match[3]).map((s) => s.trim().replace(/^`|`$/g, '').toLowerCase()) };
 }
@@ -185,4 +188,6 @@ module.exports = {
   compareColumn,
   compareIndex,
   normalizeDefault,
+  parseColumnDefinition,
+  parseIndexDefinition,
 };
