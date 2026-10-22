@@ -11,10 +11,7 @@ const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshot
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
-
-const DAILY_HOURS_LIMIT = 12;
-// total_time is stored rounded to 4 decimals; allow 0.001h (3.6s) so an exact 12h total is not rejected by rounding.
-const DAILY_HOURS_TOLERANCE = 0.001;
+const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const submissionQueues = new Map();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -69,17 +66,17 @@ const recoverAfter1205 = async (data) => {
 const enforceDailyWorkerHours = async (data, executor = db) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
-    const incoming = Number(data?.total_time) || 0;
+    const incoming = Number(data?.actual_time ?? data?.total_time) || 0;
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
     const rows = await query(executor, `
-        SELECT COALESCE(SUM(total_time),0) AS counted_hours FROM production_reports
+        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports
         WHERE worker_id=? AND work_date=? AND status='approved'
         UNION ALL
-        SELECT COALESCE(SUM(total_time),0) AS counted_hours FROM production_reports_temp
+        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports_temp
         WHERE worker_id=? AND work_date=? AND status IN ('pending','need_fix')`,
         [workerId, workDate, workerId, workDate]);
     const existing = (rows || []).reduce((sum, row) => sum + Number(row?.counted_hours || 0), 0);
-    if (existing + incoming > DAILY_HOURS_LIMIT + DAILY_HOURS_TOLERANCE) {
+    if (exceedsDailyHoursLimit(existing + incoming)) {
         const error = new Error(`Tổng giờ làm trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ.`);
         error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true; throw error;
     }
