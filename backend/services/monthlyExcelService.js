@@ -25,62 +25,18 @@ const monthRange = (yearMonth) => {
     return { start, next };
 };
 
+const { buildGiaCongMachineAccounting: buildSharedGiaCongMachineAccounting } = require("./giaCongMachineAccounting");
+
+// Keep monthly export on the same canonical accounting logic as company-data export.
 const buildGiaCongMachineAccounting = (report, machineLines, eventMap) => {
-    const seenEvents = new Set();
-    let grossHours = 0;
-    let deductionHours = 0;
-    const deductions = [];
-    const seenDeductions = new Set();
-    for (const [index, line] of (Array.isArray(machineLines) ? machineLines : []).entries()) {
-        const eventId = Number(line.machine_event_id) || 0;
-        const event = eventId ? eventMap.get(eventId) : null;
-        if (event) {
-            if (!seenEvents.has(eventId)) {
-                seenEvents.add(eventId);
-                grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
-            }
-        } else if (!eventId) {
-            grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
-        }
-        let lineDeductions = [];
-        try {
-            const parsed = typeof line.deductions_json === 'string' ? JSON.parse(line.deductions_json) : line.deductions_json;
-            lineDeductions = Array.isArray(parsed) ? parsed : [];
-        } catch (_error) {}
-        const detailDeductionHours = lineDeductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
-        const lineDeductionHours = Math.max(
-            0,
-            Number(line.deduction_time_hours) || 0,
-            (Number(line.adjustment_minutes) || 0) / 60,
-            detailDeductionHours
-        );
-        const key = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || index);
-        if (!seenDeductions.has(key)) {
-            seenDeductions.add(key);
-            deductionHours += lineDeductionHours;
-            for (const item of lineDeductions) {
-                const hours = Math.max(0, Number(item?.hours) || 0);
-                if (!hours) continue;
-                const existing = deductions.find((entry) => String(entry.deduction_type_id || entry.deduction_type_code || entry.deduction_name) === String(Number(item?.deduction_type_id) || item?.deduction_code || item?.deduction_name || ''));
-                if (existing) existing.hours += hours;
-                else deductions.push({
-                    deduction_type_id: Number(item?.deduction_type_id) || undefined,
-                    deduction_type_code: String(item?.deduction_code || '').trim(),
-                    deduction_name: String(item?.deduction_name || '').trim(),
-                    hours
-                });
-            }
-        }
-    }
-    const hasMachineLines = Array.isArray(machineLines) && machineLines.length > 0;
-    const hasMissingLinkedEvent = (Array.isArray(machineLines) ? machineLines : []).some((line) => {
-        const eventId = Number(line.machine_event_id) || 0;
-        return eventId > 0 && !eventMap.has(eventId);
-    });
-    const source = seenEvents.size
-        ? (hasMissingLinkedEvent ? 'MACHINE_EVENT_PARTIAL' : 'MACHINE_EVENT')
-        : (hasMissingLinkedEvent ? 'MACHINE_EVENT_MISSING' : (hasMachineLines ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING'));
-    return { source, grossHours, deductionHours, netHours: Math.max(0, grossHours - deductionHours), deductions };
+    const accounting = buildSharedGiaCongMachineAccounting({ ...report, machineLines }, eventMap);
+    return {
+        ...accounting,
+        deductions: accounting.deductions.map((item) => ({
+            ...item,
+            deduction_type_code: item.deduction_code || item.deduction_type_code || ''
+        }))
+    };
 };
 
 const mapDetails = (rows, reportIds, valueMapper) => {
