@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
+import { describeApprovalError } from "../../utils/approvalError";
+import { getStoredUser } from "../../utils/authStorage";
 import { approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
@@ -135,6 +138,10 @@ export default function Reports() {
         }
     };
 
+    const navigate = useNavigate();
+    const role = String(getStoredUser()?.role || "manager").toLowerCase();
+    const basePath = role === "lead" ? "/lead" : role === "admin_ops" ? "/admin-ops" : "/manager";
+
     const approveDetail = async () => {
         if (!detail || approving) return;
         setApproving(true);
@@ -144,7 +151,10 @@ export default function Reports() {
             await load();
             window.alert("Đã duyệt báo cáo thành công.");
         } catch (e: any) {
-            window.alert(e?.response?.data?.message || e?.message || "Không thể duyệt báo cáo. Vui lòng thử lại.");
+            window.alert(describeApprovalError(e, "Không thể duyệt báo cáo. Vui lòng thử lại."));
+            // A shared GC machine needs an approved physical event first; that is created on the report detail page,
+            // so take the manager there instead of leaving them at a dead end.
+            if (e?.response?.data?.code === "MACHINE_EVENT_REQUIRED") navigate(`${basePath}/report/${Number(detail.id)}?source=pending`);
         } finally {
             setApproving(false);
         }
@@ -209,7 +219,7 @@ export default function Reports() {
                 } catch (e: any) {
                     failedIds.push(id);
                     const code = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || id}`;
-                    const message = e?.response?.data?.message || e?.message || "Không thể duyệt";
+                    const message = describeApprovalError(e, "Không thể duyệt");
                     failures.push(`${code} (#${id}): ${message}`);
                 }
             }

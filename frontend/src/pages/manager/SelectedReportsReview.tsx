@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import axios from "axios";
+import { describeApprovalError } from "../../utils/approvalError";
 import {
     approveSelectedTempReports,
     getReportById,
@@ -167,9 +167,7 @@ function SelectedReportsReview() {
             navigate(`${basePath}/reports`);
         } catch (err) {
             console.error("APPROVE SELECTED REPORTS ERROR:", err);
-            setError(axios.isAxiosError(err)
-                ? err.response?.data?.message || "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."
-                : "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu.");
+            setError(describeApprovalError(err, "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."));
         } finally {
             setSubmitting(false);
         }
@@ -196,9 +194,7 @@ function SelectedReportsReview() {
             navigate(`${basePath}/reports`);
         } catch (err) {
             console.error("REJECT SELECTED REPORTS ERROR:", err);
-            setError(axios.isAxiosError(err)
-                ? err.response?.data?.message || "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."
-                : "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu.");
+            setError(describeApprovalError(err, "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."));
         } finally {
             setSubmitting(false);
         }

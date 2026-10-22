@@ -11,6 +11,7 @@ import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 import WorkerReportEditV2 from "../worker/WorkerReportEditV2";
 import MachineEventPanel from "./MachineEventPanel";
+import { describeApprovalError } from "../../utils/approvalError";
 import "./ReportDetail.css";
 
 const REJECT_REASONS = ["Báo cáo trùng", "Sai sản lượng", "Sai thời gian", "Sai máy hoặc sản phẩm", "Thiếu dữ liệu", "Lý do khác"];
@@ -65,7 +66,7 @@ export default function ReportDetail() {
       setSubmitting(true); setError("");
       await approveSelectedTempReports([{ id: Number(report.id), expected_updated_at: report.updated_at || null }]);
       navigate(`${basePath}/reports`, { replace: true });
-    } catch (e: any) { setError(e?.response?.data?.message || "Không thể duyệt báo cáo."); }
+    } catch (e: unknown) { setError(describeApprovalError(e, "Không thể duyệt báo cáo.")); }
     finally { setSubmitting(false); }
   };
 
@@ -77,7 +78,7 @@ export default function ReportDetail() {
       setSubmitting(true); setError("");
       await rejectSelectedTempReports([{ id: Number(report.id), expected_updated_at: report.updated_at || null }], reason);
       navigate(`${basePath}/reports`, { replace: true });
-    } catch (e: any) { setError(e?.response?.data?.message || "Không thể từ chối báo cáo."); }
+    } catch (e: unknown) { setError(describeApprovalError(e, "Không thể từ chối báo cáo.")); }
     finally { setSubmitting(false); }
   };
 

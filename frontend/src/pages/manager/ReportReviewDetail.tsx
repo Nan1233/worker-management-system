@@ -16,6 +16,8 @@ import { getAllReportDefects } from "../../utils/reportDetails";
 import { formatMinutes, sumDeductionMinutes } from "../../utils/timeDisplay";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
+import MachineEventPanel from "./MachineEventPanel";
+import { describeApprovalError } from "../../utils/approvalError";
 import { useToast } from "../../components/feedback/toastContext";
 import "./ReportReviewDetail.css";
 
@@ -224,7 +226,7 @@ export default function ReportReviewDetail() {
       await approveSelectedTempReports([{ id: reportId, expected_updated_at: report.updated_at || null }]);
       await advanceAfterAction(Number(report.id));
     } catch (err: unknown) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể duyệt báo cáo." : err instanceof Error ? err.message : "Không thể duyệt báo cáo.");
+      setError(describeApprovalError(err, "Không thể duyệt báo cáo."));
     } finally { setActionLoading(false); }
   };
 
@@ -238,7 +240,7 @@ export default function ReportReviewDetail() {
       setRejectOpen(false); setRejectDetail("");
       await advanceAfterAction(Number(report.id));
     } catch (err: unknown) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể từ chối báo cáo." : "Không thể từ chối báo cáo.");
+      setError(describeApprovalError(err, "Không thể từ chối báo cáo."));
     } finally { setActionLoading(false); }
   };
 
@@ -371,6 +373,15 @@ export default function ReportReviewDetail() {
               <div><span>Thời gian thực tế</span><strong>{fmt(report.actual_time)} giờ</strong></div>
             </div>
           </section>
+
+          {source === "pending" && Array.isArray(report.machine_lines) && report.machine_lines.length > 0 && (
+            <details className="review-card" open data-testid="machine-event-panels">
+              <summary>Production event máy dùng chung ({report.machine_lines.length} dòng máy)</summary>
+              {report.machine_lines.map((line, index) => (
+                <MachineEventPanel key={`${line.id || line.machine_code}-${index}`} report={report} line={line} source={source} onChanged={() => loadOne(report)} />
+              ))}
+            </details>
+          )}
 
           {!nonStandard && <section className="review-card">
             <div className="review-card-title"><h2>Sản lượng & kiểm soát</h2>{outputWarning && <span className="badge warning">⚠ Vượt định mức</span>}</div>
