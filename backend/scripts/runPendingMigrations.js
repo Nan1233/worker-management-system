@@ -243,7 +243,7 @@ async function dryRunPendingMigrations(connection,{entries,ceiling}){
   for(const migration of entries){
     if(!appliedById.has(migration.filename)) continue;
     const stored=appliedById.get(migration.filename);
-    if(!stored) continue;
+    if(!stored) throw new Error(`${tag} applied migration ${migration.filename} has no recorded checksum; stop and inspect migration history before planning anything else.`);
     const checksum=await sha256(await fetchText(migration.downloadUrl));
     if(checksum !== stored) mismatched.push(migration.filename);
   }
