@@ -15,12 +15,9 @@ export function normalizeDeductionStoredValue(value: string): string {
 }
 
 export function getProspectiveTotalWorkMinutes(data: DeductionState, actualHours: string, actualMinutes: string): number {
-  // P0 business rule: the 12h/day limit applies to actual working time only.
-  // Deduction/support time is excluded from the worker's counted daily hours.
-  // Keep deduction minutes out of this prospective value so the UI matches the
-  // backend canonical daily-hours check, which sums actual_time only.
-  void data;
-  return baseMinutes(actualHours, actualMinutes);
+  // The submitted report's total duration includes actual work plus deducted/support
+  // minutes. Keep the UI's prospective validation aligned with the 12-hour cap.
+  return baseMinutes(actualHours, actualMinutes) + minutesOf(data);
 }
 
 export function calculateDeductionTimeSummary(data: DeductionState, actualHours: string, actualMinutes: string) {
