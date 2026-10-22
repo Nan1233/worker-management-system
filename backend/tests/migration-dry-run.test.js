@@ -106,7 +106,7 @@ test('dry-run stops when a half-applied migration exists', async () => {
 test('dry-run stops when an applied migration has no recorded checksum', async () => {
   const fake = createFakeDatabase({ applied: { [M001]: '' } });
   const { error, lines } = await runOnce(fake, { KTC_MIGRATION_DRY_RUN: 'true' });
-  assert.match(String(error && error.message), new RegExp(`has no recorded checksum.*${M001}`));
+  assert.match(String(error && error.message), new RegExp(`${M001}.*has no recorded checksum`));
   assert.equal(pendingLines(lines).length, 0);
   assert.ok(onlySelects(fake.queries));
 });
