@@ -28,6 +28,7 @@ function loadCreateModelHarness() {
     query: async () => [],
     getConnection: async () => ({ release() {} }),
     beginTransaction: async (conn) => { conn.tx = true; },
+    beginReadCommittedTransaction: async (conn) => { conn.tx = true; },
     commit: async (conn) => { committed.push(conn); },
     rollback: async (conn) => { rolledBack.push(conn); },
   });
