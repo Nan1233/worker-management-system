@@ -12,7 +12,6 @@
  *   node scripts/auditHistoricalMachineHours.cjs > historical-machine-hours-audit.json
  */
 require('dotenv').config();
-const db = require('../config/db');
 
 const CUTOFF = '2026-10-08';
 const MAX_MACHINE_HOURS = 12;
@@ -97,6 +96,9 @@ function classifyReport(report, lines) {
 }
 
 async function main() {
+  // Load the database pool only for CLI execution. Unit tests import classifyReport
+  // and must not keep open DB sockets that prevent Node's test runner from exiting.
+  const db = require('../config/db');
   const [reports] = await db.promise().query(
     `SELECT pr.id, pr.work_date, pr.shift, pr.operation_mode,
             pr.total_time, pr.actual_time, pr.deduction_time,
