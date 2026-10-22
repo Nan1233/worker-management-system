@@ -285,9 +285,11 @@ export function useProcessMasterData(processId: number, processCode: string) {
 
       if (generation !== requestGeneration.current) return;
 
-      const [defects, deductions] = optionalResults;
+      const [defectResult, deductionResult] = optionalResults;
+      const defects = defectResult.status === "fulfilled" ? { value: defectResult.value } : null;
+      const deductions = deductionResult.status === "fulfilled" ? { value: deductionResult.value } : null;
 
-      if (defects.status === "fulfilled") {
+      if (defects) {
         const normalized = normalizeDefectOptions(defects.value, resolvedProcessId);
         const maiFiltered = filterMaiMasterOptions(normalized, processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_");
         setActiveNgOptions(filterK2MasterOptions(maiFiltered, processCode, K2_ALLOWED_DEFECT_NAMES));
@@ -295,7 +297,7 @@ export function useProcessMasterData(processId: number, processCode: string) {
         setActiveNgOptions([]);
       }
 
-      if (deductions.status === "fulfilled") {
+      if (deductions) {
         setActiveDeductionOptions(
           dedupeGcDeductionOptions(
             filterK2MasterOptions(
