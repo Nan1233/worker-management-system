@@ -18,7 +18,7 @@ test('F07 FE 02 approved update request sends expected_updated_at from the immut
   const service = read('src/services/productionService.ts');
   assert.match(page, /updateReport\(Number\(report\.id\), requestPayload as ProductionReport, source, approvedBaseline \|\| report\.updated_at \|\| null\)/);
   assert.match(page, /payload\.expected_updated_at = approvedBaseline \|\| report\.updated_at/);
-  assert.match(service, /expected_updated_at: expectedUpdatedAt \|\| undefined/);
+  assert.match(service, /expected_updated_at:\s*expectedUpdatedAt\s*\|\|\s*undefined/);
   assert.doesNotMatch(service, /expected_updated_at:\s*new Date/);
 });
 
