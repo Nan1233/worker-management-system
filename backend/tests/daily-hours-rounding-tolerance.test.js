@@ -14,7 +14,7 @@ test('daily 12h limit tolerates 4-decimal rounding but still rejects real overru
   assert.equal(7.1667 + 4 + 50 / 60 > limit + 0.000001, true, 'old tolerance wrongly rejected exact 12h');
 });
 
-test('all three daily-hours checks use the shared tolerance constant', () => {
+test('all three daily-hours checks use the shared whole-minute boundary helper', () => {
   for (const file of ['models/productionTempModel.js', 'models/productionTempCreateModel.js', 'models/productionTempUpdateModel.js']) {
     const source = read(file);
     assert.match(source, /DAILY_HOURS_TOLERANCE = 0\.001/, file);
