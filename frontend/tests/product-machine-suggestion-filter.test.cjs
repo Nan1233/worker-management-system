@@ -78,7 +78,7 @@ test('machine-line payload does not duplicate worker-level time and OK/NG totals
   assert.match(submission, /actual_time:\s*isMachineLineAccounting\s*\?\s*0\s*:\s*actualTime/);
   assert.match(submission, /deduction_time:\s*isMachineLineAccounting\s*\?\s*0\s*:\s*deductionTime/);
   assert.match(submission, /tt_ok:\s*\(isCvk\s*\|\|\s*isNonProductWorkWithinProcess\s*\|\|\s*noStandardLongWork\s*\|\|\s*isMachineLineAccounting\)\s*\?\s*0\s*:\s*num\(args\.form\.ttOk\)/);
-  assert.match(submission, /machine_lines:\\s*\\(isCvk \\|\\| isNonProductWorkWithinProcess\\) \\? \\[\\] : \\(useMachineLinesPayload\\s*\\?\\s*lines\\s*:\\s*\\[\\]\\)/);
+  assert.match(submission, /machine_lines:\s*\(isCvk \|\| isNonProductWorkWithinProcess\) \? \[\] : \(useMachineLinesPayload\s*\?\s*lines\s*:\s*\[\]\)/);
 });
 
 test('basic info section destructures machineOptions before rendering machine labels', () => {
