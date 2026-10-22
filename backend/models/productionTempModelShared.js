@@ -134,6 +134,22 @@ const beginTransaction = (connection) =>
         });
     });
 
+// Daily-hours (12 h) enforcement takes a row lock on `workers` and then SUMs the worker's reports.
+// Under REPEATABLE READ the transaction's snapshot is fixed by its FIRST plain read (the idempotency
+// lookup), i.e. BEFORE the lock wait ends - so after waiting for a concurrent submission to commit,
+// the SUM still could not see that submission and every parallel request passed (4 x 4 h = 16 h
+// accepted). READ COMMITTED makes each statement see the latest committed rows. The statement affects
+// only the next transaction on this connection (no leakage into the pool); if a server rejects it we
+// fall back to the default level rather than failing the request.
+const beginReadCommittedTransaction = async (connection) => {
+    try {
+        await new Promise((resolve, reject) => connection.query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED", (error) => (error ? reject(error) : resolve())));
+    } catch (error) {
+        console.warn(`[KTC] READ COMMITTED not applied for daily-hours transaction: ${error.code || error.message}`);
+    }
+    return beginTransaction(connection);
+};
+
 const commit = (connection) =>
     new Promise((resolve, reject) => {
         connection.commit((error) => {
@@ -185,6 +201,7 @@ module.exports = {
     query,
     getConnection,
     beginTransaction,
+    beginReadCommittedTransaction,
     commit,
     rollback,
     normalizeIds,
