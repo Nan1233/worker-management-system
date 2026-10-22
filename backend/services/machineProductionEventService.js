@@ -5,6 +5,42 @@ const { calculateProductionOutput } = require('../../shared/kqdPolicy.cjs');
 const { canonicalMachineNumber, GC_SHARED_MACHINE_NUMBERS, getGcMachineRule } = require('./factoryMachineRuleService');
 const { assertProcessScope } = require('./processAuthorizationService');
 
+// Persist a stable, semantic source code compatible with production VARCHAR(20).
+// Do not truncate source labels: truncation can make distinct resolution paths ambiguous.
+function storedStandardSource(value) {
+  const source = String(value || 'DEFAULT').trim().toUpperCase();
+  const exact = {
+    NON_PRODUCT_WORK: 'NON_PRODUCT_WORK',
+    PRODUCT_VERSION_PROCESS_FALLBACK: 'PROD_VER_PROC_FBK',
+    PRODUCT_VERSION_SNAPSHOT: 'PROD_VER_SNAPSHOT',
+    LEGACY_PRODUCT_STANDARD_PROCESS_FALLBACK: 'LEGACY_PROC_FBK',
+    LEGACY_PRODUCT_STANDARD: 'LEGACY_PRODUCT',
+    PRODUCT_VERSION: 'PROD_VERSION',
+    PRODUCT_VERSION_HISTORICAL: 'PROD_VER_HIST',
+    MACHINE: 'MACHINE',
+    MACHINE_HISTORICAL: 'MACHINE_HIST',
+    DEFAULT: 'DEFAULT',
+  };
+  if (exact[source]) return exact[source];
+  // Resolver may append a fallback marker to product/machine source names.
+  const machineFallback = source.endsWith('_MACHINE_FALLBACK');
+  const processFallback = source.endsWith('_PROCESS_FALLBACK');
+  const base = machineFallback ? source.slice(0, -'_MACHINE_FALLBACK'.length)
+    : processFallback ? source.slice(0, -'_PROCESS_FALLBACK'.length) : source;
+  const baseCode = exact[base] || (base.startsWith('PRODUCT_VERSION') ? 'PROD_VERSION'
+    : base.startsWith('LEGACY_PRODUCT_STANDARD') ? 'LEGACY_PRODUCT'
+    : base.startsWith('MACHINE') ? 'MACHINE' : null);
+  if (baseCode) {
+    const code = baseCode + (machineFallback ? '_MACH_FB' : processFallback ? '_PROC_FB' : '');
+    if (code.length <= 20) return code;
+  }
+  if (source.length <= 20) return source;
+  const error = new Error('Nguồn định mức vượt giới hạn lưu trữ và chưa có mã tương thích: ' + source);
+  error.code = 'STANDARD_SOURCE_CODE_UNMAPPED';
+  throw error;
+}
+
+
 function eventError(status, code, message, details = null) {
   const error = new Error(message);
   error.status = status;
@@ -214,7 +250,7 @@ async function createEvent({ actor, data, req = null }) {
        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?,?)`, [
       ctx.process.id,ctx.machine.id,ctx.machine.machine_code,ctx.resolved.productCode,workDate,shift,
       calc.physicalOkQuantity,calc.physicalNgQuantity,calc.physicalCountedOutput,calc.physicalTotalOutput,calc.machineTimeHours,calc.maximumOutput,
-      ctx.resolved.standardOutput,ctx.resolved.standardVersionId,ctx.resolved.machineStandardId,ctx.resolved.source,ctx.resolved.excludeKqdFromTt,
+      ctx.resolved.standardOutput,ctx.resolved.standardVersionId,ctx.resolved.machineStandardId,storedStandardSource(ctx.resolved.source),ctx.resolved.excludeKqdFromTt,
       Number(actor.id),Number(actor.id)
     ]);
     const event = await loadEvent(connection, insert.insertId, { lock:true });
@@ -258,7 +294,7 @@ async function updateEvent({ id, actor, patch, req = null }) {
       standard_output=?,standard_version_id=?,machine_standard_id=?,standard_source=?,exclude_kqd_from_tt_snapshot=?,updated_by=?,updated_at=NOW() WHERE id=?`,[
       ctx.process.id,ctx.machine.id,ctx.machine.machine_code,ctx.resolved.productCode,isoDate(resulting.work_date),normalizeShift(resulting.shift),calc.physicalOkQuantity,calc.physicalNgQuantity,
       calc.physicalCountedOutput,calc.physicalTotalOutput,calc.machineTimeHours,calc.maximumOutput,ctx.resolved.standardOutput,ctx.resolved.standardVersionId,
-      ctx.resolved.machineStandardId,ctx.resolved.source,ctx.resolved.excludeKqdFromTt,Number(actor.id),before.id]);
+      ctx.resolved.machineStandardId,storedStandardSource(ctx.resolved.source),ctx.resolved.excludeKqdFromTt,Number(actor.id),before.id]);
     if(Object.prototype.hasOwnProperty.call(patch||{},'defects')){
       await connection.query('DELETE FROM machine_production_event_defects WHERE machine_event_id=?',[before.id]);
       for(const d of defects) await connection.query(`INSERT INTO machine_production_event_defects(machine_event_id,defect_type_id,defect_code,defect_name,quantity,responsible_worker_id) VALUES(?,?,?,?,?,?)`,[before.id,d.defect_type_id,d.defect_code,d.defect_name,d.quantity,d.responsible_worker_id]);
