@@ -87,6 +87,30 @@ test('CVK with no work_type leaves MSP blank instead of inventing a product code
   assert.equal(value, '');
 });
 
+test('legacy GC non-product work maps TAIPP to TPP with object extra_data', async () => {
+  const { value } = await exportAndRead('GC', {
+    process_code: 'GC',
+    extra_data: { non_product_work: true, process_code: 'GC', work_type: 'TAIPP' }
+  });
+  assert.equal(value, 'TPP');
+});
+
+test('legacy GC non-product work maps XUATNHAP to XN with JSON-string extra_data', async () => {
+  const { value } = await exportAndRead('GC', {
+    process_code: 'GC',
+    extra_data: JSON.stringify({ non_product_work: true, process_code: 'GC', work_type: 'XUATNHAP' })
+  });
+  assert.equal(value, 'XN');
+});
+
+test('legacy GC non-product work preserves KTCD', async () => {
+  const { value } = await exportAndRead('GC', {
+    process_code: 'GC',
+    extra_data: { non_product_work: true, process_code: 'GC', work_type: 'KTCD' }
+  });
+  assert.equal(value, 'KTCD');
+});
+
 test('non-CVK product mapping remains unchanged', async () => {
   const { value } = await exportAndRead('CAN', {
     product_code: 'SP-001',
