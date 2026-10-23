@@ -648,7 +648,9 @@ function reportForMachineLine(report, line, machineLineCount) {
 function applyReportRow(row, report, contract, processData, index) {
   const set = (column, value) => writeValue(row, column, value);
   const exportTimes = resolveExportTimes(report);
-  const reportForDetails = exportTimes.hasMachine ? { ...report, deductions: exportTimes.deductions } : report;
+  const reportForDetails = exportTimes.hasMachine && Array.isArray(report.deductions) && report.deductions.length
+    ? report
+    : (exportTimes.hasMachine ? { ...report, deductions: exportTimes.deductions } : report);
   set(contract.cols.stt, index + 1);
   set(contract.cols.entryDate, asDate(report.entry_date || report.created_at));
   set(contract.cols.date, asDate(report.work_date || report.entry_date));
