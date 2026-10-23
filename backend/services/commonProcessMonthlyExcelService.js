@@ -217,15 +217,24 @@ function writeReportRow(sheet, rowNumber, report, deductionTypes, defectTypes, d
   const deductions = Array.isArray(exportTimes.deductions) ? exportTimes.deductions : [];
   const defects = Array.isArray(report.defects) ? report.defects : [];
 
+  const isGiaCong = String(report.process_code || '').trim().toUpperCase() === 'GC';
+  const deductionValues = deductionTypes.slice(0, MAX_DEDUCTIONS).map((t) => detailValue(deductions, t.id, t.name, 'hours'));
+  const defectValues = defectTypes.slice(0, MAX_DEFECTS).map((t) => detailValue(defects, t.id, t.name, 'quantity'));
+  // The legacy monthly template reserves fixed-width detail blocks. Keep their
+  // positions stable for Gia công even when this month's active type list is short.
+  if (isGiaCong) {
+    while (deductionValues.length < MAX_DEDUCTIONS) deductionValues.push(null);
+    while (defectValues.length < MAX_DEFECTS) defectValues.push(null);
+  }
   const values = [
     index + 1, report.worker_code ?? '', report.full_name ?? report.worker_name ?? '', report.machine_no ?? '', report.shift ?? '',
     trainingFactor, totalTime, actualTime,
     detailValue(deductions, null, 'Chuyển mã', 'hours'), deductionTime, Math.max(0, standard - actual),
-    ...deductionTypes.slice(0, MAX_DEDUCTIONS).map((t) => detailValue(deductions, t.id, t.name, 'hours')),
+    ...deductionValues,
     report.product_name ?? '', standard, actual, achievement,
     dateKey(report.work_date) ? new Date(`${dateKey(report.work_date)}T00:00:00`) : null,
     standardRate, ok, ng, ngRate,
-    ...defectTypes.slice(0, MAX_DEFECTS).map((t) => detailValue(defects, t.id, t.name, 'quantity')), ok, ng
+    ...defectValues, ok, ng
   ];
 
   for (let c = 1; c <= LAST_COLUMN; c += 1) row.getCell(c).value = values[c - 1] ?? null;
