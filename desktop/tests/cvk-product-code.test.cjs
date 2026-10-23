@@ -69,6 +69,53 @@ async function exportAndRead(processCode, report) {
   };
 }
 
+
+test('Mài with multiple physical machine lines exports one row per machine', async () => {
+  const result = await buildWorkerSplit({
+    appPath,
+    date: exportDate,
+    payload: {
+      processes: {
+        MAI: {
+          processName: 'MAI',
+          reports: [{
+            id: 909,
+            process_code: 'MAI',
+            operation_mode: 'MACHINE',
+            worker_code: 'TEST-MAI-MULTI',
+            full_name: 'Machine Row Regression',
+            work_date: exportDate,
+            shift: 'A',
+            standard_output: 0,
+            actual_time: 6,
+            total_time: 6,
+            actual_output: 90,
+            tt_ok: 90,
+            tt_ng: 0,
+            deductions: [],
+            defects: [],
+            machineLines: [
+              { id: 901, machine_code: 'MAI-01', machine_time_hours: 2, actual_output: 30, tt_ok: 30 },
+              { id: 902, machine_code: 'MAI-02', machine_time_hours: 4, actual_output: 60, tt_ok: 60 }
+            ]
+          }]
+        }
+      }
+    }
+  });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(result.processes[0].buffer));
+  const sheet = workbook.worksheets.find((item) => item.state !== 'hidden') || workbook.worksheets[0];
+  const cols = result.processes[0].columnContract.cols;
+  const rows = [];
+  sheet.eachRow((row) => {
+    if (String(row.getCell(cols.workerCode).value ?? '').trim() === 'TEST-MAI-MULTI') rows.push(row);
+  });
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((row) => String(row.getCell(cols.machine).value ?? '').trim()).sort(), ['MAI-01', 'MAI-02']);
+  assert.deepEqual(rows.map((row) => Number(row.getCell(cols.output).value || 0)).sort((a,b)=>a-b), [30, 60]);
+});
+
 test('v6 includes CVK in its active process list', () => {
   assert.ok(PROCESS_CODES.includes('CVK'));
 });
