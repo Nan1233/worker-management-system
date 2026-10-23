@@ -88,25 +88,30 @@ test('real monthly workbook serializes distinct GC rows with correct per-line me
     else process.env.EXCEL_EXPORT_ROOT = oldRoot;
     await fs.rm(root, { recursive: true, force: true });
   });
-  const result = await buildCommonProcessMonthlyWorkbook([report()], '2026-10');
+  const source = [
+    report(),
+    report({ id: 2, worker_id: 11, worker_code: 'CN02', full_name: 'Công nhân 2',
+      machineLines: [line(201, 'M03', 'SP03', 2, 40, 1)] })
+  ];
+  const result = await buildCommonProcessMonthlyWorkbook(source, '2026-10');
   const out = new ExcelJS.Workbook();
   await out.xlsx.readFile(result.archivePath);
   const sheet = out.getWorksheet('Cắt lồng');
   assert.ok(sheet);
-  assert.equal(sheet.getCell('D3').value, 'M01');
-  assert.equal(sheet.getCell('D4').value, 'M02');
-  assert.equal(sheet.getCell('B3').value, 'CN01');
-  assert.equal(sheet.getCell('B4').value, 'CN01');
-  assert.equal(sheet.getCell('AC3').value, 102);
-  assert.equal(sheet.getCell('AC4').value, 203);
-  assert.equal(sheet.getCell('G3').value, 4);
-  assert.equal(sheet.getCell('H3').value, 3);
-  assert.equal(sheet.getCell('G4').value, 5);
-  assert.equal(sheet.getCell('H4').value, 4.5);
-  assert.equal(sheet.getCell('AB3').value, 300);
-  assert.equal(sheet.getCell('AB4').value, 450);
-  assert.equal(sheet.getCell('AD3').value, 102 / 300);
-  assert.equal(sheet.getCell('AD4').value, 203 / 450);
+  assert.deepEqual([sheet.getCell('D3').value, sheet.getCell('D4').value, sheet.getCell('D5').value], ['M01', 'M02', 'M03']);
+  assert.deepEqual([sheet.getCell('B3').value, sheet.getCell('B4').value, sheet.getCell('B5').value], ['CN01', 'CN01', 'CN02']);
+  assert.deepEqual([sheet.getCell('AC3').value, sheet.getCell('AC4').value, sheet.getCell('AC5').value], [102, 203, 41]);
+  assert.deepEqual([sheet.getCell('G3').value, sheet.getCell('H3').value, sheet.getCell('G4').value, sheet.getCell('H4').value], [4, 3, 5, 4.5]);
+  assert.deepEqual([sheet.getCell('AB3').value, sheet.getCell('AB4').value], [300, 450]);
+  assert.deepEqual([sheet.getCell('AD3').value, sheet.getCell('AD4').value], [102 / 300, 203 / 450]);
   assert.ok(sheet.getRow(3).height > 0);
   assert.equal(sheet.getCell('AD3').numFmt, '0.00%');
+
+  // A repeated export replaces the monthly workbook; it must not append duplicate rows.
+  await buildCommonProcessMonthlyWorkbook(source, '2026-10');
+  const repeated = new ExcelJS.Workbook();
+  await repeated.xlsx.readFile(result.archivePath);
+  const repeatedSheet = repeated.getWorksheet('Cắt lồng');
+  assert.deepEqual([repeatedSheet.getCell('D3').value, repeatedSheet.getCell('D4').value, repeatedSheet.getCell('D5').value], ['M01', 'M02', 'M03']);
+  assert.equal(repeatedSheet.getCell('B6').value, null);
 });
