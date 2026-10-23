@@ -604,7 +604,9 @@ function machineLinesOf(report) {
   const seen = new Set();
   return source.filter((line) => {
     if (!line || typeof line !== 'object') return false;
-    const key = String(line.id ?? line.machine_line_id ?? line.machine_event_id ?? line.machine_code ?? line.machine_no ?? line.machineCode ?? line.code ?? '');
+    // Dedupe only by persistent row/event identity. Same machine code can
+    // legitimately occur in multiple rows or time segments.
+    const key = String(line.id ?? line.machine_line_id ?? line.machine_event_id ?? '');
     if (key && seen.has(key)) return false;
     if (key) seen.add(key);
     return true;
@@ -616,12 +618,16 @@ function reportForMachineLine(report, line, machineLineCount) {
   const outputFields = ['actual_output', 'tt_ok', 'tt_ng', 'total_time', 'actual_time', 'deduction_time', 'total_minutes', 'work_minutes', 'standard_output', 'actual_output_per_hour', 'achievement_rate', 'ng_rate'];
   const next = { ...report, ...line };
   // Keep per-line machine time as explicit fields expected by resolveExportTimes.
-  if (line?.machine_time_hours != null && line?.total_time == null) next.total_time = Number(line.machine_time_hours) || 0;
-  if (line?.machine_time_hours != null && line?.actual_time == null) {
-    const deduction = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
-    next.actual_time = Math.max(0, (Number(line.machine_time_hours) || 0) - deduction);
-  }
-  if (line?.deduction_time_hours != null && line?.deduction_time == null) next.deduction_time = Number(line.deduction_time_hours) || 0;
+  const lineHours = Number(line?.excel_machine_time_hours ?? line?.machine_time_hours ?? line?.machineTimeHours ?? 0) || 0;
+  const lineDeductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
+  next.machine_time_hours = lineHours;
+  next.machine_deduction_time_hours = lineDeductionHours;
+  next.deduction_time = lineDeductionHours;
+  if (line?.machine_time_hours != null && line?.total_time == null) next.total_time = lineHours;
+  if (line?.machine_time_hours != null && line?.actual_time == null) next.actual_time = Math.max(0, lineHours - lineDeductionHours);
+  // Parent aggregate accounting must never be copied into every machine row.
+  delete next.machineAccounting;
+  if (line?.machineAccounting && typeof line.machineAccounting === 'object') next.machineAccounting = line.machineAccounting;
   for (const field of ['id', 'report_id', 'worker_id', 'worker_code', 'full_name', 'worker_name', 'process_code', 'processCode', 'work_date', 'entry_date', 'created_at', 'submitted_at', 'shift', 'status', 'review_note', 'note']) {
     if (report[field] !== undefined) next[field] = report[field];
   }
@@ -636,7 +642,6 @@ function reportForMachineLine(report, line, machineLineCount) {
   else if (machineLineCount > 1) next.deductions = [];
   if (Array.isArray(line?.defects)) next.defects = line.defects;
   else if (machineLineCount > 1) next.defects = [];
-  if (line?.machineAccounting && typeof line.machineAccounting === 'object') next.machineAccounting = line.machineAccounting;
   return next;
 }
 
