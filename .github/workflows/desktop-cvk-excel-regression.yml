@@ -1,0 +1,38 @@
+name: Desktop CVK Excel Regression
+
+on:
+  push:
+    branches: [test]
+    paths:
+      - 'desktop/electron/**'
+      - 'desktop/tests/**'
+      - 'desktop/package.json'
+      - 'desktop/package-lock.json'
+      - 'backend/templates/Mau_Bao_Cao_Cong_Nhan_DB_day_du_chi_tiet_STT_FIX.xlsx'
+      - '.github/workflows/desktop-cvk-excel-regression.yml'
+      - 'build-exe.bat'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cvk-excel-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: node --check electron/workerReportTemplateLocal.v2.cjs
+      - run: node --check electron/excelExportContractPatch.v6.cjs
+      - run: npm run test:machine-time
+      - run: npm run test:cvk-export
+      - run: node scripts/smokeExcel.cjs
