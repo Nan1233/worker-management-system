@@ -246,11 +246,56 @@ function prepareSheet(sheet) {
   return { headerStyles, dataStyles, dateStyles };
 }
 
+function expandGiaCongMachineLines(reports) {
+  const expanded = [];
+  for (const report of reports || []) {
+    const isGiaCong = String(report.process_code || '').trim().toUpperCase() === 'GC'
+      || alias(report.process_name || '') === alias('Gia công');
+    const lines = Array.isArray(report.machineLines) ? report.machineLines.slice() : [];
+    if (!isGiaCong || !lines.length) {
+      // Historical reports without machineLines retain one row; never fabricate a machine.
+      expanded.push(report);
+      continue;
+    }
+    lines.sort((a, b) => num(a.sort_order) - num(b.sort_order) || num(a.id) - num(b.id));
+    for (const line of lines) {
+      const deductions = parseArray(line.deductions_json ?? line.deductions).map((item) => ({
+        deduction_type_id: Number(item?.deduction_type_id ?? item?.id) || undefined,
+        deduction_code: String(item?.deduction_code ?? item?.deduction_type_code ?? item?.code ?? '').trim(),
+        deduction_name: String(item?.deduction_name ?? item?.name ?? '').trim(),
+        hours: Math.max(0, num(item?.hours))
+      })).filter((item) => item.hours > 0);
+      const detailHours = deductions.reduce((sum, item) => sum + item.hours, 0);
+      const fallbackDeduction = Math.max(0, num(line.deduction_time_hours), num(line.adjustment_minutes) / 60);
+      const deductionHours = Math.max(detailHours, fallbackDeduction);
+      const totalHours = Math.max(0, num(line.excel_machine_time_hours ?? line.machine_time_hours));
+      const actualHours = Math.max(0, totalHours - deductionHours);
+      const ok = Math.max(0, num(line.ok_quantity));
+      const ng = Math.max(0, num(line.ng_quantity));
+      expanded.push({
+        ...report,
+        machine_no: String(line.machine_code ?? '').trim(),
+        product_name: String(line.product_code ?? '').trim(),
+        standard_output: Math.max(0, num(line.standard_output)),
+        tt_ok: ok,
+        tt_ng: ng,
+        actual_output: ok + ng,
+        defects: parseArray(line.defects ?? line.defects_json),
+        machineLines: [],
+        machineAccounting: null,
+        excelExportTimes: { hasMachine: true, totalHours, actualHours, deductionHours, deductions },
+        _gcMachineLineId: line.id ?? null
+      });
+    }
+  }
+  return expanded;
+}
+
 async function buildCommonProcessMonthlyWorkbook(reports, yearMonth, options = {}) {
   const templatePath = await resolveTemplatePath();
   const workbook = new ExcelJS.Workbook(); await workbook.xlsx.readFile(templatePath);
-  const reportList = [...(reports || [])].sort((a, b) => dateKey(a.work_date).localeCompare(dateKey(b.work_date)) || String(a.worker_code || '').localeCompare(String(b.worker_code || ''), undefined, { numeric: true }) || Number(a.id) - Number(b.id));
-  for (const report of reportList) report.excelExportTimes = resolveReportExportTimes(report);
+  const reportList = expandGiaCongMachineLines(reports).sort((a, b) => dateKey(a.work_date).localeCompare(dateKey(b.work_date)) || String(a.worker_code || '').localeCompare(String(b.worker_code || ''), undefined, { numeric: true }) || Number(a.id) - Number(b.id) || num(a._gcMachineLineId) - num(b._gcMachineLineId));
+  for (const report of reportList) { if (!report.excelExportTimes) report.excelExportTimes = resolveReportExportTimes(report); }
   const grouped = new Map();
   for (const report of reportList) {
     const sheetName = sheetForProcess(report.process_name) || safeSheetName(report.process_name || 'BC công đoạn');
@@ -286,4 +331,4 @@ async function buildCommonProcessMonthlyWorkbook(reports, yearMonth, options = {
   return { archivePath: target.filePath, fileName: target.fileName, reportCount: reportList.length, templateFile: path.basename(templatePath), layout: 'common-process-daily-blocks' };
 }
 
-module.exports = { buildCommonProcessMonthlyWorkbook, __test: { clearSheetData } };
+module.exports = { buildCommonProcessMonthlyWorkbook, __test: { clearSheetData, expandGiaCongMachineLines } };

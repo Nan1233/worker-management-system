@@ -191,6 +191,41 @@ const loadMonthReports = async (yearMonth) => {
             report.deductions = report.machineAccounting.deductions;
         }
     });
+
+    // Prefer persisted machine-line defects for Gia công, not report-level aggregates.
+    const gcLineIds = reports
+        .filter((report) => String(report.process_code || '').trim().toUpperCase() === 'GC')
+        .flatMap((report) => report.machineLines || [])
+        .map((line) => Number(line.id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+    const defectsByLineId = new Map();
+    for (let offset = 0; offset < gcLineIds.length; offset += 400) {
+        const ids = gcLineIds.slice(offset, offset + 400);
+        const lineDefects = await query(
+            `SELECT machine_line_id, defect_type_id, defect_code, defect_name, quantity
+               FROM production_report_machine_defects
+              WHERE machine_line_id IN (${ids.map(() => '?').join(',')}) AND quantity > 0
+              ORDER BY machine_line_id, id`,
+            ids
+        );
+        for (const item of lineDefects) {
+            const key = Number(item.machine_line_id);
+            if (!defectsByLineId.has(key)) defectsByLineId.set(key, []);
+            defectsByLineId.get(key).push({
+                defect_type_id: Number(item.defect_type_id),
+                defect_code: item.defect_code || '',
+                defect_name: item.defect_name || '',
+                quantity: Number(item.quantity) || 0
+            });
+        }
+    }
+    for (const report of reports) {
+        if (String(report.process_code || '').trim().toUpperCase() !== 'GC') continue;
+        for (const line of report.machineLines || []) {
+            const persisted = defectsByLineId.get(Number(line.id));
+            if (persisted?.length) line.defects = persisted;
+        }
+    }
     reports.deductionTypes = deductionTypes;
     reports.defectTypes = defectTypes;
     return reports;
