@@ -113,7 +113,7 @@ test('Mài with multiple physical machine lines exports one row per machine', as
   });
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((row) => String(row.getCell(cols.machine).value ?? '').trim()).sort(), ['MAI-01', 'MAI-02']);
-  assert.deepEqual(rows.map((row) => Number(row.getCell(cols.output).value || 0)).sort((a,b)=>a-b), [30, 60]);
+  assert.deepEqual(rows.map((row) => Number(row.getCell(cols.output).value || 0)).sort((a, b) => a - b), [30, 60]);
 });
 
 test('v6 includes CVK in its active process list', () => {
