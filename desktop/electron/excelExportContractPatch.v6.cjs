@@ -76,6 +76,34 @@ function combinedHeaderMap(sheet, headerRow) {
   return map;
 }
 
+function parseNonProductExtraData(report) {
+  let extraData = report?.extra_data;
+  if (typeof extraData === 'string') {
+    try { extraData = JSON.parse(extraData); } catch (_) { extraData = {}; }
+  }
+  return extraData && typeof extraData === 'object' && !Array.isArray(extraData) ? extraData : {};
+}
+
+function isNonProductWorkReport(report) {
+  const processCode = String(report?.process_code || report?.processCode || '').trim().toUpperCase();
+  const extraData = parseNonProductExtraData(report);
+  const flag = extraData.non_product_work ?? report?.non_product_work;
+  return processCode === 'CVK'
+    || flag === true
+    || flag === 1
+    || String(flag ?? '').trim().toLowerCase() === 'true';
+}
+
+function normalizedWorkTypeLabel(report) {
+  if (!isNonProductWorkReport(report)) return '';
+  const extraData = parseNonProductExtraData(report);
+  const raw = extraData.work_type ?? report?.work_type ?? extraData.workType ?? report?.workType;
+  const code = String(raw ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const labels = { TAIPP: 'TPP', TPP: 'TPP', KTCD: 'KTCD', XUATNHAP: 'XN', XN: 'XN' };
+  return labels[code] || '';
+}
+
 function findHeaderColumn(map, predicates) {
   for (const [column, label] of map.entries()) {
     if (predicates.every((predicate) => predicate(label))) return column;
@@ -150,16 +178,12 @@ function repairWorkerRows(buffer, built, processData) {
       setIfMapped(row, cols.workerName, report.full_name || report.worker_name || report.name);
       setIfMapped(row, cols.shift, report.shift);
       setIfMapped(row, cols.machine, report.machine_no ?? report.machine_code ?? report.machine);
-      // CVK has no product. Preserve the work type in the existing code field,
-      // matching workerReportTemplateLocal.v2; repair must not erase TAIPP/KTCD/XUATNHAP.
-      const processCode = String(report.process_code || report.processCode || '').trim().toUpperCase();
-      let extraData = report.extra_data;
-      if (typeof extraData === 'string') {
-        try { extraData = JSON.parse(extraData); } catch (_) { extraData = {}; }
-      }
-      const workType = extraData?.work_type ?? report.work_type ?? extraData?.workType ?? report.workType;
-      const productValue = processCode === 'CVK'
-        ? String(workType ?? '').trim()
+      // Non-product CVK/legacy GC reports have no product. Preserve the canonical
+      // work-type label in the existing code field; never replace it with an empty
+      // product_name/product_code during the repair pass.
+      const workTypeLabel = normalizedWorkTypeLabel(report);
+      const productValue = isNonProductWorkReport(report)
+        ? workTypeLabel
         : (report.product_name || report.product_code);
       setIfMapped(row, cols.product, productValue);
       setIfMapped(row, cols.operationType, report.operation_type);
