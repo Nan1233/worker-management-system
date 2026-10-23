@@ -660,11 +660,50 @@ function headerFontSize(header) {
   return 6;
 }
 
+function parseMachineLineDetails(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function expandMaiMachineReports(reports) {
+  return (reports || []).flatMap((report) => {
+    const lines = Array.isArray(report?.machineLines) ? report.machineLines : [];
+    if (asText(report?.process_code).toUpperCase() !== 'MAI' || lines.length <= 1) return [report];
+    return lines.map((line) => {
+      const machineHours = asNumber(line.machine_time_hours);
+      const deductionHours = asNumber(line.deduction_time_hours);
+      return {
+        ...report,
+        machine_no: asText(line.machine_code || line.machine_no || line.machine_name),
+        product_name: asText(line.product_code || report.product_name),
+        total_time: machineHours,
+        actual_time: Math.max(0, machineHours - deductionHours),
+        deduction_time: deductionHours,
+        standard_output: asNumber(line.standard_output),
+        actual_output: asNumber(line.counted_output ?? (asNumber(line.ok_quantity) + asNumber(line.ng_quantity))),
+        tt_ok: asNumber(line.ok_quantity),
+        tt_ng: asNumber(line.ng_quantity),
+        deductions: parseMachineLineDetails(line.deductions_json ?? line.deductions),
+        defects: parseMachineLineDetails(line.defects_json ?? line.defects),
+        machineLines: [line],
+        calculationSnapshot: null
+      };
+    });
+  });
+}
+
 function renderProcessSheet(workbook, code, processConfig, processData, yearMonth, formulaSettings) {
   const deductionTypes = processDetailTypes(code, processData, 'deductionTypes', 'deductions', 'deduction');
   const defectTypes = processDetailTypes(code, processData, 'defectTypes', 'defects', 'defect');
   const columns = makeColumns(code, deductionTypes, defectTypes);
-  const reports = sortReports(processData?.reports);
+  const sourceReports = processData?.reports || [];
+  const reports = sortReports(code === 'MAI' ? expandMaiMachineReports(sourceReports) : sourceReports);
   const settings = formulaSettings || {};
   const sheet = workbook.addWorksheet(processConfig.sheet, {
     views: [{
