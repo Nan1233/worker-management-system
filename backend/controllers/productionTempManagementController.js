@@ -47,6 +47,7 @@ exports.getPendingReports = async (req, res) => {
             process_id: toPositiveInteger(req.query.process_id),
             process_name: req.query.process_name?.trim() || null,
             search: normalizeSearch(req.query.search),
+            include_meta: req.query.include_meta !== "0",
             pagination: normalizePagination(req.query)
         };
         const cacheKey = `manager:pending:${req.user?.role}:${userId}:${JSON.stringify(filters)}`;

@@ -21,6 +21,8 @@ test('pending report page aborts stale requests and skips the old page when filt
   assert.match(page, /signal: controller\.signal/);
   assert.match(service, /signal\?:AbortSignal/);
   assert.match(service, /signal:filters\.signal/);
+  assert.ok(page.includes("includeMeta: false"));
+  assert.ok(service.includes("include_meta:filters.includeMeta===false?0:1"));
 });
 
 test('opening pending report details computes metrics from current page data without another list API request', () => {

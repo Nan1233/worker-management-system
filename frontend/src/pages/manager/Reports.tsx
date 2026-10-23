@@ -113,7 +113,7 @@ export default function Reports() {
         try {
             setLoading(true); setError("");
             const r = range || { dateFrom: date, dateTo: date };
-            const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page, pageSize: 8, signal: controller.signal });
+            const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page, pageSize: 8, includeMeta: false, signal: controller.signal });
             if (!isCurrentRequest()) return;
             setReports(result.data || []); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
         } catch (e: any) {

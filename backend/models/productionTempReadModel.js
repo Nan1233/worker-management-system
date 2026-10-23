@@ -181,11 +181,12 @@ module.exports = {
         const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status IN ('pending','need_fix')");
         const where = conditions.join(" AND ");
+        const includeMeta = filters.include_meta !== false && filters.include_meta !== 0;
         const [countRows, items, processes, previousCount] = await Promise.all([
             query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params),
             query(db, `SELECT pr.*,w.user_id,w.worker_code,u.full_name,p.process_name,p.process_code FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC, pr.created_at ASC, pr.id ASC LIMIT ? OFFSET ?`, [...params, pageSize, offset]),
-            getProcessOptions(managerId, isAdmin),
-            getPreviousPendingCount(managerId, isAdmin)
+            includeMeta ? getProcessOptions(managerId, isAdmin) : Promise.resolve([]),
+            includeMeta ? getPreviousPendingCount(managerId, isAdmin) : Promise.resolve(0)
         ]);
         const enrichedItems = await attachPendingChildren(items);
         return { items: enrichedItems, pagination: paginationMeta({page,pageSize,total:Number(countRows?.[0]?.total||0)}), processes, previous_count: previousCount };
