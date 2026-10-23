@@ -26,6 +26,8 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Parent/detail atomicity regression
+        run: node --test tests/production-temp-facade-atomicity.test.js
       - name: Lock retry contract
         run: node --test tests/production-temp-lock-retry.contract.test.js
       - name: Create request subrequest budget
