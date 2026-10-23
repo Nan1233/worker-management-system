@@ -130,8 +130,11 @@ test('both active workbook writers use the same machine-row expansion helper', (
   const root = path.join(__dirname, '..');
   const processWriter = fs.readFileSync(path.join(root, 'services/templateDrivenProcessExcelExportService.js'), 'utf8');
   const companyWriter = fs.readFileSync(path.join(root, 'services/companyExcelExportService.js'), 'utf8');
+  const companyAllWriter = fs.readFileSync(path.join(root, 'services/companyMaiDoExcelService.js'), 'utf8');
   assert.match(processWriter, /buildMachineExcelRows\(reports\)/);
   assert.match(processWriter, /exportRows\.length/);
   assert.match(companyWriter, /buildMachineExcelRows\(reports\)/);
   assert.match(companyWriter, /exportRows\.forEach/);
+  assert.match(companyAllWriter, /buildMachineExcelRows\(reports\)/);
+  assert.doesNotMatch(companyAllWriter, /dayReports\.slice\(0, rowNumbers\.length\)/);
 });

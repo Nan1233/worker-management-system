@@ -5,6 +5,7 @@ const db = require('../config/db');
 const { loadProcessMonthReports, normalizeYearMonth } = require('./processExcelExportService');
 const { buildCompanyWorkbook } = require('./companyExcelExportService');
 const { assertReportVolume } = require('./excelExportGuards');
+const { buildMachineExcelRows } = require('./machineLineExcelRows');
 const { removeQuietly, cleanupOldExports } = require('./exportFileMaintenance');
 const { trainingFactor } = require('../utils/trainingPercent');
 
@@ -176,10 +177,37 @@ const groupByDay = (reports, yearMonth) => {
   return grouped;
 };
 
+async function attachMachineLineDefects(reports) {
+  const lines = (reports || []).flatMap((report) => Array.isArray(report.machineLines) ? report.machineLines : []);
+  const lineIds = lines.map((line) => Number(line.id)).filter((id) => Number.isInteger(id) && id > 0);
+  if (!lineIds.length) return;
+  const byLine = new Map();
+  for (let i = 0; i < lineIds.length; i += 400) {
+    const ids = lineIds.slice(i, i + 400);
+    const rows = await query(
+      `SELECT md.machine_line_id, md.defect_type_id, md.defect_code, md.defect_name, md.quantity
+         FROM production_report_machine_lines ml
+         INNER JOIN production_report_machine_defects md ON md.machine_line_id=ml.id
+        WHERE ml.id IN (${ids.map(() => '?').join(',')}) AND md.quantity > 0
+        ORDER BY md.machine_line_id, md.id`,
+      ids
+    );
+    for (const row of rows) {
+      const key = Number(row.machine_line_id);
+      if (!byLine.has(key)) byLine.set(key, []);
+      byLine.get(key).push({ defect_type_id: row.defect_type_id, defect_code: row.defect_code, defect_name: row.defect_name, quantity: row.quantity });
+    }
+  }
+  for (const line of lines) {
+    const persisted = byLine.get(Number(line.id));
+    if (persisted?.length) line.defects = persisted;
+  }
+}
+
 const fillMaiSheet = (sheet, reports, yearMonth) => {
   const headerRows = discoverHeaderRows(sheet, 300).filter((row) => row >= 343).slice(0, 31);
   if (headerRows.length < 28) throw new Error('File mẫu Mài không có đủ vùng nhập theo ngày');
-  const grouped = groupByDay(reports, yearMonth);
+  const grouped = groupByDay(buildMachineExcelRows(reports), yearMonth);
   const inputColumns = [2, 4, 5, 8, 9, ...Array.from({ length: 19 }, (_, index) => 13 + index), 32, 34, ...Array.from({ length: 14 }, (_, index) => 40 + index)];
 
   headerRows.forEach((headerRow, dayIndex) => {
@@ -198,7 +226,10 @@ const fillMaiSheet = (sheet, reports, yearMonth) => {
     dateRow.getCell(1).numFmt = 'dd/mm/yyyy';
 
     const dayReports = validDay ? (grouped.get(day) || []) : [];
-    dayReports.slice(0, rowNumbers.length).forEach((report, index) => {
+    if (dayReports.length > rowNumbers.length) {
+      throw new Error(`Sheet ${sheet.name} ngày ${day} cần ${dayReports.length} dòng máy-người, vượt sức chứa ${rowNumbers.length} dòng`);
+    }
+    dayReports.forEach((report, index) => {
       const row = sheet.getRow(rowNumbers[index]);
       const trainingFactorValue = trainingFactor(report.training_percent);
       const actualTime = toNumber(report.actual_time);
@@ -253,7 +284,7 @@ const fillMaiSheet = (sheet, reports, yearMonth) => {
 const fillDoSheet = (sheet, reports, yearMonth) => {
   const headerRows = discoverHeaderRows(sheet, 200).filter((row) => row >= 207).slice(0, 31);
   if (headerRows.length < 28) throw new Error('File mẫu Đo không có đủ vùng nhập theo ngày');
-  const grouped = groupByDay(reports, yearMonth);
+  const grouped = groupByDay(buildMachineExcelRows(reports), yearMonth);
   const inputColumns = [2, 4, 5, 7, 8, ...Array.from({ length: 16 }, (_, index) => 12 + index), 28, 30, ...Array.from({ length: 15 }, (_, index) => 37 + index)];
 
   headerRows.forEach((headerRow, dayIndex) => {
@@ -272,7 +303,10 @@ const fillDoSheet = (sheet, reports, yearMonth) => {
     dateRow.getCell(1).numFmt = 'dd/mm/yyyy';
 
     const dayReports = validDay ? (grouped.get(day) || []) : [];
-    dayReports.slice(0, rowNumbers.length).forEach((report, index) => {
+    if (dayReports.length > rowNumbers.length) {
+      throw new Error(`Sheet ${sheet.name} ngày ${day} cần ${dayReports.length} dòng máy-người, vượt sức chứa ${rowNumbers.length} dòng`);
+    }
+    dayReports.forEach((report, index) => {
       const row = sheet.getRow(rowNumbers[index]);
       const trainingFactorValue = trainingFactor(report.training_percent);
       const actualTime = toNumber(report.actual_time);
@@ -396,6 +430,7 @@ async function buildMaiDoCompanyWorkbook(value) {
   const doSheet = workbook.getWorksheet('TT Đo');
   if (!maiSheet || !doSheet) throw new Error('File mẫu Mài - Đo thiếu sheet TT Mài hoặc TT Đo');
 
+  await attachMachineLineDefects([...maiReports, ...doReports]);
   fillMaiSheet(maiSheet, maiReports, yearMonth);
   fillDoSheet(doSheet, doReports, yearMonth);
 
