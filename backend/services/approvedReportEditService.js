@@ -107,9 +107,21 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
       defects: normalizedPatch.defects ?? before.defects,
       deductions: normalizedPatch.deductions ?? before.deductions
     };
+    if (isMachineReport) {
+      // Machine reports keep their time/standards on production_report_machine_lines (GC stores parent
+      // actual_time = 0). The validator only waives the parent-time rule when machine lines are present,
+      // so hand it the stored lines (validation input only; they are never written here).
+      const [storedLines] = await connection.query('SELECT id FROM production_report_machine_lines WHERE report_id=?', [Number(reportId)]);
+      payload.machine_lines = Array.isArray(storedLines) ? storedLines : [];
+    }
     const validation = validateProductionReport(payload, { enforceBackDate: false, skipActualOutputFormula: true });
     if (!validation.valid) throw httpError(422, 'REPORT_VALIDATION_FAILED', 'Dữ liệu báo cáo không hợp lệ', validation.errors);
-    const master = await validateMasterData({
+    // Master data (machine/product/standard lookups) only matters when the patch can change something it
+    // governs. A note/shift-style edit must not be blocked because the stored values (for example a
+    // multi-machine "M05, M06" list or a product whose standard has since ended) no longer resolve today.
+    const MASTER_RELEVANT_KEYS = ['product_name', 'machine_no', 'work_date', 'operation_type', 'operation_mode', 'defects', 'deductions', 'tt_ok', 'tt_ng', 'actual_output', 'actual_time', 'total_time', 'deduction_time', 'standard_output'];
+    const masterRelevant = MASTER_RELEVANT_KEYS.some((key) => Object.prototype.hasOwnProperty.call(inputPatch, key));
+    const master = !masterRelevant ? { valid: true, authoritativeDefects: [] } : await validateMasterData({
       workerId: before.worker_id,
       processId: before.process_id,
       machineNo: validation.normalized.machine_no,

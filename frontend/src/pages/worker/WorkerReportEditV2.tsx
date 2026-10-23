@@ -8,6 +8,7 @@ import { getStoredUser } from "../../utils/authStorage";
 import { getProcessCapabilities, usesMultiMachineLines as resolveMultiMachine, usesSingleMachine as resolveSingleMachine } from "./processPageDomain";
 import { getWorkerDeclaredDefects } from "../../utils/workerDeclaredDefects";
 import { detectIncompleteMachineData } from "../../utils/machineLinesIntegrity";
+import { buildApprovedMachineNotePatch, isApprovedMachineReport } from "../../utils/approvedMachineEditPatch";
 import { useProcessMasterData } from "./useProcessMasterData";
 import { createEmptyMachineLine, getWorkerAllowedWorkDates, initialDeduction, initialForm, type DeductionState, type FormState, type MachineLineState, type NgKey } from "./processPageConfig";
 import { buildProductionReportPayload } from "./processReportSubmission";
@@ -276,6 +277,7 @@ function WorkerReportEditV2() {
   }, [loading, loadingMasterData, form.workDate, processId]);
 
   const updateForm = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const updateCvkWorkType = (value: string) => { setWorkType(value); setForm((current) => ({ ...current, workType: value })); };
   const onFormChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => updateForm(event.target.name || event.target.id, event.target.value);
   const updateLine = (index: number, patch: Partial<MachineLineState>) => setMachineLines((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
   const toggleMachineDefect = (index: number, key: string) => setMachineLines((current) => current.map((line, i) => i === index ? toggleMachineDefectLine(line, key) : line));
@@ -316,8 +318,10 @@ function WorkerReportEditV2() {
   const onTtOkChange = (event: ChangeEvent<HTMLInputElement>) => setForm((current) => recalcQuality({ ...current, ttOk: event.target.value.replace(/\D/g, "") }));
   const onNumberBlur = () => setForm((current) => recalcQuality(current));
 
+  const approvedMachineNoteOnly = isApprovedMachineReport(source, operationMode) && managerRoute;
   const save = async () => {
-    if (!report || (!managerRoute && remaining <= 0) || readOnly) return;
+    if (!report || readOnly) return;
+    if (!managerRoute && remaining <= 0) { setError("Đã hết thời gian 10 phút để sửa báo cáo này."); return; }
     setError("");
     const incompleteMessage = detectIncompleteMachineData(report);
     if (incompleteMessage) { setError(incompleteMessage); return; }
@@ -329,20 +333,24 @@ function WorkerReportEditV2() {
       setError("Không thể lưu vì thiếu thông tin phiên bản cập nhật của báo cáo đã duyệt. Vui lòng tải lại dữ liệu.");
       return;
     }
+    let payload: any;
+    if (approvedMachineNoteOnly) {
+      payload = buildApprovedMachineNotePatch({ note: form.note, reason: changeReason, updatedAt: report.updated_at });
+    } else {
     const actualHours = n(form.actualHours) + n(form.actualMinutes) / 60;
     const deductionHours = parseFlexibleTime(form.deductionTime);
     const totalHours = actualHours + (Number.isFinite(deductionHours) ? deductionHours : 0);
     if (totalHours * 60 > MAX_TOTAL_WORK_MINUTES + 0.001) { setError("Tổng thời gian không được vượt quá 12 giờ."); return; }
     const normalizedLines = operationMode === "MACHINE" ? machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim()) : [];
     if (operationMode === "MACHINE" && (!normalizedLines.length || normalizedLines.some((line) => !line.machineCode.trim() || !line.productCode.trim()))) { setError("Vui lòng nhập đủ mã máy và mã sản phẩm cho từng máy."); return; }
-    const payload = buildProductionReportPayload({
+    payload = buildProductionReportPayload({
       clientRequestId: null, processId: report.process_id, form: { ...form, actualTime: `${form.actualHours}:${form.actualMinutes}`, deductionTime: form.deductionTime, totalTime: `${Math.floor(totalHours)}:${String(Math.round((totalHours % 1) * 60)).padStart(2, "0")}` },
-      extraData, operationType, isCutLongProcess: capabilities.isCutLongProcess, usesAnyMachine: operationMode === "MACHINE", usesMultiMachineLines, usesSingleMachine,
+      extraData, operationType, isCutLongProcess: capabilities.isCutLongProcess, processCode: capabilities.processCode, isCvkMode, usesAnyMachine: operationMode === "MACHINE", usesMultiMachineLines, usesSingleMachine,
       machineLines: normalizedLines, machineOptions: editMachineOptions, productOptions: editProductOptions, activeNgOptions: editNgOptions, deductions, activeDeductionOptions: editDeductionOptions,
       excludeKqdFromTt: Number(report.exclude_kqd_from_tt ?? report.exclude_kqd_from_tt_snapshot ?? 0) === 1,
     });
-    payload.updated_at = report.updated_at;
-    payload.expected_updated_at = report.updated_at;
+    }
+    if (!approvedMachineNoteOnly) { payload.updated_at = report.updated_at; payload.expected_updated_at = report.updated_at; }
     const approvedEditAudit = { reason: source === "approved" ? changeReason.trim() : undefined };
     Object.assign(payload, approvedEditAudit);
     try {
@@ -375,17 +383,23 @@ function WorkerReportEditV2() {
   return <div className={`ktc-page ${managerRoute ? "manager-worker-report-form" : ""} ${readOnly ? "manager-worker-report-readonly" : ""}`}>
     <ProcessWorkerHeader processTitle={processTitle} workerName={form.workerName} workerCode={form.workerCode} trainingPercent={form.trainingPercent} workDate={form.workDate} dateOptions={getWorkerAllowedWorkDates()} onBack={() => navigate(-1)} onDateChange={(e) => updateForm("workDate", e.target.value)} />
     <main className="worker-form-container">
-      {!readOnly && <div className="worker-form-card" style={{ marginBottom: 12 }}><strong>{managerRoute ? `Sửa báo cáo · ${source === "approved" ? "Đã duyệt" : "Chờ duyệt"}` : `Chỉnh sửa trong 10 phút · còn ${timeText}`}</strong><span style={{ marginLeft: 10 }}>{loadingMasterData ? "Đang tải danh mục..." : "Đã tải dữ liệu báo cáo"}</span></div>}
       {error && <div className="worker-form-card" style={{ color: "#b42318", marginBottom: 12 }}>{error}</div>}
       {managerRoute && source === "approved" && !readOnly && <section className="worker-form-card" style={{ marginBottom: 12 }}>
         <label htmlFor="approved-change-reason" className="worker-field-label">Lý do chỉnh sửa báo cáo đã duyệt (bắt buộc)</label>
         <textarea id="approved-change-reason" className="worker-text-input" value={changeReason} onChange={(event) => setChangeReason(event.target.value)} maxLength={500} rows={3} required disabled={saving} />
       </section>}
 
+      {approvedMachineNoteOnly && <section className="worker-form-card">
+        <label htmlFor="approved-machine-note" className="worker-field-label">Ghi chú</label>
+        <textarea id="approved-machine-note" name="note" className="worker-text-input" value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} maxLength={500} rows={3} disabled={saving} />
+        <p className="worker-field-hint">Báo cáo nhiều máy đã duyệt: số liệu từng máy được giữ nguyên, chỉ sửa được ghi chú.</p>
+      </section>}
+      <fieldset disabled={approvedMachineNoteOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <ProcessBasicInfoSection form={form} setForm={setForm} onFormChange={onFormChange} isCutLongProcess={capabilities.isCutLongProcess} isInspectionProcess={capabilities.isInspectionProcess} isCvkMode={isCvkMode} setIsCvkMode={setIsCvkMode} operationType={operationType} setOperationType={setOperationType} cutExecutionMode={cutExecutionMode} setCutExecutionMode={setCutExecutionMode} operationMode={operationMode} setOperationMode={setOperationMode} usesMultiMachineLines={usesMultiMachineLines} usesSingleMachine={usesSingleMachine} productAutocompleteOptions={toProductAutocompleteOptions(editProductOptions)} getMachineProductAutocompleteOptions={getMachineProductAutocompleteOptions} productOptions={editProductOptions as any} machineAutocompleteOptions={machineAutocompleteOptions} machineOptions={editMachineOptions} loadingMasterData={loadingMasterData} machineCount={machineCount} maxMachineCount={maxMachineCount} machineLines={machineLines} resizeMachineLines={resizeMachineLines} updateMachineLine={updateLine} refreshMachineLineStandard={refreshMachineLineStandard} getMachineNgTotal={getMachineNgTotal} activeNgOptions={editNgOptions as any} activeDeductionOptions={editDeductionOptions as any} toggleMachineDefect={toggleMachineDefect} updateMachineDefectValue={updateMachineDefectValue} />
       {report.process_code === "CVK" && <section className="worker-form-card"><h2 className="worker-card-title">Thông tin công việc</h2><div className="worker-basic-grid"><div className="worker-field-block"><label className="worker-field-label">Loại công việc</label><select className="worker-text-input" value={workType} onChange={(e) => setWorkType(e.target.value)}><option>Xuất nhập</option><option>Hỗ trợ</option><option>Kho</option><option>Vệ sinh</option><option>Công việc khác</option></select></div></div></section>}
       {!report.process_code || report.process_code !== "CVK" ? <ProcessQualitySection form={form} activeNgOptions={editNgOptions as any} selectedNg={selectedNg} showNg={showNg} setShowNg={setShowNg} usesMultiMachineLines={usesMultiMachineLines} operationMode={operationMode} formatIntegerDisplay={formatIntegerDisplay} onTtOkChange={onTtOkChange} onNumberBlur={onNumberBlur} onToggleNg={toggleNg} onNgValue={updateNg} /> : null}
-      <ProcessTimeDeductionSection processCode={String(report?.process_code || (Number(report?.process_id) === 4 ? "K1" : ""))} form={form} setForm={setForm} deductions={deductions} activeDeductionOptions={editDeductionOptions as any} selectedDeduction={selectedDeduction} showDeduction={showDeduction} setShowDeduction={setShowDeduction} onToggleDeduction={toggleDeduction} onUpdateDeduction={updateDeduction} onNormalizeDeduction={normalizeDeduction} onWarning={warning} />
+      {!usesMultiMachineLines && <ProcessTimeDeductionSection processCode={String(report?.process_code || (Number(report?.process_id) === 4 ? "K1" : ""))} form={form} setForm={setForm} deductions={deductions} activeDeductionOptions={editDeductionOptions as any} selectedDeduction={selectedDeduction} showDeduction={showDeduction} setShowDeduction={setShowDeduction} onToggleDeduction={toggleDeduction} onUpdateDeduction={updateDeduction} onNormalizeDeduction={normalizeDeduction} onWarning={warning} />}
+      </fieldset>
       {!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : `Còn ${timeText} để sửa báo cáo.`}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || (!managerRoute && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
     </main>
   </div>;
