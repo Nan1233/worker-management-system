@@ -595,12 +595,48 @@ function plannedOutputFor(report) {
   return { planned, trainingPercent };
 }
 
+function machineLinesOf(report) {
+  const source = [
+    ...(Array.isArray(report?.machineLines) ? report.machineLines : []),
+    ...(Array.isArray(report?.machine_lines) ? report.machine_lines : []),
+    ...(Array.isArray(report?.machines) ? report.machines : [])
+  ];
+  const seen = new Set();
+  return source.filter((line) => {
+    if (!line || typeof line !== 'object') return false;
+    const key = String(line.id ?? line.machine_line_id ?? line.machine_event_id ?? line.machine_code ?? line.machine_no ?? line.machineCode ?? line.code ?? '');
+    if (key && seen.has(key)) return false;
+    if (key) seen.add(key);
+    return true;
+  });
+}
+
+function reportForMachineLine(report, line, machineLineCount) {
+  const machine = line?.machine_code || line?.machine_no || line?.machineCode || line?.code || report.machine_no || report.machine_code || report.machine;
+  const outputFields = ['actual_output', 'tt_ok', 'tt_ng', 'total_time', 'actual_time', 'deduction_time', 'total_minutes', 'work_minutes', 'standard_output', 'actual_output_per_hour', 'achievement_rate', 'ng_rate'];
+  const next = { ...report, ...line };
+  for (const field of ['id', 'report_id', 'worker_id', 'worker_code', 'full_name', 'worker_name', 'process_code', 'processCode', 'work_date', 'entry_date', 'created_at', 'submitted_at', 'shift', 'status', 'review_note', 'note']) {
+    if (report[field] !== undefined) next[field] = report[field];
+  }
+  if (machine) { next.machine_no = machine; next.machine_code = machine; next.machine = machine; }
+  for (const field of outputFields) {
+    const lineValue = line?.[field] ?? line?.[`${field}_snapshot`];
+    if (lineValue !== undefined && lineValue !== null && lineValue !== '') next[field] = lineValue;
+    else if (machineLineCount > 1) next[field] = 0;
+  }
+  next.machineLines = []; next.machine_lines = []; next.machines = [];
+  if (Array.isArray(line?.deductions)) next.deductions = line.deductions;
+  else if (machineLineCount > 1) next.deductions = [];
+  if (Array.isArray(line?.defects)) next.defects = line.defects;
+  else if (machineLineCount > 1) next.defects = [];
+  if (line?.machineAccounting && typeof line.machineAccounting === 'object') next.machineAccounting = line.machineAccounting;
+  return next;
+}
+
 function applyReportRow(row, report, contract, processData, index) {
   const set = (column, value) => writeValue(row, column, value);
   const exportTimes = resolveExportTimes(report);
-  const reportForDetails = exportTimes.hasMachine
-    ? { ...report, deductions: exportTimes.deductions }
-    : report;
+  const reportForDetails = exportTimes.hasMachine ? { ...report, deductions: exportTimes.deductions } : report;
   set(contract.cols.stt, index + 1);
   set(contract.cols.entryDate, asDate(report.entry_date || report.created_at));
   set(contract.cols.date, asDate(report.work_date || report.entry_date));
@@ -609,54 +645,24 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.shift, report.shift);
   set(contract.cols.operationType, report.operation_type);
   set(contract.cols.operationMode, report.operation_mode);
-  const machineLines = [
-    ...(Array.isArray(report.machineLines) ? report.machineLines : []),
-    ...(Array.isArray(report.machine_lines) ? report.machine_lines : []),
-    ...(Array.isArray(report.machines) ? report.machines : [])
-  ];
-  const machineValues = [
-    report.machine_no, report.machine_code, report.machine,
-    ...machineLines.map((line) => line?.machine_code || line?.machine_no || line?.machineCode || line?.code)
-  ].map((value) => String(value ?? '').trim()).filter(Boolean);
+  const machineLines = machineLinesOf(report);
+  const machineValues = [report.machine_no, report.machine_code, report.machine, ...machineLines.map((line) => line?.machine_code || line?.machine_no || line?.machineCode || line?.code)].map((value) => String(value ?? '').trim()).filter(Boolean);
   set(contract.cols.machine, [...new Set(machineValues)].join(', '));
-  // CVK is non-product work: the existing MSP/code column carries its
-  // canonical work-type code, never a fabricated product code. If work_type
-  // is absent, leave MSP blank rather than falling back to product/machine data.
   const cvkWorkType = cvkWorkTypeCode(report);
   const isCvk = String(report.process_code || report.processCode || '').trim().toUpperCase() === 'CVK';
-  const directProduct = isCvk
-    ? cvkWorkType
-    : String(report.product_name || report.product_code || '').trim();
-  const lineProducts = isCvk ? [] : machineLines
-    .map((line) => String(line?.product_code || line?.product_name || line?.productCode || '').trim())
-    .filter(Boolean);
+  const directProduct = isCvk ? cvkWorkType : String(report.product_name || report.product_code || '').trim();
+  const lineProducts = isCvk ? [] : machineLines.map((line) => String(line?.product_code || line?.product_name || line?.productCode || '').trim()).filter(Boolean);
   set(contract.cols.product, directProduct || [...new Set(lineProducts)].join(', '));
-  if (contract.cols.submittedAt) {
-    const cell = row.getCell(contract.cols.submittedAt);
-    cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date);
-    cell.numFmt = 'dd/mm/yyyy hh:mm';
-  }
+  if (contract.cols.submittedAt) { const cell = row.getCell(contract.cols.submittedAt); cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date); cell.numFmt = 'dd/mm/yyyy hh:mm'; }
   const { planned, trainingPercent } = plannedOutputFor(report);
-  if (contract.cols.training) {
-    const cell = row.getCell(contract.cols.training);
-    cell.value = trainingPercent / 100;
-    cell.numFmt = '0%';
-  }
+  if (contract.cols.training) { const cell = row.getCell(contract.cols.training); cell.value = trainingPercent / 100; cell.numFmt = '0%'; }
   set(contract.cols.standard, planned);
   set(contract.cols.time, contract.timeKind === 'TOTAL' ? exportTimes.totalHours : exportTimes.actualHours);
   if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, exportTimes.actualHours);
   set(contract.cols.deductionTotal, exportTimes.deductionHours);
   if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
-    if (contract.timeKind === 'TOTAL') {
-      row.getCell(contract.cols.workTime).value = exportTimes.totalHours;
-    } else {
-      const tL = columnLetter(contract.cols.time);
-      const dL = columnLetter(contract.cols.deductionTotal);
-      row.getCell(contract.cols.workTime).value = {
-        formula: tL + row.number + '+' + dL + row.number,
-        result: exportTimes.totalHours
-      };
-    }
+    if (contract.timeKind === 'TOTAL') row.getCell(contract.cols.workTime).value = exportTimes.totalHours;
+    else { const tL = columnLetter(contract.cols.time); const dL = columnLetter(contract.cols.deductionTotal); row.getCell(contract.cols.workTime).value = { formula: tL + row.number + '+' + dL + row.number, result: exportTimes.totalHours }; }
   }
   set(contract.cols.ok, number(report.tt_ok ?? report.actual_output));
   set(contract.cols.ng, number(report.tt_ng));
@@ -667,11 +673,9 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.status, report.status);
   set(contract.cols.note, report.note || report.review_note);
   set(contract.cols.id, Number(report.id) || null);
-
   writeDetailBlock(row, reportForDetails, processData, contract.deductions, 'deduction');
   writeDetailBlock(row, report, processData, contract.defects, 'defect');
 }
-
 // A DB type that has no column in the template must not silently disappear.
 // Append unmatched CAT/LONG form categories even when their monthly total is zero,
 // so the exported sheet consistently reflects the 10 Cắt + 8 Lồng form catalogue.
