@@ -725,6 +725,23 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
 // Template row between the header and the first data row whose first cell is a
 // date (the pink "Sep-02" row). When present, the export writes one such row
 // per work date and restarts STT at 1 under each date.
+function expandMachineReports(reports) {
+  const expanded = [];
+  for (const report of Array.isArray(reports) ? reports : []) {
+    const lines = machineLinesOf(report);
+    const processCode = String(report?.process_code || report?.processCode || '').trim().toUpperCase();
+    const operationMode = String(report?.operation_mode || '').trim().toUpperCase();
+    // Only expand Mài records explicitly backed by multiple physical-machine lines.
+    // Do not infer machine rows for other processes or manual records.
+    if (processCode !== 'MAI' || operationMode === 'MANUAL' || lines.length <= 1) {
+      expanded.push(report);
+      continue;
+    }
+    lines.forEach((line) => expanded.push(reportForMachineLine(report, line, lines.length)));
+  }
+  return expanded;
+}
+
 function findDateSeparatorRow(sheet, headerRow, dataStartRow) {
   for (let r = headerRow + 1; r < dataStartRow; r += 1) {
     const row = sheet.getRow(r);
