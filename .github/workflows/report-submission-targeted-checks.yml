@@ -1,0 +1,38 @@
+name: Report Submission Targeted Checks
+run-name: Report submission checks / ${{ github.ref_name }} / ${{ github.sha }}
+
+on:
+  push:
+    branches:
+      - fix/report-submit-rejection-investigation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-backend-tests:
+    name: Submission lock, idempotency and request-budget tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Parent/detail atomicity regression
+        run: node --test tests/production-temp-facade-atomicity.test.js
+      - name: Lock retry contract
+        run: node --test tests/production-temp-lock-retry.contract.test.js
+      - name: Create request subrequest budget
+        run: node --test tests/production-temp-create-subrequest-budget.test.js
+      - name: Logical duplicate and idempotency
+        run: node --test tests/logical-duplicate-transaction.test.js
+      - name: Manager pagination behavior
+        run: node --test tests/manager-pagination.behavior.test.js

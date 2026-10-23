@@ -277,7 +277,6 @@ function WorkerReportEditV2() {
   }, [loading, loadingMasterData, form.workDate, processId]);
 
   const updateForm = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const updateCvkWorkType = (value: string) => { setWorkType(value); setForm((current) => ({ ...current, workType: value })); };
   const onFormChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => updateForm(event.target.name || event.target.id, event.target.value);
   const updateLine = (index: number, patch: Partial<MachineLineState>) => setMachineLines((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
   const toggleMachineDefect = (index: number, key: string) => setMachineLines((current) => current.map((line, i) => i === index ? toggleMachineDefectLine(line, key) : line));
