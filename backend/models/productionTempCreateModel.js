@@ -24,7 +24,10 @@ const enforceDailyHoursLocked = async (executor, data) => {
     const workDate = String(data?.work_date || "").slice(0, 10);
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
     await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
-    const processRows = await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
+    // createCompleteReport already read processes.process_code inside this transaction; reuse it.
+    const processRows = data?._resolved_process_code !== undefined
+        ? [{ process_code: data._resolved_process_code }]
+        : await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
     const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
     const machineLines = Array.isArray(data?._daily_hours_machine_lines) ? data._daily_hours_machine_lines : [];
     const incoming = isGc && machineLines.length ? Math.max(...machineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0))) : (Number(data?.actual_time) || 0);
@@ -398,14 +401,19 @@ module.exports = {
 
 
     async replaceMachineLines(tempReportId, machineLines = [], executor = db, options = {}) {
-        const oldLines = await query(executor, `SELECT id, machine_event_id, machine_code, product_code FROM production_temp_machine_lines WHERE temp_report_id = ?`, [tempReportId]);
-        if (oldLines.length) {
-            const ids = oldLines.map((row) => Number(row.id)).filter(Boolean);
-            if (ids.length) {
-                await query(executor, `DELETE FROM production_temp_machine_defects WHERE machine_line_id IN (${ids.map(() => "?").join(",")})`, ids);
+        // A report that was inserted in this same transaction cannot own old lines: skipping the lookup and
+        // the two DELETEs saves 2-3 TiDB HTTP subrequests per submission on Cloudflare Workers.
+        let oldLines = [];
+        if (options.isNewReport !== true) {
+            oldLines = await query(executor, `SELECT id, machine_event_id, machine_code, product_code FROM production_temp_machine_lines WHERE temp_report_id = ?`, [tempReportId]);
+            if (oldLines.length) {
+                const ids = oldLines.map((row) => Number(row.id)).filter(Boolean);
+                if (ids.length) {
+                    await query(executor, `DELETE FROM production_temp_machine_defects WHERE machine_line_id IN (${ids.map(() => "?").join(",")})`, ids);
+                }
             }
+            await query(executor, `DELETE FROM production_temp_machine_lines WHERE temp_report_id = ?`, [tempReportId]);
         }
-        await query(executor, `DELETE FROM production_temp_machine_lines WHERE temp_report_id = ?`, [tempReportId]);
         if (!Array.isArray(machineLines) || machineLines.length === 0) return;
 
         for (let index = 0; index < Math.min(machineLines.length, 4); index += 1) {
@@ -599,6 +607,8 @@ module.exports = {
                 [Number(data.process_id)]
             );
 
+            data._resolved_process_code = processRows[0]?.process_code ?? null;
+
             const trainingSnapshot = await resolveInitialTrainingSnapshot({
                 executor: connection,
                 workerId: data.worker_id,
@@ -671,7 +681,7 @@ module.exports = {
 
             await this.createDefects(tempId, data.process_id, defects, connection);
             await this.createDeductions(tempId, data.process_id, deductions, connection);
-            await this.replaceMachineLines(tempId, machineLines, connection);
+            await this.replaceMachineLines(tempId, machineLines, connection, { isNewReport: true });
 
             const createdSnapshot = await AuditService.loadTempReportSnapshot(tempId, connection);
             if (createdSnapshot) {

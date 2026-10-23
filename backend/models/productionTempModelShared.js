@@ -79,7 +79,11 @@ const executeQuery = async (executor, sql, params = []) => {
     const isInsert = /^\s*INSERT\s+/i.test(String(sql || ""));
     const currentInsertId = Number(result?.insertId || 0);
 
-    if (!isInsert || currentInsertId > 0) {
+    // production_report_duplicate_locks is keyed by a hash (no AUTO_INCREMENT), so its INSERT never has an
+    // insert id to recover. Skipping the lookup saves one TiDB HTTP subrequest per lock on Cloudflare Workers.
+    const hasNoAutoIncrementId = /^\s*INSERT\s+INTO\s+`?production_report_duplicate_locks\b/i.test(String(sql || ""));
+
+    if (!isInsert || currentInsertId > 0 || hasNoAutoIncrementId) {
         return result;
     }
 
@@ -142,6 +146,14 @@ const beginTransaction = (connection) =>
 // only the next transaction on this connection (no leakage into the pool); if a server rejects it we
 // fall back to the default level rather than failing the request.
 const beginReadCommittedTransaction = async (connection) => {
+    // Cloudflare/TiDB HTTP driver: a separate SET TRANSACTION statement runs in its own stateless HTTP
+    // session, so it never reaches the transaction that BEGIN opens later (and costs one extra subrequest).
+    // The isolation level must travel with BEGIN itself.
+    if (connection?.supportsBeginIsolation === true) {
+        await new Promise((resolve, reject) => connection.beginTransaction({ isolation: "READ COMMITTED" }, (error) => (error ? reject(error) : resolve())));
+        connection.__ktcTransactionActive = true;
+        return;
+    }
     try {
         await new Promise((resolve, reject) => connection.query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED", (error) => (error ? reject(error) : resolve())));
     } catch (error) {

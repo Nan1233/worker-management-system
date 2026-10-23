@@ -222,8 +222,13 @@ function createCloudflareConnection() {
       if (callback) { promise.then(([rows, fields]) => callback(null, rows, fields), callback); return undefined; }
       return promise;
     },
-    async beginTransaction(callback) {
-      const promise = (async () => { if (transaction) throw new Error("Transaction đã được mở trên connection này"); try { transaction = await conn.begin(); } catch (error) { throw wrapCloudflareError(error, "BEGIN"); } })();
+    // The HTTP driver applies the isolation level only on BEGIN (TiDB-Isolation-Level header).
+    supportsBeginIsolation: true,
+    async beginTransaction(optionsOrCallback, maybeCallback) {
+      const callback = typeof optionsOrCallback === "function" ? optionsOrCallback : maybeCallback;
+      const options = optionsOrCallback && typeof optionsOrCallback === "object" ? optionsOrCallback : null;
+      const isolation = options?.isolation === "READ COMMITTED" || options?.isolation === "REPEATABLE READ" ? options.isolation : null;
+      const promise = (async () => { if (transaction) throw new Error("Transaction đã được mở trên connection này"); try { transaction = await conn.begin(isolation ? { isolation } : undefined); } catch (error) { throw wrapCloudflareError(error, "BEGIN"); } })();
       if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
       return promise;
     },
