@@ -47,7 +47,7 @@ if (typeof global.cloneRowStyle !== 'function') {
 }
 
 const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES } = require('./workerReportTemplateLocal.v2.cjs');
-const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3']);
+const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);
 
 const norm = (value) => String(value ?? '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -366,7 +366,7 @@ async function __ktcCleanupLegacyMonthlyLayout(root, date, keepFileNames = []) {
 function patchMainSource(source) {
   let next = String(source);
   if (!next.includes('const PROCESS_CODES = Object.freeze([')) {
-    next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3']);\n${next}`;
+    next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);\n${next}`;
   }
   next = next.replace(/\n\s*\/\/ File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY\.xlsx[\s\S]*?\n\s*\/\/ 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test\./, '\n\n    // 9 công đoạn: dùng cùng template báo cáo công nhân; không tạo file tổng hợp.');
   next = next.replace(/\n\s*const processFolder = path\.join\(folder, safeFolderName\(processBuilt\.processName \|\| processBuilt\.processCode\)\);\n\s*await fs\.mkdir\(processFolder, \{ recursive: true \}\);/g, '');
