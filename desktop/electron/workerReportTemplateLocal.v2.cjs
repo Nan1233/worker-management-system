@@ -814,6 +814,7 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
 
   let rowNumber = dateRowNumber;
   const percentRanges = [];
+  const sttByDate = new Map();
   for (const group of groups.values()) {
     const dateRow = sheet.getRow(rowNumber);
     applySnapshot(dateRow, dateSnapshot, columnCount);
@@ -821,10 +822,12 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
     dateRow.getCell(1).numFmt = 'mmm-dd';
     rowNumber += 1;
     const firstDataRow = rowNumber;
-    group.reports.forEach((report, index) => {
+    group.reports.forEach((report) => {
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
-      applyReportRow(row, report, contract, processData, index);
+      const reportIndex = sttByDate.get(dayKey(report)) || 0;
+      sttByDate.set(dayKey(report), reportIndex + 1);
+      applyReportRow(row, report, contract, processData, reportIndex);
       const exportTimes = resolveExportTimes(report);
       const totalMinutes = exportTimes.hasMachine
         ? exportTimes.totalHours * 60
