@@ -150,7 +150,18 @@ function repairWorkerRows(buffer, built, processData) {
       setIfMapped(row, cols.workerName, report.full_name || report.worker_name || report.name);
       setIfMapped(row, cols.shift, report.shift);
       setIfMapped(row, cols.machine, report.machine_no ?? report.machine_code ?? report.machine);
-      setIfMapped(row, cols.product, report.product_name || report.product_code);
+      // CVK has no product. Preserve the work type in the existing code field,
+      // matching workerReportTemplateLocal.v2; repair must not erase TAIPP/KTCD/XUATNHAP.
+      const processCode = String(report.process_code || report.processCode || '').trim().toUpperCase();
+      let extraData = report.extra_data;
+      if (typeof extraData === 'string') {
+        try { extraData = JSON.parse(extraData); } catch (_) { extraData = {}; }
+      }
+      const workType = extraData?.work_type ?? report.work_type ?? extraData?.workType ?? report.workType;
+      const productValue = processCode === 'CVK'
+        ? String(workType ?? '').trim()
+        : (report.product_name || report.product_code);
+      setIfMapped(row, cols.product, productValue);
       setIfMapped(row, cols.operationType, report.operation_type);
       setIfMapped(row, cols.operationMode, report.operation_mode);
       setIfMapped(row, cols.training, Number(report.training_percent ?? 0));
