@@ -8,7 +8,9 @@ const read = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8')
 test('worker draft persists and restores the sibling CVK work option', () => {
   const page = read('frontend/src/pages/worker/ProcessPage.tsx');
   const storage = read('frontend/src/pages/worker/processDraftStorage.ts');
-  assert.match(page, /setIsCvkMode\(Boolean\(draft\.isCvkMode \|\| String\(draft\.form\?\.workType \|\| ""\)\.toUpperCase\(\) === "CVK"\)\)/);
+  // Current behaviour: the draft restores the non-product mode for CVK and its sibling work types
+  // (a superset of the original CVK-only check).
+  assert.match(page, /setIsCvkMode\(Boolean\(draft\.isCvkMode \|\| \["CVK", "XUATNHAP", "KTCD", "TAIPP"\]\.includes\(/);
   assert.match(page, /isCvkMode,\s*cutExecutionMode,/);
   assert.match(storage, /isCvkMode\?: boolean/);
   assert.match(storage, /f\.workType \|\| draft\.isCvkMode/);

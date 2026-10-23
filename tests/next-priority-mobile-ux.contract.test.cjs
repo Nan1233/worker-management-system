@@ -4,18 +4,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const css = fs.readFileSync(path.join(root, 'frontend/src/layouts/WorkerLayout.css'), 'utf8');
+const readCss = (file) => fs.readFileSync(path.join(root, 'frontend/src', file), 'utf8');
+const css = readCss('layouts/WorkerLayout.css');
+// touch-action / overscroll / focus-visible / reduced-motion live in the global stylesheets since the UI
+// simplification (a75ec154); they apply to the worker layout through body and the shared controls.
+const globalCss = ['index.css', 'basic.css', 'reference-ui.css'].map(readCss).join('\n');
 
 test('worker mobile navigation preserves 44px touch targets and safe-area support', () => {
   assert.match(css, /min-height:\s*44px/);
   assert.match(css, /safe-area-inset-bottom/);
-  assert.match(css, /touch-action:\s*manipulation/);
+  assert.match(globalCss, /body\s*\{[^}]*touch-action:\s*manipulation/);
 });
 
 test('worker mobile UI supports keyboard/reduced-motion friendly interaction', () => {
-  assert.match(css, /focus-visible/);
-  assert.match(css, /prefers-reduced-motion/);
-  assert.match(css, /overscroll-behavior-y/);
+  assert.match(globalCss, /focus-visible/);
+  assert.match(globalCss, /prefers-reduced-motion/);
+  assert.match(globalCss, /overscroll-behavior-y/);
 });
 
 

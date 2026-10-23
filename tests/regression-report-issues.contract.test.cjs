@@ -44,7 +44,7 @@ test('GC product suggestions keep machine suffix rules scoped to Cắt only', ()
   has(productRules, 'isGcAutomaticMachine(selectedRawMachine)');
   has(productRules, 'GC_AUTOMATIC_ALIAS_CODES.has(alias)');
   has(productRules, 'productWorkTypes.has("LONG")');
-  has(productRules, 'isGcLongMachine(selectedRawMachine)');
+  has(productRules, 'isGcLongMachine(selectedRawMachine, machineOptions)');
 });
 
 test('Công việc khác uses one Xuất nhập work type and remains product-less', () => {
@@ -107,6 +107,6 @@ test('negative cases: shared GC machines enforce four-worker capacity and preser
 
 test('negative cases: Lồng must not inherit Cắt machine-suffix filtering', () => {
   has(productRules, 'productWorkTypes.has("LONG")');
-  has(productRules, 'isGcLongMachine(selectedRawMachine)');
+  has(productRules, 'isGcLongMachine(selectedRawMachine, machineOptions)');
   has(productRules, 'return workerSelectionProducts(canonicalProducts);');
 });

@@ -72,7 +72,7 @@ function SelectedReportsReview() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const actionLockRef = useRef(false);
-    const [loadAttempt] = useState(0);
+    const [loadAttempt, setLoadAttempt] = useState(0);
     const [error, setError] = useState("");
     const [rejectOpen, setRejectOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
@@ -207,7 +207,14 @@ function SelectedReportsReview() {
 
     return (
         <main className="selected-reports-review">
-            {error && <div className="detail-inline-error">{error}</div>}
+            {error && (
+                <div className="detail-inline-error" role="alert" aria-live="assertive">
+                    <span>{error}</span>
+                    <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} disabled={loading}>
+                        Tải lại
+                    </button>
+                </div>
+            )}
             <header className="selected-reports-review__header">
                 <button type="button" onClick={() => navigate(-1)}>← Quay lại</button>
                 <div>
