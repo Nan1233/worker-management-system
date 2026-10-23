@@ -139,6 +139,42 @@ test('BEHAVIORAL: pending total count uses same scoped business filters without 
   assert.deepEqual(countCall.params, dataCall.params.slice(0, -2));
 });
 
+test('BEHAVIORAL: pending date filters remain index-friendly with inclusive end dates', async () => {
+  const db = createFakeDb();
+  const model = loadReadModel(db);
+  await model.getPending(77, {
+    date_from: '2026-08-01', date_to: '2026-08-31',
+    pagination: { page: 1, page_size: 8, offset: 0 }
+  }, false);
+  const queries = db.calls.filter((call) => call.sql.includes('FROM production_reports_temp pr')
+    && (call.sql.includes('JOIN workers w') || call.sql.includes('LIMIT ? OFFSET ?')));
+  assert.equal(queries.length, 2);
+  for (const call of queries) {
+    assert.ok(call.sql.includes('pr.work_date >= ?'));
+    assert.ok(call.sql.includes('pr.work_date < DATE_ADD(?, INTERVAL 1 DAY)'));
+    assert.ok(!call.sql.includes('DATE(pr.work_date)'));
+    assert.ok(call.params.includes('2026-08-01'));
+    assert.ok(call.params.includes('2026-08-31'));
+  }
+});
+
+test('BEHAVIORAL: independent pending-list SQL reads start concurrently', async () => {
+  const db = createFakeDb();
+  const originalQuery = db.query.bind(db);
+  db.query = (sql, params, callback) => originalQuery(sql, params, (error, rows, fields) => {
+    setTimeout(() => callback(error, rows, fields), 20);
+  });
+  const model = loadReadModel(db);
+  const resultPromise = model.getPending(77, {
+    date_from: '2026-08-01', date_to: '2026-08-31',
+    pagination: { page: 1, page_size: 8, offset: 0 }
+  }, false);
+  const initialCalls = db.calls.filter((call) => call.sql.includes('SELECT COUNT(*) AS total')
+    || call.sql.includes('LIMIT ? OFFSET ?')
+    || call.sql.includes('FROM processes p'));
+  assert.ok(initialCalls.length >= 4, 'count, page, process options and previous-count reads start before any resolves');
+  await resultPromise;
+});
 test('BEHAVIORAL: pending ordering has id tie-breaker', async () => {
   const db = createFakeDb();
   const model = loadReadModel(db);

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getApprovedReports, getPendingReports } from "../../services/productionService";
+import { getApprovedReports } from "../../services/productionService";
 import Reports from "./Reports";
 import ApprovedReportsDesktopActions from "./ApprovedReportsDesktopActions";
 
@@ -141,29 +141,31 @@ function installPendingTableFix(navigate: (to: string) => void) {
     tbody.appendChild(fragment);
   };
 
-  const sync = async (force = false) => {
+  const sync = () => {
     if (disposed || !isPending()) return;
     const table = document.querySelector<HTMLTableElement>(".pending-reference-table");
-    if (!table) return;
-    const q = readFilters();
-    const signature = JSON.stringify(q);
+    if (!table || !cache.length) return;
+    const signature = JSON.stringify(readFilters());
     const shapeOk = table.tHead?.rows[0]?.cells.length === 14 && Array.from(table.tBodies[0]?.rows || []).every(r => r.cells.length === 14);
-    if (!force && signature === lastSignature && table === tableRef && shapeOk) return;
-    if (busy) return;
-    busy = true;
-    try {
-      const result = signature === lastSignature && cache.length ? { data: cache } : await getPendingReports({ dateFrom:q.dateFrom,dateTo:q.dateTo,processName:q.processName||undefined,shift:q.shift||undefined,search:q.search||undefined,page:q.page,pageSize:q.pageSize });
-      cache = result.data || [];
-      lastSignature = signature;
-      tableRef = table;
-      const rows = Array.from(table.tBodies[0]?.rows || []).filter(row => !row.querySelector(".management-empty,.management-error"));
-      rebuild(table, rows);
-    } catch {
-      // Reports.tsx keeps ownership of loading/error state; the patch is visual only.
-    } finally {
-      busy = false;
-    }
+    if (signature !== lastSignature || (table === tableRef && shapeOk)) return;
+    const rows = Array.from(table.tBodies[0]?.rows || []).filter(row => !row.querySelector(".management-empty,.management-error"));
+    tableRef = table;
+    rebuild(table, rows);
   };
+
+  const onPageData = (event: Event) => {
+    if (disposed || !isPending()) return;
+    const detail = (event as CustomEvent<{ reports?: unknown[] }>).detail;
+    cache = Array.isArray(detail?.reports) ? detail.reports as any[] : [];
+    lastSignature = JSON.stringify(readFilters());
+    const table = document.querySelector<HTMLTableElement>(".pending-reference-table");
+    tableRef = table;
+    if (!table || !cache.length) return;
+    const rows = Array.from(table.tBodies[0]?.rows || []).filter(row => !row.querySelector(".management-empty,.management-error"));
+    rebuild(table, rows);
+  };
+
+  window.addEventListener("ktc:manager-pending-page-data", onPageData);
 
   const click = (event: MouseEvent) => {
     if (!isPending()) return;
@@ -183,18 +185,17 @@ function installPendingTableFix(navigate: (to: string) => void) {
   document.addEventListener("click", click, true);
   const observer = new MutationObserver(() => {
     window.clearTimeout(renderTimer);
-    renderTimer = window.setTimeout(() => void sync(false), 40);
+    renderTimer = window.setTimeout(() => sync(), 40);
   });
   observer.observe(document.body, { childList:true, subtree:true });
-  const interval = window.setInterval(() => void sync(false), 500);
-  void sync(true);
+  void sync();
 
   return () => {
     disposed = true;
     observer.disconnect();
     document.removeEventListener("click", click, true);
+    window.removeEventListener("ktc:manager-pending-page-data", onPageData);
     window.clearTimeout(renderTimer);
-    window.clearInterval(interval);
     document.body.classList.remove("ktc-report-workspace-fix");
     document.getElementById(styleId)?.remove();
   };

@@ -12,8 +12,8 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
     }
     const dateFrom = filters.date_from || filters.dateFrom;
     const dateTo = filters.date_to || filters.dateTo;
-    if (dateFrom) { conditions.push("DATE(pr.work_date) >= ?"); params.push(dateFrom); }
-    if (dateTo) { conditions.push("DATE(pr.work_date) <= ?"); params.push(dateTo); }
+    if (dateFrom) { conditions.push("pr.work_date >= ?"); params.push(dateFrom); }
+    if (dateTo) { conditions.push("pr.work_date < DATE_ADD(?, INTERVAL 1 DAY)"); params.push(dateTo); }
     if (filters.work_date) { conditions.push("DATE(pr.work_date) = ?"); params.push(filters.work_date); }
     if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(Number(filters.process_id)); }
     if (filters.process_name) { conditions.push("p.process_name = ?"); params.push(String(filters.process_name).trim()); }
@@ -181,11 +181,13 @@ module.exports = {
         const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status IN ('pending','need_fix')");
         const where = conditions.join(" AND ");
-        const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
-        const items = await query(db, `SELECT pr.*,w.user_id,w.worker_code,u.full_name,p.process_name,p.process_code FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC, pr.created_at ASC, pr.id ASC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
+        const [countRows, items, processes, previousCount] = await Promise.all([
+            query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params),
+            query(db, `SELECT pr.*,w.user_id,w.worker_code,u.full_name,p.process_name,p.process_code FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC, pr.created_at ASC, pr.id ASC LIMIT ? OFFSET ?`, [...params, pageSize, offset]),
+            getProcessOptions(managerId, isAdmin),
+            getPreviousPendingCount(managerId, isAdmin)
+        ]);
         const enrichedItems = await attachPendingChildren(items);
-        const processes = await getProcessOptions(managerId, isAdmin);
-        const previousCount = await getPreviousPendingCount(managerId, isAdmin);
         return { items: enrichedItems, pagination: paginationMeta({page,pageSize,total:Number(countRows?.[0]?.total||0)}), processes, previous_count: previousCount };
     },
     async getApproved(managerId, filters = {}, isAdmin = false) {

@@ -94,6 +94,7 @@ export default function Reports() {
     const [rejectReason, setRejectReason] = useState(""); const [rejectNote, setRejectNote] = useState(""); const [rejecting, setRejecting] = useState(false); const [rejectDialogOpen, setRejectDialogOpen] = useState(false); const [rejectTargetIds, setRejectTargetIds] = useState<number[]>([]);
 
     const reportLoadSeqRef = useRef(0);
+    const reportAbortRef = useRef<AbortController | null>(null);
     const managerActionLockRef = useRef(false);
 
     useEffect(() => {
@@ -105,23 +106,45 @@ export default function Reports() {
 
     const load = useCallback(async () => {
         const requestSeq = ++reportLoadSeqRef.current;
+        reportAbortRef.current?.abort();
+        const controller = new AbortController();
+        reportAbortRef.current = controller;
         const isCurrentRequest = () => reportLoadSeqRef.current === requestSeq;
         try {
             setLoading(true); setError("");
             const r = range || { dateFrom: date, dateTo: date };
-            const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page, pageSize: 8 });
+            const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page, pageSize: 8, signal: controller.signal });
             if (!isCurrentRequest()) return;
             setReports(result.data || []); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
         } catch (e: any) {
             if (!isCurrentRequest()) return;
             setError(e?.response?.data?.message || "Không thể tải báo cáo chờ duyệt"); setReports([]); setTotal(0); setPages(1);
-        } finally { if (isCurrentRequest()) setLoading(false); }
+        } finally {
+            if (reportAbortRef.current === controller) reportAbortRef.current = null;
+            if (isCurrentRequest()) setLoading(false);
+        }
     }, [date, range, process, shift, searchQuery, page]);
 
+    const filterKey = JSON.stringify([date, range?.dateFrom || "", range?.dateTo || "", process, shift, searchQuery]);
+    const previousFilterKeyRef = useRef(filterKey);
+
     useEffect(() => {
+        const filtersChanged = previousFilterKeyRef.current !== filterKey;
+        previousFilterKeyRef.current = filterKey;
+        // The filter-reset effect below moves a non-first page to page 1.
+        // Avoid fetching the old page with newly changed filters.
+        if (filtersChanged && page !== 1) return;
         void load();
-        return () => { reportLoadSeqRef.current += 1; };
-    }, [load]);
+        return () => {
+            reportAbortRef.current?.abort();
+            reportLoadSeqRef.current += 1;
+        };
+    }, [load, filterKey, page]);
+
+    useEffect(() => {
+        if (loading) return;
+        window.dispatchEvent(new CustomEvent("ktc:manager-pending-page-data", { detail: { reports } }));
+    }, [reports, loading]);
     useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, searchQuery]);
     useEffect(() => { setSelectedIds([]); }, [page]);
 

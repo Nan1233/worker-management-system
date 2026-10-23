@@ -1,5 +1,3 @@
-import api from "../../services/api";
-
 const DETAIL_SELECTOR = ".pending-reference-page .pending-detail-card";
 const BODY_SELECTOR = ".pending-detail-body";
 const CODE_SELECTOR = ".pending-detail-code";
@@ -37,23 +35,11 @@ function textByLabel(detail: HTMLElement, label: string): string {
   return field?.querySelector("strong")?.textContent?.trim() || "";
 }
 
-function getDetailIdentity(detail: HTMLElement): { date: string; workerCode: string; process: string; machine: string; product: string } {
-  const row = document.querySelector(".pending-reference-table tbody tr.pending-row-active");
-  const cells = row ? Array.from(row.querySelectorAll("td")) : [];
-  const workerCell = cells[3]?.textContent?.trim() || "";
-  const workerMatch = workerCell.match(/\(([^)]+)\)\s*$/);
-  const dateText = textByLabel(detail, "Ngày báo cáo");
-  const [day, month, year] = dateText.split("/");
-  const date = day && month && year ? `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` : "";
-  return {
-    date,
-    workerCode: workerMatch?.[1]?.trim() || "",
-    process: textByLabel(detail, "Công đoạn"),
-    machine: textByLabel(detail, "Máy móc"),
-    product: textByLabel(detail, "Sản phẩm")
-  };
-}
-
+let pendingPageReports: any[] = [];
+window.addEventListener("ktc:manager-pending-page-data", (event: Event) => {
+  const payload = (event as CustomEvent<{ reports?: unknown[] }>).detail;
+  pendingPageReports = Array.isArray(payload?.reports) ? payload.reports as any[] : [];
+});
 function metricCard(className: string, label: string, value = "---"): HTMLDivElement {
   const item = document.createElement("div");
   item.className = `pending-result-item ${className}`;
@@ -80,45 +66,19 @@ async function addDetailMetrics(detail: HTMLElement): Promise<void> {
   const ngOutput = parseNumber(ngText);
   ngRateCard.querySelector("strong")!.textContent = `${(totalOutput > 0 ? ngOutput / totalOutput * 100 : 0).toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`;
 
-  const identity = getDetailIdentity(detail);
-  if (!identity.date || !identity.workerCode) {
+  const reportCode = detail.querySelector(CODE_SELECTOR)?.textContent?.trim() || "";
+  const reportId = Number(reportCode.replace(/^#/, ""));
+  const match = pendingPageReports.find((item) => Number(item?.id) === reportId);
+  if (!match) {
     achievementCard.querySelector("strong")!.textContent = "---";
     return;
   }
-
-  try {
-    const response = await api.get("/production-temp/pending", {
-      params: {
-        date_from: identity.date,
-        date_to: identity.date,
-        search: identity.workerCode,
-        page: 1,
-        page_size: 100,
-        include_meta: 1
-      }
-    });
-    const reports = Array.isArray(response.data?.data) ? response.data.data : [];
-    const match = reports.find((item: any) =>
-      String(item.worker_code || "") === identity.workerCode &&
-      String(item.process_name || "") === identity.process &&
-      String(item.machine_no || "") === identity.machine &&
-      String(item.product_name || "") === identity.product
-    ) || reports.find((item: any) => String(item.worker_code || "") === identity.workerCode);
-
-    if (!match) {
-      achievementCard.querySelector("strong")!.textContent = "---";
-      return;
-    }
-
-    const standardRate = Number(match.standard_output || 0);
-    const actualTime = Number(match.actual_time || 0);
-    const trainingPercent = Math.min(100, Math.max(0, Number(match.training_percent ?? match.training_percent_snapshot ?? 100)));
-    const standard = standardRate * actualTime;
-    const achievement = standard > 0 ? (totalOutput / standard) * (trainingPercent / 100) * 100 : 0;
-    achievementCard.querySelector("strong")!.textContent = `${achievement.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`;
-  } catch {
-    achievementCard.querySelector("strong")!.textContent = "---";
-  }
+  const standardRate = Number(match.standard_output || 0);
+  const actualTime = Number(match.actual_time || 0);
+  const trainingPercent = Math.min(100, Math.max(0, Number(match.training_percent ?? match.training_percent_snapshot ?? 100)));
+  const standard = standardRate * actualTime;
+  const achievement = standard > 0 ? (totalOutput / standard) * (trainingPercent / 100) * 100 : 0;
+  achievementCard.querySelector("strong")!.textContent = `${achievement.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`;
 }
 
 if (document.body) {
