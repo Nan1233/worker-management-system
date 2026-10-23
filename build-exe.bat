@@ -7,7 +7,7 @@ call npm --prefix frontend install
 if errorlevel 1 exit /b 1
 call npm --prefix desktop install
 if errorlevel 1 exit /b 1
-call npm run verify
+call npm --prefix desktop run check
 if errorlevel 1 exit /b 1
 call npm --prefix desktop run dist:portable:fast
 if errorlevel 1 exit /b 1
