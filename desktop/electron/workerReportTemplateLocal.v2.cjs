@@ -927,7 +927,8 @@ function normalizeGcDefectHeaders(sheet, headerRow) {
 
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
   const { templatePath, buffer: templateBuffer } = await getTemplateBuffer(appPath);
-  const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
+  const sourceReports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
+  const reports = expandMachineReports(sourceReports);
   const [year, month] = String(date).slice(0, 7).split('-');
   const code = String(processCode || '').toUpperCase();
   const prefix = PROCESS_FILE_PREFIXES[code] || code || 'PROCESS';
