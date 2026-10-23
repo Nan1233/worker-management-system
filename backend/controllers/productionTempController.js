@@ -16,6 +16,7 @@ const finiteNumber = (value) => {
 
 const ZERO_STANDARD_GC_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
+// CVK's real process id is 30002; 60006 is the legacy id still present on historical rows.
 const findExistingCvkReport = async (req) => {
     const workerId = Number(req.user?.worker_id || req.body?.worker_id);
     const workDate = String(req.body?.work_date || "").slice(0, 10);
@@ -28,7 +29,7 @@ const findExistingCvkReport = async (req) => {
         `SELECT id, status, work_date, shift, actual_time, deduction_time, total_time,
                 'temp' AS report_type
            FROM production_reports_temp
-          WHERE worker_id=? AND process_id=60006 AND work_date=? AND shift=?
+          WHERE worker_id=? AND process_id IN (30002, 60006) AND work_date=? AND shift=?
             AND UPPER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.work_type')), ''))=UPPER(?)
             AND status IN ('pending','need_fix')
           ORDER BY id DESC LIMIT 1`,
@@ -40,7 +41,7 @@ const findExistingCvkReport = async (req) => {
         `SELECT id, status, work_date, shift, actual_time, deduction_time, total_time,
                 'approved' AS report_type
            FROM production_reports
-          WHERE worker_id=? AND process_id=60006 AND work_date=? AND shift=?
+          WHERE worker_id=? AND process_id IN (30002, 60006) AND work_date=? AND shift=?
             AND UPPER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.work_type')), ''))=UPPER(?)
             AND status <> 'deleted'
           ORDER BY id DESC LIMIT 1`,

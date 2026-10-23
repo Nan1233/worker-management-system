@@ -37,27 +37,35 @@ function getRequestRefreshToken(req) {
     return bodyToken || parseCookie(req, REFRESH_COOKIE_NAME);
 }
 
+// The SPA and API live on different sites in deployment (Render / workers.dev), so the refresh
+// cookie must be Secure + SameSite=None there. On a Cloudflare Worker NODE_ENV is not guaranteed
+// to be populated, so the Worker runtime is treated as a cross-site HTTPS deployment too.
+function isCrossSiteCookieRuntime() {
+    return process.env.NODE_ENV === "production"
+        || process.env.KTC_CLOUDFLARE_WORKER === "true"
+        || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+}
+
+function refreshCookieBaseOptions() {
+    const crossSite = isCrossSiteCookieRuntime();
+    return {
+        httpOnly: true,
+        secure: crossSite,
+        sameSite: crossSite ? "none" : "lax",
+        path: "/api/auth",
+    };
+}
+
 function setRefreshCookie(res, refreshToken, expiresAt = null) {
     const absoluteExpiry = expiresAt ? new Date(expiresAt).getTime() : NaN;
     const remainingMs = Number.isFinite(absoluteExpiry)
         ? Math.max(0, absoluteExpiry - Date.now())
         : REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000;
-    res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-        maxAge: remainingMs,
-        path: "/api/auth",
-    });
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, { ...refreshCookieBaseOptions(), maxAge: remainingMs });
 }
 
 function clearRefreshCookie(res) {
-    res.clearCookie(REFRESH_COOKIE_NAME, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-        path: "/api/auth",
-    });
+    res.clearCookie(REFRESH_COOKIE_NAME, refreshCookieBaseOptions());
 }
 
 function shouldReturnRefreshToken(req) {
@@ -511,9 +519,12 @@ exports.logout = async (req, res) => {
         const refreshToken = getRequestRefreshToken(req);
 
         if (!refreshToken) {
-            return res.status(400).json({
-                success: false,
-                message: "Thiếu refresh token"
+            // Nothing to revoke server-side; still retire any stale cookie so the browser
+            // does not keep a dead credential, and let the client finish its local logout.
+            clearRefreshCookie(res);
+            return res.status(200).json({
+                success: true,
+                message: "Đăng xuất thành công"
             });
         }
 
