@@ -126,7 +126,7 @@ test('child lock/write failure rolls back parent; retry with same request ID cre
 
   await assert.rejects(
     () => facade.createCompleteReport(payload()),
-    (error) => error.code === 'ER_LOCK_WAIT_TIMEOUT'
+    (error) => error.code === 'PRODUCTION_SUBMISSION_CONFLICT'
       && error.status === 409
   );
 
