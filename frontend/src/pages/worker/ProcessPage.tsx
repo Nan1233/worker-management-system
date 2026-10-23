@@ -1273,7 +1273,6 @@ const updateDeductionValue = (
     // =====================================================
 
     const validateForm = (): string => {
-        const cvkWorkType = String(form.workType || "").trim().toUpperCase();
         if (
             loadingWorker
         ) {
