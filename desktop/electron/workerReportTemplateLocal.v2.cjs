@@ -595,12 +595,62 @@ function plannedOutputFor(report) {
   return { planned, trainingPercent };
 }
 
+function machineLinesOf(report) {
+  const source = [
+    ...(Array.isArray(report?.machineLines) ? report.machineLines : []),
+    ...(Array.isArray(report?.machine_lines) ? report.machine_lines : []),
+    ...(Array.isArray(report?.machines) ? report.machines : [])
+  ];
+  const seen = new Set();
+  return source.filter((line) => {
+    if (!line || typeof line !== 'object') return false;
+    // Dedupe only by persistent row/event identity. Same machine code can
+    // legitimately occur in multiple rows or time segments.
+    const key = String(line.id ?? line.machine_line_id ?? line.machine_event_id ?? '');
+    if (key && seen.has(key)) return false;
+    if (key) seen.add(key);
+    return true;
+  });
+}
+
+function reportForMachineLine(report, line, machineLineCount) {
+  const machine = line?.machine_code || line?.machine_no || line?.machineCode || line?.code || report.machine_no || report.machine_code || report.machine;
+  const outputFields = ['actual_output', 'tt_ok', 'tt_ng', 'total_time', 'actual_time', 'deduction_time', 'total_minutes', 'work_minutes', 'standard_output', 'actual_output_per_hour', 'achievement_rate', 'ng_rate'];
+  const next = { ...report, ...line };
+  // Keep per-line machine time as explicit fields expected by resolveExportTimes.
+  const lineHours = Number(line?.excel_machine_time_hours ?? line?.machine_time_hours ?? line?.machineTimeHours ?? 0) || 0;
+  const lineDeductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
+  next.machine_time_hours = lineHours;
+  next.machine_deduction_time_hours = lineDeductionHours;
+  next.deduction_time = lineDeductionHours;
+  if (line?.machine_time_hours != null && line?.total_time == null) next.total_time = lineHours;
+  if (line?.machine_time_hours != null && line?.actual_time == null) next.actual_time = Math.max(0, lineHours - lineDeductionHours);
+  // Parent aggregate accounting must never be copied into every machine row.
+  delete next.machineAccounting;
+  if (line?.machineAccounting && typeof line.machineAccounting === 'object') next.machineAccounting = line.machineAccounting;
+  for (const field of ['id', 'report_id', 'worker_id', 'worker_code', 'full_name', 'worker_name', 'process_code', 'processCode', 'work_date', 'entry_date', 'created_at', 'submitted_at', 'shift', 'status', 'review_note', 'note']) {
+    if (report[field] !== undefined) next[field] = report[field];
+  }
+  if (machine) { next.machine_no = machine; next.machine_code = machine; next.machine = machine; }
+  for (const field of outputFields) {
+    const lineValue = line?.[field] ?? line?.[`${field}_snapshot`];
+    if (lineValue !== undefined && lineValue !== null && lineValue !== '') next[field] = lineValue;
+    else if (machineLineCount > 1) next[field] = 0;
+  }
+  next.machineLines = []; next.machine_lines = []; next.machines = [];
+  if (Array.isArray(line?.deductions)) next.deductions = line.deductions;
+  else if (machineLineCount > 1) next.deductions = [];
+  if (Array.isArray(line?.defects)) next.defects = line.defects;
+  else if (machineLineCount > 1) next.defects = [];
+  return next;
+}
+
 function applyReportRow(row, report, contract, processData, index) {
   const set = (column, value) => writeValue(row, column, value);
   const exportTimes = resolveExportTimes(report);
-  const reportForDetails = exportTimes.hasMachine
-    ? { ...report, deductions: exportTimes.deductions }
-    : report;
+  const reportForDetails = exportTimes.hasMachine && Array.isArray(report.deductions) && report.deductions.length
+    ? report
+    : (exportTimes.hasMachine ? { ...report, deductions: exportTimes.deductions } : report);
   set(contract.cols.stt, index + 1);
   set(contract.cols.entryDate, asDate(report.entry_date || report.created_at));
   set(contract.cols.date, asDate(report.work_date || report.entry_date));
@@ -609,54 +659,24 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.shift, report.shift);
   set(contract.cols.operationType, report.operation_type);
   set(contract.cols.operationMode, report.operation_mode);
-  const machineLines = [
-    ...(Array.isArray(report.machineLines) ? report.machineLines : []),
-    ...(Array.isArray(report.machine_lines) ? report.machine_lines : []),
-    ...(Array.isArray(report.machines) ? report.machines : [])
-  ];
-  const machineValues = [
-    report.machine_no, report.machine_code, report.machine,
-    ...machineLines.map((line) => line?.machine_code || line?.machine_no || line?.machineCode || line?.code)
-  ].map((value) => String(value ?? '').trim()).filter(Boolean);
-  set(contract.cols.machine, [...new Set(machineValues)].join(', '));
-  // CVK is non-product work: the existing MSP/code column carries its
-  // canonical work-type code, never a fabricated product code. If work_type
-  // is absent, leave MSP blank rather than falling back to product/machine data.
+  const machineLines = machineLinesOf(report);
+  const machine = report.machine_no || report.machine_code || report.machine || machineLines[0]?.machine_code || machineLines[0]?.machine_no || machineLines[0]?.machineCode || machineLines[0]?.code || '';
+  set(contract.cols.machine, String(machine).trim());
   const cvkWorkType = cvkWorkTypeCode(report);
   const isCvk = String(report.process_code || report.processCode || '').trim().toUpperCase() === 'CVK';
-  const directProduct = isCvk
-    ? cvkWorkType
-    : String(report.product_name || report.product_code || '').trim();
-  const lineProducts = isCvk ? [] : machineLines
-    .map((line) => String(line?.product_code || line?.product_name || line?.productCode || '').trim())
-    .filter(Boolean);
+  const directProduct = isCvk ? cvkWorkType : String(report.product_name || report.product_code || '').trim();
+  const lineProducts = isCvk ? [] : machineLines.map((line) => String(line?.product_code || line?.product_name || line?.productCode || '').trim()).filter(Boolean);
   set(contract.cols.product, directProduct || [...new Set(lineProducts)].join(', '));
-  if (contract.cols.submittedAt) {
-    const cell = row.getCell(contract.cols.submittedAt);
-    cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date);
-    cell.numFmt = 'dd/mm/yyyy hh:mm';
-  }
+  if (contract.cols.submittedAt) { const cell = row.getCell(contract.cols.submittedAt); cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date); cell.numFmt = 'dd/mm/yyyy hh:mm'; }
   const { planned, trainingPercent } = plannedOutputFor(report);
-  if (contract.cols.training) {
-    const cell = row.getCell(contract.cols.training);
-    cell.value = trainingPercent / 100;
-    cell.numFmt = '0%';
-  }
+  if (contract.cols.training) { const cell = row.getCell(contract.cols.training); cell.value = trainingPercent / 100; cell.numFmt = '0%'; }
   set(contract.cols.standard, planned);
   set(contract.cols.time, contract.timeKind === 'TOTAL' ? exportTimes.totalHours : exportTimes.actualHours);
   if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, exportTimes.actualHours);
   set(contract.cols.deductionTotal, exportTimes.deductionHours);
   if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
-    if (contract.timeKind === 'TOTAL') {
-      row.getCell(contract.cols.workTime).value = exportTimes.totalHours;
-    } else {
-      const tL = columnLetter(contract.cols.time);
-      const dL = columnLetter(contract.cols.deductionTotal);
-      row.getCell(contract.cols.workTime).value = {
-        formula: tL + row.number + '+' + dL + row.number,
-        result: exportTimes.totalHours
-      };
-    }
+    if (contract.timeKind === 'TOTAL') row.getCell(contract.cols.workTime).value = exportTimes.totalHours;
+    else { const tL = columnLetter(contract.cols.time); const dL = columnLetter(contract.cols.deductionTotal); row.getCell(contract.cols.workTime).value = { formula: tL + row.number + '+' + dL + row.number, result: exportTimes.totalHours }; }
   }
   set(contract.cols.ok, number(report.tt_ok ?? report.actual_output));
   set(contract.cols.ng, number(report.tt_ng));
@@ -667,11 +687,9 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.status, report.status);
   set(contract.cols.note, report.note || report.review_note);
   set(contract.cols.id, Number(report.id) || null);
-
   writeDetailBlock(row, reportForDetails, processData, contract.deductions, 'deduction');
   writeDetailBlock(row, report, processData, contract.defects, 'defect');
 }
-
 // A DB type that has no column in the template must not silently disappear.
 // Append unmatched CAT/LONG form categories even when their monthly total is zero,
 // so the exported sheet consistently reflects the 10 Cắt + 8 Lồng form catalogue.
@@ -721,6 +739,23 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
 // Template row between the header and the first data row whose first cell is a
 // date (the pink "Sep-02" row). When present, the export writes one such row
 // per work date and restarts STT at 1 under each date.
+function expandMachineReports(reports) {
+  const expanded = [];
+  for (const report of Array.isArray(reports) ? reports : []) {
+    const lines = machineLinesOf(report);
+    const processCode = String(report?.process_code || report?.processCode || '').trim().toUpperCase();
+    const operationMode = String(report?.operation_mode || '').trim().toUpperCase();
+    // Only expand Mài records explicitly backed by multiple physical-machine lines.
+    // Do not infer machine rows for other processes or manual records.
+    if (processCode !== 'MAI' || operationMode === 'MANUAL' || lines.length <= 1) {
+      expanded.push(report);
+      continue;
+    }
+    lines.forEach((line) => expanded.push(reportForMachineLine(report, line, lines.length)));
+  }
+  return expanded;
+}
+
 function findDateSeparatorRow(sheet, headerRow, dataStartRow) {
   for (let r = headerRow + 1; r < dataStartRow; r += 1) {
     const row = sheet.getRow(r);
@@ -793,6 +828,7 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
 
   let rowNumber = dateRowNumber;
   const percentRanges = [];
+  const sttByDate = new Map();
   for (const group of groups.values()) {
     const dateRow = sheet.getRow(rowNumber);
     applySnapshot(dateRow, dateSnapshot, columnCount);
@@ -800,10 +836,12 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
     dateRow.getCell(1).numFmt = 'mmm-dd';
     rowNumber += 1;
     const firstDataRow = rowNumber;
-    group.reports.forEach((report, index) => {
+    group.reports.forEach((report) => {
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
-      applyReportRow(row, report, contract, processData, index);
+      const reportIndex = sttByDate.get(dayKey(report)) || 0;
+      sttByDate.set(dayKey(report), reportIndex + 1);
+      applyReportRow(row, report, contract, processData, reportIndex);
       const exportTimes = resolveExportTimes(report);
       const totalMinutes = exportTimes.hasMachine
         ? exportTimes.totalHours * 60
@@ -906,7 +944,8 @@ function normalizeGcDefectHeaders(sheet, headerRow) {
 
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
   const { templatePath, buffer: templateBuffer } = await getTemplateBuffer(appPath);
-  const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
+  const sourceReports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
+  const reports = expandMachineReports(sourceReports);
   const [year, month] = String(date).slice(0, 7).split('-');
   const code = String(processCode || '').toUpperCase();
   const prefix = PROCESS_FILE_PREFIXES[code] || code || 'PROCESS';

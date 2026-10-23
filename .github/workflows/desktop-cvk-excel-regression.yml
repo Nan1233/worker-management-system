@@ -2,7 +2,7 @@ name: Desktop CVK Excel Regression
 
 on:
   push:
-    branches: [test]
+    branches: [test, 'fix/excel-cvk-machine-rows']
     paths:
       - 'desktop/electron/**'
       - 'desktop/tests/**'
@@ -11,6 +11,8 @@ on:
       - 'backend/templates/Mau_Bao_Cao_Cong_Nhan_DB_day_du_chi_tiet_STT_FIX.xlsx'
       - '.github/workflows/desktop-cvk-excel-regression.yml'
       - 'build-exe.bat'
+  pull_request:
+    branches: [test]
   workflow_dispatch:
 
 permissions:
