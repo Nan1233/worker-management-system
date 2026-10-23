@@ -14,7 +14,7 @@ const line = (id, machine, product, hours, ok, ng, deductions = [], defects = []
 });
 const report = (overrides = {}) => ({
   id: 1, process_code: 'GC', process_name: 'Gia công', operation_mode: 'MACHINE',
-  worker_id: 10, worker_code: 'CN01', full_name: 'Công nhân 1', work_date: '2026-10-02',
+  worker_id: 10, worker_code: 'CN01', full_name: 'Công nhân 1', work_date: '2026-10-02', training_percent: 100,
   total_time: 12, actual_time: 10, deduction_time: 2, standard_output: 999,
   actual_output: 9999, tt_ok: 9000, tt_ng: 999,
   deductions: [{ deduction_type_id: 9, deduction_name: 'TỔNG', hours: 99 }],
