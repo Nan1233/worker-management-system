@@ -615,6 +615,13 @@ function reportForMachineLine(report, line, machineLineCount) {
   const machine = line?.machine_code || line?.machine_no || line?.machineCode || line?.code || report.machine_no || report.machine_code || report.machine;
   const outputFields = ['actual_output', 'tt_ok', 'tt_ng', 'total_time', 'actual_time', 'deduction_time', 'total_minutes', 'work_minutes', 'standard_output', 'actual_output_per_hour', 'achievement_rate', 'ng_rate'];
   const next = { ...report, ...line };
+  // Keep per-line machine time as explicit fields expected by resolveExportTimes.
+  if (line?.machine_time_hours != null && line?.total_time == null) next.total_time = Number(line.machine_time_hours) || 0;
+  if (line?.machine_time_hours != null && line?.actual_time == null) {
+    const deduction = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
+    next.actual_time = Math.max(0, (Number(line.machine_time_hours) || 0) - deduction);
+  }
+  if (line?.deduction_time_hours != null && line?.deduction_time == null) next.deduction_time = Number(line.deduction_time_hours) || 0;
   for (const field of ['id', 'report_id', 'worker_id', 'worker_code', 'full_name', 'worker_name', 'process_code', 'processCode', 'work_date', 'entry_date', 'created_at', 'submitted_at', 'shift', 'status', 'review_note', 'note']) {
     if (report[field] !== undefined) next[field] = report[field];
   }
