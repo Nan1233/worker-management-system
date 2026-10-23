@@ -660,7 +660,7 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.operationType, report.operation_type);
   set(contract.cols.operationMode, report.operation_mode);
   const machineLines = machineLinesOf(report);
-  const machine = report.machine_no || report.machine_code || report.machine || '';
+  const machine = report.machine_no || report.machine_code || report.machine || machineLines[0]?.machine_code || machineLines[0]?.machine_no || machineLines[0]?.machineCode || machineLines[0]?.code || '';
   set(contract.cols.machine, String(machine).trim());
   const cvkWorkType = cvkWorkTypeCode(report);
   const isCvk = String(report.process_code || report.processCode || '').trim().toUpperCase() === 'CVK';
