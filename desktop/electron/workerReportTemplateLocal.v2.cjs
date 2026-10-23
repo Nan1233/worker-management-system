@@ -17,15 +17,32 @@ let cachedTemplateBuffer = null;
 const normalize = (value) => String(value ?? '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[đĐ]/g, 'd').replace(/\s+/g, ' ').trim().toLowerCase();
-function cvkWorkTypeCode(report) {
-  const processCode = String(report?.process_code || report?.processCode || '').trim().toUpperCase();
-  if (processCode !== 'CVK') return '';
+function parseReportExtraData(report) {
   let extraData = report?.extra_data;
   if (typeof extraData === 'string') {
     try { extraData = JSON.parse(extraData); } catch (_) { extraData = {}; }
   }
-  const workType = extraData?.work_type ?? report?.work_type;
-  return String(workType ?? '').trim();
+  return extraData && typeof extraData === 'object' && !Array.isArray(extraData) ? extraData : {};
+}
+
+function isNonProductWorkReport(report) {
+  const processCode = String(report?.process_code || report?.processCode || '').trim().toUpperCase();
+  const extraData = parseReportExtraData(report);
+  const flag = extraData.non_product_work ?? report?.non_product_work;
+  return processCode === 'CVK'
+    || flag === true
+    || flag === 1
+    || String(flag ?? '').trim().toLowerCase() === 'true';
+}
+
+function cvkWorkTypeCode(report) {
+  if (!isNonProductWorkReport(report)) return '';
+  const extraData = parseReportExtraData(report);
+  const raw = extraData.work_type ?? report?.work_type ?? extraData.workType ?? report?.workType;
+  const code = String(raw ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const labels = { TAIPP: 'TPP', TPP: 'TPP', KTCD: 'KTCD', XUATNHAP: 'XN', XN: 'XN' };
+  return labels[code] || '';
 }
 
 const number = (value) => {
@@ -622,12 +639,12 @@ function applyReportRow(row, report, contract, processData, index) {
   // CVK is non-product work: the existing MSP/code column carries its
   // canonical work-type code, never a fabricated product code. If work_type
   // is absent, leave MSP blank rather than falling back to product/machine data.
-  const cvkWorkType = cvkWorkTypeCode(report);
-  const isCvk = String(report.process_code || report.processCode || '').trim().toUpperCase() === 'CVK';
-  const directProduct = isCvk
-    ? cvkWorkType
+  const workTypeCode = cvkWorkTypeCode(report);
+  const isNonProductWork = isNonProductWorkReport(report);
+  const directProduct = isNonProductWork
+    ? workTypeCode
     : String(report.product_name || report.product_code || '').trim();
-  const lineProducts = isCvk ? [] : machineLines
+  const lineProducts = isNonProductWork ? [] : machineLines
     .map((line) => String(line?.product_code || line?.product_name || line?.productCode || '').trim())
     .filter(Boolean);
   set(contract.cols.product, directProduct || [...new Set(lineProducts)].join(', '));
