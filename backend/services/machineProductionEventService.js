@@ -333,9 +333,37 @@ function productCandidates(report, line) {
   return result;
 }
 
-async function assertApprovedEventForTempLine(executor,{report,line}){
-  const processRows=await q(executor,'SELECT process_code FROM processes WHERE id=? LIMIT 1',[Number(report.process_id)]);
-  if(!isSharedEventManaged(processRows[0]?.process_code,line.machine_code)) return true;
+// Per-report lookup context for assertApprovedEventForTempLine. A Cloudflare Worker invocation is capped
+// at 50 subrequests and every SQL statement is one, so the process code, the linked events and the
+// candidate-event list are read once per report instead of once per machine line.
+async function prepareApprovedEventContext(executor,{report,lines}){
+  const context={processCode:undefined,eventsById:new Map(),candidateRows:undefined};
+  if(report.process_code!==undefined&&report.process_code!==null) context.processCode=report.process_code;
+  else{
+    const processRows=await q(executor,'SELECT process_code FROM processes WHERE id=? LIMIT 1',[Number(report.process_id)]);
+    context.processCode=processRows[0]?.process_code;
+  }
+  const linkedIds=[...new Set((lines||[])
+    .filter((line)=>isSharedEventManaged(context.processCode,line.machine_code))
+    .map((line)=>Number(line.machine_event_id))
+    .filter((id)=>Number.isInteger(id)&&id>0))];
+  if(linkedIds.length){
+    const rows=await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
+      FROM machine_production_events WHERE id IN (${linkedIds.map(()=>'?').join(',')})`,linkedIds);
+    for(const row of rows||[]) context.eventsById.set(Number(row.id),row);
+  }
+  context.prefetched=true;
+  return context;
+}
+
+async function assertApprovedEventForTempLine(executor,{report,line,context=null}){
+  let processCode;
+  if(context&&context.processCode!==undefined) processCode=context.processCode;
+  else{
+    const processRows=await q(executor,'SELECT process_code FROM processes WHERE id=? LIMIT 1',[Number(report.process_id)]);
+    processCode=processRows[0]?.process_code;
+  }
+  if(!isSharedEventManaged(processCode,line.machine_code)) return true;
 
   const processId = Number(report.process_id);
   const machineId = Number(line.machine_id) || null;
@@ -349,9 +377,13 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
   let eventId = Number(line.machine_event_id) || null;
 
   if (eventId) {
-    const rows=await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
-      FROM machine_production_events WHERE id=? LIMIT 1`,[eventId]);
-    const candidate = rows[0] || null;
+    let candidate = null;
+    if (context && context.prefetched) candidate = context.eventsById.get(eventId) || null;
+    else {
+      const rows=await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
+        FROM machine_production_events WHERE id=? LIMIT 1`,[eventId]);
+      candidate = rows[0] || null;
+    }
     const candidateMachine = canonicalMachineNumber(candidate?.machine_code);
     const candidateProduct = normalizeBusinessCode(candidate?.product_code);
     const linkedMatches = candidate && String(candidate.status).toLowerCase()==='approved'
@@ -366,7 +398,10 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
   if (!event) {
     // Query by indexed/simple dimensions, then perform canonical machine/product matching in JS.
     // This avoids the TiDB prepared-statement syntax failure from nested REPLACE(...)+IN(?).
-    const rows = await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
+    let rows;
+    if (context && context.candidateRows) rows = context.candidateRows;
+    else {
+      rows = await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
       FROM machine_production_events
       WHERE status='approved'
         AND process_id=?
@@ -374,6 +409,8 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
         AND UPPER(TRIM(shift))=UPPER(TRIM(?))
       ORDER BY id DESC
       LIMIT 50`,[processId,workDate,shift]);
+      if (context) context.candidateRows = rows;
+    }
 
     const matchingRows = (rows || []).filter((candidate) => {
       const candidateMachine = canonicalMachineNumber(candidate?.machine_code);
@@ -432,4 +469,4 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
   return true;
 }
 
-module.exports={eventError,isSharedEventManaged,calculateEventPhysical,createEvent,updateEvent,linkParticipants,approveEvent,getEvent,listEvents,assertApprovedEventForTempLine,participantRows};
+module.exports={eventError,isSharedEventManaged,calculateEventPhysical,createEvent,updateEvent,linkParticipants,approveEvent,getEvent,listEvents,assertApprovedEventForTempLine,prepareApprovedEventContext,participantRows};

@@ -234,7 +234,7 @@ async function createReportVersion(
   throw new Error('Không thể tạo report version sau nhiều lần thử');
 }
 
-async function loadTempReportSnapshot(reportId, executor = db) {
+async function loadTempReportSnapshot(reportId, executor = db, preloaded = null) {
   const normalizedReportId = Number(reportId);
   // Lock the temp-report row for the lifetime of the caller's transaction so a
   // concurrent update/approve/reject cannot interleave between this snapshot read
@@ -271,16 +271,23 @@ async function loadTempReportSnapshot(reportId, executor = db) {
     [normalizedReportId],
   );
 
-  const machineLines = await query(
-    executor,
-    `SELECT * FROM production_temp_machine_lines
-      WHERE temp_report_id=? ORDER BY sort_order,id`,
-    [normalizedReportId],
-  );
+  // Subrequest budget: a caller that already holds this report's temp machine lines (with their `defects`)
+  // inside the same transaction may pass them in instead of having them read twice.
+  const hasPreloadedLines = Array.isArray(preloaded?.machineLines);
+  const machineLines = hasPreloadedLines
+    ? preloaded.machineLines.map(({ defects: _ignored, ...line }) => line)
+    : await query(
+      executor,
+      `SELECT * FROM production_temp_machine_lines
+        WHERE temp_report_id=? ORDER BY sort_order,id`,
+      [normalizedReportId],
+    );
 
   const machineIds = machineLines.map((line) => Number(line.id)).filter(Boolean);
   let machineDefects = [];
-  if (machineIds.length) {
+  if (hasPreloadedLines) {
+    machineDefects = preloaded.machineLines.flatMap((line) => line.defects || []);
+  } else if (machineIds.length) {
     machineDefects = await query(
       executor,
       `SELECT * FROM production_temp_machine_defects

@@ -117,6 +117,29 @@ function enrichMachineLines(lines) {
     }));
 }
 
+
+// KPI inputs of a machine-line report. GC machine reports intentionally store actual_time/total_time = 0 on the
+// parent row and keep the real time and the per-line standard on production_temp_machine_lines, so every consumer
+// (pending list and detail) must derive them from the lines the same way, otherwise the list shows TT định mức = 0
+// and năng suất = 0% while the detail shows real figures.
+function deriveMachineKpiFields(row, machineLines) {
+    const lines = Array.isArray(machineLines) ? machineLines : [];
+    const hoursOf = (line) => Math.max(0, Number(line.machine_time_hours) || 0);
+    const outputOf = (line) => Math.max(0, Number(line.standard_output) || 0);
+    const machineLineTime = lines.reduce((sum, line) => sum + hoursOf(line), 0);
+    const machineLineStandardTime = lines.reduce((sum, line) => sum + (hoursOf(line) > 0 && outputOf(line) > 0 ? hoursOf(line) * outputOf(line) : 0), 0);
+    const parentActualTime = Math.max(0, Number(row.actual_time) || 0);
+    const parentStandardOutput = Math.max(0, Number(row.standard_output) || 0);
+    const actualTime = parentActualTime > 0 ? parentActualTime : (machineLineTime > 0 ? machineLineTime : parentActualTime);
+    const ttDinhMuc = Number(row.tt_dinh_muc) > 0
+        ? Number(row.tt_dinh_muc)
+        : (machineLineStandardTime > 0 ? machineLineStandardTime : (parentStandardOutput > 0 && actualTime > 0 ? parentStandardOutput * actualTime : 0));
+    const standardOutput = parentStandardOutput > 0 ? parentStandardOutput : (machineLineTime > 0 ? machineLineStandardTime / machineLineTime : 0);
+    // Lines that ran but have no usable standard: the UI must say "thiếu định mức" instead of a misleading 0%.
+    const linesMissingStandard = lines.filter((line) => hoursOf(line) > 0 && outputOf(line) <= 0).length;
+    return { actual_time: actualTime, tt_dinh_muc: ttDinhMuc, standard_output: standardOutput, standard_missing_lines: linesMissingStandard };
+}
+
 async function attachPendingChildren(items) {
     if (!items?.length) return items || [];
     const ids = items.map((item) => Number(item.id)).filter((id) => Number.isInteger(id) && id > 0);
@@ -141,6 +164,7 @@ async function attachPendingChildren(items) {
         const ttNg = Math.max(0, Math.trunc(Number(item.tt_ng) || 0));
         return normalizeReportTimestamps({
             ...item,
+            ...(machinesForReport.length ? deriveMachineKpiFields(item, machinesForReport) : {}),
             defects: defectsForReport,
             deductions: normalizeDeductions(deductionsForReport),
             machine_lines: machinesForReport,
@@ -152,6 +176,7 @@ async function attachPendingChildren(items) {
 }
 
 module.exports = {
+    deriveMachineKpiFields,
     async getPending(managerId, filters = {}, isAdmin = false) {
         const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status IN ('pending','need_fix')");
@@ -196,17 +221,8 @@ module.exports = {
             // row can have standard_output=0 for multi-machine reports, so
             // enrich the detail response from those saved line snapshots.
             const enrichedMachineLines = mergeMachineDefects(machineLines,[],[]);
-            const machineLineTime = enrichedMachineLines.reduce((sum,line)=>sum+Math.max(0,Number(line.machine_time_hours)||0),0);
-            const machineLineStandardTime = enrichedMachineLines.reduce((sum,line)=>{
-                const hours=Math.max(0,Number(line.machine_time_hours)||0);
-                const output=Math.max(0,Number(line.standard_output)||0);
-                return sum+(hours>0&&output>0?hours*output:0);
-            },0);
-            const parentActualTime=Math.max(0,Number(rows[0].actual_time)||0);
-            const parentStandardOutput=Math.max(0,Number(rows[0].standard_output)||0);
-            const actualTime=parentActualTime>0?parentActualTime:(machineLineTime>0?machineLineTime:parentActualTime);
-            const ttDinhMuc=Number(rows[0].tt_dinh_muc)>0?Number(rows[0].tt_dinh_muc):(machineLineStandardTime>0?machineLineStandardTime:(parentStandardOutput>0&&actualTime>0?parentStandardOutput*actualTime:0));
-            const enriched={...rows[0],actual_time:actualTime,tt_dinh_muc:ttDinhMuc,standard_output:parentStandardOutput>0?parentStandardOutput:(machineLineTime>0?machineLineStandardTime/machineLineTime:0),machine_lines:enrichedMachineLines};
+            const kpiFields=deriveMachineKpiFields(rows[0],enrichedMachineLines);
+            const enriched={...rows[0],...kpiFields,machine_lines:enrichedMachineLines};
             return normalizeReportTimestamps({...enriched,defects:mergeDefects(rows[0],defects,machineLines),deductions:normalizeDeductions(deductions),ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg});
         }
 

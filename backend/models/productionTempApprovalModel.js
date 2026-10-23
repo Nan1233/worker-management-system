@@ -18,6 +18,7 @@ const {
 } = require("../services/kqdPolicySnapshotService");
 const {
   assertApprovedEventForTempLine,
+  prepareApprovedEventContext,
 } = require("../services/machineProductionEventService");
 const { serializeExtraData: serializeExtraDataValue } = require("../services/productionApprovalService");
 
@@ -73,49 +74,69 @@ async function getTempMachineLines(tempReportId, connection) {
   return lines.map((line) => ({ ...line, defects: byLine.get(Number(line.id)) || [] }));
 }
 
-async function copyMachineLinesToApproved(tempReportId, approvedReportId, connection) {
-  const tempLines = await getTempMachineLines(tempReportId, connection);
-  if (!tempLines.length) return [];
+// Copies the temp machine lines (and their defects) into the approved report.
+// Subrequest budget: one multi-row INSERT for all lines + one SELECT to learn the new ids (the caller
+// reuses those rows for the legacy snapshot and the approved version) + one INSERT for all defects,
+// instead of one INSERT per machine line.
+async function copyMachineLinesToApproved(tempReportId, approvedReportId, connection, preloadedTempLines = null) {
+  const tempLines = preloadedTempLines || await getTempMachineLines(tempReportId, connection);
+  if (!tempLines.length) return { ids: [], rows: [] };
 
-  const approvedIds = [];
-  const pendingDefects = [];
-
-  for (const line of tempLines) {
-    const result = await query(
-      connection,
-      `INSERT INTO production_report_machine_lines
-       (report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
+  const columns = `report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
         machine_time_hours,standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,ok_quantity,ng_quantity,
-        maximum_output,deduction_time_hours,deductions_json,counted_output,earned_standard_hours,defects_json,sort_order)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        approvedReportId,
-        line.machine_event_id || null,
-        line.machine_id || null,
-        line.machine_code,
-        line.product_standard_id || null,
-        line.standard_version_id || null,
-        line.machine_standard_id || null,
-        line.product_code,
-        line.machine_time_hours,
-        line.standard_output,
-        line.standard_time_seconds || null,
-        storedStandardSource(line.standard_source),
-        Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
-        line.ok_quantity,
-        line.ng_quantity,
-        line.maximum_output,
-        line.deduction_time_hours || 0,
-        serializeExtraData(line.deductions_json),
-        line.counted_output || 0,
-        line.earned_standard_hours || 0,
-        serializeExtraData(line.defects_json),
-        line.sort_order || 1,
-      ],
-    );
-    const approvedLineId = Number(result.insertId);
-    approvedIds.push(approvedLineId);
+        maximum_output,deduction_time_hours,deductions_json,counted_output,earned_standard_hours,defects_json,sort_order`;
+  const rowPlaceholder = `(${new Array(22).fill("?").join(",")})`;
+  const values = tempLines.flatMap((line) => [
+    approvedReportId,
+    line.machine_event_id || null,
+    line.machine_id || null,
+    line.machine_code,
+    line.product_standard_id || null,
+    line.standard_version_id || null,
+    line.machine_standard_id || null,
+    line.product_code,
+    line.machine_time_hours,
+    line.standard_output,
+    line.standard_time_seconds || null,
+    storedStandardSource(line.standard_source),
+    Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
+    line.ok_quantity,
+    line.ng_quantity,
+    line.maximum_output,
+    line.deduction_time_hours || 0,
+    serializeExtraData(line.deductions_json),
+    line.counted_output || 0,
+    line.earned_standard_hours || 0,
+    serializeExtraData(line.defects_json),
+    line.sort_order || 1,
+  ]);
+  await query(
+    connection,
+    `INSERT INTO production_report_machine_lines (${columns}) VALUES ${tempLines.map(() => rowPlaceholder).join(",")}`,
+    values,
+  );
 
+  const approvedRows = await qRows(
+    connection,
+    `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
+    [approvedReportId],
+  );
+  // AUTO_INCREMENT hands out ascending ids in row order inside one statement, so the n-th inserted row is the
+  // n-th lowest id. Verify that assumption against machine_code/product_code and fail closed (rollback) if not.
+  const byInsertOrder = [...approvedRows].sort((a, b) => Number(a.id) - Number(b.id));
+  if (byInsertOrder.length !== tempLines.length
+    || byInsertOrder.some((row, index) => String(row.machine_code) !== String(tempLines[index].machine_code)
+      || String(row.product_code) !== String(tempLines[index].product_code))) {
+    const error = new Error(`Không xác nhận được dòng máy đã sao chép cho báo cáo tạm #${tempReportId}; đã hủy duyệt để bảo vệ dữ liệu`);
+    error.status = 500;
+    error.code = "APPROVED_MACHINE_LINES_COPY_MISMATCH";
+    error.isPublic = true;
+    throw error;
+  }
+
+  const pendingDefects = [];
+  tempLines.forEach((line, index) => {
+    const approvedLineId = Number(byInsertOrder[index].id);
     for (const defect of line.defects || []) {
       pendingDefects.push([
         approvedLineId,
@@ -125,7 +146,7 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
         defect.quantity || 0,
       ]);
     }
-  }
+  });
 
   if (pendingDefects.length) {
     const placeholders = pendingDefects.map(() => "(?,?,?,?,?)").join(",");
@@ -138,7 +159,7 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
     );
   }
 
-  return approvedIds;
+  return { ids: byInsertOrder.map((row) => Number(row.id)), rows: approvedRows };
 }
 
 function getExtraDataObject(value) {
@@ -171,7 +192,7 @@ function assertNonProductWorkSnapshot(item) {
   }
 }
 
-async function validateApprovalSnapshot(item, connection, standardResolver) {
+async function validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache = null) {
   const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
   if (!isMachineReport && isParentProcessNonProductWork(item)) {
     assertNonProductWorkSnapshot(item);
@@ -179,6 +200,7 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
   }
   if (isMachineReport) {
     const tempLines = await getTempMachineLines(item.id, connection);
+    if (tempLinesCache) tempLinesCache.set(Number(item.id), tempLines);
     if (!tempLines.length) {
       const error = new Error(`Báo cáo máy #${item.id} không có dòng máy để xác minh định mức`);
       error.status = 422;
@@ -186,8 +208,14 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
       error.isPublic = true;
       throw error;
     }
+    const eventContext = await prepareApprovedEventContext(connection, { report: item, lines: tempLines });
+    await standardResolver.warmUp({
+      processId: item.process_id,
+      workDate: item.work_date,
+      items: tempLines.map((line) => ({ machineId: line.machine_id, machineCode: line.machine_code, productCode: line.product_code })),
+    });
     for (const line of tempLines) {
-      await assertApprovedEventForTempLine(connection, { report: item, line });
+      await assertApprovedEventForTempLine(connection, { report: item, line, context: eventContext });
       const resolved = await standardResolver.resolveStandard({
         processId: item.process_id,
         productCode: line.product_code,
@@ -249,30 +277,37 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
   });
 }
 
-async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection) {
+async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection, preloaded = {}) {
+  const preloadedMachineLines = preloaded.machineLines || null;
   // TiDB Serverless transaction connections must not run concurrent queries.
   // Keep these snapshot reads sequential on the same transaction connection.
-  const snapshotDefects = await qRows(
-    connection,
-    `SELECT dt.defect_code, dt.defect_name, d.quantity
-       FROM production_report_defects d
-       LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
-      WHERE d.report_id=? ORDER BY d.id`,
-    [approvedReportId],
-  );
-  const snapshotDeductions = await qRows(
-    connection,
-    `SELECT dt.deduction_code, dt.deduction_name, d.hours
-       FROM production_report_deductions d
-       LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
-      WHERE d.report_id=? ORDER BY d.id`,
-    [approvedReportId],
-  );
-  const machineLines = await qRows(
-    connection,
-    `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
-    [approvedReportId],
-  );
+  const snapshotDefects = preloaded.defects
+    ? preloaded.defects.map((row) => ({ defect_code: row.defect_code, defect_name: row.defect_name, quantity: row.quantity }))
+    : await qRows(
+      connection,
+      `SELECT dt.defect_code, dt.defect_name, d.quantity
+         FROM production_report_defects d
+         LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+        WHERE d.report_id=? ORDER BY d.id`,
+      [approvedReportId],
+    );
+  const snapshotDeductions = preloaded.deductions
+    ? preloaded.deductions.map((row) => ({ deduction_code: row.deduction_code, deduction_name: row.deduction_name, hours: row.hours }))
+    : await qRows(
+      connection,
+      `SELECT dt.deduction_code, dt.deduction_name, d.hours
+         FROM production_report_deductions d
+         LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+        WHERE d.report_id=? ORDER BY d.id`,
+      [approvedReportId],
+    );
+  const machineLines = Array.isArray(preloadedMachineLines)
+    ? preloadedMachineLines
+    : await qRows(
+      connection,
+      `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
+      [approvedReportId],
+    );
   const snapshotData = JSON.stringify({
     report: {
       id: approvedReportId,
@@ -340,7 +375,8 @@ module.exports = {
       const params = isAdmin ? reportIds : [...reportIds, reviewerId];
       const rows = await query(
         connection,
-        `SELECT DISTINCT temp.*, w.user_id AS worker_user_id
+        `SELECT DISTINCT temp.*, w.user_id AS worker_user_id,
+                (SELECT p.process_code FROM processes p WHERE p.id=temp.process_id LIMIT 1) AS process_code
            FROM production_reports_temp temp
            JOIN workers w ON w.id=temp.worker_id
            ${scopeJoin}
@@ -379,8 +415,9 @@ module.exports = {
         query: (sql, params = []) => qRows(connection, sql, params),
       });
 
+      const tempLinesCache = new Map();
       for (const item of rows) {
-        await validateApprovalSnapshot(item, connection, standardResolver);
+        await validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache);
 
         const insertResult = await query(
           connection,
@@ -421,13 +458,43 @@ module.exports = {
            SELECT ?,deduction_type_id,hours FROM production_temp_deductions WHERE temp_report_id=?`,
           [approvedReportId,item.id],
         );
-        await copyMachineLinesToApproved(item.id, approvedReportId, connection);
-        await createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection);
+        // One read of the approved defects/deductions serves both the legacy snapshot (name columns, id order)
+        // and the approved version (type id + value, ordered by type id then id).
+        const approvedDefects = await qRows(
+          connection,
+          `SELECT d.id, d.defect_type_id, dt.defect_code, dt.defect_name, d.quantity
+             FROM production_report_defects d
+             LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+            WHERE d.report_id=? ORDER BY d.id`,
+          [approvedReportId],
+        );
+        const approvedDeductions = await qRows(
+          connection,
+          `SELECT d.id, d.deduction_type_id, dt.deduction_code, dt.deduction_name, d.hours
+             FROM production_report_deductions d
+             LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+            WHERE d.report_id=? ORDER BY d.id`,
+          [approvedReportId],
+        );
+        const copied = await copyMachineLinesToApproved(item.id, approvedReportId, connection, tempLinesCache.get(Number(item.id)) || null);
+        // Without machine lines nothing was inserted, so an empty array is the correct "just read" result.
+        const approvedMachineLines = copied.rows;
+        const byTypeThenId = (key) => (a, b) => (Number(a[key] ?? -Infinity) - Number(b[key] ?? -Infinity)) || (Number(a.id) - Number(b.id));
+        await createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection, {
+          machineLines: approvedMachineLines,
+          defects: approvedDefects,
+          deductions: approvedDeductions,
+        });
         await createApprovedReportVersion(
           {
             reportId: approvedReportId,
             reason: `Tạo từ báo cáo tạm #${item.id}`,
             userId: reviewerId,
+            preloaded: {
+              machineLines: approvedMachineLines,
+              defects: [...approvedDefects].sort(byTypeThenId("defect_type_id")).map((row) => ({ defect_type_id: row.defect_type_id, quantity: row.quantity })),
+              deductions: [...approvedDeductions].sort(byTypeThenId("deduction_type_id")).map((row) => ({ deduction_type_id: row.deduction_type_id, hours: row.hours })),
+            },
           },
           connection,
         );
@@ -474,7 +541,11 @@ module.exports = {
           [reviewerId,item.id],
         );
 
-        const approvedTempSnapshot = await AuditService.loadTempReportSnapshot(item.id, connection);
+        const approvedTempSnapshot = await AuditService.loadTempReportSnapshot(
+          item.id,
+          connection,
+          tempLinesCache.has(Number(item.id)) ? { machineLines: tempLinesCache.get(Number(item.id)) } : null,
+        );
         if (approvedTempSnapshot) {
           await AuditService.createReportVersion({
             reportType:"temp",

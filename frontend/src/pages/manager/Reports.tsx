@@ -71,7 +71,10 @@ const kpi = (r: ProductionReport) => {
     // detail page already reads this field). Keep the list consistent with it.
     const hv = x.training_percent ?? x.training_percent_snapshot ?? x.worker_training_percent ?? x.hv_percent ?? x.learning_percent ?? x.hoc_viec_percent ?? 100;
     const ngTypeCount = Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count));
-    return { ok, ng, actual, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount };
+    // Machine lines that ran without a usable standard: there is nothing to compare against, so the screen must say
+    // so ("Thiếu định mức") instead of showing a 0 that looks like a real zero productivity.
+    const standardMissing = ttDinhMuc <= 0 && num(x.standard_missing_lines) > 0;
+    return { ok, ng, actual, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount, standardMissing };
 };
 
 const metricStyle = (type: "productivity" | "pp", value: number, ngTypeCount = 0): CSSProperties => {
@@ -289,7 +292,7 @@ export default function Reports() {
                                     return <tr key={r.id ?? i} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => void openDetail(r)} style={{ cursor: "pointer" }}>
                                         <td className="select-col"><input type="checkbox" aria-label={`Chọn báo cáo ${r.id}`} checked={selectedIds.includes(Number(r.id))} onChange={() => toggleSelected(Number(r.id))} onClick={e => e.stopPropagation()} /></td><td className="view-col" style={{ textAlign: "center" }}><button type="button" className="pending-detail-edit" aria-label={`Xem báo cáo ${r.id}`} onClick={e => { e.stopPropagation(); void openDetail(r); }}>⌕</button></td>
                                         <td>{code}</td><td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td><td>{processLabel(r)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(r.actual_time || r.total_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
-                                        <td style={metricStyle("productivity", x.nangSuat, x.ngTypeCount)}>{pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td style={metricStyle("pp", x.pp, x.ngTypeCount)}>{pct(x.pp)}{x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}</td><td><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span></td>
+                                        <td style={metricStyle("productivity", x.nangSuat, x.ngTypeCount)} title={x.standardMissing ? "Máy chưa có định mức hợp lệ trong báo cáo này" : undefined}>{x.standardMissing ? "Thiếu định mức" : pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td style={metricStyle("pp", x.pp, x.ngTypeCount)}>{pct(x.pp)}{x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}</td><td><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span></td>
                                     </tr>;
                                 })}
                             </tbody>
@@ -325,8 +328,8 @@ export default function Reports() {
                             <div className="pending-result-item rate"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div>
                         </div></section>
                         <section className="pending-detail-section"><h3>Chỉ số KPI</h3><div className="pending-detail-info-grid">
-                            <div className="pending-detail-field"><span>TT định mức</span><strong>{fmt(detailKpi.ttDinhMuc)}</strong></div>
-                            <div className="pending-detail-field" style={metricStyle("productivity", detailKpi.nangSuat, detailKpi.ngTypeCount)}><span>% năng suất</span><strong>{pct(detailKpi.nangSuat)}</strong></div>
+                            <div className="pending-detail-field"><span>TT định mức</span><strong>{detailKpi.standardMissing ? "Thiếu định mức" : fmt(detailKpi.ttDinhMuc)}</strong></div>
+                            <div className="pending-detail-field" style={metricStyle("productivity", detailKpi.nangSuat, detailKpi.ngTypeCount)}><span>% năng suất</span><strong>{detailKpi.standardMissing ? "Thiếu định mức" : pct(detailKpi.nangSuat)}</strong></div>
                             <div className="pending-detail-field"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div>
                             <div className="pending-detail-field" style={metricStyle("pp", detailKpi.pp, detailKpi.ngTypeCount)}><span>% PP (NG)</span><strong>{pct(detailKpi.pp)}{detailKpi.pp === 0 || detailKpi.ngTypeCount === 1 ? " ⚠" : ""}</strong></div>
                         </div></section>

@@ -213,6 +213,16 @@ exports.approveSelectedReports = async (req, res) => {
         // requestId ties this line to the http access log and to the X-Request-Id the browser saw; errno/sqlState
         // identify masked database failures (the client only gets a generic message in production).
         console.error(`APPROVE SELECTED REPORTS ERROR: requestId=${req.requestId || ""} status=${error.status || 400} code=${error.code || ""} errno=${error.errno || ""} sqlState=${error.sqlState || ""}`, error);
+        if (error?.isSubrequestLimit || /too many subrequests/i.test(String(error?.message || ""))) {
+            // Platform limit of the Worker invocation, not a business or data error: nothing was approved
+            // (the transaction could not finish), so say so and let the user retry instead of a misleading 400.
+            return res.status(503).json({
+                success: false,
+                code: "WORKER_SUBREQUEST_LIMIT",
+                message: "Hệ thống đang quá tải khi xử lý báo cáo này. Chưa có báo cáo nào được duyệt, vui lòng thử lại; nếu lỗi lặp lại hãy báo quản trị viên.",
+                requestId: req.requestId || undefined,
+            });
+        }
         return res.status(error.status || 400).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể duyệt báo cáo"), requestId: req.requestId || undefined });
     }
 };

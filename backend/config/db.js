@@ -93,6 +93,9 @@ function wrapCloudflareError(error, sql) {
     }
   }
   wrapped.cause = error;
+  // Cloudflare's per-invocation subrequest cap is a platform limit, not a data or SQL error: flag it so callers
+  // can answer with a precise status instead of the generic 400 (the original message stays in the log).
+  if (/too many subrequests/i.test(getErrorDetail(error))) wrapped.isSubrequestLimit = true;
   wrapped.details = {
     message: getErrorDetail(error),
     code: error?.code ?? null,

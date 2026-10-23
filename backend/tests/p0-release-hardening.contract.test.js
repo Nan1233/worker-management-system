@@ -38,9 +38,9 @@ test('P0 manager authorization is process-scoped before approval', () => {
 
 test('P0 approval preserves machine graph, historical snapshot and canonical version after approval insert', () => {
   const source = read('models/productionTempApprovalModel.js');
-  assert.match(source, /copyMachineLinesToApproved\(item\.id, approvedReportId, connection\)/);
+  assert.match(source, /copyMachineLinesToApproved\(item\.id, approvedReportId, connection,/);
   assert.match(source, /production_report_machine_defects/);
-  assert.match(source, /createLegacyApprovedSnapshot\(item, approvedReportId, reviewerId, connection\)/);
+  assert.match(source, /createLegacyApprovedSnapshot\(item, approvedReportId, reviewerId, connection,/);
   assert.match(source, /await createApprovedReportVersion\(/);
   assert.match(source, /AuditService\.createReportVersion\(\{[\s\S]*reportType:\"temp\"/);
 });

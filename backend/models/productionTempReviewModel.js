@@ -28,13 +28,13 @@ async function ensureLegacyMachineLines(targets) {
        FROM production_reports_temp t
       WHERE t.id IN (${placeholders})
         AND UPPER(COALESCE(t.operation_mode,''))='MACHINE'
-        AND t.status IN ('pending','need_fix')`, normalized);
+        AND t.status IN ('pending','need_fix')
+        AND NOT EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=t.id)`, normalized);
   for (const report of reports || []) {
     const machineCode = String(report.machine_no || "").split(",")[0].trim();
     const productCode = String(report.product_name || "").split(",")[0].trim();
     if (!machineCode || !productCode) continue;
-    const [existing] = await db.promise().query(`SELECT id FROM production_temp_machine_lines WHERE temp_report_id=? LIMIT 1`, [Number(report.id)]);
-    if (existing?.length) continue;
+    // Reports that already have machine lines are filtered out by the NOT EXISTS above (one query for the whole batch).
     let machine = null;
     try {
       const [machines] = await db.promise().query(`SELECT id,machine_code FROM machines WHERE process_id=? AND UPPER(TRIM(machine_code))=UPPER(TRIM(?)) LIMIT 1`, [Number(report.process_id), machineCode]);
@@ -114,52 +114,71 @@ async function linkMatchingApprovedMachineEvents(targets) {
        JOIN processes p ON p.id=r.process_id
       WHERE r.id IN (${placeholders}) AND r.status IN ('pending','need_fix')
         AND UPPER(COALESCE(r.operation_mode,''))='MACHINE'`, ids);
+  // Every statement is one Worker subrequest, so candidate events are read once for the whole batch and
+  // matched in memory (same rules as the former per-line queries: exact match first, then normalised
+  // UPPER(TRIM()) match; exactly one match links, more than one is ambiguous), and all links are written
+  // with a single UPDATE.
+  const pending = [];
   for (const line of lines || []) {
     if (line.machine_event_id) continue;
     if (String(line.process_code || '').trim().toUpperCase() !== 'GC') continue;
     const machineCode = String(line.machine_code || line.machine_no || '').split(',')[0].trim();
     const productCode = String(line.product_code || line.product_name || '').split(",")[0].trim();
     if (!machineCode || !productCode) continue;
+    pending.push({ line, machineCode, productCode, workDate: String(line.work_date).slice(0, 10), shift: String(line.shift || '').trim() });
+  }
+  if (!pending.length) return;
 
-    // Prefer an index-friendly exact lookup. Wrapping machine_code/product_code
-    // in UPPER(TRIM()) forces a scan on large event tables and can exceed the
-    // Cloudflare Worker 30s request budget. Only use the legacy normalized
-    // lookup when no canonical exact match exists.
-    const eventParams = [Number(line.process_id),machineCode,productCode,String(line.work_date).slice(0,10),String(line.shift || '').trim()];
-    let [events] = await db.promise().query(
-      `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
-         FROM machine_production_events
-        WHERE status='approved' AND process_id=?
-          AND machine_code=? AND product_code=?
-          AND work_date=? AND shift=?
-        ORDER BY id DESC LIMIT 2`,
-      eventParams);
-    if (!events?.length) {
-      [events] = await db.promise().query(
-        `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
-           FROM machine_production_events
-          WHERE status='approved' AND process_id=?
-            AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
-            AND UPPER(TRIM(product_code))=UPPER(TRIM(?))
-            AND work_date=? AND UPPER(TRIM(shift))=UPPER(TRIM(?))
-          ORDER BY id DESC LIMIT 2`,
-        eventParams);
+  const processIds = [...new Set(pending.map((p) => Number(p.line.process_id)))];
+  const workDates = [...new Set(pending.map((p) => p.workDate))];
+  const [candidateEvents] = await db.promise().query(
+    `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
+       FROM machine_production_events
+      WHERE status='approved'
+        AND process_id IN (${processIds.map(() => "?").join(",")})
+        AND work_date IN (${workDates.map(() => "?").join(",")})
+      ORDER BY id DESC`,
+    [...processIds, ...workDates]);
+  const dateKey = (value) => value instanceof Date
+    ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
+    : String(value || "").slice(0, 10);
+  const norm = (value) => String(value ?? "").trim().toUpperCase();
+  const links = [];
+  for (const { line, machineCode, productCode, workDate, shift } of pending) {
+    const sameSlot = (candidateEvents || []).filter((event) => Number(event.process_id) === Number(line.process_id) && dateKey(event.work_date) === workDate);
+    let events = sameSlot.filter((event) => event.machine_code === machineCode && event.product_code === productCode && event.shift === shift).slice(0, 2);
+    if (!events.length) {
+      events = sameSlot.filter((event) => norm(event.machine_code) === norm(machineCode) && norm(event.product_code) === norm(productCode) && norm(event.shift) === norm(shift)).slice(0, 2);
     }
-    if (events?.length === 1) {
-      await db.promise().query(
-        `UPDATE production_temp_machine_lines
-            SET machine_event_id=?,
-                machine_id=COALESCE(?,machine_id),
-                machine_code=COALESCE(NULLIF(TRIM(machine_code),''),?),
-                product_code=COALESCE(NULLIF(TRIM(product_code),''),?)
-          WHERE id=? AND machine_event_id IS NULL`,
-        [Number(events[0].id),Number(events[0].machine_id) || null,machineCode,productCode,Number(line.id)]);
-      console.log(`[KTC] Auto-linked approved machine event #${events[0].id} to temp machine line #${line.id}`);
-    } else if (events?.length > 1) {
-      const error = new Error(`Có nhiều production event đã duyệt trùng máy ${machineCode}, sản phẩm ${productCode}, ngày ${String(line.work_date).slice(0,10)}, ca ${String(line.shift || '').trim()}; không thể tự xác định event`);
+    if (events.length === 1) {
+      links.push({ lineId: Number(line.id), eventId: Number(events[0].id), machineId: Number(events[0].machine_id) || null, machineCode, productCode });
+    } else if (events.length > 1) {
+      const error = new Error(`Có nhiều production event đã duyệt trùng máy ${machineCode}, sản phẩm ${productCode}, ngày ${workDate}, ca ${shift}; không thể tự xác định event`);
       error.status = 409; error.code = 'AMBIGUOUS_MACHINE_EVENT'; error.isPublic = true; throw error;
     }
   }
+  if (!links.length) return;
+  // One UPDATE for all links; per-line values are picked with CASE on the line id.
+  const caseOf = (column) => `CASE id ${links.map(() => "WHEN ? THEN ?").join(" ")} ELSE ${column} END`;
+  const params = [];
+  const pairs = (valueOf) => { for (const link of links) params.push(link.lineId, valueOf(link)); };
+  pairs((l) => l.eventId);
+  const eventParams = params.splice(0);
+  pairs((l) => l.machineId);
+  const machineIdParams = params.splice(0);
+  pairs((l) => l.machineCode);
+  const machineCodeParams = params.splice(0);
+  pairs((l) => l.productCode);
+  const productCodeParams = params.splice(0);
+  await db.promise().query(
+    `UPDATE production_temp_machine_lines
+        SET machine_id=COALESCE(${caseOf("NULL")},machine_id),
+            machine_code=COALESCE(NULLIF(TRIM(machine_code),''),${caseOf("NULL")}),
+            product_code=COALESCE(NULLIF(TRIM(product_code),''),${caseOf("NULL")}),
+            machine_event_id=${caseOf("machine_event_id")}
+      WHERE id IN (${links.map(() => "?").join(",")}) AND machine_event_id IS NULL`,
+    [...machineIdParams, ...machineCodeParams, ...productCodeParams, ...eventParams, ...links.map((l) => l.lineId)]);
+  console.log(`[KTC] Auto-linked ${links.length} approved machine event(s) to temp machine lines`);
 }
 
 const approvalQueues = new Map();
