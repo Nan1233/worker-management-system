@@ -17,6 +17,17 @@ let cachedTemplateBuffer = null;
 const normalize = (value) => String(value ?? '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[đĐ]/g, 'd').replace(/\s+/g, ' ').trim().toLowerCase();
+function cvkWorkTypeCode(report) {
+  const processCode = String(report?.process_code || report?.processCode || '').trim().toUpperCase();
+  if (processCode !== 'CVK') return '';
+  let extraData = report?.extra_data;
+  if (typeof extraData === 'string') {
+    try { extraData = JSON.parse(extraData); } catch (_) { extraData = {}; }
+  }
+  const workType = extraData?.work_type ?? report?.work_type;
+  return String(workType ?? '').trim();
+}
+
 const number = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   const n = Number(String(value ?? '').replace(/,/g, '').trim());
@@ -608,8 +619,15 @@ function applyReportRow(row, report, contract, processData, index) {
     ...machineLines.map((line) => line?.machine_code || line?.machine_no || line?.machineCode || line?.code)
   ].map((value) => String(value ?? '').trim()).filter(Boolean);
   set(contract.cols.machine, [...new Set(machineValues)].join(', '));
-  const directProduct = String(report.product_name || report.product_code || '').trim();
-  const lineProducts = machineLines
+  // CVK is non-product work: the existing MSP/code column carries its
+  // canonical work-type code, never a fabricated product code. If work_type
+  // is absent, leave MSP blank rather than falling back to product/machine data.
+  const cvkWorkType = cvkWorkTypeCode(report);
+  const isCvk = String(report.process_code || report.processCode || '').trim().toUpperCase() === 'CVK';
+  const directProduct = isCvk
+    ? cvkWorkType
+    : String(report.product_name || report.product_code || '').trim();
+  const lineProducts = isCvk ? [] : machineLines
     .map((line) => String(line?.product_code || line?.product_name || line?.productCode || '').trim())
     .filter(Boolean);
   set(contract.cols.product, directProduct || [...new Set(lineProducts)].join(', '));
