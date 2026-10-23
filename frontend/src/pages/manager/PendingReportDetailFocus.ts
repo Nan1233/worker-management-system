@@ -29,12 +29,6 @@ function parseNumber(value: string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function textByLabel(detail: HTMLElement, label: string): string {
-  const fields = Array.from(detail.querySelectorAll(".pending-detail-field"));
-  const field = fields.find((item) => item.querySelector("span")?.textContent?.trim() === label);
-  return field?.querySelector("strong")?.textContent?.trim() || "";
-}
-
 let pendingPageReports: any[] = [];
 window.addEventListener("ktc:manager-pending-page-data", (event: Event) => {
   const payload = (event as CustomEvent<{ reports?: unknown[] }>).detail;

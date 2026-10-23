@@ -77,7 +77,6 @@ function installPendingTableFix(navigate: (to: string) => void) {
   let lastSignature = "";
   let cache: any[] = [];
   let tableRef: HTMLTableElement | null = null;
-  let busy = false;
   let renderTimer: number | undefined;
 
   const isPending = () => window.location.pathname === `${basePath}/reports`;
