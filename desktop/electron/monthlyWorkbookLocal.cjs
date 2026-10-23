@@ -674,7 +674,7 @@ function parseMachineLineDetails(value) {
 function expandMaiMachineReports(reports) {
   return (reports || []).flatMap((report) => {
     const lines = Array.isArray(report?.machineLines) ? report.machineLines : [];
-    if (asText(report?.process_code).toUpperCase() !== 'MAI' || lines.length <= 1) return [report];
+    if (lines.length <= 1) return [report];
     return lines.map((line) => {
       const machineHours = asNumber(line.machine_time_hours);
       const deductionHours = asNumber(line.deduction_time_hours);
