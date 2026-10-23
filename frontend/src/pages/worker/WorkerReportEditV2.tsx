@@ -6,6 +6,8 @@ import { resolveProductStandard } from "../../services/masterDataService";
 import type { ProductionReport } from "../../types/production";
 import { getStoredUser } from "../../utils/authStorage";
 import { getProcessCapabilities, usesMultiMachineLines as resolveMultiMachine, usesSingleMachine as resolveSingleMachine } from "./processPageDomain";
+import { getWorkerDeclaredDefects } from "../../utils/workerDeclaredDefects";
+import { detectIncompleteMachineData } from "../../utils/machineLinesIntegrity";
 import { useProcessMasterData } from "./useProcessMasterData";
 import { createEmptyMachineLine, getWorkerAllowedWorkDates, initialDeduction, initialForm, type DeductionState, type FormState, type MachineLineState, type NgKey } from "./processPageConfig";
 import { buildProductionReportPayload } from "./processReportSubmission";
@@ -76,7 +78,7 @@ function WorkerReportEditV2() {
   const { machineOptions, productOptions, activeNgOptions, activeDeductionOptions, loadingMasterData: masterLoading } = useProcessMasterData(processId, capabilities.processCode);
   useEffect(() => setLoadingMasterData(masterLoading), [masterLoading]);
 
-  const sourceDefects = useMemo(() => Array.isArray(report?.defects) ? report.defects : Array.isArray(report?.defect_items) ? report.defect_items : [], [report]);
+  const sourceDefects = useMemo(() => getWorkerDeclaredDefects<any>(report), [report]);
   const sourceDeductions = useMemo(() => Array.isArray(report?.deductions) ? report.deductions : Array.isArray(report?.deduction_items) ? report.deduction_items : [], [report]);
   const sourceLines = useMemo(() => Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [], [report]);
 
@@ -317,6 +319,8 @@ function WorkerReportEditV2() {
   const save = async () => {
     if (!report || (!managerRoute && remaining <= 0) || readOnly) return;
     setError("");
+    const incompleteMessage = detectIncompleteMachineData(report);
+    if (incompleteMessage) { setError(incompleteMessage); return; }
     if (managerRoute && source === "approved" && !changeReason.trim()) {
       setError("Vui lòng nhập lý do chỉnh sửa báo cáo đã duyệt.");
       return;

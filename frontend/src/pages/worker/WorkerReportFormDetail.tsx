@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getWorkerDeclaredDefects } from "../../utils/workerDeclaredDefects";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById } from "../../services/productionService";
 
@@ -32,7 +33,7 @@ export default function WorkerReportFormDetail() {
   const remaining=useMemo(()=>{if(!report||source==="approved")return 0;const created=dateMs(report.created_at);return Number.isFinite(created)?Math.max(0,created+EDIT_WINDOW_MS-now):0;},[report,source,now]);
   if(loading) return <main className="worker-form-page"><div className="wrfd-shell">Đang tải báo cáo...</div></main>;
   if(error) return <main className="worker-form-page"><div className="wrfd-shell"><div className="wrfd-error">{error}</div></div></main>;
-  const r=report||{}; const machines=parseList(r.machine_lines); const workerDefects=parseList(r.defects); const deductions=parseList(r.deductions); const status=text(r.status,"pending").toLowerCase(); const canEdit=source!=="approved"&&["pending","need_fix"].includes(status)&&remaining>0; const sec=Math.ceil(remaining/1000);
+  const r=report||{}; const machines=parseList(r.machine_lines); const workerDefects=parseList(getWorkerDeclaredDefects(r)); const deductions=parseList(r.deductions); const status=text(r.status,"pending").toLowerCase(); const canEdit=source!=="approved"&&["pending","need_fix"].includes(status)&&remaining>0; const sec=Math.ceil(remaining/1000);
   return <main className="worker-form-page wrfd-page"><div className="wrfd-shell">
     <header className="wrfd-header"><button className="wrfd-back" onClick={()=>navigate(-1)}>←</button><div><h1>Chi tiết báo cáo sản xuất</h1><small>{canEdit?`Có thể sửa · còn ${Math.floor(sec/60)}:${String(sec%60).padStart(2,"0")}`:"Chỉ xem · dữ liệu đã khóa"}</small></div>{canEdit&&<button className="wrfd-edit" onClick={()=>navigate(`/worker/history/${id}/edit`)}>Sửa báo cáo</button>}</header>
     <section className="wrfd-card"><h2>Thông tin nhập báo cáo</h2><div className="wrfd-grid">

@@ -1,5 +1,5 @@
 const db = require("../config/db");
-const { mergeDefects, normalizeDeductions } = require("../utils/reportDetailNormalizer");
+const { mergeDefects, normalizeDeductions, workerDeclaredDefects } = require("../utils/reportDetailNormalizer");
 const { query } = require("./productionTempModelShared");
 const { paginationMeta } = require("../services/managerReportPaginationService");
 
@@ -223,7 +223,7 @@ module.exports = {
             const enrichedMachineLines = mergeMachineDefects(machineLines,[],[]);
             const kpiFields=deriveMachineKpiFields(rows[0],enrichedMachineLines);
             const enriched={...rows[0],...kpiFields,machine_lines:enrichedMachineLines};
-            return normalizeReportTimestamps({...enriched,defects:mergeDefects(rows[0],defects,machineLines),deductions:normalizeDeductions(deductions),ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg});
+            return normalizeReportTimestamps({...enriched,defects:mergeDefects(rows[0],defects,machineLines),worker_defects:workerDeclaredDefects(defects),deductions:normalizeDeductions(deductions),ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg});
         }
 
         const approvedRows=await query(db,`SELECT pr.*,w.worker_code,u.full_name,p.process_name,p.process_code,reviewer.full_name AS reviewer_name FROM production_reports pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id LEFT JOIN users reviewer ON reviewer.id=pr.reviewed_by WHERE pr.id=? AND pr.status='approved' LIMIT 1`,[id]);
@@ -235,7 +235,7 @@ module.exports = {
         try { machineLines=await query(db,`SELECT ml.* FROM production_report_machine_lines ml WHERE ml.report_id=? ORDER BY ml.id`,[id]); } catch(e) { console.warn('APPROVED DETAIL MACHINE FALLBACK:',e?.message||e); }
         const detailNg = (defects || []).reduce((sum, row) => sum + Math.max(0, Math.trunc(Number(row.quantity) || 0)), 0);
         const ttNg = Math.max(0, Math.trunc(Number(approved.tt_ng) || 0));
-        return normalizeReportTimestamps({...approved,defects:mergeDefects(approved,defects,machineLines),deductions:normalizeDeductions(deductions),machine_lines:mergeMachineDefects(machineLines,[],[]),ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg,report_type:'approved'});
+        return normalizeReportTimestamps({...approved,defects:mergeDefects(approved,defects,machineLines),worker_defects:workerDeclaredDefects(defects),deductions:normalizeDeductions(deductions),machine_lines:mergeMachineDefects(machineLines,[],[]),ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg,report_type:'approved'});
     },
     async canManageReport(reportId, managerId, isAdmin=false) {
         if(isAdmin) return true;

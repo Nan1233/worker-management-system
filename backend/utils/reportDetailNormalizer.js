@@ -371,7 +371,23 @@ function normalizeDeductions(rows = [], report = null, machineLines = [], deduct
   return reconcileSources([persistedValues, legacyValues, extraValues, machineValues], expected, "deduction");
 }
 
+// Defects the worker declared at report level (rows of the parent defect table only). mergeDefects() may
+// fall back to machine-line or legacy-column defects for display; those must never be mistaken for, or
+// written back as, worker-declared defects. Detail endpoints expose this list as `worker_defects`.
+function workerDeclaredDefects(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      id: row?.id ?? null,
+      defect_type_id: Number(row?.defect_type_id) || null,
+      defect_code: row?.defect_code ?? null,
+      defect_name: row?.defect_name ?? null,
+      quantity: Math.max(0, Math.trunc(Number(row?.quantity) || 0)),
+    }))
+    .filter((row) => row.quantity > 0);
+}
+
 module.exports = {
+  workerDeclaredDefects,
   mergeDefects,
   normalizeDeductions,
   LEGACY_DEFECT_FIELDS,

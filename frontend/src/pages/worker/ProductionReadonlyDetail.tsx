@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getWorkerDeclaredDefects } from "../../utils/workerDeclaredDefects";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById } from "../../services/productionService";
 
@@ -75,7 +76,7 @@ export default function ProductionReadonlyDetail() {
 
   const r = report || {};
   const machineLines = Array.isArray(r.machine_lines) ? r.machine_lines : [];
-  const workerDefects = Array.isArray(r.defects) ? r.defects : [];
+  const workerDefects = getWorkerDeclaredDefects<any>(r);
   const deductions = Array.isArray(r.deductions) ? r.deductions : [];
   const totalOk = num(r.tt_ok ?? r.ok_quantity ?? r.total_ok);
   const totalNg = num(r.tt_ng ?? r.ng_quantity ?? r.total_ng);
@@ -115,7 +116,7 @@ export default function ProductionReadonlyDetail() {
       return <div className="rod-machine" key={line.id || index}><div className="rod-machine-head"><b>Máy {index + 1} · {line.machine_code || line.machine_no || "—"}</b><span>{line.product_code || line.product_name || "—"}</span></div><div className="rod-grid">
         <div><label>Thời gian chạy máy</label><b>{fmt(line.machine_time_hours ?? line.time_hours, 2)} giờ</b></div><div><label>Sản lượng OK</label><b className="ok">{fmt(ok)}</b></div><div><label>Sản lượng NG</label><b className="ng">{fmt(ng)}</b></div><div><label>Tổng máy</label><b>{fmt(ok + ng)}</b></div>
       </div><div className="rod-machine-defects"><div className="rod-subtitle">Chi tiết lỗi NG máy · {fmt(defects.reduce((sum, d) => sum + num(d.quantity), 0))} sản phẩm</div><DefectRows defects={defects}/></div></div>;
-    }) : <div className="rod-empty">Không có dữ liệu máy.</div>}</section>
+    }) : <div className={r.machine_lines_load_failed ? "rod-error" : "rod-empty"}>{r.machine_lines_load_failed ? "Không tải được danh sách máy của báo cáo này. Vui lòng tải lại trang; chưa thể kết luận báo cáo không có máy." : "Không có dữ liệu máy."}</div>}</section>
 
     <section className="rod-card"><h3>Chi tiết lỗi NG của người</h3><div className="rod-section-total">Tổng NG của người: <b>{fmt(totalNg)}</b></div><DefectRows defects={workerDefects}/>{totalNg > 0 && workerDefects.length === 0 && <div className="rod-unclassified">Có {fmt(totalNg)} NG nhưng báo cáo không có dòng phân loại lỗi người được lưu. Không lấy lỗi máy để thay thế.</div>}</section>
 

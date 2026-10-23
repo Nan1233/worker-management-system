@@ -171,8 +171,13 @@ module.exports = {
                 data.actual_time = Math.max(0, Number(Object.prototype.hasOwnProperty.call(data, "actual_time") ? data.actual_time : current.actual_time) || 0);
                 data.total_time = data.actual_time + data.deduction_time;
             }
+            // Machine reports: NG lives on the machine lines and the controller already set tt_ng to their
+            // total. The parent defect list is only the worker-declared list and must not overwrite it
+            // (create() stores the controller total as-is; edit must stay consistent with that).
+            const machineLinesOwnNg = (hasMachineLines && Array.isArray(data.machine_lines) && data.machine_lines.length > 0)
+                || (!hasMachineLines && String(current.operation_mode || "").toUpperCase() === "MACHINE");
             if (hasDefects) {
-                data.tt_ng = normalizedDefects.reduce((sum, item) => sum + item.quantity, 0);
+                if (!machineLinesOwnNg) data.tt_ng = normalizedDefects.reduce((sum, item) => sum + item.quantity, 0);
                 if (!hasMachineLines) {
                     const policySnapshot = Object.prototype.hasOwnProperty.call(data, "exclude_kqd_from_tt_snapshot") ? data.exclude_kqd_from_tt_snapshot : current.exclude_kqd_from_tt_snapshot;
                     if (policySnapshot === null || policySnapshot === undefined || String(policySnapshot).trim() === "") { const error = new Error("Báo cáo cũ chưa có snapshot chính sách KQD"); error.status = 422; error.code = "KQD_POLICY_SNAPSHOT_MISSING"; error.isPublic = true; throw error; }

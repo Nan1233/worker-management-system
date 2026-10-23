@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { omitUnsentCollections, preserveStoredMachineData } = require("../utils/editPayload");
 const { TtlCache } = require("../utils/cache");
 const managerListCache = new TtlCache({ maxEntries: 300 });
 const MANAGER_LIST_TTL_MS = 15000;
@@ -415,7 +416,7 @@ exports.updateTempReport = async (req, res) => {
 
         const result = await ProductionTemp.updateReport(
             reportId,
-            normalizedUpdate,
+            omitUnsentCollections(req.body, preserveStoredMachineData(req.body, normalizedUpdate)),
             changedBy,
             req.body?.reason || null,
             {

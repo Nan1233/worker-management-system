@@ -1,5 +1,5 @@
 const db = require("../config/db");
-const { mergeDefects, normalizeDeductions } = require("../utils/reportDetailNormalizer");
+const { mergeDefects, normalizeDeductions, workerDeclaredDefects } = require("../utils/reportDetailNormalizer");
 const { calculateReportPerformance } = require("../services/machinePerformanceService");
 const { envEnabled } = require("../utils/featureFlags");
 const { getActorProcessScope, assertProcessScope, scopeSql, assertWorkerOwnership } = require('../services/processAuthorizationService');
@@ -85,17 +85,22 @@ exports.getReportById=async(req,res)=>{
       [reportId]
     );
 
-    const machineLines=await optionalQuery(
-      'machine-lines',
-      `SELECT ml.id,ml.machine_event_id,ml.machine_id,ml.machine_code,ml.product_standard_id,ml.product_code,
-              ml.machine_time_hours,ml.standard_output,ml.standard_source,ml.exclude_kqd_from_tt,
-              ml.ok_quantity,ml.ng_quantity,ml.maximum_output,ml.counted_output,ml.earned_standard_hours,
-              ml.defects_json,ml.sort_order
-         FROM production_report_machine_lines ml
-        WHERE ml.report_id=?
-        ORDER BY ml.sort_order,ml.id`,
-      [reportId]
-    );
+    // `ml.*` so every persisted per-line column (deduction_time_hours, deductions_json, standard_* ids, ...)
+    // reaches the edit form; a hand-written column list previously dropped the deduction columns.
+    let machineLinesLoadFailed=false;
+    const machineLines=await (async()=>{
+      try{
+        const [rows]=await db.promise().query(
+          `SELECT ml.* FROM production_report_machine_lines ml WHERE ml.report_id=? ORDER BY ml.sort_order,ml.id`,
+          [reportId]
+        );
+        return rows||[];
+      }catch(error){
+        machineLinesLoadFailed=true;
+        console.warn('GET APPROVED REPORT DETAIL MACHINE LINES FAILED',error?.message||error);
+        return [];
+      }
+    })();
 
     const machineLineIds=machineLines.map(line=>Number(line.id)).filter(Number.isInteger);
     const eventIds=machineLines.map(line=>Number(line.machine_event_id)).filter(Number.isInteger);
@@ -184,8 +189,10 @@ exports.getReportById=async(req,res)=>{
       data:{
         ...report,
         defects:mergedDefects,
+        worker_defects:workerDeclaredDefects(defects),
         deductions:normalizedDeductions,
         machine_lines:normalizedMachineLines,
+        ...(machineLinesLoadFailed?{machine_lines_load_failed:true}:{}),
         ...performance
       }
     });

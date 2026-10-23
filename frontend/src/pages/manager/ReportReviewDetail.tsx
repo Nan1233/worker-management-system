@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getWorkerDeclaredDefects } from "../../utils/workerDeclaredDefects";
+import { detectIncompleteMachineData } from "../../utils/machineLinesIntegrity";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
@@ -249,7 +251,7 @@ export default function ReportReviewDetail() {
         processId > 0 ? getDeductionOptionsByProcess(processId) : Promise.resolve([]),
       ]);
       setDefectOptions(defs); setDeductionOptions(deds);
-      setEdit({ ...report, defects: mergeDefects(defs, report.defects || []), deductions: mergeDeductions(deds, report.deductions || []) });
+      setEdit({ ...report, defects: mergeDefects(defs, getWorkerDeclaredDefects<any>(report)), deductions: mergeDeductions(deds, report.deductions || []) });
       const actual = n(report.actual_time); const h = Math.floor(actual); setHours(String(h)); setMinutes(String(Math.min(59, Math.round((actual - h) * 60))));
       setChangeReason(""); setEditing(true);
     } catch (err: unknown) {
@@ -259,6 +261,8 @@ export default function ReportReviewDetail() {
 
   const saveEdit = async () => {
     if (!edit || !report || saving) return;
+    const incompleteMessage = detectIncompleteMachineData(report as never);
+    if (incompleteMessage) { setError(incompleteMessage); return; }
     if (source === "approved" && !changeReason.trim()) { setError("Vui lòng nhập lý do chỉnh sửa báo cáo đã duyệt."); return; }
     setSaving(true); setError("");
     try {
