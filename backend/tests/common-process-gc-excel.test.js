@@ -13,7 +13,7 @@ const line = (id, machine, product, hours, ok, ng, deductions = [], defects = []
   deductions_json: JSON.stringify(deductions), defects_json: JSON.stringify(defects)
 });
 const report = (overrides = {}) => ({
-  id: 1, process_code: 'GC', process_name: 'Gia công', operation_mode: 'MACHINE',
+  id: 1, process_code: 'GC', process_name: 'Cắt lồng', operation_mode: 'MACHINE',
   worker_id: 10, worker_code: 'CN01', full_name: 'Công nhân 1', work_date: '2026-10-02', training_percent: 100,
   total_time: 12, actual_time: 10, deduction_time: 2, standard_output: 999,
   actual_output: 9999, tt_ok: 9000, tt_ng: 999,
@@ -91,7 +91,7 @@ test('real monthly workbook serializes distinct GC rows with correct per-line me
   const result = await buildCommonProcessMonthlyWorkbook([report()], '2026-10');
   const out = new ExcelJS.Workbook();
   await out.xlsx.readFile(result.archivePath);
-  const sheet = out.getWorksheet('Gia công');
+  const sheet = out.getWorksheet('Cắt lồng');
   assert.ok(sheet);
   assert.equal(sheet.getCell('D3').value, 'M01');
   assert.equal(sheet.getCell('D4').value, 'M02');
