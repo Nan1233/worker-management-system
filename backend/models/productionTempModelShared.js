@@ -83,7 +83,13 @@ const executeQuery = async (executor, sql, params = []) => {
     // insert id to recover. Skipping the lookup saves one TiDB HTTP subrequest per lock on Cloudflare Workers.
     const hasNoAutoIncrementId = /^\s*INSERT\s+INTO\s+`?production_report_duplicate_locks\b/i.test(String(sql || ""));
 
-    if (!isInsert || currentInsertId > 0 || hasNoAutoIncrementId) {
+    // Append-only child/log tables whose generated id is never read back. On the Cloudflare Worker every
+    // statement is a subrequest (limit 50), so the extra SELECT LAST_INSERT_ID() per INSERT is pure waste.
+    // production_temp_machine_lines is written with one multi-row INSERT and defects are mapped by sort_order, so its
+    // ids are not read either. Tables whose id IS consumed (production_reports_temp, ...) are not listed.
+    const idNeverReadTable = /^\s*INSERT\s+INTO\s+`?(?:production_temp_machine_lines|production_temp_machine_defects|production_temp_defects|production_temp_deductions|report_edit_logs|report_action_logs|activity_logs|report_versions)\b/i.test(String(sql || ""));
+
+    if (!isInsert || currentInsertId > 0 || hasNoAutoIncrementId || idNeverReadTable) {
         return result;
     }
 
@@ -172,11 +178,14 @@ const commit = (connection) =>
         });
     });
 
+// Resolves (never rejects) with { ok, error }: callers that ignore the value behave as before, callers that care
+// (e.g. the pending-report edit) can see that the ROLLBACK statement itself failed - which on Cloudflare Workers
+// happens once the subrequest limit is exhausted - instead of assuming it succeeded.
 const rollback = (connection) =>
-    new Promise((resolve) => connection.rollback(() => {
+    new Promise((resolve) => connection.rollback((error) => {
         connection.__ktcTransactionActive = false;
         transactionQueues.delete(connection);
-        resolve();
+        resolve(error ? { ok: false, error } : { ok: true });
     }));
 
 const normalizeIds = (ids) => [

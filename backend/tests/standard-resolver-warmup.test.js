@@ -24,6 +24,12 @@ function makeQuery({ aliases = [], machineStandards = [] } = {}) {
       return aliases.filter((a) => wanted.includes(a.alias_code));
     }
     if (/FROM product_machine_standards/.test(sql)) return machineStandards.filter((row) => params.slice(1).includes(row.machine_id) && params.slice(1).includes(row.product_code));
+    if (/FROM product_standards ps WHERE process_id=\? AND TRIM\(product_code\) IN/.test(sql)) {
+      return params.slice(1).filter((code) => ['P-AUTO', 'CANON'].includes(String(code))).map((code, i) => ({ product_standard_id: 3, product_code: code, encoding_code: null, work_type: 'Cắt', standard_output: 400, exclude_kqd_from_tt: 0, status: 'active' }));
+    }
+    if (/FROM product_standard_versions WHERE process_id=\? AND TRIM\(product_code\) IN/.test(sql)) {
+      return params.slice(1, -2).map((code) => ({ id: 9, process_id: 1, product_code: code, standard_output: 400, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null, status: 'active' }));
+    }
     if (/FROM product_standards ps WHERE/.test(sql)) {
       const code = String(params[1]);
       return ['P-AUTO', 'CANON'].includes(code) ? [{ product_standard_id: 3, product_code: code, encoding_code: null, work_type: 'Cắt', standard_output: 400, exclude_kqd_from_tt: 0 }] : [];

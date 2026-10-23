@@ -201,7 +201,23 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             machineRows.map((row) => [normalizeCode(row.machine_code).toUpperCase(), row])
         );
 
+        // Subrequest budget: resolve machines/aliases/machine standards of ALL lines with three statements
+        // instead of three per line. resolveStandard() falls back to its own per-line query for any key not
+        // warmed, so results are identical; only the number of round trips changes.
+        if (typeof standardResolver.warmUp === "function") {
+            await standardResolver.warmUp({
+                processId,
+                workDate,
+                machineRows,
+                items: machineLines.map((line) => {
+                    const machine = machineByCode.get(normalizeCode(line?.machine_code).toUpperCase());
+                    return machine ? { machineId: machine.id, machineCode: machine.machine_code, productCode: normalizeCode(line?.product_code) } : null;
+                }).filter(Boolean)
+            });
+        }
+
         const normalized = [];
+        let firstMachine = null;
         let totalOk = 0;
         let totalNg = 0;
         let totalMaximum = 0;
@@ -342,6 +358,7 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                 continue;
             }
 
+            if (!firstMachine) firstMachine = { machine_code: machine.machine_code, gc_work_type: machine.gc_work_type ?? null, process_code: machine.process_code ?? null };
             normalized.push({
                 machine_id: machine.id,
                 machine_code: machine.machine_code,
@@ -372,6 +389,7 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
         return {
             valid: Object.keys(errors).length === 0,
             lines: normalized,
+            firstMachine,
             errors,
             totals: {
                 totalOk,

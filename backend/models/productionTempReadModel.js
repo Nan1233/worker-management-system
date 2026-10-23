@@ -206,12 +206,14 @@ module.exports = {
         if (managerId) { scope=" AND mp.manager_id=?"; params.push(managerId); }
         return query(db, `SELECT pr.*,w.worker_code,u.full_name,p.process_name,CASE WHEN dup.duplicate_count>1 THEN 1 ELSE 0 END AS is_duplicate,COALESCE(dup.duplicate_count,1) AS duplicate_count FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id LEFT JOIN manager_processes mp ON mp.process_id=pr.process_id LEFT JOIN (SELECT worker_id,work_date,shift,machine_no,product_name,COUNT(*) AS duplicate_count FROM production_reports_temp WHERE status IN ('pending','need_fix') GROUP BY worker_id,work_date,shift,machine_no,product_name) dup ON dup.worker_id=pr.worker_id AND dup.work_date=pr.work_date AND dup.shift=pr.shift AND COALESCE(dup.machine_no,'')=COALESCE(pr.machine_no,'') AND COALESCE(dup.product_name,'')=COALESCE(pr.product_name,'') WHERE pr.work_date=? AND pr.status IN ('pending','need_fix') ${scope} ORDER BY pr.created_at ASC`, params);
     },
-    async getDetail(id) {
+    // options.skipChildRows: the caller supplies its own defects/deductions (edit payload) and does not read these two
+    // child lists, so they are not fetched (two fewer TiDB subrequests on Cloudflare Workers).
+    async getDetail(id, options = {}) {
         const rows=await query(db,`SELECT pr.*,w.worker_code,u.full_name,p.process_name,p.process_code,reviewer.full_name AS reviewer_name FROM production_reports_temp pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id LEFT JOIN users reviewer ON reviewer.id=pr.reviewed_by WHERE pr.id=? LIMIT 1`,[id]);
         if(rows[0]){
             const [defects,deductions,machineLines]=await Promise.all([
-                query(db,`SELECT d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity FROM production_temp_defects d LEFT JOIN defect_types dt ON dt.id=d.defect_type_id WHERE d.temp_report_id=? ORDER BY COALESCE(dt.sort_order,999999),d.id`,[id]),
-                query(db,`SELECT d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours FROM production_temp_deductions d LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id WHERE d.temp_report_id=? ORDER BY COALESCE(dt.sort_order,999999),d.id`,[id]),
+                options.skipChildRows===true?Promise.resolve([]):query(db,`SELECT d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity FROM production_temp_defects d LEFT JOIN defect_types dt ON dt.id=d.defect_type_id WHERE d.temp_report_id=? ORDER BY COALESCE(dt.sort_order,999999),d.id`,[id]),
+                options.skipChildRows===true?Promise.resolve([]):query(db,`SELECT d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours FROM production_temp_deductions d LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id WHERE d.temp_report_id=? ORDER BY COALESCE(dt.sort_order,999999),d.id`,[id]),
                 getTempMachineLines(id)
             ]);
             const detailNg = (defects || []).reduce((sum, row) => sum + Math.max(0, Math.trunc(Number(row.quantity) || 0)), 0);

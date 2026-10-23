@@ -112,7 +112,8 @@ const loadMachineRows = async (processId, machineCodes) => {
 const validateFactoryMachineRules = async ({
   processCode,
   processId,
-  machineLines
+  machineLines,
+  machineRows = null
 }) => {
   const code = String(processCode || "").trim().toUpperCase();
   const lines = Array.isArray(machineLines)
@@ -121,7 +122,8 @@ const validateFactoryMachineRules = async ({
 
   if (!lines.length) return { valid: true, errors: {}, rules: [] };
 
-  const rows = await loadMachineRows(
+  // `machineRows`: rows the caller already loaded for exactly these machines of this process in the same request.
+  const rows = Array.isArray(machineRows) ? machineRows : await loadMachineRows(
     processId,
     lines.map((line) => line.machine_code)
   );
@@ -154,7 +156,9 @@ const validateFactoryMachineRules = async ({
   return {
     valid: Object.keys(errors).length === 0,
     errors,
-    rules
+    rules,
+    // returned so a following check in the same request (validateMachineWorkerCapacity) need not load them again
+    machineRows: rows
   };
 };
 
@@ -172,7 +176,8 @@ const validateMachineWorkerCapacity = async ({
   workerId,
   workDate,
   shift,
-  excludeTempReportId = null
+  excludeTempReportId = null,
+  machineRows = null
 }) => {
   const code = String(processCode || "").trim().toUpperCase();
   const lines = Array.isArray(machineLines)
@@ -197,7 +202,7 @@ const validateMachineWorkerCapacity = async ({
     };
   }
 
-  const rows = await loadMachineRows(processId, uniqueCodes);
+  const rows = Array.isArray(machineRows) ? machineRows : await loadMachineRows(processId, uniqueCodes);
   const rowByCode = new Map(
     rows.map((row) => [String(row.machine_code).trim().toUpperCase(), row])
   );

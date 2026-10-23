@@ -31,6 +31,7 @@ function createStandardResolver({query=defaultQuery}={}) {
   // Per-request lookup caches filled only by warmUp(). The shared runtime resolver never calls warmUp,
   // so long-lived isolates cannot serve stale machine/alias/standard rows from them.
   const warmMachines=new Map(), warmAliases=new Map(), warmMachineStandards=new Map();
+  const warmStandards=new Map(), warmVersions=new Map();
   const sqlTrim=(value)=>String(value??'').replace(/^ +| +$/g,'');
   const machineLookupKey=(pid,id,code)=>`${pid}|${id||''}|${String(code||'').trim()}`;
   async function findProductRows(pid,product,workType=null,{includeInactive=false}={}){
@@ -43,6 +44,17 @@ function createStandardResolver({query=defaultQuery}={}) {
     // product's code equals another product's encoding code. Exact product_code
     // wins; encoding_code is only a fallback when no exact code exists.
     // Keep case-sensitive matching to avoid C1080/c1080 collisions.
+    const warmedExact=warmStandards.get(`${pid}|${sqlTrim(product)}`);
+    if(warmedExact){
+      // Same filters as the SQL below (status, stored work type spellings, ORDER BY id LIMIT 2), applied in memory to the
+      // rows warmUp() loaded for the whole report. An empty result is never trusted: it falls through to the SQL path.
+      const allowedTypes=normalizedWorkType==='LONG'?['LỒNG','LONG']:normalizedWorkType==='CUT'?['CẮT','CAT','CUT']:null;
+      const pick=warmedExact
+        .filter(row=>(includeInactive||row.status==='active')&&(!allowedTypes||allowedTypes.includes(sqlTrim(row.work_type).toUpperCase())))
+        .sort((x,y)=>Number(x.product_standard_id)-Number(y.product_standard_id)).slice(0,2)
+        .map(({status,...rest})=>rest);
+      if(pick.length)return pick;
+    }
     const exactCodeRows=await query(`${fields} AND BINARY TRIM(product_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,product]);
     if(exactCodeRows.length)return exactCodeRows;
     const encodingRows=await query(`${fields} AND BINARY TRIM(encoding_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,product]);
@@ -108,7 +120,8 @@ function createStandardResolver({query=defaultQuery}={}) {
     const canonicalProduct=String(selectedProduct.product_code||'').trim();
     const effectiveWorkType=normalizeWorkType(selectedProduct.work_type)||normalizedWorkType||null;
     if(requestedVersionId){const versionRows=await query(`SELECT id,process_id,product_code,standard_output,exclude_kqd_from_tt,version_no,effective_from,effective_to,status FROM product_standard_versions WHERE id=? AND process_id=? AND product_code=? LIMIT 1`,[requestedVersionId,pid,canonicalProduct]);if(versionRows.length!==1)throw businessError('HISTORICAL_STANDARD_NOT_FOUND',`Không tìm thấy định mức lịch sử #${requestedVersionId} cho ${canonicalProduct}`);const version=versionRows[0];assertEffectiveOnDate(version,date,`Định mức lịch sử #${requestedVersionId}`);const r={processId:pid,productCode:canonicalProduct,productStandardId:Number(selectedProduct.product_standard_id),standardVersionId:Number(version.id),machineStandardId:null,standardOutput:positiveDecimal(version.standard_output),standardTimeSeconds:null,excludeKqdFromTt:Number(version.exclude_kqd_from_tt||0)===1?1:0,effectiveFrom:version.effective_from?String(version.effective_from).slice(0,10):null,effectiveTo:version.effective_to?String(version.effective_to).slice(0,10):null,source:fallbackToProcessProduct?'PRODUCT_VERSION_PROCESS_FALLBACK':'PRODUCT_VERSION_SNAPSHOT',workDate:date,historicalVersionAvailable:true,workType:effectiveWorkType};productCache.set(cacheKey,r);return r;}
-    const versions=await query(`SELECT id,process_id,product_code,standard_output,exclude_kqd_from_tt,version_no,effective_from,effective_to,status FROM product_standard_versions WHERE process_id=? AND product_code=? AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from,version_no,id`,[pid,canonicalProduct,date,date]);
+    const warmVersionKey=`${pid}|${canonicalProduct}|${date}`;
+    const versions=warmVersions.has(warmVersionKey)?warmVersions.get(warmVersionKey):await query(`SELECT id,process_id,product_code,standard_output,exclude_kqd_from_tt,version_no,effective_from,effective_to,status FROM product_standard_versions WHERE process_id=? AND product_code=? AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from,version_no,id`,[pid,canonicalProduct,date,date]);
     const version=chooseHistoricalVersion(versions,date,canonicalProduct);
     if(!version){const out=Number(selectedProduct.standard_output);if(!Number.isFinite(out)||out<=0)throw businessError('HISTORICAL_STANDARD_NOT_FOUND',`Không có định mức lịch sử cho ${canonicalProduct} tại ngày ${date}`,{process_id:pid,product_code:canonicalProduct,work_type:effectiveWorkType,work_date:date});const r={processId:pid,productCode:canonicalProduct,productStandardId:Number(selectedProduct.product_standard_id),standardVersionId:null,machineStandardId:null,standardOutput:out,standardTimeSeconds:null,excludeKqdFromTt:Number(selectedProduct.exclude_kqd_from_tt||0)===1?1:0,effectiveFrom:null,effectiveTo:null,source:fallbackToProcessProduct?'LEGACY_PRODUCT_STANDARD_PROCESS_FALLBACK':'LEGACY_PRODUCT_STANDARD',workDate:date,historicalVersionAvailable:false,workType:effectiveWorkType};productCache.set(cacheKey,r);return r;}
     const r={processId:pid,productCode:canonicalProduct,productStandardId:Number(selectedProduct.product_standard_id),standardVersionId:Number(version.id),machineStandardId:null,standardOutput:positiveDecimal(version.standard_output),standardTimeSeconds:null,excludeKqdFromTt:Number(version.exclude_kqd_from_tt||0)===1?1:0,effectiveFrom:String(version.effective_from).slice(0,10),effectiveTo:version.effective_to?String(version.effective_to).slice(0,10):null,source:fallbackToProcessProduct?'PRODUCT_VERSION_PROCESS_FALLBACK':(String(version.status||'').toLowerCase()==='active'?'PRODUCT_VERSION':'PRODUCT_VERSION_HISTORICAL'),workDate:date,historicalVersionAvailable:true,workType:effectiveWorkType};productCache.set(cacheKey,r);return r;
@@ -151,10 +164,13 @@ function createStandardResolver({query=defaultQuery}={}) {
   // Batch the per-machine-line lookups (machine master, product aliases, machine standards) of one report
   // into three statements. resolveStandard() then reads them from memory; any key not warmed up still
   // falls back to its original per-line query, so results are identical, only the round trips change.
-  async function warmUp({processId,workDate,items=[]}){
+  async function warmUp({processId,workDate,items=[],machineRows=null}){
     const pid=Number(processId), date=normalizeWorkDate(workDate);
     const list=(items||[]).map((item)=>({machineId:Number(item?.machineId)||null,machineCode:String(item?.machineCode||'').trim(),productCode:String(item?.productCode||'').trim()}));
     if(!Number.isInteger(pid)||pid<=0||!list.length)return;
+    // Always start from empty lookup maps: the resolver may be a long-lived singleton, and a key warmed by an
+    // earlier request must never be served again. A concurrent warmUp only makes lookups fall back to SQL.
+    warmMachines.clear();warmAliases.clear();warmMachineStandards.clear();warmStandards.clear();warmVersions.clear();
     const machineIds=[...new Set(list.map(i=>i.machineId).filter(Boolean))];
     const machineCodes=[...new Set(list.map(i=>i.machineCode.toUpperCase()).filter(Boolean))];
     const machineById=new Map();
@@ -162,7 +178,9 @@ function createStandardResolver({query=defaultQuery}={}) {
       const conditions=[],params=[pid];
       if(machineIds.length){conditions.push(`m.id IN (${machineIds.map(()=>'?').join(',')})`);params.push(...machineIds);}
       if(machineCodes.length){conditions.push(`UPPER(TRIM(m.machine_code)) IN (${machineCodes.map(()=>'?').join(',')})`);params.push(...machineCodes);}
-      const rows=await queryWithOptionalGcWorkType(query,(withType)=>{const base=`SELECT m.id,m.machine_code,p.process_code FROM machines m JOIN processes p ON p.id=m.process_id WHERE m.process_id=? AND m.status='active' AND (${conditions.join(' OR ')})`;return withType?base.replace('SELECT m.id,m.machine_code,p.process_code','SELECT m.id,m.machine_code,m.gc_work_type,p.process_code'):base;},params);
+      // `machineRows`: the caller already loaded the active machines of this process in this same request (same
+      // columns, same status filter), so the lookup below is skipped.
+      const rows=Array.isArray(machineRows)?machineRows:await queryWithOptionalGcWorkType(query,(withType)=>{const base=`SELECT m.id,m.machine_code,p.process_code FROM machines m JOIN processes p ON p.id=m.process_id WHERE m.process_id=? AND m.status='active' AND (${conditions.join(' OR ')})`;return withType?base.replace('SELECT m.id,m.machine_code,p.process_code','SELECT m.id,m.machine_code,m.gc_work_type,p.process_code'):base;},params);
       for(const item of list){
         if(!item.machineId&&!item.machineCode)continue;
         const matched=(rows||[]).filter(row=>(!item.machineId||Number(row.id)===item.machineId)&&(!item.machineCode||String(row.machine_code||'').trim().toUpperCase()===item.machineCode.toUpperCase())).slice(0,2);
@@ -179,6 +197,21 @@ function createStandardResolver({query=defaultQuery}={}) {
         for(const row of aliasRows||[]){if(sqlTrim(row.alias_code)!==product||seen.has(row.product_code))continue;seen.add(row.product_code);rows.push({product_code:row.product_code});}
         warmAliases.set(`${pid}|${product}`,rows.slice(0,2));
         canonicalByProduct.set(product,rows[0]?.product_code?String(rows[0].product_code).trim():product);
+      }
+    }
+    // Product standards + effective versions of every product in the report in two statements instead of two per line.
+    // Rows are kept per exact product code; anything not matched exactly (aliases, encoding codes, case variants) simply
+    // misses the warm map and runs its original per-line SQL.
+    const stdProducts=[...new Set([...products,...[...canonicalByProduct.values()].map(sqlTrim)].filter(Boolean))];
+    if(stdProducts.length){
+      const holders=stdProducts.map(()=>'?').join(',');
+      const stdRows=await query(`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, exclude_kqd_from_tt, status FROM product_standards ps WHERE process_id=? AND TRIM(product_code) IN (${holders})`,[pid,...stdProducts]);
+      for(const code of stdProducts)warmStandards.set(`${pid}|${code}`,(stdRows||[]).filter(row=>sqlTrim(row.product_code)===code));
+      const verRows=await query(`SELECT id,process_id,product_code,standard_output,exclude_kqd_from_tt,version_no,effective_from,effective_to,status FROM product_standard_versions WHERE process_id=? AND TRIM(product_code) IN (${holders}) AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from,version_no,id`,[pid,...stdProducts,date,date]);
+      for(const code of stdProducts){
+        const near=(verRows||[]).filter(row=>sqlTrim(row.product_code).toLowerCase()===code.toLowerCase());
+        // a case/padding variant could match the per-line `product_code=?` differently: leave such products to SQL
+        if(near.every(row=>String(row.product_code)===code))warmVersions.set(`${pid}|${code}|${date}`,near);
       }
     }
     const msPairs=[];

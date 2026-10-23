@@ -24,6 +24,7 @@ const {
     requestMeta,
 } = require("./productionTempControllerUtils");
 const { validateMasterData } = require("../services/reportBusinessValidationService");
+const { gcWorkTypeFromOperationType, gcWorkTypeLabel } = require("../utils/gcMachineWorkType");
 const { assertWorkerOwnership } = require("../services/processAuthorizationService");
 const { validateProductionReport } = require("../utils/reportValidation");
 const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
@@ -263,7 +264,9 @@ exports.updateTempReport = async (req, res) => {
         const changedBy = toPositiveInteger(req.user?.id);
         if (!reportId) return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
 
-        const current = await ProductionTemp.getDetail(reportId);
+        // The payload below takes `defects`/`deductions` from the request body when it sends both arrays, so the two
+        // child lists are not read in that case.
+        const current = await ProductionTemp.getDetail(reportId, { skipChildRows: Array.isArray(req.body?.defects) && Array.isArray(req.body?.deductions) });
         if (!current) return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
 
         const requiredPermission = String(req.user?.role || "").toLowerCase() === "worker"
@@ -349,13 +352,26 @@ exports.updateTempReport = async (req, res) => {
             workerId: current.worker_id,
             workDate: payload.work_date,
             shift: payload.shift,
-            excludeTempReportId: reportId
+            excludeTempReportId: reportId,
+            // same process, same machines as the rules check above: no second machine-master read
+            machineRows: editFactoryRules.machineRows
         });
         if (!editCapacity.valid) {
             return res.status(422).json({ success: false, message: "Máy đã đủ số người cho phép trong ngày/ca", errors: editCapacity.errors });
         }
 
         const firstLine = machineValidation.lines[0] || null;
+        // validateMachineLines already proved, for the first line, the same facts validateMasterData re-derives with
+        // 7 more queries (machine in process, product + standard on the work date, GC work type). That re-check is only
+        // redundant when no explicit Cắt/Lồng choice could contradict the machine's own type; a differing explicit
+        // choice must still reach the resolver so GC_WORK_TYPE_MISMATCH is raised exactly as before.
+        const explicitGcWorkType = machinePolicy.code === "GC" ? gcWorkTypeFromOperationType(operationType) : null;
+        const validatedMachineType = machineValidation.firstMachine ? gcWorkTypeLabel(machineValidation.firstMachine.gc_work_type) : null;
+        const reuseValidatedMachine = firstLine && machineValidation.firstMachine
+            && !["CVK"].includes(machinePolicy.code) && ![30002, 60006].includes(Number(current.process_id))
+            && (!explicitGcWorkType || (validatedMachineType && explicitGcWorkType === validatedMachineType))
+            ? { machineCode: firstLine.machine_code, productCode: firstLine.product_code }
+            : null;
         const master = await validateMasterData({
             workerId: current.worker_id,
             processId: current.process_id,
@@ -367,7 +383,9 @@ exports.updateTempReport = async (req, res) => {
             actualOutput: operationMode === "MANUAL" ? validation.normalized.actual_output : undefined,
             allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
             operationType: validation.normalized.operation_type ?? payload.operation_type,
-            workDate: payload.work_date
+            workDate: payload.work_date,
+            reuseValidatedMachine,
+            knownProcessCode: current.process_code || null
         });
         if (!master.valid) return res.status(422).json({ success: false, message: "Dữ liệu danh mục không hợp lệ", errors: master.errors });
 
@@ -422,7 +440,10 @@ exports.updateTempReport = async (req, res) => {
             {
                 isAdmin: req.user?.role === "admin",
                 workerId: req.user?.role === "worker" ? req.user?.worker_id : null,
-                expectedUpdatedAt: req.body?.expected_updated_at || null
+                expectedUpdatedAt: req.body?.expected_updated_at || null,
+                // Same-request facts that spare the model repeated master-data reads (Worker subrequest budget).
+                processCode: current.process_code || undefined,
+                machineLinesValidated: true
             }
         );
 
@@ -433,6 +454,12 @@ exports.updateTempReport = async (req, res) => {
         });
     } catch (error) {
         console.error("UPDATE TEMP REPORT ERROR:", error);
+        if (/too many subrequests/i.test(String(error?.message || ""))) {
+            // Cloudflare Worker budget exhausted mid-request. Normally COMMIT never ran (the open transaction is
+            // discarded), but if the limit hit at COMMIT the outcome is unknown, so the message asks for a reload
+            // (the optimistic version check then prevents a duplicate write) and is not presented as a validation error.
+            return res.status(503).json({ success: false, code: "DB_SUBREQUEST_LIMIT_EXCEEDED", message: "Hệ thống đang quá tải truy vấn nên chưa xác nhận được việc lưu thay đổi. Vui lòng tải lại báo cáo để kiểm tra rồi thử lại." });
+        }
         return res.status(error.status || 400).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể cập nhật báo cáo") });
     }
 };

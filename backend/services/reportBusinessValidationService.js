@@ -11,7 +11,7 @@ const normalizeText = (value) => String(value ?? "").trim();
 const uniquePositiveIds = (items, key) => [...new Set((Array.isArray(items) ? items : []).map((item) => Number(item?.[key])).filter((id) => Number.isInteger(id) && id > 0))];
 const ZERO_STANDARD_GC_LONG_MANUAL_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
-const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, skipActualOutputValidation = false, allowEmptyMachine = false, operationMode = null, operationType = null, workDate, workType = null, nonProductWork = false }) => {
+const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, skipActualOutputValidation = false, allowEmptyMachine = false, operationMode = null, operationType = null, workDate, workType = null, nonProductWork = false , reuseValidatedMachine = null, knownProcessCode = null}) => {
     const errors = {};
     const normalizedMachineNo = normalizeText(machineNo);
     const normalizedProductName = normalizeText(productName);
@@ -20,8 +20,8 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
 
     const [assignments, machines, products, validDefectRows, validDeductionRows, processRows] = await Promise.all([
         query(`SELECT 1 FROM worker_processes WHERE worker_id = ? AND process_id = ? LIMIT 1`, [workerId, processId]),
-        normalizedMachineNo ? queryWithOptionalGcWorkType(query, (withType) => `SELECT id, machine_code${withType ? ', gc_work_type' : ''}, COALESCE(is_automatic, 0) AS is_automatic FROM machines WHERE process_id = ? AND status = 'active' AND machine_code = ? LIMIT 1`, [processId, normalizedMachineNo]) : Promise.resolve([]),
-        normalizedProductName ? query(
+        normalizedMachineNo && !reuseValidatedMachine ? queryWithOptionalGcWorkType(query, (withType) => `SELECT id, machine_code${withType ? ', gc_work_type' : ''}, COALESCE(is_automatic, 0) AS is_automatic FROM machines WHERE process_id = ? AND status = 'active' AND machine_code = ? LIMIT 1`, [processId, normalizedMachineNo]) : Promise.resolve([]),
+        normalizedProductName && !reuseValidatedMachine ? query(
             `SELECT ps.id, ps.product_code, ps.encoding_code, ps.standard_output, COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
                     p.process_code,
                     EXISTS(SELECT 1 FROM product_machine_standards pms WHERE pms.process_id=ps.process_id AND pms.product_code=ps.product_code AND pms.is_active=1) AS has_machine_specific_standard
@@ -50,7 +50,8 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
                     AND UPPER(TRIM(COALESCE(dp.process_code, ''))) = 'GC'
                     AND UPPER(TRIM(COALESCE(?, ''))) IN ('XUATNHAP', 'KTCD', 'TAIPP'))
               )`, [...deductionIds, processId, processId, processId, workType]) : Promise.resolve([]),
-        query(`SELECT process_code FROM processes WHERE id = ? LIMIT 1`, [processId])
+        // `knownProcessCode`: process code the caller read from the report row of this same request.
+        knownProcessCode ? Promise.resolve([{ process_code: knownProcessCode }]) : query(`SELECT process_code FROM processes WHERE id = ? LIMIT 1`, [processId])
     ]);
 
     const processCode = normalizeText(processRows?.[0]?.process_code).toUpperCase();
@@ -67,18 +68,23 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
         legacyApprovedWithoutMachine = legacyRows.length > 0;
     }
 
-    let machineCode = null;
-    if (!normalizedMachineNo) {
-        if (!isNonProductWork && !allowEmptyMachine && !legacyApprovedWithoutMachine) errors.machine_no = "Vui lòng chọn máy trong danh mục";
-    } else if (!machines.length) errors.machine_no = "Máy không tồn tại hoặc không thuộc công đoạn đã chọn";
-    else machineCode = machines[0].machine_code;
-
-    let productCode = null;
+    // `reuseValidatedMachine`: the machine lines of this request were already validated (machine in process, product
+    // and standard resolved on the report date, GC work type) by validateMachineLines. Re-running the same
+    // machine/product/standard lookups for the first line only burns Worker subrequests.
+    let machineCode = reuseValidatedMachine ? reuseValidatedMachine.machineCode : null;
+    let productCode = reuseValidatedMachine ? reuseValidatedMachine.productCode : null;
     let standardOutput = null;
     let excludeKqdFromTt = 0;
     let standardVersionId = null;
     let machineStandardId = null;
     let productStandardId = null;
+
+    if (!reuseValidatedMachine) {
+    if (!normalizedMachineNo) {
+        if (!isNonProductWork && !allowEmptyMachine && !legacyApprovedWithoutMachine) errors.machine_no = "Vui lòng chọn máy trong danh mục";
+    } else if (!machines.length) errors.machine_no = "Máy không tồn tại hoặc không thuộc công đoạn đã chọn";
+    else machineCode = machines[0].machine_code;
+
 
     if (isNonProductWork) {
         productCode = null;
@@ -132,6 +138,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             const expected = calculateActualOutput({ ttOk, defects: authoritativeDefects, excludeKqdFromTt: Boolean(excludeKqdFromTt) });
             if (Math.abs(Number(actualOutput) - expected) > 0.02) errors.actual_output = "Sản lượng thực tế không đúng theo quy tắc tính của mã sản phẩm";
         }
+    }
     }
 
     if (defectIds.length && validDefectRows.length !== defectIds.length) errors.defects = "Có loại lỗi không tồn tại hoặc không thuộc công đoạn đã chọn";

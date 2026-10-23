@@ -106,7 +106,8 @@ module.exports = {
                 error.status = 409; error.code = "TEMP_REPORT_VERSION_CONFLICT"; throw error;
             }
             const resubmittingRejected = isWorkerEdit && current.status === "rejected";
-            const oldSnapshot = await AuditService.loadTempReportSnapshot(id, connection);
+            // The row was just read FOR UPDATE above; reuse it instead of a second identical SELECT.
+            const oldSnapshot = await AuditService.loadTempReportSnapshot(id, connection, { report: current });
             const hasDeductions = Object.prototype.hasOwnProperty.call(data, "deductions");
             const hasDefects = Object.prototype.hasOwnProperty.call(data, "defects");
             const hasMachineLines = Object.prototype.hasOwnProperty.call(data, "machine_lines");
@@ -192,10 +193,19 @@ module.exports = {
             const nextWorkDate = Object.prototype.hasOwnProperty.call(data, "work_date") ? String(data.work_date || "").slice(0,10) : String(current.work_date || "").slice(0,10);
             const nextActualTime = Object.prototype.hasOwnProperty.call(data, "actual_time") ? Math.max(0, Number(data.actual_time) || 0) : Math.max(0, Number(current.actual_time) || 0);
             let normalizedMachineLines = null;
-            const processRows = await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(current.process_id)]);
+            // The controller already resolved the process code from the same report row; only query when a
+            // direct caller did not provide it.
+            const processRows = options.processCode
+                ? [{ process_code: options.processCode }]
+                : await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(current.process_id)]);
             const isGc = String(processRows?.[0]?.process_code || "").trim().toUpperCase() === "GC";
             if (hasMachineLines) {
-                const validation = await validateMachineLines({ processId: current.process_id, machineLines: Array.isArray(data.machine_lines) ? data.machine_lines : [], operationType: data.operation_type || current.operation_type, operationMode: "MACHINE", maxMachines: 4, workDate: nextWorkDate });
+                // The controller validated these exact lines moments ago in the same request (options.machineLinesValidated);
+                // repeating the master-data reads here only burns Worker subrequests. The locked capacity check below
+                // still runs inside the transaction. Direct callers keep the full validation.
+                const validation = options.machineLinesValidated === true && Array.isArray(data.machine_lines)
+                    ? { valid: true, lines: data.machine_lines, errors: {} }
+                    : await validateMachineLines({ processId: current.process_id, machineLines: Array.isArray(data.machine_lines) ? data.machine_lines : [], operationType: data.operation_type || current.operation_type, operationMode: "MACHINE", maxMachines: 4, workDate: nextWorkDate });
                 if (!validation.valid) { const error = new Error("Thông tin máy hoặc thời gian máy không hợp lệ"); error.status = 422; error.code = "MACHINE_LINES_INVALID"; error.isPublic = true; error.details = validation.errors; throw error; }
                 normalizedMachineLines = validation.lines;
                 const nextShift = Object.prototype.hasOwnProperty.call(data, "shift") ? data.shift : current.shift;
@@ -205,7 +215,9 @@ module.exports = {
             }
             let dailyHoursMachineLines = normalizedMachineLines;
             if (isGc && !Array.isArray(dailyHoursMachineLines)) {
-                const storedLines = await query(connection, `SELECT machine_time_hours, deduction_time_hours FROM production_temp_machine_lines WHERE temp_report_id=?`, [id]);
+                const storedLines = Array.isArray(oldSnapshot?.machine_lines)
+                    ? oldSnapshot.machine_lines
+                    : await query(connection, `SELECT machine_time_hours, deduction_time_hours FROM production_temp_machine_lines WHERE temp_report_id=?`, [id]);
                 dailyHoursMachineLines = storedLines.map(line => ({ actual_time_hours: Math.max(0, Number(line.machine_time_hours || 0) - Number(line.deduction_time_hours || 0)) }));
             }
             await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, incomingActualHours: nextActualTime, incomingMachineLines: dailyHoursMachineLines || [], isGc, excludeTempReportId: id });
@@ -219,7 +231,8 @@ module.exports = {
                 await query(connection, `UPDATE production_reports_temp SET updated_by=?,updated_at=NOW() ${resubmittingRejected ? ",status='pending',review_note=NULL,reviewed_by=NULL,approved_at=NULL" : ""} WHERE id=?`, [changedBy, id]);
             }
             if (hasDeductions) {
-                await query(connection, `DELETE FROM production_temp_deductions WHERE temp_report_id=?`, [id]);
+                // oldSnapshot was read in this transaction under the report row lock; nothing to delete when it was empty.
+                if (!(Array.isArray(oldSnapshot?.deductions) && oldSnapshot.deductions.length === 0)) await query(connection, `DELETE FROM production_temp_deductions WHERE temp_report_id=?`, [id]);
                 if (normalizedDeductions.length) {
                     const values = normalizedDeductions.map(() => "(?,?,?)").join(",");
                     const params = normalizedDeductions.flatMap((item) => [id, item.deduction_type_id, item.hours]);
@@ -227,7 +240,7 @@ module.exports = {
                 }
             }
             if (hasDefects) {
-                await query(connection, `DELETE FROM production_temp_defects WHERE temp_report_id=?`, [id]);
+                if (!(Array.isArray(oldSnapshot?.defects) && oldSnapshot.defects.length === 0)) await query(connection, `DELETE FROM production_temp_defects WHERE temp_report_id=?`, [id]);
                 if (normalizedDefects.length) {
                     const values = normalizedDefects.map(() => "(?,?,?)").join(",");
                     const params = normalizedDefects.flatMap((item) => [id, item.defect_type_id, item.quantity]);
@@ -237,12 +250,19 @@ module.exports = {
             if (hasMachineLines) {
                 const nextShift = Object.prototype.hasOwnProperty.call(data, "shift") ? data.shift : current.shift;
                 const preserveEventLinks = String(nextWorkDate).slice(0,10) === String(current.work_date).slice(0,10) && String(nextShift || "").trim() === String(current.shift || "").trim();
-                await createModel.replaceMachineLines(id, normalizedMachineLines || [], connection, { preserveEventLinks });
+                await createModel.replaceMachineLines(id, normalizedMachineLines || [], connection, { preserveEventLinks, oldLines: Array.isArray(oldSnapshot?.machine_lines) ? oldSnapshot.machine_lines : undefined });
             }
-            const newSnapshot = await AuditService.loadTempReportSnapshot(id, connection);
+            // Rows this edit did not touch (or touched from empty to empty) are identical to the "before" snapshot read in
+            // this same transaction under the report row lock, so they are not read a second time.
+            const unchangedDefects = Array.isArray(oldSnapshot?.defects) && (!hasDefects || (!oldSnapshot.defects.length && !normalizedDefects.length));
+            const unchangedDeductions = Array.isArray(oldSnapshot?.deductions) && (!hasDeductions || (!oldSnapshot.deductions.length && !normalizedDeductions.length));
+            const newSnapshot = await AuditService.loadTempReportSnapshot(id, connection, {
+                defects: unchangedDefects ? oldSnapshot.defects : undefined,
+                deductions: unchangedDeductions ? oldSnapshot.deductions : undefined
+            });
             const changedFieldsForAudit = [...changes, ...(hasDeductions ? ["deductions"] : []), ...(hasDefects ? ["defects"] : []), ...(hasMachineLines ? ["machine_lines"] : []), ...(resubmittingRejected ? ["status","review_note","reviewed_by"] : [])];
             await query(connection, `INSERT INTO report_edit_logs (report_type,report_id,user_id,old_data,new_data,changed_fields,note) VALUES ('temp',?,?,?,?,?,?)`, [id,changedBy,JSON.stringify(oldSnapshot || null),JSON.stringify(newSnapshot || null),JSON.stringify(changedFieldsForAudit),reason || (resubmittingRejected ? "Công nhân sửa và gửi lại báo cáo" : "Cập nhật báo cáo chờ duyệt")]);
-            if (newSnapshot) await AuditService.createReportVersion({ reportType:"temp", reportId:id, snapshot:newSnapshot, reason:reason || (resubmittingRejected ? "Gửi lại sau khi bị từ chối" : "Cập nhật báo cáo chờ duyệt"), userId:changedBy }, connection);
+            if (newSnapshot) await AuditService.createReportVersion({ reportType:"temp", reportId:id, snapshot:newSnapshot, returnVersionNo:false, reason:reason || (resubmittingRejected ? "Gửi lại sau khi bị từ chối" : "Cập nhật báo cáo chờ duyệt"), userId:changedBy }, connection);
             await this.logAction({ reportType:"temp",reportId:id,userId:changedBy,action:resubmittingRejected ? "RESUBMIT" : "UPDATE",note:reason || `Đã sửa ${changes.length} trường${detailChanged ? " và chi tiết" : ""}` }, connection);
             await AuditService.logActivity({ userId:changedBy,action:resubmittingRejected ? "TEMP_REPORT_RESUBMITTED" : "TEMP_REPORT_UPDATED",entityType:"temp_report",entityId:id,description:resubmittingRejected ? `Gửi lại báo cáo chờ duyệt #${id} sau khi bị từ chối` : `Cập nhật báo cáo chờ duyệt #${id}`,metadata:{changed_fields:changes,deductions_changed:hasDeductions,defects_changed:hasDefects,machine_lines_changed:hasMachineLines,previous_status:current.status,new_status:resubmittingRejected ? "pending" : current.status,reason:reason || null}},connection);
             if (resubmittingRejected) {
@@ -254,7 +274,16 @@ module.exports = {
             }
             await commit(connection);
             return { changed:true,fields:changes,details:{deductions:hasDeductions,defects:hasDefects,machine_lines:hasMachineLines} };
-        } catch (error) { await rollback(connection); throw error; }
+        } catch (error) {
+            const rolledBack = await rollback(connection);
+            if (rolledBack && rolledBack.ok === false) {
+                // COMMIT never ran, so the database discards the open transaction; surface the original error and
+                // flag that the explicit ROLLBACK failed (never report it as a clean rollback).
+                error.rollbackFailed = true;
+                console.error("[KTC] ROLLBACK failed after temp-report edit error", { reportId: id, original: error?.code || error?.message, rollback: rolledBack.error?.code || rolledBack.error?.message });
+            }
+            throw error;
+        }
         finally { connection.release(); }
     }
     ,_getWorkerEditWindowStart: getWorkerEditWindowStart,

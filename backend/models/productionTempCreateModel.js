@@ -401,21 +401,30 @@ module.exports = {
 
 
     async replaceMachineLines(tempReportId, machineLines = [], executor = db, options = {}) {
-        // A report that was inserted in this same transaction cannot own old lines: skipping the lookup and
-        // the two DELETEs saves 2-3 TiDB HTTP subrequests per submission on Cloudflare Workers.
+        // Subrequest budget (Cloudflare Worker: 50 per invocation, every TiDB HTTP statement counts):
+        // the number of statements here is CONSTANT in the number of machines.
+        //  - old lines are taken from `options.oldLines` when the caller already read them in the same
+        //    transaction (otherwise one SELECT);
+        //  - all lines are written with ONE multi-row INSERT;
+        //  - all machine defects are written with ONE INSERT ... SELECT that maps each defect to its
+        //    line through (temp_report_id, sort_order). No per-line LAST_INSERT_ID() is needed, so the
+        //    id mapping can never be guessed or shifted.
+        // A report that was inserted in this same transaction cannot own old lines: skip lookup + DELETEs.
         let oldLines = [];
         if (options.isNewReport !== true) {
-            oldLines = await query(executor, `SELECT id, machine_event_id, machine_code, product_code FROM production_temp_machine_lines WHERE temp_report_id = ?`, [tempReportId]);
+            oldLines = Array.isArray(options.oldLines)
+                ? options.oldLines
+                : await query(executor, `SELECT id, machine_event_id, machine_code, product_code FROM production_temp_machine_lines WHERE temp_report_id = ?`, [tempReportId]);
             if (oldLines.length) {
-                const ids = oldLines.map((row) => Number(row.id)).filter(Boolean);
-                if (ids.length) {
-                    await query(executor, `DELETE FROM production_temp_machine_defects WHERE machine_line_id IN (${ids.map(() => "?").join(",")})`, ids);
-                }
+                // One multi-table DELETE removes the old defects and the old lines together (was: DELETE defects IN (ids)
+                // + DELETE lines). oldLines is read in the same transaction, under the report row lock.
+                await query(executor, `DELETE d, l FROM production_temp_machine_lines l LEFT JOIN production_temp_machine_defects d ON d.machine_line_id = l.id WHERE l.temp_report_id = ?`, [tempReportId]);
             }
-            await query(executor, `DELETE FROM production_temp_machine_lines WHERE temp_report_id = ?`, [tempReportId]);
         }
         if (!Array.isArray(machineLines) || machineLines.length === 0) return;
 
+        const lineRows = [];
+        const defectRows = [];
         for (let index = 0; index < Math.min(machineLines.length, 4); index += 1) {
             const line = machineLines[index] || {};
             const requestedEventId = line.machine_event_id || null;
@@ -428,12 +437,7 @@ module.exports = {
                       )?.machine_event_id || 0) || null
                     : null
             );
-            const result = await query(executor, `INSERT INTO production_temp_machine_lines
-                (temp_report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
-                 machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
-                 ok_quantity, ng_quantity, maximum_output, deduction_time_hours, deductions_json, counted_output, earned_standard_hours,
-                 defects_json, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+            lineRows.push([
                 tempReportId,
                 preservedEventId,
                 Number(line.machine_id) || null,
@@ -457,31 +461,37 @@ module.exports = {
                 JSON.stringify(Array.isArray(line.defects) ? line.defects : []),
                 index + 1
             ]);
-
-            const machineLineId = Number(result.insertId);
-            const defects = (Array.isArray(line.defects) ? line.defects : [])
-                .map((item) => ({
-                    defect_type_id: Number(item?.defect_type_id) || null,
-                    defect_code: String(item?.defect_code || "").trim(),
-                    defect_name: String(item?.defect_name || "").trim(),
-                    quantity: Math.trunc(Number(item?.quantity) || 0)
-                }))
-                .filter((item) => item.quantity > 0);
-            if (!machineLineId || !defects.length) continue;
-            const values = defects.map((item) => [
-                machineLineId,
-                item.defect_type_id,
-                item.defect_code || null,
-                item.defect_name || null,
-                item.quantity
-            ]);
-            await query(executor,
-                `INSERT INTO production_temp_machine_defects
-                 (machine_line_id, defect_type_id, defect_code, defect_name, quantity)
-                 VALUES ${values.map(() => "(?, ?, ?, ?, ?)").join(",")}`,
-                values.flat()
-            );
+            for (const item of (Array.isArray(line.defects) ? line.defects : [])) {
+                const quantity = Math.trunc(Number(item?.quantity) || 0);
+                if (quantity <= 0) continue;
+                defectRows.push([
+                    index + 1,
+                    Number(item?.defect_type_id) || null,
+                    String(item?.defect_code || "").trim() || null,
+                    String(item?.defect_name || "").trim() || null,
+                    quantity
+                ]);
+            }
         }
+
+        await query(executor, `INSERT INTO production_temp_machine_lines
+            (temp_report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
+             machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
+             ok_quantity, ng_quantity, maximum_output, deduction_time_hours, deductions_json, counted_output, earned_standard_hours,
+             defects_json, sort_order)
+            VALUES ${lineRows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`, lineRows.flat());
+
+        if (!defectRows.length) return;
+        await query(executor,
+            `INSERT INTO production_temp_machine_defects
+             (machine_line_id, defect_type_id, defect_code, defect_name, quantity)
+             SELECT ml.id, v.defect_type_id, v.defect_code, v.defect_name, v.quantity
+               FROM production_temp_machine_lines ml
+               JOIN (${defectRows.map(() => "SELECT ? AS sort_order, ? AS defect_type_id, ? AS defect_code, ? AS defect_name, ? AS quantity").join(" UNION ALL ")}) v
+                 ON v.sort_order = ml.sort_order
+              WHERE ml.temp_report_id = ?`,
+            [...defectRows.flat(), tempReportId]
+        );
     },
 
     async createCompleteReport(data, defects = [], deductions = [], machineLines = [], audit = {}) {

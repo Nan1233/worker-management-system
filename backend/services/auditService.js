@@ -146,6 +146,9 @@ async function createReportVersion(
     snapshot,
     reason = null,
     userId = null,
+    // false: the caller never uses the returned version number, so on the Cloudflare path the number does not have
+    // to be read first and written second; one INSERT ... SELECT allocates and writes it (one subrequest fewer).
+    returnVersionNo = true,
   },
   executor = db,
 ) {
@@ -174,6 +177,18 @@ async function createReportVersion(
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       if (explicitAllocation) {
+        if (returnVersionNo === false) {
+          await query(
+            executor,
+            `INSERT INTO report_versions
+              (report_type, report_id, version_no, snapshot_json, change_reason, created_by)
+             SELECT ?, ?, COALESCE(MAX(version_no), 0) + 1, ?, ?, ?
+               FROM report_versions
+              WHERE report_type=? AND report_id=?`,
+            [normalizedType, normalizedReportId, snapshotJson, changeReason, createdBy, normalizedType, normalizedReportId],
+          );
+          return null;
+        }
         // Cloudflare / TiDB Serverless (HTTP): the driver may not return insertId or LAST_INSERT_ID(expr)
         // for INSERT ... SELECT, and every statement outside a transaction can be a separate session,
         // so nothing can be read back afterwards. Allocate the number first, then insert it explicitly.
@@ -242,18 +257,22 @@ async function loadTempReportSnapshot(reportId, executor = db, preloaded = null)
   // "before" or "after" snapshot that never actually existed as a consistent state.
   // Outside a transaction (autocommit) FOR UPDATE is a harmless no-op lock that is
   // released immediately after this statement.
-  const reportRows = await query(
-    executor,
-    `SELECT * FROM production_reports_temp WHERE id=? LIMIT 1 FOR UPDATE`,
-    [normalizedReportId],
-  );
-  const report = reportRows[0];
+  // `preloaded.report` is a row the caller already read FOR UPDATE in this same transaction.
+  const report = preloaded?.report && Number(preloaded.report.id) === normalizedReportId
+    ? preloaded.report
+    : (await query(
+      executor,
+      `SELECT * FROM production_reports_temp WHERE id=? LIMIT 1 FOR UPDATE`,
+      [normalizedReportId],
+    ))[0];
   if (!report) return null;
 
   // TiDB Serverless transactions cannot execute multiple statements
   // concurrently on the same transaction. Snapshot reads are intentionally
   // sequential whenever the supplied executor is transaction-scoped.
-  const defects = await query(
+  // `preloaded.defects` / `preloaded.deductions`: rows the caller knows are unchanged since it read them in this
+  // transaction (e.g. the "after" snapshot of an edit that did not touch them).
+  const defects = Array.isArray(preloaded?.defects) ? preloaded.defects : await query(
     executor,
     `SELECT d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity
        FROM production_temp_defects d
@@ -262,7 +281,7 @@ async function loadTempReportSnapshot(reportId, executor = db, preloaded = null)
     [normalizedReportId],
   );
 
-  const deductions = await query(
+  const deductions = Array.isArray(preloaded?.deductions) ? preloaded.deductions : await query(
     executor,
     `SELECT d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours
        FROM production_temp_deductions d
