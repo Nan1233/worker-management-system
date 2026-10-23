@@ -95,3 +95,12 @@ test('non-CVK product mapping remains unchanged', async () => {
   });
   assert.equal(value, 'SP-001');
 });
+
+test('CVK work_type supports XUATNHAP and TAIPP without treating them as product codes', async () => {
+  for (const code of ['XUATNHAP', 'TAIPP']) {
+    const { value } = await exportAndRead('CVK', {
+      extra_data: JSON.stringify({ work_type: code, process_code: 'CVK' })
+    });
+    assert.equal(value, code);
+  }
+});
