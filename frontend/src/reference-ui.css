@@ -8,6 +8,13 @@
   --ktc-bg: #f4f7fb;
   --ktc-workspace-subtle: #f8fafc;
   --ktc-surface: #ffffff;
+  --ktc-surface-a13: rgba(255,255,255,.13);
+  --ktc-surface-a88: rgba(255,255,255,.88);
+  --ktc-surface-a94: rgba(255,255,255,.94);
+  --ktc-surface-a95: rgba(255,255,255,.95);
+  --ktc-surface-a96: rgba(255,255,255,.96);
+  --ktc-surface-a97: rgba(255,255,255,.97);
+  --ktc-surface-a98: rgba(255,255,255,.98);
   --ktc-surface-muted: #f8fafc;
   --ktc-surface-subtle: #f6f9fc;
   --ktc-text: #162033;
@@ -69,7 +76,7 @@ body { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Se
 .management-sidebar, .worker-sidebar {
   width: 244px;
   padding: 14px 12px 12px;
-  background: #fff;
+  background: var(--ktc-surface, #fff);
   border-right: 1px solid #dbe5ef;
   box-shadow: 2px 0 10px rgba(18,40,70,.025);
 }
@@ -99,13 +106,13 @@ body { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Se
 .management-logout:hover, .worker-logout:hover { border-color:#c8d8ea; background:#f4f8fd; color:#274563; }
 .management-main, .worker-main { background:var(--ktc-workspace); }
 .management-header, .worker-header {
-  min-height:64px; padding:10px 26px; background:rgba(255,255,255,.94); border-bottom:1px solid #dfe7f0;
+  min-height:64px; padding:10px 26px; background:var(--ktc-surface-a94, rgba(255,255,255,.94)); border-bottom:1px solid #dfe7f0;
   box-shadow:0 1px 8px rgba(16,34,58,.025); backdrop-filter:blur(10px);
 }
 .management-header > div:first-child, .worker-header > div:first-child { display:flex; align-items:center; gap:10px; }
 .management-header strong, .worker-header strong { font-size:15px; color:#172238; }
 .management-header span, .worker-header span { display:inline-flex; align-items:center; min-height:24px; padding:0 8px; border-radius:999px; background:#eef5ff; color:#3d6f9e; font-size:10px; font-weight:700; }
-.management-user { padding:7px 10px; border:1px solid #e1e8f0; border-radius:9px; background:#fff; color:#5c6b80; font-size:11px; }
+.management-user { padding:7px 10px; border:1px solid #e1e8f0; border-radius:9px; background:var(--ktc-surface, #fff); color:#5c6b80; font-size:11px; }
 .management-content, .worker-content { padding:22px 26px 30px; }
 
 /* Shared cards */
@@ -116,7 +123,7 @@ body { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Se
 .worker-form-card, .history-state-card {
   border:1px solid var(--ktc-border) !important;
   border-radius:12px !important;
-  background:#fff !important;
+  background:var(--ktc-surface, #fff) !important;
   box-shadow:var(--ktc-shadow-xs) !important;
 }
 
@@ -124,7 +131,7 @@ body { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Se
 .manager-dashboard { padding:0; }
 .manager-dashboard-header { margin-bottom:16px; }
 .manager-dashboard-header h1 { font-size:23px; }
-.dashboard-period-filter { min-height:40px; border-color:var(--ktc-border); border-radius:9px; background:#fff; }
+.dashboard-period-filter { min-height:40px; border-color:var(--ktc-border); border-radius:9px; background:var(--ktc-surface, #fff); }
 .dashboard-kpi-grid { gap:11px; margin-bottom:14px; }
 .dashboard-kpi-card { min-height:94px; padding:14px 15px; border-radius:11px !important; }
 .dashboard-kpi-icon { width:42px; height:42px; border-radius:10px; }
@@ -136,13 +143,13 @@ body { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Se
 .dashboard-ranking-track { height:12px; background:#edf2f7; }
 .dashboard-ranking-bar { background:#2a82dc; }
 .dashboard-shift-column-bar { background:#2a82dc; }
-.dashboard-quick-actions button { border-radius:10px; background:#fff; }
+.dashboard-quick-actions button { border-radius:10px; background:var(--ktc-surface, #fff); }
 .dashboard-quick-icon { background:#eef5ff; color:#1769d2; }
 .dashboard-attention { border-radius:11px; }
 
 /* Tables */
 .management-table-container, .selected-table-scroll, .management-workers-table-wrapper, .formula-table-wrap, .master-table-wrap, .table-container {
-  border:1px solid var(--ktc-border); border-radius:11px; background:#fff; overflow:auto; box-shadow:var(--ktc-shadow-xs);
+  border:1px solid var(--ktc-border); border-radius:11px; background:var(--ktc-surface, #fff); overflow:auto; box-shadow:var(--ktc-shadow-xs);
 }
 .management-report-table, .selected-review-table, .management-workers-table, .formula-table, .history-table { border-collapse:separate; border-spacing:0; width:100%; }
 .management-report-table th, .selected-review-table th, .management-workers-table th, .formula-table th, .history-table th {
@@ -158,17 +165,17 @@ body { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Se
   margin-bottom:15px; display:flex; align-items:center; justify-content:space-between; gap:14px;
 }
 .management-report-header h1, .management-workers-header h1, .selected-review-header h1, .report-detail-header h1, .download-header h1, .edit-report-header h1, .history-header h1, .master-heading h1, .formula-header h1, .permission-header h1, .governance-header h1 { margin:0; color:#142238; font-size:22px; letter-spacing:-.025em; }
-.management-report-count, .management-workers-count, .history-count { border:1px solid #d9e5f1; border-radius:10px; background:#fff; padding:8px 11px; }
+.management-report-count, .management-workers-count, .history-count { border:1px solid #d9e5f1; border-radius:10px; background:var(--ktc-surface, #fff); padding:8px 11px; }
 .management-filter-card, .history-filter-card { padding:14px !important; margin-bottom:13px; }
 .management-search-box input, .management-filter-field input, .management-filter-field select, .history-search-box input, .history-filter-field input, .history-filter-field select, .dashboard-period-filter select {
-  min-height:40px; border:1px solid #d6e0ea; border-radius:8px; background:#fff; color:#24344a;
+  min-height:40px; border:1px solid #d6e0ea; border-radius:8px; background:var(--ktc-surface, #fff); color:#24344a;
 }
 .management-search-box input:focus, .management-filter-field input:focus, .management-filter-field select:focus, .history-search-box input:focus, .history-filter-field input:focus, .history-filter-field select:focus { border-color:#6ea9e9; box-shadow:var(--ktc-focus); outline:0; }
 .management-filter-actions { border-top:1px solid #edf1f5; }
 .management-clear-button, .management-view-selected-button, .management-export-button, .management-db-sync-button, .management-import-button,
 .management-approve-button, .management-reject-button, .selected-review-approve, .selected-review-reject, .edit-save, .edit-back,
 .detail-approve-button, .detail-reject-button, .history-clear-button, .detail-link-button, .detail-edit-button, .primary, .secondary {
-  min-height:38px; padding:0 13px; border-radius:8px; font-size:11px; font-weight:750; border:1px solid #d5e0eb; background:#fff; color:#42536a;
+  min-height:38px; padding:0 13px; border-radius:8px; font-size:11px; font-weight:750; border:1px solid #d5e0eb; background:var(--ktc-surface, #fff); color:#42536a;
 }
 .management-approve-button, .selected-review-approve, .detail-approve-button, .edit-save, .primary { border-color:#1769d2; background:#1769d2; color:#fff; box-shadow:0 4px 10px rgba(23,105,210,.14); }
 .management-approve-button:hover, .selected-review-approve:hover, .detail-approve-button:hover, .edit-save:hover, .primary:hover { background:#125ab8; }
@@ -182,14 +189,14 @@ body { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Se
 .detail-basic-item dt { color:#8290a3; font-size:9px; font-weight:750; text-transform:uppercase; letter-spacing:.04em; }
 .detail-basic-item dd { margin-top:4px; color:#223249; font-size:12px; font-weight:650; }
 .detail-summary-row { padding:12px 0; }
-.detail-sticky-actions { border:1px solid #dce6f0; border-radius:11px; background:rgba(255,255,255,.96); box-shadow:var(--ktc-shadow-md); }
+.detail-sticky-actions { border:1px solid #dce6f0; border-radius:11px; background:var(--ktc-surface-a96, rgba(255,255,255,.96)); box-shadow:var(--ktc-shadow-md); }
 
 /* Worker — mobile-first reference */
 .worker-content { max-width:1180px; margin:0 auto; }
 .worker-form-page, .select-process-page, .history-page { max-width:980px; margin:0 auto; }
 .worker-form-card { padding:16px !important; }
 .worker-card-title { color:#172238; }
-.worker-process-card { border:1px solid #dfe7f0 !important; border-radius:11px !important; background:#fff !important; box-shadow:var(--ktc-shadow-xs); }
+.worker-process-card { border:1px solid #dfe7f0 !important; border-radius:11px !important; background:var(--ktc-surface, #fff) !important; box-shadow:var(--ktc-shadow-xs); }
 .worker-process-card:hover { border-color:#a9c8ea !important; background:#f7fbff !important; transform:translateY(-1px); }
 .worker-process-icon { background:#edf5ff !important; color:#1769d2 !important; }
 .select-process-header { padding-bottom:14px; border-bottom:1px solid #e6edf4; }
@@ -197,7 +204,7 @@ body { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Se
 .report-card { box-shadow:none !important; }
 
 /* Generic controls */
-input, select, textarea { border-color:#d5e0eb; border-radius:8px; color:#24344a; background:#fff; }
+input, select, textarea { border-color:#d5e0eb; border-radius:8px; color:#24344a; background:var(--ktc-surface, #fff); }
 input:focus, select:focus, textarea:focus { border-color:#6ea9e9; box-shadow:var(--ktc-focus); outline:none; }
 button { font-family:inherit; }
 
@@ -221,7 +228,7 @@ button { font-family:inherit; }
   .management-header, .worker-header { min-height:58px; padding:8px 12px; }
   .management-header strong, .worker-header strong { font-size:13px; }
   .management-content, .worker-content { padding:14px 12px 22px; }
-  .management-mobile-nav, .worker-mobile-nav { background:rgba(255,255,255,.98) !important; border-top:1px solid #dfe7f0 !important; box-shadow:0 -5px 18px rgba(16,34,58,.06); backdrop-filter:blur(10px); }
+  .management-mobile-nav, .worker-mobile-nav { background:var(--ktc-surface-a98, rgba(255,255,255,.98)) !important; border-top:1px solid #dfe7f0 !important; box-shadow:0 -5px 18px rgba(16,34,58,.06); backdrop-filter:blur(10px); }
   .management-mobile-nav button, .worker-mobile-nav button { font-size:9px !important; }
   .management-mobile-nav button.active, .worker-mobile-nav button.active { color:#1769d2 !important; background:#eef5ff !important; }
   .manager-page h1, .admin-page h1 { font-size:20px; }

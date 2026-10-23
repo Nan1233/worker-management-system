@@ -45,7 +45,7 @@
   padding: 6px 10px !important;
   border: 1px solid #c9dced !important;
   border-radius: 8px !important;
-  background: #fff !important;
+  background: var(--ktc-surface, #fff) !important;
   box-shadow: none !important;
 }
 

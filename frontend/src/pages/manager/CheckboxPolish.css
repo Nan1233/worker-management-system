@@ -9,7 +9,7 @@
   padding: 6px 10px;
   border: 1px solid #d7e2ef;
   border-radius: 8px;
-  background: #fff;
+  background: var(--ktc-surface, #fff);
   color: #536987;
   font-size: 13px !important;
   font-weight: 600;

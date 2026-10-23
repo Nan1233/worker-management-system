@@ -202,12 +202,12 @@ body :where(.worker-content:not(:has(.worker-home-page))) .worker-shift-item inp
   padding: 0 !important;
   border: 2px solid #b9cbe0 !important;
   border-radius: 50% !important;
-  background: #fff !important;
+  background: var(--ktc-surface, #fff) !important;
   box-shadow: none !important;
 }
 body :where(.worker-content:not(:has(.worker-home-page))) .worker-shift-item input[type="radio"]:checked {
   border: 5px solid #1768c8 !important;
-  background: #fff !important;
+  background: var(--ktc-surface, #fff) !important;
   box-shadow: none !important;
 }
 body :where(.worker-content:not(:has(.worker-home-page))) .worker-shift-item span {

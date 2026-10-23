@@ -8,7 +8,7 @@
   padding:0 14px!important;
   box-sizing:border-box!important;
   border-bottom:1px solid #e4ebf4!important;
-  background:#fff!important;
+  background:var(--ktc-surface, #fff)!important;
   color:#1769d2!important;
   font-size:13px!important;
   font-weight:700!important;
@@ -39,7 +39,7 @@
 .pending-reference-page table:has(tbody td[colspan="13"]) tbody td{
   border:0!important;
   outline:0!important;
-  background:#fff!important;
+  background:var(--ktc-surface, #fff)!important;
 }
 .pending-reference-page table:has(tbody td[colspan="13"]) tbody tr{
   height:180px!important;

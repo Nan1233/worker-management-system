@@ -14,7 +14,7 @@
     display: flex !important;
     align-items: center !important;
     justify-content: flex-end !important;
-    background: #fff !important;
+    background: var(--ktc-surface, #fff) !important;
     border-bottom: 1px solid #dce8f5 !important;
     box-shadow: 0 2px 8px rgba(36,86,137,.05) !important;
     backdrop-filter: none !important;
@@ -68,7 +68,7 @@
     align-items: center !important;
     padding: 2px 12px !important;
     margin: 0 !important;
-    background: #fff !important;
+    background: var(--ktc-surface, #fff) !important;
     border: 0 !important;
     border-bottom: 1px solid #dce8f5 !important;
     box-shadow: 0 2px 10px rgba(36,86,137,.06) !important;

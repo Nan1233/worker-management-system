@@ -8,7 +8,7 @@
 .pending-page-title p{margin:3px 0 0;color:#7185a4;font-size:11px;line-height:1.4;font-weight:400}
 
 /* Filter toolbar - clean, compact and consistent with Worker UI */
-.pending-filter-card{display:grid;grid-template-columns:minmax(260px,2fr) minmax(145px,1fr) minmax(145px,1fr) minmax(135px,.9fr);grid-template-areas:"search date process shift" "quick quick quick quick";gap:8px 10px;align-items:end;margin-bottom:12px;padding:11px 12px;border:1px solid #dbe7f3;border-radius:11px;background:#fff;box-shadow:0 2px 9px rgba(35,76,125,.035)}
+.pending-filter-card{display:grid;grid-template-columns:minmax(260px,2fr) minmax(145px,1fr) minmax(145px,1fr) minmax(135px,.9fr);grid-template-areas:"search date process shift" "quick quick quick quick";gap:8px 10px;align-items:end;margin-bottom:12px;padding:11px 12px;border:1px solid #dbe7f3;border-radius:11px;background:var(--ktc-surface, #fff);box-shadow:0 2px 9px rgba(35,76,125,.035)}
 .pending-filter-card .pending-search{grid-area:search}
 .pending-filter-card .pending-date-filter{grid-area:date}
 .pending-filter-card .pending-quick-filters{grid-area:quick}
@@ -16,7 +16,7 @@
 .pending-filter-card .pending-shift-filter{grid-area:shift}
 .pending-filter-card label,.pending-filter-card .pending-search{display:flex;flex-direction:column;gap:4px;min-width:0}
 .pending-filter-card label>span{font-size:10px;color:#7185a4;font-weight:400;line-height:1.2}
-.pending-filter-card input,.pending-filter-card select{width:100%;height:35px;border:1px solid #d5e2ef;border-radius:8px;background:#fff;color:#315a91;padding:0 10px;font:400 12px/1 inherit;outline:none;transition:border-color .15s,box-shadow .15s}
+.pending-filter-card input,.pending-filter-card select{width:100%;height:35px;border:1px solid #d5e2ef;border-radius:8px;background:var(--ktc-surface, #fff);color:#315a91;padding:0 10px;font:400 12px/1 inherit;outline:none;transition:border-color .15s,box-shadow .15s}
 .pending-filter-card input::placeholder{color:#9aabc0}
 .pending-filter-card input:focus,.pending-filter-card select:focus{border-color:#8bb9ed;box-shadow:0 0 0 2px rgba(23,105,210,.06)}
 
@@ -40,8 +40,8 @@
 /* List / detail */
 .pending-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.88fr);gap:9px;align-items:stretch}
 .pending-workspace.list-only{display:block}
-.pending-list-card,.pending-detail-card{border:1px solid #dbe7f3;border-radius:11px;background:#fff;box-shadow:0 2px 9px rgba(35,76,125,.035);overflow:hidden;min-width:0}
-.pending-list-tabs{height:40px;display:flex;align-items:flex-end;border-bottom:1px solid #e6edf5;padding:0 10px;background:#fff}
+.pending-list-card,.pending-detail-card{border:1px solid #dbe7f3;border-radius:11px;background:var(--ktc-surface, #fff);box-shadow:0 2px 9px rgba(35,76,125,.035);overflow:hidden;min-width:0}
+.pending-list-tabs{height:40px;display:flex;align-items:flex-end;border-bottom:1px solid #e6edf5;padding:0 10px;background:var(--ktc-surface, #fff)}
 .pending-list-tab{position:relative;height:40px;padding:0 10px;border:0;background:transparent;color:#7185a4;font-size:11px!important;font-weight:400!important;cursor:pointer}
 .pending-list-tab.active{color:#1769d2;font-weight:600!important}
 .pending-list-tab.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:#1769d2;border-radius:2px 2px 0 0}
@@ -64,14 +64,14 @@
 .pending-list-card .pending-reference-table th:nth-child(8),.pending-list-card .pending-reference-table td:nth-child(8){width:92px}
 .pending-list-card .pending-reference-table th:nth-child(9),.pending-list-card .pending-reference-table td:nth-child(9){width:70px}
 .pending-table-footer{min-height:40px;padding:7px 10px;color:#7185a4;font-size:10px!important;display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #edf2f7}
-.pending-table-footer button{height:27px;min-width:29px;padding:0 8px;border:1px solid #dbe6f2;border-radius:7px;background:#fff;color:#627895;font-size:10px;cursor:pointer}
+.pending-table-footer button{height:27px;min-width:29px;padding:0 8px;border:1px solid #dbe6f2;border-radius:7px;background:var(--ktc-surface, #fff);color:#627895;font-size:10px;cursor:pointer}
 .pending-table-footer button:disabled{opacity:.45;cursor:not-allowed}
 .pending-overdue-empty,.management-empty{min-height:145px;display:grid;place-items:center;padding:18px;color:#8193aa;font-size:11px;font-weight:400}
 .shift-chip{display:inline-flex;align-items:center;justify-content:center;min-height:20px;padding:0 6px;border-radius:6px;background:#eaf3ff;color:#1769d2;font-size:10px;font-weight:400}
 .pending-bulk-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin:6px 0 2px;font-size:10px}
 .pending-bulk-actions>span{color:#7185a4;font-size:10px;font-weight:400}
 .pending-bulk-actions button{height:29px;padding:0 10px;border-radius:7px;font-size:10px;font-weight:500;white-space:nowrap}
-.pending-bulk-actions .reject{border:1px solid #f1a5ac;background:#fff;color:#df414d}
+.pending-bulk-actions .reject{border:1px solid #f1a5ac;background:var(--ktc-surface, #fff);color:#df414d}
 .pending-bulk-actions .approve{border:1px solid #16895f;background:#16895f;color:#fff}
 
 /* Detail */
@@ -101,14 +101,14 @@
 .pending-history-empty{min-height:48px;display:grid;place-items:center;border:1px dashed #c9d8e9;border-radius:7px;color:#8193aa;font-size:10px}
 .pending-detail-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:9px 12px;border-top:1px solid #e6edf5;margin-top:auto}
 .pending-detail-actions button{height:32px;border-radius:7px;font-size:10px;font-weight:500;cursor:pointer;min-width:0}
-.pending-detail-reject{border:1px solid #f1a5ac;background:#fff;color:#df414d}.pending-detail-approve{border:1px solid #1769d2;background:#1769d2;color:#fff}.pending-detail-edit{border:1px solid #1769d2;background:#fff;color:#1769d2}.pending-detail-cancel{border:1px solid #d7e1ec;background:#fff;color:#627895}.pending-detail-save{border:1px solid #16895f;background:#16895f;color:#fff}
+.pending-detail-reject{border:1px solid #f1a5ac;background:var(--ktc-surface, #fff);color:#df414d}.pending-detail-approve{border:1px solid #1769d2;background:#1769d2;color:#fff}.pending-detail-edit{border:1px solid #1769d2;background:var(--ktc-surface, #fff);color:#1769d2}.pending-detail-cancel{border:1px solid #d7e1ec;background:var(--ktc-surface, #fff);color:#627895}.pending-detail-save{border:1px solid #16895f;background:#16895f;color:#fff}
 .pending-detail-actions:has(.pending-detail-cancel){grid-template-columns:1fr 1fr}
 .pending-detail-actions button:disabled{opacity:.55;cursor:not-allowed}
 .pending-detail-loading,.pending-detail-empty{min-height:240px;display:grid;place-items:center;color:#8193aa;font-size:11px;text-align:center}
 
 /* Edit form */
-.pending-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}.pending-edit-grid label{display:flex;flex-direction:column;gap:4px;color:#8193aa;font-size:10px;font-weight:400}.pending-edit-grid input,.pending-edit-grid select{height:32px;border:1px solid #d4e0ed;border-radius:7px;padding:0 8px;background:#fff;color:#425d7f;font-size:10px;outline:none}.pending-edit-grid input:focus,.pending-edit-grid select:focus{border-color:#1769d2;box-shadow:0 0 0 2px rgba(23,105,210,.07)}
-.pending-detail-add-row{min-width:0}.pending-detail-add-row select{width:100%;height:32px;border:1px solid #d4e0ed;border-radius:7px;padding:0 8px;background:#fff;color:#425d7f;font-size:10px}
+.pending-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}.pending-edit-grid label{display:flex;flex-direction:column;gap:4px;color:#8193aa;font-size:10px;font-weight:400}.pending-edit-grid input,.pending-edit-grid select{height:32px;border:1px solid #d4e0ed;border-radius:7px;padding:0 8px;background:var(--ktc-surface, #fff);color:#425d7f;font-size:10px;outline:none}.pending-edit-grid input:focus,.pending-edit-grid select:focus{border-color:#1769d2;box-shadow:0 0 0 2px rgba(23,105,210,.07)}
+.pending-detail-add-row{min-width:0}.pending-detail-add-row select{width:100%;height:32px;border:1px solid #d4e0ed;border-radius:7px;padding:0 8px;background:var(--ktc-surface, #fff);color:#425d7f;font-size:10px}
 
 /* Errors */
 .management-error{padding:10px;border:1px solid #f1c2c7;border-radius:8px;background:#fff7f7;color:#c63e4a;font-size:11px}
@@ -164,7 +164,7 @@
 .pending-reference-page .pending-reference-table td.view-col{display:none!important}
 .pending-reference-page .pending-reference-table .select-col input[type="checkbox"]{appearance:auto!important;-webkit-appearance:checkbox!important;display:inline-block!important;visibility:visible!important;opacity:1!important;width:16px!important;height:16px!important;min-width:16px!important;padding:0!important;margin:0!important;border:1px solid #9ab6d7!important;accent-color:#1769d2!important;cursor:pointer}
 .pending-reference-page .pending-reference-table th.select-col{position:sticky;left:0;z-index:2;background:#f7faff}
-.pending-reference-page .pending-reference-table td.select-col{position:sticky;left:0;z-index:1;background:#fff}
+.pending-reference-page .pending-reference-table td.select-col{position:sticky;left:0;z-index:1;background:var(--ktc-surface, #fff)}
 .pending-reference-page .pending-reference-table tbody tr:hover td.select-col,
 .pending-reference-page .pending-reference-table tbody tr.pending-row-active td.select-col{background:#f2f7ff!important}
 

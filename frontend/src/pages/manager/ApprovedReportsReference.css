@@ -2,7 +2,7 @@
 .pending-reference-page aside[style*="width:430px"]{
   width:min(430px,100%)!important;
   flex:0 0 430px!important;
-  background:#fff!important;
+  background:var(--ktc-surface, #fff)!important;
   border:1px solid #dbe6f2!important;
   border-radius:12px!important;
   box-shadow:0 4px 14px rgba(35,76,125,.055)!important;
@@ -58,8 +58,8 @@ div:has(> table:has(tbody td[colspan="13"])) > div:first-child{position:relative
 
 table:has(tbody td[colspan="13"]) thead{display:none!important}
 table:has(tbody td[colspan="13"]){min-width:100%!important;width:100%!important}
-table:has(tbody td[colspan="13"]) tbody tr{height:180px!important;background:#fff!important}
-table:has(tbody td[colspan="13"]) tbody td{height:180px!important;padding:0 16px!important;border:0!important;background:#fff!important;color:#7890ad!important;text-align:center!important;vertical-align:middle!important;font-size:13px!important}
+table:has(tbody td[colspan="13"]) tbody tr{height:180px!important;background:var(--ktc-surface, #fff)!important}
+table:has(tbody td[colspan="13"]) tbody td{height:180px!important;padding:0 16px!important;border:0!important;background:var(--ktc-surface, #fff)!important;color:#7890ad!important;text-align:center!important;vertical-align:middle!important;font-size:13px!important}
 table:has(tbody td[colspan="13"]) tbody td::before{content:"";display:inline-block;width:7px;height:7px;margin:0 0 11px 0;border-radius:50%;background:#9bc8f5;vertical-align:middle}
 
 @media(max-width:1280px){.pending-reference-page aside[style*="width:430px"]{width:100%!important;flex-basis:auto!important}}

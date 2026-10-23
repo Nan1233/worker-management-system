@@ -4,8 +4,8 @@
 .audit-page-header h1{font-size:22px!important;font-weight:600!important;line-height:1.25!important;gap:7px!important;letter-spacing:-.02em!important}
 .audit-page-header h1 svg{width:22px!important;height:22px!important}
 .audit-page-header p{display:none!important}
-.audit-filter-card{border:1px solid #dbe6f3!important;box-shadow:none!important;border-radius:9px!important;background:#fff!important;padding:8px!important;gap:7px!important;grid-template-columns:1.25fr 1fr 1fr 1fr 1.25fr auto!important}
-.audit-filter-date,.audit-select,.audit-search{height:36px!important;border-radius:7px!important;background:#fff!important}
+.audit-filter-card{border:1px solid #dbe6f3!important;box-shadow:none!important;border-radius:9px!important;background:var(--ktc-surface, #fff)!important;padding:8px!important;gap:7px!important;grid-template-columns:1.25fr 1fr 1fr 1fr 1.25fr auto!important}
+.audit-filter-date,.audit-select,.audit-search{height:36px!important;border-radius:7px!important;background:var(--ktc-surface, #fff)!important}
 .audit-filter-date{padding:0 8px!important}
 .audit-filter-date input,.audit-select select,.audit-search input{font-size:12px!important}
 .audit-filter-date svg{width:14px!important;height:14px!important}
