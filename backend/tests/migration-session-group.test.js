@@ -224,10 +224,9 @@ test('060 stays registered, is the latest migration and the ceiling/allowlist ar
   assert.equal(manifest.migrations.filter((name) => name === MIGRATION_060).length, 1);
   assert.equal(manifest.latestMigration, MIGRATION_060);
   const wrangler = fs.readFileSync(path.join(BACKEND, 'wrangler.jsonc'), 'utf8');
-  assert.match(wrangler, /"KTC_MIGRATION_MAX":\s*"30"/);
-  const include = wrangler.match(/"KTC_MIGRATION_INCLUDE":\s*"([^"]*)"/)[1].split(',').map(Number);
-  assert.ok(include.every((n) => n === 53 || n === 54 || n === 59 || n === 60), `unexpected allowlist: ${include}`);
-  assert.ok(!include.some((n) => n >= 31 && n <= 52), '031-052 (destructive) must stay blocked');
+  assert.match(wrangler, /"KTC_RUN_BUILD_DB_MIGRATIONS":\s*"false"/);
+  assert.doesNotMatch(wrangler, /"KTC_MIGRATION_(?:MAX|INCLUDE|REF|REPOSITORY)"/,
+    'Worker config must not carry migration runner settings; manual migration stays operator-controlled');
 });
 
 for (const batchSize of [8, 5, 2, 1]) {
