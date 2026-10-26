@@ -11,7 +11,7 @@ const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
 const checkDailyHours = async (connection, { workerId, workDate, shift, incomingActualHours, incomingMachineLines = [], isGc = false, excludeTempReportId = null }) => {
     const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
-    if (!Number.isInteger(worker) || worker <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return null;
+    if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     return assertWorkerShiftHours({
       executor: connection, workerId: worker, workDate: date, shift,
       excludeTempReportId,
