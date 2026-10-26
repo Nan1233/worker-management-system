@@ -407,6 +407,7 @@ const validateMachineWorkerCapacityLocked = async ({
     }
   }
 
+  if (code === "GC") {
   // Per-machine/per-worker gross time cap: 12 hours in the same shift.
   // Gross machine time includes the break/deduction time; automatic machines only overlap
   // for worker-level elapsed time, but each physical machine is checked independently here.
@@ -465,6 +466,8 @@ const validateMachineWorkerCapacityLocked = async ({
       capacityCode = capacityCode || "MACHINE_WORKER_HOURS_LIMIT_EXCEEDED";
       break;
     }
+  }
+
   }
 
   return {
