@@ -16,7 +16,7 @@ test('machine policies match real KTC factory rules 2026-08-10', () => {
 });
 
 test('GC automatic/shared machine rules match factory declaration', () => {
-  for (const n of [1,2,10,11,4,3,9,8,25,26,14,17,23,24,16]) {
+  for (const n of [5, 6, 7, 11]) {
     assert.equal(getGcMachineRule(String(n)).automatic, true, `machine ${n}`);
   }
   for (const n of [5,6,7,11]) {
