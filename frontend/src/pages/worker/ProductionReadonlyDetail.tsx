@@ -29,6 +29,11 @@ function parseDefects(value: any): any[] {
   }
   return [];
 }
+function parseArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
+  return [];
+}
 
 function DefectRows({ defects }: { defects: any[] }) {
   const rows = (Array.isArray(defects) ? defects : []).filter((d) => num(d?.quantity) > 0);
@@ -76,11 +81,14 @@ export default function ProductionReadonlyDetail() {
 
   const r = report || {};
   const machineLines = Array.isArray(r.machine_lines) ? r.machine_lines : [];
+  const isGcMachineReport = String(r.process_code || "").trim().toUpperCase() === "GC" && machineLines.length > 0;
   const workerDefects = getWorkerDeclaredDefects<any>(r);
   const deductions = Array.isArray(r.deductions) ? r.deductions : [];
-  const totalOk = num(r.tt_ok ?? r.ok_quantity ?? r.total_ok);
-  const totalNg = num(r.tt_ng ?? r.ng_quantity ?? r.total_ng);
-  const totalOutput = num(r.actual_output ?? r.tt_sl ?? r.total_output);
+  // GC machine-line reports intentionally keep parent-level totals at zero; render the persisted line totals instead.
+  const totalOk = isGcMachineReport ? machineLines.reduce((sum: number, line: any) => sum + num(line.ok_quantity ?? line.tt_ok), 0) : num(r.tt_ok ?? r.ok_quantity ?? r.total_ok);
+  const totalNg = isGcMachineReport ? machineLines.reduce((sum: number, line: any) => sum + num(line.ng_quantity ?? line.tt_ng), 0) : num(r.tt_ng ?? r.ng_quantity ?? r.total_ng);
+  const totalOutput = isGcMachineReport ? totalOk + totalNg : num(r.actual_output ?? r.tt_sl ?? r.total_output);
+  const lineDeductionHours = (line: any) => Math.max(0, num(line.deduction_time_hours));
   const achievementStored = r.achievement_percent ?? r.attainment_percent ?? r.percent_achieved;
   const performanceStored = r.performance_percent ?? r.productivity_percent ?? r.percent_performance;
   const ppStored = r.pp_percent ?? r.pp;
@@ -113,9 +121,10 @@ export default function ProductionReadonlyDetail() {
     <section className="rod-card"><h3>Chi tiết máy & sản phẩm</h3>{machineLines.length ? machineLines.map((line: any, index: number) => {
       const defects = parseDefects(line.defects ?? line.defects_json);
       const ok = num(line.ok_quantity ?? line.tt_ok); const ng = num(line.ng_quantity ?? line.tt_ng);
+      const lineDeductions = parseArray(line.deductions_json ?? line.deductions);
       return <div className="rod-machine" key={line.id || index}><div className="rod-machine-head"><b>Máy {index + 1} · {line.machine_code || line.machine_no || "—"}</b><span>{line.product_code || line.product_name || "—"}</span></div><div className="rod-grid">
-        <div><label>Thời gian chạy máy</label><b>{fmt(line.machine_time_hours ?? line.time_hours, 2)} giờ</b></div><div><label>Sản lượng OK</label><b className="ok">{fmt(ok)}</b></div><div><label>Sản lượng NG</label><b className="ng">{fmt(ng)}</b></div><div><label>Tổng máy</label><b>{fmt(ok + ng)}</b></div>
-      </div><div className="rod-machine-defects"><div className="rod-subtitle">Chi tiết lỗi NG máy · {fmt(defects.reduce((sum, d) => sum + num(d.quantity), 0))} sản phẩm</div><DefectRows defects={defects}/></div></div>;
+        <div><label>Thời gian máy</label><b>{fmt(line.machine_time_hours ?? line.time_hours, 2)} giờ</b></div><div><label>Giờ trừ</label><b>{fmt(lineDeductionHours(line), 2)} giờ</b></div><div><label>Sản lượng OK</label><b className="ok">{fmt(ok)}</b></div><div><label>Sản lượng NG</label><b className="ng">{fmt(ng)}</b></div><div><label>Tổng máy</label><b>{fmt(ok + ng)}</b></div>
+      </div>{lineDeductions.length > 0 && <div className="rod-machine-defects"><div className="rod-subtitle">Chi tiết thời gian trừ</div>{lineDeductions.map((d: any, i: number) => <div className="rod-defect-row" key={d.deduction_type_id || d.deduction_code || i}><span>{d.deduction_code || "TRỪ GIỜ"} — {d.deduction_name || d.name || "Chưa phân loại"}</span><strong>{fmt(d.hours ?? (num(d.minutes ?? d.deduction_minutes) / 60), 2)} giờ</strong></div>)}</div>}<div className="rod-machine-defects"><div className="rod-subtitle">Chi tiết lỗi NG máy · {fmt(defects.reduce((sum, d) => sum + num(d.quantity), 0))} sản phẩm</div><DefectRows defects={defects}/></div></div>;
     }) : <div className={r.machine_lines_load_failed ? "rod-error" : "rod-empty"}>{r.machine_lines_load_failed ? "Không tải được danh sách máy của báo cáo này. Vui lòng tải lại trang; chưa thể kết luận báo cáo không có máy." : "Không có dữ liệu máy."}</div>}</section>
 
     <section className="rod-card"><h3>Chi tiết lỗi NG của người</h3><div className="rod-section-total">Tổng NG của người: <b>{fmt(totalNg)}</b></div><DefectRows defects={workerDefects}/>{totalNg > 0 && workerDefects.length === 0 && <div className="rod-unclassified">Có {fmt(totalNg)} NG nhưng báo cáo không có dòng phân loại lỗi người được lưu. Không lấy lỗi máy để thay thế.</div>}</section>
