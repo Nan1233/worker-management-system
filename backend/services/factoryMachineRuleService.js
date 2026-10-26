@@ -407,6 +407,65 @@ const validateMachineWorkerCapacityLocked = async ({
     }
   }
 
+  // Per-machine/per-worker gross time cap: 12 hours in the same shift.
+  // Gross machine time includes the break/deduction time; automatic machines only overlap
+  // for worker-level elapsed time, but each physical machine is checked independently here.
+  const tempHoursExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
+  const tempHoursParams = [
+    Number(processId), String(workDate).slice(0, 10), String(shift).trim(), ...uniqueCodes
+  ];
+  if (excludeTempReportId) tempHoursParams.push(Number(excludeTempReportId));
+  const machineHourRows = await executorQuery(
+    executor,
+    `SELECT worker_id, machine_code, SUM(machine_hours) AS total_hours
+       FROM (
+         SELECT prt.worker_id, UPPER(TRIM(ml.machine_code)) AS machine_code,
+                CASE WHEN ml.machine_time_hours IS NULL OR ml.machine_time_hours=0
+                     THEN GREATEST(0, COALESCE(ml.actual_time_hours,0) + COALESCE(ml.deduction_time_hours,0))
+                     ELSE GREATEST(0, ml.machine_time_hours) END AS machine_hours
+           FROM production_reports_temp prt
+           JOIN production_temp_machine_lines ml ON ml.temp_report_id=prt.id
+          WHERE prt.process_id=? AND prt.work_date=? AND prt.shift=?
+            AND prt.status IN ('pending','need_fix')
+            AND UPPER(TRIM(ml.machine_code)) IN (${machinePlaceholders})
+            ${tempHoursExclude}
+         UNION ALL
+         SELECT pr.worker_id, UPPER(TRIM(ml2.machine_code)) AS machine_code,
+                CASE WHEN ml2.machine_time_hours IS NULL OR ml2.machine_time_hours=0
+                     THEN GREATEST(0, COALESCE(ml2.actual_time_hours,0) + COALESCE(ml2.deduction_time_hours,0))
+                     ELSE GREATEST(0, ml2.machine_time_hours) END AS machine_hours
+           FROM production_reports pr
+           JOIN production_report_machine_lines ml2 ON ml2.report_id=pr.id
+          WHERE pr.process_id=? AND pr.work_date=? AND pr.shift=? AND pr.status='approved'
+            AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
+       ) usage
+      GROUP BY worker_id, machine_code`,
+    [
+      ...tempHoursParams,
+      Number(processId), String(workDate).slice(0, 10), String(shift).trim(), ...uniqueCodes
+    ]
+  );
+  const existingHoursByWorkerMachine = new Map();
+  for (const item of machineHourRows || []) {
+    const key = `${Number(item.worker_id)}:${String(item.machine_code || "").trim().toUpperCase()}`;
+    existingHoursByWorkerMachine.set(key, Number(item.total_hours || 0));
+  }
+  for (const machineCode of uniqueCodes) {
+    const incomingHours = lines
+      .filter((line) => String(line.machine_code || "").trim().toUpperCase() === machineCode)
+      .reduce((sum, line) => {
+        const gross = Number(line.machine_time_hours);
+        return sum + (Number.isFinite(gross) && gross > 0
+          ? gross
+          : Math.max(0, Number(line.actual_time_hours) || 0) + Math.max(0, Number(line.deduction_time_hours) || 0));
+      }, 0);
+    const existingHours = existingHoursByWorkerMachine.get(`${Number(workerId)}:${machineCode}`) || 0;
+    if (existingHours + incomingHours > 12 + 1e-9) {
+      errors.machine_lines = `Công nhân đã sử dụng máy ${machineCode} ${existingHours.toFixed(2)} giờ trong ca; tổng cùng báo cáo không được vượt quá 12 giờ.`;
+      break;
+    }
+  }
+
   return {
     valid: Object.keys(errors).length === 0,
     errors
