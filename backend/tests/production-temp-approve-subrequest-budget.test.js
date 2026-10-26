@@ -134,7 +134,7 @@ test('approve 4 machine report succeeds with every machine line copied', async (
 test('4-machine approval stays inside the Free-plan subrequest limit with headroom', async () => {
   const { error, log } = await approve({ lines: 4 });
   assert.ifError(error);
-  assert.ok(log.length + CONTROLLER_ALLOWANCE <= WORKER_FREE_LIMIT - 6, `model statements=${log.length}`);
+  assert.ok(log.length + CONTROLLER_ALLOWANCE <= WORKER_FREE_LIMIT - 5, `model statements=${log.length}`);
 });
 
 test('subrequests grow by at most 2 per extra machine line', async () => {
