@@ -1,4 +1,4 @@
-const { calculateGcShiftHours } = require('../utils/gcShiftHours');
+const { calculateGcShiftHours, AUTO_MACHINE_NUMBERS, machineNumber, grossHours } = require('../utils/gcShiftHours');
 
 function query(executor, sql, params = []) {
   return executor.promise ? executor.promise().query(sql, params) : executor.query(sql, params);
@@ -11,13 +11,13 @@ function grossParentHours(row) {
 }
 
 async function assertWorkerShiftHours({
-  executor, workerId, workDate, shift, candidate,
+  executor, workerId, processId, workDate, shift, candidate,
   excludeApprovedReportId = null, excludeTempReportId = null
 }) {
   const worker = Number(workerId);
   const date = String(workDate || '').slice(0, 10);
   const shiftValue = String(shift || '').trim();
-  if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !shiftValue) {
+  if (!Number.isInteger(worker) || worker <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !shiftValue) {
     const error = new Error('Thiếu công nhân, ngày hoặc ca để kiểm tra giới hạn 12 giờ');
     error.status = 422; error.code = 'SHIFT_HOURS_CONTEXT_REQUIRED'; error.isPublic = true;
     throw error;
@@ -41,15 +41,19 @@ async function assertWorkerShiftHours({
   ].join(' ');
 
   const [reports] = await query(executor, sql, params);
-  const approvedIds = reports.filter((r) => r.source === 'approved' && String(r.process_code).toUpperCase() === 'GC').map((r) => Number(r.id));
-  const tempIds = reports.filter((r) => r.source === 'temp' && String(r.process_code).toUpperCase() === 'GC').map((r) => Number(r.id));
+  const approvedGc = reports.filter((r) => r.source === 'approved' && String(r.process_code).toUpperCase() === 'GC');
+  const tempGc = reports.filter((r) => r.source === 'temp' && String(r.process_code).toUpperCase() === 'GC');
+  const approvedIds = approvedGc.map((r) => Number(r.id));
+  const tempIds = tempGc.map((r) => Number(r.id));
   const lineGroups = new Map();
+  const allGcLines = [];
   if (approvedIds.length) {
     const [lines] = await query(executor, 'SELECT report_id AS parent_id, machine_code, machine_time_hours, actual_time_hours, deduction_time_hours FROM production_report_machine_lines WHERE report_id IN (' + approvedIds.map(() => '?').join(',') + ')', approvedIds);
     for (const line of lines) {
       const key = 'approved:' + Number(line.parent_id);
       if (!lineGroups.has(key)) lineGroups.set(key, []);
       lineGroups.get(key).push(line);
+      allGcLines.push(line);
     }
   }
   if (tempIds.length) {
@@ -58,16 +62,34 @@ async function assertWorkerShiftHours({
       const key = 'temp:' + Number(line.parent_id);
       if (!lineGroups.has(key)) lineGroups.set(key, []);
       lineGroups.get(key).push(line);
+      allGcLines.push(line);
     }
   }
 
   let existingHours = 0;
   for (const report of reports) {
+    const isGc = String(report.process_code).toUpperCase() === 'GC';
     const lines = lineGroups.get(String(report.source) + ':' + Number(report.id)) || [];
-    existingHours += String(report.process_code).toUpperCase() === 'GC' && lines.length
-      ? calculateGcShiftHours(lines)
-      : grossParentHours(report);
+    if (!isGc) existingHours += grossParentHours(report);
+    else if (!lines.length) existingHours += grossParentHours(report);
   }
+
+  // Aggregate automatic-machine time across the whole shift, not report-by-report:
+  // the same worker may submit separate reports for automatic machines that ran in parallel.
+  const hoursByMachine = new Map();
+  for (const line of allGcLines) {
+    const number = machineNumber(line.machine_code);
+    const key = number === null ? String(line.machine_code || '').trim().toUpperCase() : String(number);
+    hoursByMachine.set(key, (hoursByMachine.get(key) || 0) + grossHours(line));
+  }
+  let sequentialMachineHours = 0;
+  let automaticMachineHours = 0;
+  for (const [key, hours] of hoursByMachine) {
+    const number = Number(key);
+    if (AUTO_MACHINE_NUMBERS.has(number)) automaticMachineHours = Math.max(automaticMachineHours, hours);
+    else sequentialMachineHours += hours;
+  }
+  existingHours += sequentialMachineHours + automaticMachineHours;
 
   const candidateProcessCode = String(candidate?.processCode || '').trim().toUpperCase();
   const candidateLines = Array.isArray(candidate?.machineLines) ? candidate.machineLines : [];
