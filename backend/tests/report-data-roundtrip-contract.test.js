@@ -37,7 +37,9 @@ test('monthly Excel is sourced only from approved parent reports and joins child
   assert.match(excel, /production_report_deductions/);
   assert.match(excel, /production_report_defects/);
   assert.match(excel, /production_report_machine_lines/);
-  assert.match(excel, /production_report_machine_defects/);
+  const templateExcel = read('services/templateDrivenProcessExcelExportService.js');
+  assert.match(templateExcel, /production_report_machine_defects/);
+  assert.match(templateExcel, /machineDefectsByLineId/);
   assert.match(excel, /WHERE pr\.work_date >= \?\s+AND pr\.work_date < \?/);
 });
 
