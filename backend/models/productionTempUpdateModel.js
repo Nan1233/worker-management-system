@@ -6,40 +6,23 @@ const { query, getConnection, beginTransaction, beginReadCommittedTransaction, c
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { assertWorkerShiftHours } = require("../services/workerShiftHoursGuard");
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
 const checkDailyHours = async (connection, { workerId, workDate, shift, incomingActualHours, incomingMachineLines = [], isGc = false, excludeTempReportId = null }) => {
-    const worker = Number(workerId), date = String(workDate || "").slice(0, 10), shiftValue = String(shift || "").trim();
-    if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-    const tempExcludeSql = excludeTempReportId ? "AND pr.id <> ?" : "";
-    const params = excludeTempReportId ? [worker, date, shiftValue, worker, date, shiftValue, excludeTempReportId] : [worker, date, shiftValue, worker, date, shiftValue];
-    const rows = await query(connection, `
-        SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE((SELECT (COALESCE(SUM(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN 0 ELSE CASE WHEN ml.machine_time_hours IS NULL OR ml.machine_time_hours=0 THEN GREATEST(0,COALESCE(ml.actual_time_hours,0)+COALESCE(ml.deduction_time_hours,0)) ELSE GREATEST(0,ml.machine_time_hours) END END),0) + COALESCE(MAX(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN CASE WHEN ml.machine_time_hours IS NULL OR ml.machine_time_hours=0 THEN GREATEST(0,COALESCE(ml.actual_time_hours,0)+COALESCE(ml.deduction_time_hours,0)) ELSE GREATEST(0,ml.machine_time_hours) END ELSE 0 END),0)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
-                ELSE CASE WHEN COALESCE(pr.total_time,0)>0 THEN pr.total_time ELSE COALESCE(pr.actual_time,0) + COALESCE(pr.deduction_time,0) END END AS counted_hours
-            FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? AND pr.status <> 'deleted'
-            UNION ALL
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
-                THEN COALESCE((SELECT (COALESCE(SUM(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN 0 ELSE CASE WHEN ml.machine_time_hours IS NULL OR ml.machine_time_hours=0 THEN GREATEST(0,COALESCE(ml.actual_time_hours,0)+COALESCE(ml.deduction_time_hours,0)) ELSE GREATEST(0,ml.machine_time_hours) END END),0) + COALESCE(MAX(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN CASE WHEN ml.machine_time_hours IS NULL OR ml.machine_time_hours=0 THEN GREATEST(0,COALESCE(ml.actual_time_hours,0)+COALESCE(ml.deduction_time_hours,0)) ELSE GREATEST(0,ml.machine_time_hours) END ELSE 0 END),0)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
-                ELSE CASE WHEN COALESCE(pr.total_time,0)>0 THEN pr.total_time ELSE COALESCE(pr.actual_time,0) + COALESCE(pr.deduction_time,0) END END AS counted_hours
-            FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? ${tempExcludeSql} AND pr.status IN ('pending','need_fix')
-        ) daily_hours`, params);
-    const existingHours = Number(rows?.[0]?.counted_hours || 0);
-    const incoming = isGc && Array.isArray(incomingMachineLines) && incomingMachineLines.length
-        ? calculateGcShiftHours(incomingMachineLines)
-        : Math.max(0, Number(incomingActualHours) || 0);
-    const projectedHours = existingHours + incoming;
-    if (exceedsDailyHoursLimit(projectedHours)) {
-        const remainingHours = Math.max(0, DAILY_HOURS_LIMIT - existingHours);
-        const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existingHours.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remainingHours.toFixed(2)} giờ.`);
-        error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
-        error.details = { worker_id: worker, work_date: date, existing_hours: Number(existingHours.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projectedHours.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, remaining_hours: Number(remainingHours.toFixed(4)), counted_field: "gross_elapsed_hours_by_shift" };
-        throw error;
-    }
-    return { existingHours, incomingTotalHours: incoming, projectedHours, limitHours: DAILY_HOURS_LIMIT };
+    const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
+    if (!Number.isInteger(worker) || worker <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return null;
+    return assertWorkerShiftHours({
+      executor: connection, workerId: worker, workDate: date, shift,
+      excludeTempReportId,
+      candidate: {
+        processCode: isGc ? "GC" : "NON_GC",
+        actual_time: incomingActualHours,
+        deduction_time: 0,
+        total_time: incomingActualHours,
+        machineLines: isGc ? incomingMachineLines : []
+      }
+    });
 };
 
 const parseDbTimestampMs = (value) => {
