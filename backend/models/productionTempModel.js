@@ -10,6 +10,7 @@ const { query, getConnection, beginTransaction, beginReadCommittedTransaction, c
 const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
+const { assertWorkerShiftHours } = require("../services/workerShiftHoursGuard");
 const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const submissionQueues = new Map();
@@ -67,32 +68,19 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
     const shift = String(data?.shift || "").trim();
-    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
+    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(workDate)) return null;
     const processRows = await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
-    const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
-    const incoming = isGc && machineLines.length ? calculateGcShiftHours(machineLines) : (Math.max(0, Number(data?.actual_time) || 0) + Math.max(0, Number(data?.deduction_time) || 0));
-    const rows = await query(executor, `SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE((SELECT (COALESCE(SUM(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN 0 ELSE CASE WHEN ml.machine_time_hours IS NULL OR ml.machine_time_hours=0 THEN GREATEST(0,COALESCE(ml.actual_time_hours,0)+COALESCE(ml.deduction_time_hours,0)) ELSE GREATEST(0,ml.machine_time_hours) END END),0) + COALESCE(MAX(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN CASE WHEN ml.machine_time_hours IS NULL OR ml.machine_time_hours=0 THEN GREATEST(0,COALESCE(ml.actual_time_hours,0)+COALESCE(ml.deduction_time_hours,0)) ELSE GREATEST(0,ml.machine_time_hours) END ELSE 0 END),0)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
-                ELSE CASE WHEN COALESCE(pr.total_time,0)>0 THEN pr.total_time ELSE COALESCE(pr.actual_time,0) + COALESCE(pr.deduction_time,0) END END AS counted_hours
-            FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? AND pr.status='approved'
-            UNION ALL
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
-                THEN COALESCE((SELECT (COALESCE(SUM(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN 0 ELSE CASE WHEN ml.machine_time_hours IS NULL OR ml.machine_time_hours=0 THEN GREATEST(0,COALESCE(ml.actual_time_hours,0)+COALESCE(ml.deduction_time_hours,0)) ELSE GREATEST(0,ml.machine_time_hours) END END),0) + COALESCE(MAX(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN CASE WHEN ml.machine_time_hours IS NULL OR ml.machine_time_hours=0 THEN GREATEST(0,COALESCE(ml.actual_time_hours,0)+COALESCE(ml.deduction_time_hours,0)) ELSE GREATEST(0,ml.machine_time_hours) END ELSE 0 END),0)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
-                ELSE CASE WHEN COALESCE(pr.total_time,0)>0 THEN pr.total_time ELSE COALESCE(pr.actual_time,0) + COALESCE(pr.deduction_time,0) END END AS counted_hours
-            FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? AND pr.status IN ('pending','need_fix')
-        ) daily_hours`, [workerId, workDate, shift, workerId, workDate, shift]);
-    const existing = Number(rows?.[0]?.counted_hours || 0);
-    const projected = existing + incoming;
-    if (exceedsDailyHoursLimit(projected)) {
-        const error = new Error(`Tổng giờ làm trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ.`);
-        error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
-        error.details = { worker_id: workerId, work_date: workDate, existing_hours: Number(existing.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projected.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, counted_field: "gross_elapsed_hours_by_shift" };
-        throw error;
-    }
-    return { existingHours: existing, incomingActualHours: incoming, projectedHours: existing + incoming, limitHours: DAILY_HOURS_LIMIT };
+    const processCode = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
+    return assertWorkerShiftHours({
+      executor, workerId, processId: Number(data?.process_id), workDate, shift,
+      candidate: {
+        processCode,
+        actual_time: data?.actual_time,
+        deduction_time: data?.deduction_time,
+        total_time: data?.total_time,
+        machineLines: processCode === "GC" ? machineLines : []
+      }
+    });
 };
 
 createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) => {
