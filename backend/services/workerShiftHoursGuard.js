@@ -21,7 +21,7 @@ async function assertWorkerShiftHours({
   const worker = Number(workerId);
   const date = String(workDate || '').slice(0, 10);
   const shiftValue = String(shift || '').trim();
-  if (!Number.isInteger(worker) || worker <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !shiftValue) {
+  if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !shiftValue) {
     const error = new Error('Thiếu công nhân, ngày hoặc ca để kiểm tra giới hạn 12 giờ');
     error.status = 422; error.code = 'SHIFT_HOURS_CONTEXT_REQUIRED'; error.isPublic = true;
     throw error;
