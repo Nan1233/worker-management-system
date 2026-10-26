@@ -37,7 +37,7 @@ async function assertWorkerShiftHours({
 
   const sql = [
     "SELECT pr.id, pr.process_id, p.process_code, pr.actual_time, pr.deduction_time, pr.total_time, 'approved' AS source,",
-    'ml.machine_code, ml.machine_time_hours, ml.actual_time_hours, ml.deduction_time_hours',
+    'ml.machine_code, ml.machine_time_hours, ml.deduction_time_hours',
     'FROM production_reports pr JOIN processes p ON p.id=pr.process_id',
     'LEFT JOIN production_report_machine_lines ml ON ml.report_id=pr.id',
     "WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? AND pr.status='approved'" + approvedExclude,
@@ -69,7 +69,6 @@ async function assertWorkerShiftHours({
       const line = {
         machine_code: row.machine_code,
         machine_time_hours: row.machine_time_hours,
-        actual_time_hours: row.actual_time_hours,
         deduction_time_hours: row.deduction_time_hours
       };
       if (!lineGroups.has(key)) lineGroups.set(key, []);
