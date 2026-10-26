@@ -162,12 +162,19 @@ export default function Workers() {
           const code = String(report.worker_code || "").trim();
           const hours = Number(report.actual_time ?? report.actual_hours ?? 0);
           if (!code || !Number.isFinite(hours) || hours <= 0) continue;
-          const ttDm = Number(report.tt_dinh_muc ?? report.standard_output ?? report.target_output ?? 0);
-          const actual = Number(report.actual_output ?? report.tt ?? report.tt_ok ?? 0);
-          const rawPercent = Number(report.nang_suat_percent);
-          const percent = Number.isFinite(rawPercent) && rawPercent > 0
-            ? rawPercent
-            : ttDm > 0 ? actual / (ttDm * hours) * 100 : 0;
+          const standard = Number(report.standard_output ?? report.target_output ?? 0);
+          const actual = Number(report.actual_output ?? (Number(report.tt_ok ?? 0) + Number(report.tt_ng ?? 0)) ?? report.tt ?? 0);
+          const storedTtDinhMuc = report.tt_dinh_muc;
+          const ttDinhMuc = storedTtDinhMuc !== null && storedTtDinhMuc !== undefined && storedTtDinhMuc !== ""
+            ? Number(storedTtDinhMuc)
+            : standard > 0 && hours > 0 ? standard * hours : 0;
+          const rawPercent = report.nang_suat_percent ?? report.nang_suat_percent_snapshot ?? report.productivity_percent;
+          const parsedPercent = rawPercent !== null && rawPercent !== undefined && rawPercent !== ""
+            ? Number(rawPercent)
+            : NaN;
+          const percent = Number.isFinite(parsedPercent)
+            ? parsedPercent
+            : ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0;
           if (!Number.isFinite(percent) || percent < 0) continue;
           if (!totals[code]) totals[code] = { weighted: 0, hours: 0 };
           totals[code].weighted += percent * hours;
