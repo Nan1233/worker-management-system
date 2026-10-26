@@ -523,6 +523,8 @@ module.exports = {
             audit = payload.audit && typeof payload.audit === "object" ? payload.audit : {};
         }
 
+        data._daily_hours_machine_lines = Array.isArray(machineLines) ? machineLines : [];
+
         const connection = await getConnection();
 
         try {
