@@ -79,7 +79,7 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
     const resolvedProcessCode = String(processRows?.[0]?.process_code || "").trim().toUpperCase();
     // The request may contain only process_id. Preserve the resolved code so the
     // later split-GC persistence path uses the same authoritative process record.
-    if (!String(data?.process_code || "").trim() && resolvedProcessCode) data.process_code = resolvedProcessCode;
+    if (resolvedProcessCode) data.process_code = resolvedProcessCode;
     const isGc = (resolvedProcessCode || String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase()) === "GC";
     const incoming = isGc && machineLines.length
         ? Math.max(...machineLines.map((line) => {
