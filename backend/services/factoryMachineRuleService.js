@@ -421,9 +421,7 @@ const validateMachineWorkerCapacityLocked = async ({
     `SELECT worker_id, machine_code, SUM(machine_hours) AS total_hours
        FROM (
          SELECT prt.worker_id, UPPER(TRIM(ml.machine_code)) AS machine_code,
-                CASE WHEN ml.machine_time_hours IS NULL OR ml.machine_time_hours=0
-                     THEN GREATEST(0, COALESCE(ml.actual_time_hours,0) + COALESCE(ml.deduction_time_hours,0))
-                     ELSE GREATEST(0, ml.machine_time_hours) END AS machine_hours
+                GREATEST(0, COALESCE(ml.machine_time_hours,0)) AS machine_hours
            FROM production_reports_temp prt
            JOIN production_temp_machine_lines ml ON ml.temp_report_id=prt.id
           WHERE prt.process_id=? AND prt.work_date=? AND prt.shift=?
@@ -432,9 +430,7 @@ const validateMachineWorkerCapacityLocked = async ({
             ${tempHoursExclude}
          UNION ALL
          SELECT pr.worker_id, UPPER(TRIM(ml2.machine_code)) AS machine_code,
-                CASE WHEN ml2.machine_time_hours IS NULL OR ml2.machine_time_hours=0
-                     THEN GREATEST(0, COALESCE(ml2.actual_time_hours,0) + COALESCE(ml2.deduction_time_hours,0))
-                     ELSE GREATEST(0, ml2.machine_time_hours) END AS machine_hours
+                GREATEST(0, COALESCE(ml2.machine_time_hours,0)) AS machine_hours
            FROM production_reports pr
            JOIN production_report_machine_lines ml2 ON ml2.report_id=pr.id
           WHERE pr.process_id=? AND pr.work_date=? AND pr.shift=? AND pr.status='approved'
