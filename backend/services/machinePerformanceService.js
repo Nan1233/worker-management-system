@@ -126,7 +126,23 @@ const calculateReportPerformance = ({ report = {}, machineLines = [] } = {}) => 
   // Các công đoạn máy khác (Mài, Đo, Ép, Cán) luôn có actual_time > 0 nên fallback này
   // không ảnh hưởng tới chúng.
   const reportedActualHours = Math.max(0, safeNumber(report.actual_time));
-  const actualWorkerHours = reportedActualHours > 0 ? reportedActualHours : totalMachineHours;
+  const automaticMachineIds = new Set([5, 6, 7, 11]);
+  const automaticWorkerHours = lines.reduce((maximum, line) => {
+    const machineId = Number(line.machine_id) || 0;
+    return automaticMachineIds.has(machineId)
+      ? Math.max(maximum, Math.max(0, safeNumber(line.machine_time_hours)))
+      : maximum;
+  }, 0);
+  const ordinaryWorkerHours = lines.reduce((sum, line) => {
+    const machineId = Number(line.machine_id) || 0;
+    return automaticMachineIds.has(machineId)
+      ? sum
+      : sum + Math.max(0, safeNumber(line.machine_time_hours));
+  }, 0);
+  // Worker credit differs from physical machine time: parallel automatic machines
+  // (IDs 5, 6, 7, 11) count by MAX; other machine hours are added.
+  const calculatedWorkerHours = ordinaryWorkerHours + automaticWorkerHours;
+  const actualWorkerHours = reportedActualHours > 0 ? reportedActualHours : calculatedWorkerHours;
   const machineDefects = aggregateMachineDefects(lines);
 
   return {
