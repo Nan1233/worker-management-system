@@ -77,7 +77,13 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
     const processRows = await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
     const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
-    const incoming = isGc && machineLines.length ? Math.max(...machineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0))) : (Number(data?.actual_time) || 0);
+const incoming = isGc && machineLines.length
+        ? Math.max(...machineLines.map((line) => {
+            const machineHours = Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0;
+            const deductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
+            return Math.max(0, machineHours - deductionHours);
+        }))
+        : (Number(data?.actual_time) || 0);
     const rows = await query(executor, `SELECT COALESCE(SUM(group_hours),0) AS counted_hours FROM (
             SELECT group_key, MAX(counted_hours) AS group_hours FROM (
                 SELECT CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')) IS NOT NULL
