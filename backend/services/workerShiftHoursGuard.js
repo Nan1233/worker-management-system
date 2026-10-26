@@ -49,7 +49,8 @@ async function assertWorkerShiftHours({
     "WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? AND pr.status IN ('pending','need_fix')" + tempExclude
   ].join(' ');
 
-  const [rows] = await query(executor, sql, params);
+  const queryResult = await query(executor, sql, params);
+  const rows = Array.isArray(queryResult?.[0]) ? queryResult[0] : (Array.isArray(queryResult) ? queryResult : []);
   const reportMap = new Map();
   const lineGroups = new Map();
   const allGcLines = [];
