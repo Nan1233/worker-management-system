@@ -1,4 +1,5 @@
 const { calculateGcShiftHours, AUTO_MACHINE_NUMBERS, machineNumber, grossHours } = require('../utils/gcShiftHours');
+const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require('../utils/dailyHoursLimit');
 
 function query(executor, sql, params = []) {
   if (executor.promise) return executor.promise().query(sql, params);
@@ -107,13 +108,13 @@ async function assertWorkerShiftHours({
     ? calculateGcShiftHours(candidateLines)
     : grossParentHours(candidate || {});
   const projected = existingHours + candidateHours;
-  if (projected > 12 + 1e-9) {
+  if (exceedsDailyHoursLimit(projected)) {
     const error = new Error('Tổng thời gian trong ca là ' + projected.toFixed(2) + ' giờ; giới hạn một công nhân là 12 giờ, đã tính cả giờ nghỉ.');
     error.status = 422; error.code = 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED'; error.isPublic = true;
-    error.details = { worker_id: worker, work_date: date, shift: shiftValue, existing_hours: Number(existingHours.toFixed(4)), incoming_hours: Number(candidateHours.toFixed(4)), projected_hours: Number(projected.toFixed(4)), limit_hours: 12 };
+    error.details = { worker_id: worker, work_date: date, shift: shiftValue, existing_hours: Number(existingHours.toFixed(4)), incoming_hours: Number(candidateHours.toFixed(4)), projected_hours: Number(projected.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT };
     throw error;
   }
-  return { existingHours, incomingHours: candidateHours, projectedHours: projected, limitHours: 12 };
+  return { existingHours, incomingHours: candidateHours, projectedHours: projected, limitHours: DAILY_HOURS_LIMIT };
 }
 
 module.exports = { assertWorkerShiftHours };
