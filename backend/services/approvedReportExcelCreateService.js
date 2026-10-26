@@ -62,6 +62,7 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
   const conn=await db.promise().getConnection();
   try{
     await conn.beginTransaction();
+    await conn.query('SELECT id FROM workers WHERE id=? FOR UPDATE', [workerId]);
     const logicalDuplicateKey = buildLogicalDuplicateKey({
       workerId, processId, workDate: validation.normalized.work_date, shift: validation.normalized.shift,
       operationMode, machineNo: validation.normalized.machine_no, productName: validation.normalized.product_name,
