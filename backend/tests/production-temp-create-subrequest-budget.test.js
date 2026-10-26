@@ -11,7 +11,7 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
   const answer = (rawSql) => {
     const sql = String(rawSql).replace(/\s+/g, ' ');
     if (/LAST_INSERT_ID/i.test(sql)) return [{ insertId: nextId }];
-    if (/SUM\(counted_hours\)/i.test(sql)) return [{ counted_hours: dailyHours }];
+    if (/SUM\((?:group_hours|counted_hours)\)/i.test(sql)) return [{ counted_hours: dailyHours }];
     if (/training_percent FROM workers/i.test(sql)) return [{ training_percent: 100 }];
     if (/FROM processes/i.test(sql)) return [{ process_code: 'EP' }];
     if (existingRequest && /FROM production_reports_temp WHERE worker_id = \? AND client_request_id/i.test(sql)) return [{ id: 77, status: 'pending' }];
