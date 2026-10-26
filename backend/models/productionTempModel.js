@@ -322,17 +322,30 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         let deductions;
         try {
             await beginTransaction(validationConnection);
-            const resolved = await resolveMasterDetails(data.process_id, defectsInput, deductionsInput, validationConnection);
-            defects = resolved.defects;
-            deductions = resolved.deductions;
-            validateChildTotals(data, defects, deductions);
+            if (isGiaCongProcess(data) && machineLines.length > 1) {
+                // Validate each machine's NG and deduction details against its own parent report.
+                for (const [index, line] of machineLines.entries()) {
+                    const childData = splitGcLinePayload(data, line, requestId, index);
+                    const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, validationConnection);
+                    validateChildTotals(childData, resolved.defects, resolved.deductions);
+                }
+                defects = [];
+                deductions = [];
+            } else {
+                const resolved = await resolveMasterDetails(data.process_id, defectsInput, deductionsInput, validationConnection);
+                defects = resolved.defects;
+                deductions = resolved.deductions;
+                validateChildTotals(data, defects, deductions);
+            }
             await rollback(validationConnection);
         } catch (error) {
             try { await rollback(validationConnection); } catch {}
             throw error;
         } finally { validationConnection.release(); }
 
+        const splitGc = isGiaCongProcess(data) && machineLines.length > 1;
         let tempId;
+        const createdIds = [];
         const parentConnection = await getConnection();
         try {
             // Keep the report parent and every child row in ONE transaction.
@@ -343,10 +356,26 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             const race = await findExistingClientRequest(data, parentConnection);
             if (race) { await commit(parentConnection); return idempotent(race); }
             try {
-                tempId = await createModel.create(data, parentConnection);
-                await createModel.createDefects(tempId, data.process_id, defects, parentConnection);
-                await createModel.createDeductions(tempId, data.process_id, deductions, parentConnection);
-                await createModel.replaceMachineLines(tempId, machineLines, parentConnection);
+                if (splitGc) {
+                    // All machine-specific parent reports and child rows are committed together.
+                    for (const [index, line] of machineLines.entries()) {
+                        const childData = splitGcLinePayload(data, line, requestId, index);
+                        childData._skip_daily_hours_enforcement = true; // group was checked once; create() still locks the worker row.
+                        const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, parentConnection);
+                        validateChildTotals(childData, resolved.defects, resolved.deductions);
+                        tempId = await createModel.create(childData, parentConnection);
+                        createdIds.push(Number(tempId));
+                        await createModel.createDefects(tempId, data.process_id, resolved.defects, parentConnection);
+                        await createModel.createDeductions(tempId, data.process_id, resolved.deductions, parentConnection);
+                        await createModel.replaceMachineLines(tempId, [line], parentConnection);
+                    }
+                } else {
+                    tempId = await createModel.create(data, parentConnection);
+                    createdIds.push(Number(tempId));
+                    await createModel.createDefects(tempId, data.process_id, defects, parentConnection);
+                    await createModel.createDeductions(tempId, data.process_id, deductions, parentConnection);
+                    await createModel.replaceMachineLines(tempId, machineLines, parentConnection);
+                }
                 await commit(parentConnection);
             } catch (error) {
                 await rollback(parentConnection);
@@ -362,13 +391,15 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         // Audit/version work stays separate so an audit failure cannot undo an
         // already committed, complete report and its NG/trừ giờ/machine details.
         let auditWarning = null;
-        try { await createAuditAfterChildren({ tempId, audit, data, requestId, logicalDuplicateKey: data.logical_duplicate_key }); }
-        catch (error) {
-            auditWarning = String(error?.message || error).slice(0,450);
-            try { await query(db, `UPDATE production_reports_temp SET review_note=? WHERE id=?`, [`Audit chưa hoàn tất: ${auditWarning}`, tempId]); } catch {}
+        for (const createdId of createdIds) {
+            try { await createAuditAfterChildren({ tempId: createdId, audit, data, requestId: splitGc ? childRequestId(requestId, machineLines[createdIds.indexOf(createdId)], createdIds.indexOf(createdId)) : requestId, logicalDuplicateKey: data.logical_duplicate_key }); }
+            catch (error) {
+                auditWarning = String(error?.message || error).slice(0,450);
+                try { await query(db, `UPDATE production_reports_temp SET review_note=? WHERE id=?`, [`Audit chưa hoàn tất: ${auditWarning}`, createdId]); } catch {}
+            }
         }
 
-        return { id: Number(tempId), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key, audit_warning: auditWarning };
+        return { id: Number(createdIds[0] || tempId), ids: createdIds, reports: createdIds.map((id, index) => ({ id, machine_code: splitGc ? machineLines[index]?.machine_code || null : null })), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key, audit_warning: auditWarning };
     });
 };
 
