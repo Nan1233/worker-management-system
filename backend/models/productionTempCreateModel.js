@@ -24,7 +24,7 @@ const enforceDailyHoursLocked = async (executor, data) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
     const shift = String(data?.shift || "").trim();
-    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(workDate)) return;
+    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
     await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
     const processRows = data?._resolved_process_code !== undefined
       ? [{ process_code: data._resolved_process_code }]
