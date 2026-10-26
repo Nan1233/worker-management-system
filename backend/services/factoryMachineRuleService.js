@@ -19,7 +19,7 @@ const canonicalMachineNumber = (value) => {
   // (6, M6, MAY6, MACHINE6, GC6, GC-6, ...). The business identity is
   // the physical machine number, not the display prefix.
   const patterns = [
-    /^(?:MÁY|MAY|MACHINE|M|GC|G)[-_]?(\d{1,2})$/i,
+    /^(?:MÁY|MAY|MACHINE|M|GC|G|C)[-_]?(\d{1,2})$/i,
     /^(\d{1,2})$/
   ];
 
