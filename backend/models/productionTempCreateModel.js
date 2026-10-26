@@ -653,7 +653,7 @@ module.exports = {
 
             let tempId;
             try {
-                tempId = await this.create(data, connection);
+                tempId = await this.create({ ...data, _daily_hours_machine_lines: machineLines }, connection);
             } catch (error) {
                 // The canonical schema intentionally keeps client_request_id
                 // nullable and uses the duplicate-lock table for idempotency.
