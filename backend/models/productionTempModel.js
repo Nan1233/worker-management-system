@@ -219,6 +219,47 @@ const createAuditAfterChildren = async ({ tempId, audit, data, requestId, logica
     finally { connection.release(); }
 };
 
+const isGiaCongProcess = (data) => String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
+
+// Stable child request IDs allow the API to retry one machine report without
+// accidentally re-creating it. Kept below the 120-character DB column limit.
+const childRequestId = (groupRequestId, line, index) => {
+    const identity = [String(line?.machine_code || line?.machine_id || index), String(line?.product_code || "")].join("|");
+    const digest = require("node:crypto").createHash("sha256").update(identity).digest("hex").slice(0, 20);
+    return `${String(groupRequestId).slice(0, 80)}:gc:${digest}`;
+};
+
+const splitGcLinePayload = (data, line, requestId, index) => {
+    const defects = Array.isArray(line?.defects) ? line.defects : [];
+    const deductions = Array.isArray(line?.deductions) ? line.deductions : [];
+    const extra = typeof data.extra_data === "string" ? (() => { try { return JSON.parse(data.extra_data); } catch { return {}; } })() : (data.extra_data || {});
+    return {
+        ...data,
+        machine_no: line.machine_code || data.machine_no || null,
+        product_name: line.product_code || data.product_name || null,
+        total_time: Number(line.machine_time_hours) || 0,
+        actual_time: 0,
+        deduction_time: Number(line.deduction_time_hours) || 0,
+        standard_output: Number(line.standard_output) || 0,
+        standard_version_id: line.standard_version_id || null,
+        machine_standard_id: line.machine_standard_id || null,
+        actual_output: Number(line.counted_output) || 0,
+        tt_ok: Number(line.ok_quantity) || 0,
+        tt_ng: Number(line.ng_quantity) || 0,
+        defects,
+        deductions,
+        client_request_id: childRequestId(requestId, line, index),
+        logical_duplicate_key: buildLogicalDuplicateKey({
+            workerId: data.worker_id, processId: data.process_id, workDate: data.work_date,
+            shift: data.shift, operationMode: data.operation_mode ?? data.operationMode,
+            machineNo: line.machine_code || data.machine_no,
+            productName: line.product_code || data.product_name,
+            machineLines: [line]
+        }),
+        extra_data: { ...extra, gc_group_request_id: requestId, gc_group_machine_count: 1, gc_group_machine_index: index, gc_split_report: true }
+    };
+};
+
 const createCompleteReport = async (payload = {}, legacyDefects, legacyDeductions, legacyMachineLines, legacyAudit) => {
     const wrapped = payload && typeof payload === "object" && payload.data && typeof payload.data === "object";
     const raw = wrapped ? payload.data : payload;
