@@ -46,10 +46,18 @@ const findExistingClientRequest = async (data, executor = db) => {
     const rows = await query(executor,
         `SELECT id, status FROM production_reports_temp WHERE worker_id=? AND client_request_id=? LIMIT 1`,
         [workerId, requestId]);
-    return rows?.[0] || null;
+    if (rows?.[0]) return rows[0];
+    // A split GC submission stores one deterministic request ID per machine;
+    // recover the whole group from its shared metadata on client retries.
+    const grouped = await query(executor,
+        `SELECT id, status FROM production_reports_temp
+         WHERE worker_id=? AND JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.gc_group_request_id'))=?
+         ORDER BY id ASC`, [workerId, requestId]);
+    if (!grouped?.length) return null;
+    return { ...grouped[0], gc_group_ids: grouped.map((row) => Number(row.id)) };
 };
 
-const idempotent = (row) => ({ id: Number(row.id), duplicate: true, duplicate_reason: "request_id", existing_report: row });
+const idempotent = (row) => ({ id: Number(row.id), ids: Array.isArray(row.gc_group_ids) ? row.gc_group_ids : [Number(row.id)], duplicate: true, duplicate_reason: "request_id", existing_report: row });
 const is1205 = (error) => Number(error?.errno) === 1205 || /lock wait timeout exceeded|error 1205/i.test(String(error?.message || ""));
 
 const recoverAfter1205 = async (data) => {
