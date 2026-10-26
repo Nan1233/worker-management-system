@@ -648,9 +648,9 @@ module.exports = {
                 });
 
                 if (!capacity.valid) {
-                    const error = new Error("Số công nhân trên máy vượt giới hạn trong cùng ngày/ca");
+                    const error = new Error(capacity.code === "MACHINE_WORKER_HOURS_LIMIT_EXCEEDED" ? "Một công nhân không được vượt quá 12 giờ trên cùng máy trong một ca (đã tính cả giờ nghỉ)." : "Máy chỉ cho phép tối đa 2 công nhân trong cùng ca.");
                     error.status = 422;
-                    error.code = "MACHINE_WORKER_LIMIT_EXCEEDED";
+                    error.code = capacity.code || "MACHINE_WORKER_LIMIT_EXCEEDED";
                     error.isPublic = true;
                     error.details = capacity.errors;
                     throw error;
