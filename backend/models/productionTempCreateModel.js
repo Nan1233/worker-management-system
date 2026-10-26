@@ -24,6 +24,8 @@ const enforceDailyHoursLocked = async (executor, data) => {
     const workDate = String(data?.work_date || "").slice(0, 10);
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
     await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
+    // The facade may validate a complete multi-machine GC submission once, then persist its child reports atomically. Keep the worker lock but avoid counting the same group repeatedly.
+    if (data?._skip_daily_hours_enforcement === true) return;
     // createCompleteReport already read processes.process_code inside this transaction; reuse it.
     const processRows = data?._resolved_process_code !== undefined
         ? [{ process_code: data._resolved_process_code }]
