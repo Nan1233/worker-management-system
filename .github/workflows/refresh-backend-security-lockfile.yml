@@ -37,7 +37,7 @@ jobs:
       - name: Verify vulnerable packages are patched
         working-directory: backend
         run: |
-          node -e "const p=require('./package-lock.json'); for (const [name,min] of [['body-parser','2.4.0'],['ip-address','10.7.4']]) { const v=p.packages['node_modules/'+name]?.version; if (!v || require('semver').lt(v,min)) { console.error(name+' resolved to '+v+', expected >= '+min); process.exitCode=1; } else console.log(name+' '+v); }"
+          node -e "const p=require('./package-lock.json'); for (const [name,min] of [['body-parser','2.4.0'],['ip-address','10.7.4']]) { const v=p.packages['node_modules/'+name]?.version; if (!v || ((a,b)=>a.split('.').map(Number).some((n,i)=>n>(b.split('.').map(Number)[i]||0)) || a.split('.').map(Number).every((n,i)=>n===(b.split('.').map(Number)[i]||0)))(v,min)) { console.error(name+' resolved to '+v+', expected >= '+min); process.exitCode=1; } else console.log(name+' '+v); }"
           npm audit --audit-level=high
       - name: Commit lockfile update to test
         run: |
