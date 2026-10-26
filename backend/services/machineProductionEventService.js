@@ -124,13 +124,13 @@ async function participantRows(executor, eventId) {
            r.process_id, r.work_date, r.shift, ml.machine_id, ml.machine_code, ml.product_code,
            ml.counted_output credited_output, ml.machine_time_hours participation_time_hours
       FROM production_temp_machine_lines ml JOIN production_reports_temp r ON r.id=ml.temp_report_id
-     WHERE ml.machine_event_id=?
+     WHERE ml.machine_event_id=? AND r.status IN ('pending','need_fix','approved')
     UNION ALL
     SELECT 'approved' source, ml.id machine_line_id, r.id report_id, r.worker_id, r.status report_status,
            r.process_id, r.work_date, r.shift, ml.machine_id, ml.machine_code, ml.product_code,
            ml.counted_output credited_output, ml.machine_time_hours participation_time_hours
       FROM production_report_machine_lines ml JOIN production_reports r ON r.id=ml.report_id
-     WHERE ml.machine_event_id=?
+     WHERE ml.machine_event_id=? AND r.status='approved'
   ) x ORDER BY worker_id, source, machine_line_id`, [Number(eventId), Number(eventId)]);
 }
 

@@ -7,6 +7,7 @@ const { query, getConnection, beginTransaction, beginReadCommittedTransaction, c
 const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
+const { assertWorkerShiftHours } = require("../services/workerShiftHoursGuard");
 const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
@@ -22,37 +23,24 @@ const getStoredWorkType = (value) => {
 const enforceDailyHoursLocked = async (executor, data) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
+    const shift = String(data?.shift || "").trim();
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
     await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
-    // createCompleteReport already read processes.process_code inside this transaction; reuse it.
     const processRows = data?._resolved_process_code !== undefined
-        ? [{ process_code: data._resolved_process_code }]
-        : await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
-    const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
+      ? [{ process_code: data._resolved_process_code }]
+      : await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
+    const processCode = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
     const machineLines = Array.isArray(data?._daily_hours_machine_lines) ? data._daily_hours_machine_lines : [];
-    const incoming = isGc && machineLines.length ? Math.max(...machineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0))) : (Number(data?.actual_time) || 0);
-    const rows = await query(executor, `SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
-                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-            FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
-            UNION ALL
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
-                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
-                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-            FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status IN ('pending','need_fix')
-        ) daily_hours`, [workerId, workDate, workerId, workDate]);
-    const existing = Number(rows?.[0]?.counted_hours || 0);
-    const projected = existing + incoming;
-    if (exceedsDailyHoursLimit(projected)) {
-        const remaining = Math.max(0, DAILY_HOURS_LIMIT - existing);
-        const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remaining.toFixed(2)} giờ.`);
-        error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
-        error.details = { worker_id: workerId, work_date: workDate, existing_hours: Number(existing.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projected.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, remaining_hours: Number(remaining.toFixed(4)), counted_field: "actual_time_or_gc_machine_line_actual_time", excluded_from_daily_limit: "deduction_time / support hours" };
-        throw error;
-    }
+    return assertWorkerShiftHours({
+      executor, workerId, processId: Number(data?.process_id), workDate, shift,
+      candidate: {
+        processCode,
+        actual_time: data?.actual_time,
+        deduction_time: data?.deduction_time,
+        total_time: data?.total_time,
+        machineLines: processCode === "GC" ? machineLines : []
+      }
+    });
 };
 
 module.exports = {
@@ -647,9 +635,9 @@ module.exports = {
                 });
 
                 if (!capacity.valid) {
-                    const error = new Error("Số công nhân trên máy vượt giới hạn trong cùng ngày/ca");
+                    const error = new Error(capacity.code === "MACHINE_WORKER_HOURS_LIMIT_EXCEEDED" ? "Một công nhân không được vượt quá 12 giờ trên cùng máy trong một ca (đã tính cả giờ nghỉ)." : "Máy chỉ cho phép tối đa 2 công nhân trong cùng ca.");
                     error.status = 422;
-                    error.code = "MACHINE_WORKER_LIMIT_EXCEEDED";
+                    error.code = capacity.code || "MACHINE_WORKER_LIMIT_EXCEEDED";
                     error.isPublic = true;
                     error.details = capacity.errors;
                     throw error;
@@ -665,7 +653,7 @@ module.exports = {
 
             let tempId;
             try {
-                tempId = await this.create(data, connection);
+                tempId = await this.create({ ...data, _daily_hours_machine_lines: machineLines }, connection);
             } catch (error) {
                 // The canonical schema intentionally keeps client_request_id
                 // nullable and uses the duplicate-lock table for idempotency.

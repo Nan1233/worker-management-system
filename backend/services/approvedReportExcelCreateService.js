@@ -4,7 +4,8 @@ const { validateProductionReport } = require('../utils/reportValidation');
 const { validateMasterData } = require('./reportBusinessValidationService');
 const { calculateProductionOutput } = require('../../shared/kqdPolicy.cjs');
 const { validateMachineLines } = require('./machineLineValidationService');
-const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require('./factoryMachineRuleService');
+const { validateFactoryMachineRules, validateMachineWorkerCapacity, validateMachineWorkerCapacityLocked } = require('./factoryMachineRuleService');
+const { assertWorkerShiftHours } = require('./workerShiftHoursGuard');
 const ReportGovernanceService = require('./reportGovernanceService');
 const { assertProcessScope } = require('./processAuthorizationService');
 const { createApprovedReportVersion, loadApprovedAggregateSnapshot } = require('./approvedVersionSnapshotService');
@@ -46,7 +47,7 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
   let machineLine=null;
   if(operationMode==='MACHINE') {
     if(!machineNo) throw httpError(422,'MACHINE_REQUIRED','Chế độ Máy phải nhập máy');
-    const mv=await validateMachineLines({processId,machineLines:[{machine_code:machineNo,product_code:productName,machine_time_hours:actualTime,ok_quantity:ttOk,ng_quantity:ttNg,defects}],operationType,operationMode:'MACHINE',maxMachines:1,workDate:data.work_date});
+    const mv=await validateMachineLines({processId,machineLines:[{machine_code:machineNo,product_code:productName,machine_time_hours:actualTime+deductionTime,deduction_time_hours:deductionTime,deductions,ok_quantity:ttOk,ng_quantity:ttNg,defects}],operationType,operationMode:'MACHINE',maxMachines:1,workDate:data.work_date});
     if(!mv.valid) throw httpError(422,'MACHINE_DATA_INVALID','Thông tin máy không hợp lệ',mv.errors);
     machineLine=mv.lines[0]; standardOutput=Number(machineLine.standard_output||standardOutput); actualOutput=Number(machineLine.counted_output||actualOutput); parentKqdPolicySnapshot=Number(machineLine.exclude_kqd_from_tt||0)===1?1:0;
     const fr=await validateFactoryMachineRules({processCode,processId,machineLines:[machineLine]});
@@ -61,6 +62,7 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
   const conn=await db.promise().getConnection();
   try{
     await conn.beginTransaction();
+    await conn.query('SELECT id FROM workers WHERE id=? FOR UPDATE', [workerId]);
     const logicalDuplicateKey = buildLogicalDuplicateKey({
       workerId, processId, workDate: validation.normalized.work_date, shift: validation.normalized.shift,
       operationMode, machineNo: validation.normalized.machine_no, productName: validation.normalized.product_name,
@@ -70,6 +72,28 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
     await conn.query(`SELECT logical_key FROM production_report_duplicate_locks WHERE logical_key=? FOR UPDATE`,[logicalDuplicateKey]);
     const [dups]=await conn.query(`SELECT id FROM production_reports WHERE worker_id=? AND process_id=? AND work_date=? AND shift=? AND machine_no <=> ? AND product_name <=> ? AND status <> 'deleted' LIMIT 1`,[workerId,processId,validation.normalized.work_date,validation.normalized.shift,validation.normalized.machine_no,validation.normalized.product_name]);
     if(dups.length) throw httpError(409,'DUPLICATE_PRODUCTION_REPORT',`Đã có báo cáo #${dups[0].id} cùng công nhân/ngày/ca/máy/sản phẩm`);
+    if (machineLine) {
+      const lockedCapacity = await validateMachineWorkerCapacityLocked({
+        executor: conn, processCode, processId, machineLines: [machineLine], workerId,
+        workDate: validation.normalized.work_date, shift: validation.normalized.shift
+      });
+      if (!lockedCapacity.valid) throw httpError(422, lockedCapacity.code || 'MACHINE_CAPACITY_EXCEEDED',
+        lockedCapacity.code === 'MACHINE_WORKER_HOURS_LIMIT_EXCEEDED'
+          ? 'Một công nhân không được vượt quá 12 giờ trên cùng máy trong một ca (đã tính cả giờ nghỉ).'
+          : 'Máy chỉ cho phép tối đa 2 công nhân trong cùng ca.', lockedCapacity.errors);
+    }
+    await assertWorkerShiftHours({
+      executor: conn, workerId, processId, workDate: validation.normalized.work_date,
+      shift: validation.normalized.shift,
+      candidate: {
+        processCode, actual_time: validation.normalized.actual_time,
+        deduction_time: validation.normalized.deduction_time, total_time: validation.normalized.total_time,
+        machineLines: machineLine ? [{
+          ...machineLine, machine_time_hours: Number(machineLine.machine_time_hours || 0),
+          actual_time_hours: actualTime, deduction_time_hours: deductionTime
+        }] : []
+      }
+    });
     const [ins]=await conn.query(`INSERT INTO production_reports (source_temp_id,worker_id,process_id,work_date,entry_date,shift,operation_type,operation_mode,machine_no,product_name,total_time,actual_time,deduction_time,standard_output,standard_version_id,machine_standard_id,exclude_kqd_from_tt_snapshot,actual_output,tt_ok,tt_ng,note,extra_data,status,reviewed_by,approved_at,updated_by) VALUES (NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'approved',?,NOW(),?)`,[
       workerId,processId,validation.normalized.work_date,new Date().toISOString().slice(0,10),validation.normalized.shift,operationType,operationMode,validation.normalized.machine_no,validation.normalized.product_name,validation.normalized.total_time,validation.normalized.actual_time,validation.normalized.deduction_time,validation.normalized.standard_output,candidate.standard_version_id||null,candidate.machine_standard_id||null,parentKqdPolicySnapshot,validation.normalized.actual_output,validation.normalized.tt_ok,validation.normalized.tt_ng,validation.normalized.note,JSON.stringify(data.extra_data||{}),userId,userId]);
     const id=Number(ins.insertId);
@@ -84,7 +108,7 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
       await conn.query(`INSERT INTO production_report_deductions(report_id,deduction_type_id,hours) VALUES ${placeholders}`, values);
     }
     if(machineLine){
-      const [ml] = await conn.query(`INSERT INTO production_report_machine_lines(report_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,machine_time_hours,standard_time_seconds,standard_output,standard_source,exclude_kqd_from_tt,ok_quantity,ng_quantity,maximum_output,counted_output,earned_standard_hours,defects_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,machineLine.machine_id||null,machineLine.machine_code,machineLine.product_standard_id||null,machineLine.standard_version_id||null,machineLine.machine_standard_id||null,machineLine.product_code,machineLine.machine_time_hours,machineLine.standard_time_seconds||null,machineLine.standard_output,machineLine.standard_source||'PRODUCT',Number(machineLine.exclude_kqd_from_tt||0),machineLine.ok_quantity,machineLine.ng_quantity,machineLine.maximum_output,machineLine.counted_output||0,machineLine.earned_standard_hours||0,JSON.stringify(machineLine.defects||[])]);
+      const [ml] = await conn.query(`INSERT INTO production_report_machine_lines(report_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,machine_time_hours,standard_time_seconds,standard_output,standard_source,exclude_kqd_from_tt,ok_quantity,ng_quantity,maximum_output,deduction_time_hours,deductions_json,counted_output,earned_standard_hours,defects_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,machineLine.machine_id||null,machineLine.machine_code,machineLine.product_standard_id||null,machineLine.standard_version_id||null,machineLine.machine_standard_id||null,machineLine.product_code,machineLine.machine_time_hours,machineLine.standard_time_seconds||null,machineLine.standard_output,machineLine.standard_source||'PRODUCT',Number(machineLine.exclude_kqd_from_tt||0),machineLine.ok_quantity,machineLine.ng_quantity,machineLine.maximum_output,deductionTime,JSON.stringify(validation.normalized.deductions||[]),machineLine.counted_output||0,machineLine.earned_standard_hours||0,JSON.stringify(machineLine.defects||[])]);
       const machineDefects = machineLine.defects || [];
       if (machineDefects.length) {
         const machineLineId = Number(ml.insertId);

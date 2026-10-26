@@ -1,0 +1,74 @@
+name: TiDB Read-only Database Audit
+
+on:
+  push:
+    branches:
+      - fix/gc-shift-machine-rules
+    paths:
+      - ".github/workflows/tidb-readonly-audit.yml"
+      - "backend/scripts/**"
+      - "backend/services/databaseSchemaService.js"
+      - "backend/config/db.js"
+      - "backend/package.json"
+      - "backend/package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tidb-readonly-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Read-only TiDB consistency checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      DB_SSL: "true"
+      DB_SSL_CA: ${{ secrets.DB_SSL_CA }}
+      KTC_E2E_SAMPLE_LIMIT: "1000"
+    steps:
+      - name: Check required database secrets without printing values
+        shell: bash
+        run: |
+          missing=0
+          for name in DB_HOST DB_USER DB_PASSWORD DB_NAME; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing GitHub Actions secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Add the database connection values as GitHub Actions repository secrets. Do not put them in source code."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install dependencies without repository lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Verify connection
+        run: node -e "const db=require('./config/db'); db.testConnection().then(x=>{console.log(JSON.stringify({connected:true,ssl:x.ssl,port:x.port})); return db.closePool()}).catch(e=>{console.error('TiDB connection failed:',e.message); process.exitCode=1})"
+      - name: Verify schema contract
+        run: npm run db:schema:verify
+      - name: Read applied migration history
+        run: npm run db:migration-status
+      - name: Check relational data integrity
+        run: npm run db:integrity
+      - name: Validate recent approved production data
+        run: npm run validate:real-data
+      - name: Audit shared-machine accounting
+        run: npm run audit:shared-machines

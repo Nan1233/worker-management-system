@@ -94,7 +94,7 @@ test('GC manual machine C13 allows shared reporting while remaining non-automati
   });
 
   assert.equal(rule.automatic, false);
-  assert.equal(rule.maxWorkersPerMachine, 4);
+  assert.equal(rule.maxWorkersPerMachine, 2);
   assert.equal(rule.outputBasis, 'PRODUCT');
 });
 

@@ -102,8 +102,8 @@ test('web edit, delete and restore all guard process before approved mutation', 
   const service = fs.readFileSync(path.join(__dirname,'../services/approvedReportEditService.js'),'utf8');
   assert.match(controller, /updateApprovedReport\([\s\S]*actor\s*:\s*req\.user/);
   assert.ok(controller.indexOf("assertProcessScope(req.user, lockedRows[0].process_id") < controller.indexOf("UPDATE production_reports"));
-  assert.match(service, /SELECT \* FROM production_reports WHERE id=\? FOR UPDATE[\s\S]*assertProcessScope\(actor, lockedRows\[0\]\.process_id/);
-  assert.match(service, /restoreApprovedReportVersion[\s\S]*SELECT \* FROM production_reports WHERE id=\? FOR UPDATE[\s\S]*assertProcessScope\(actor, currentRow\.process_id/);
+  assert.match(service, /SELECT pr\.\*, p\.process_code, w\.id AS locked_worker_id FROM production_reports pr JOIN processes p ON p\.id=pr\.process_id JOIN workers w ON w\.id=pr\.worker_id WHERE pr\.id=\? FOR UPDATE[\s\S]*assertProcessScope\(actor, lockedRows\[0\]\.process_id/);
+  assert.match(service, /restoreApprovedReportVersion[\s\S]*SELECT pr\.\*, p\.process_code, w\.id AS locked_worker_id FROM production_reports pr JOIN processes p ON p\.id=pr\.process_id JOIN workers w ON w\.id=pr\.worker_id WHERE pr\.id=\? FOR UPDATE[\s\S]*assertProcessScope\(actor, currentRow\.process_id/);
 });
 
 test('Excel update and create carry actor and resolve DB process before mutation', () => {

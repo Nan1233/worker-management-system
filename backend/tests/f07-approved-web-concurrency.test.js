@@ -57,6 +57,7 @@ test('F07 stale expected_updated_at rejects with zero write/version/audit side e
     release: () => { released = true; },
     query: async (sql) => {
       const normalized = String(sql).replace(/\s+/g, ' ').trim();
+      if (/FROM production_reports pr JOIN processes p ON p.id=pr.process_id JOIN workers w ON w.id=pr.worker_id WHERE pr.id=\? FOR UPDATE/i.test(normalized)) return [[{ ...row, process_code: 'CUT' }], []];
       if (/SELECT \* FROM production_reports WHERE id=\? FOR UPDATE/i.test(normalized)) return [[row], []];
       if (/SELECT \* FROM production_reports WHERE id=\? LIMIT 1/i.test(normalized)) return [[row], []];
       if (/SELECT \* FROM production_report_defects/i.test(normalized)) return [[], []];
@@ -151,6 +152,7 @@ test('F07 matching expected_updated_at succeeds and returns a fresh updated_at b
     release: () => {},
     query: async (sql) => {
       const normalized = String(sql).replace(/\s+/g, ' ').trim();
+      if (/FROM production_reports pr JOIN processes p ON p.id=pr.process_id JOIN workers w ON w.id=pr.worker_id WHERE pr.id=\? FOR UPDATE/i.test(normalized)) return [[{ ...currentRow, process_code: 'CUT' }], []];
       if (/SELECT \* FROM production_reports WHERE id=\? FOR UPDATE/i.test(normalized)) return [[{ ...currentRow }], []];
       if (/SELECT \* FROM production_reports WHERE id=\? LIMIT 1/i.test(normalized)) return [[{ ...currentRow }], []];
       if (/SELECT \* FROM production_report_defects/i.test(normalized)) return [[], []];

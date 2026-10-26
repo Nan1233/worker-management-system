@@ -1,6 +1,4 @@
-const GC_AUTOMATIC_MACHINE_NUMBERS = Object.freeze([
-  1, 2, 10, 11, 4, 3, 9, 8, 25, 26, 14, 17, 23, 24, 16
-]);
+const GC_AUTOMATIC_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
 
 const GC_SHARED_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
 
@@ -10,6 +8,7 @@ const GC_SHARED_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
 // - Các công đoạn khác giữ capacity theo DB, mặc định 1 người/máy.
 const MULTI_MACHINE_PROCESS_CODES = new Set(["GC", "MAI"]);
 const MAX_MACHINES_PER_WORKER = 4;
+const GC_MAX_WORKERS_PER_MACHINE = 2;
 const DEFAULT_SHARED_WORKERS_PER_MACHINE = 4;
 
 const canonicalMachineNumber = (value) => {
@@ -20,7 +19,7 @@ const canonicalMachineNumber = (value) => {
   // (6, M6, MAY6, MACHINE6, GC6, GC-6, ...). The business identity is
   // the physical machine number, not the display prefix.
   const patterns = [
-    /^(?:MÁY|MAY|MACHINE|M|GC|G)[-_]?(\d{1,2})$/i,
+    /^(?:MÁY|MAY|MACHINE|M|GC|G|C)[-_]?(\d{1,2})$/i,
     /^(\d{1,2})$/
   ];
 
@@ -34,15 +33,10 @@ const canonicalMachineNumber = (value) => {
 
 const getGcMachineRule = (machineCode, dbRow = null) => {
   const machineNumber = canonicalMachineNumber(machineCode);
-  const automatic = dbRow?.is_automatic != null
-    ? Number(dbRow.is_automatic) === 1
-    : GC_AUTOMATIC_MACHINE_NUMBERS.includes(machineNumber);
+  const automatic = GC_AUTOMATIC_MACHINE_NUMBERS.includes(machineNumber);
 
-  const maxWorkers = dbRow?.max_workers_per_machine != null
-    ? Number(dbRow.max_workers_per_machine)
-    : (GC_SHARED_MACHINE_NUMBERS.includes(machineNumber)
-      ? DEFAULT_SHARED_WORKERS_PER_MACHINE
-      : 1);
+  // Confirmed factory rule: at most two workers per GC machine, regardless of DB defaults.
+  const maxWorkers = GC_MAX_WORKERS_PER_MACHINE;
 
   const outputBasis = String(
     dbRow?.output_basis ||
@@ -65,16 +59,15 @@ const getProcessMachineRule = (processCode, machineCode, dbRow = null) => {
   if (MULTI_MACHINE_PROCESS_CODES.has(code)) {
     return {
       maxMachinesPerWorker: MAX_MACHINES_PER_WORKER,
-      // All machines in Gia công (GC) may be shared by workers in the same day/shift.
-      // Keep the existing 4-worker cap consistently across C* and ML* machines.
+      // Confirmed factory rule: at most two workers per GC machine.
       maxWorkersPerMachine: code === "GC"
-        ? DEFAULT_SHARED_WORKERS_PER_MACHINE
+        ? GC_MAX_WORKERS_PER_MACHINE
         : (dbRow?.max_workers_per_machine != null
           ? Math.max(1, Number(dbRow.max_workers_per_machine) || 1)
           : DEFAULT_SHARED_WORKERS_PER_MACHINE),
-      automatic: dbRow?.is_automatic != null
-        ? Number(dbRow.is_automatic) === 1
-        : code === "GC" ? GC_AUTOMATIC_MACHINE_NUMBERS.includes(canonicalMachineNumber(machineCode)) : false,
+      automatic: code === "GC"
+        ? GC_AUTOMATIC_MACHINE_NUMBERS.includes(canonicalMachineNumber(machineCode))
+        : (dbRow?.is_automatic != null ? Number(dbRow.is_automatic) === 1 : false),
       outputBasis: String(dbRow?.output_basis || "PRODUCT").toUpperCase()
     };
   }
@@ -249,6 +242,7 @@ const validateMachineWorkerCapacity = async ({
         WHERE pr.process_id = ?
           AND pr.work_date = ?
           AND pr.shift = ?
+          AND pr.status = 'approved'
           AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
      ) used
      ORDER BY machine_code, worker_id`,
@@ -344,6 +338,7 @@ const validateMachineWorkerCapacityLocked = async ({
   );
 
   const errors = {};
+  let capacityCode = null;
   const machinePlaceholders = uniqueCodes.map(() => "?").join(",");
   const tempExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
   const tempParams = [
@@ -375,6 +370,7 @@ const validateMachineWorkerCapacityLocked = async ({
         WHERE pr.process_id = ?
           AND pr.work_date = ?
           AND pr.shift = ?
+          AND pr.status = 'approved'
           AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
      ) used
      ORDER BY machine_code, worker_id`,
@@ -406,13 +402,74 @@ const validateMachineWorkerCapacityLocked = async ({
     if (workers.size > rule.maxWorkersPerMachine) {
       errors.machine_lines =
         `Máy ${machineCode} chỉ cho phép tối đa ${rule.maxWorkersPerMachine} người trong cùng ngày/ca.`;
+      capacityCode = "MACHINE_WORKER_LIMIT_EXCEEDED";
       break;
     }
   }
 
+  if (code === "GC") {
+  // Per-machine/per-worker gross time cap: 12 hours in the same shift.
+  // Gross machine time includes the break/deduction time; automatic machines only overlap
+  // for worker-level elapsed time, but each physical machine is checked independently here.
+  const tempHoursExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
+  const tempHoursParams = [
+    Number(processId), String(workDate).slice(0, 10), String(shift).trim(), ...uniqueCodes
+  ];
+  if (excludeTempReportId) tempHoursParams.push(Number(excludeTempReportId));
+  const machineHourRows = await executorQuery(
+    executor,
+    `SELECT worker_id, machine_code, SUM(machine_hours) AS total_hours
+       FROM (
+         SELECT prt.worker_id, UPPER(TRIM(ml.machine_code)) AS machine_code,
+                GREATEST(0, COALESCE(ml.machine_time_hours,0)) AS machine_hours
+           FROM production_reports_temp prt
+           JOIN production_temp_machine_lines ml ON ml.temp_report_id=prt.id
+          WHERE prt.process_id=? AND prt.work_date=? AND prt.shift=?
+            AND prt.status IN ('pending','need_fix')
+            AND UPPER(TRIM(ml.machine_code)) IN (${machinePlaceholders})
+            ${tempHoursExclude}
+         UNION ALL
+         SELECT pr.worker_id, UPPER(TRIM(ml2.machine_code)) AS machine_code,
+                GREATEST(0, COALESCE(ml2.machine_time_hours,0)) AS machine_hours
+           FROM production_reports pr
+           JOIN production_report_machine_lines ml2 ON ml2.report_id=pr.id
+          WHERE pr.process_id=? AND pr.work_date=? AND pr.shift=? AND pr.status='approved'
+            AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
+       ) usage
+      GROUP BY worker_id, machine_code`,
+    [
+      ...tempHoursParams,
+      Number(processId), String(workDate).slice(0, 10), String(shift).trim(), ...uniqueCodes
+    ]
+  );
+  const existingHoursByWorkerMachine = new Map();
+  for (const item of machineHourRows || []) {
+    const key = `${Number(item.worker_id)}:${String(item.machine_code || "").trim().toUpperCase()}`;
+    existingHoursByWorkerMachine.set(key, Number(item.total_hours || 0));
+  }
+  for (const machineCode of uniqueCodes) {
+    const incomingHours = lines
+      .filter((line) => String(line.machine_code || "").trim().toUpperCase() === machineCode)
+      .reduce((sum, line) => {
+        const gross = Number(line.machine_time_hours);
+        return sum + (Number.isFinite(gross) && gross > 0
+          ? gross
+          : Math.max(0, Number(line.actual_time_hours) || 0) + Math.max(0, Number(line.deduction_time_hours) || 0));
+      }, 0);
+    const existingHours = existingHoursByWorkerMachine.get(`${Number(workerId)}:${machineCode}`) || 0;
+    if (existingHours + incomingHours > 12 + 1e-9) {
+      errors.machine_lines = `Công nhân đã sử dụng máy ${machineCode} ${existingHours.toFixed(2)} giờ trong ca; tổng cùng báo cáo không được vượt quá 12 giờ.`;
+      capacityCode = capacityCode || "MACHINE_WORKER_HOURS_LIMIT_EXCEEDED";
+      break;
+    }
+  }
+
+  }
+
   return {
     valid: Object.keys(errors).length === 0,
-    errors
+    errors,
+    code: capacityCode
   };
 };
 
@@ -422,6 +479,7 @@ module.exports = {
   MULTI_MACHINE_PROCESS_CODES,
   MAX_MACHINES_PER_WORKER,
   DEFAULT_SHARED_WORKERS_PER_MACHINE,
+  GC_MAX_WORKERS_PER_MACHINE,
   canonicalMachineNumber,
   getGcMachineRule,
   getProcessMachineRule,

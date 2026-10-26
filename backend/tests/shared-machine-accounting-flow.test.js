@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { calculateEventPhysical, isSharedEventManaged, assertApprovedEventForTempLine } = require('../services/machineProductionEventService');
-const { validateMachineWorkerCapacityLocked } = require('../services/factoryMachineRuleService');
+const { validateMachineWorkerCapacityLocked, GC_AUTOMATIC_MACHINE_NUMBERS, getGcMachineRule } = require('../services/factoryMachineRuleService');
 
 const root = path.resolve(__dirname, '..');
 const repo = path.resolve(root, '..');
@@ -43,6 +43,16 @@ test('unconfigured KQD_TEST remains a normal physical defect', () => {
   assert.equal(result.physicalCountedOutput, 1000);
 });
 
+test('GC automatic and shared machines are exactly 5/6/7/11 with a two-worker cap', () => {
+  assert.deepEqual(GC_AUTOMATIC_MACHINE_NUMBERS, [5, 6, 7, 11]);
+  for (const code of ['5', '6', '7', '11']) {
+    assert.equal(getGcMachineRule(code).automatic, true, code);
+    assert.equal(getGcMachineRule(code).maxWorkers, 2, code);
+  }
+  assert.equal(getGcMachineRule('8').automatic, false);
+  assert.equal(getGcMachineRule('8').maxWorkers, 2);
+});
+
 test('only GC 5/6/7/11 require shared event accounting', () => {
   for (const code of ['5', 'M6', 'MAY-7', 'Máy 11']) assert.equal(isSharedEventManaged('GC', code), true, code);
   assert.equal(isSharedEventManaged('GC', '8'), false);
@@ -74,20 +84,45 @@ test('transactional worker-capacity check locks machine row before counting part
     if (/FROM machines/.test(sql) && /FOR UPDATE/.test(sql)) {
       return [{ id: 5, process_id: 1, machine_code: '5', is_automatic: 1, max_workers_per_machine: 4, output_basis: 'MACHINE' }];
     }
-    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }, { worker_id: 2, machine_code: '5' }, { worker_id: 3, machine_code: '5' }];
+    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }];
     return [];
   });
-  const fourth = await validateMachineWorkerCapacityLocked({ executor, processCode: 'GC', processId: 1, machineLines: [{ machine_code: '5' }], workerId: 4, workDate: '2026-08-12', shift: 'A' });
-  assert.equal(fourth.valid, true);
+  const second = await validateMachineWorkerCapacityLocked({ executor, processCode: 'GC', processId: 1, machineLines: [{ machine_code: '5' }], workerId: 2, workDate: '2026-08-12', shift: 'A' });
+  assert.equal(second.valid, true);
   assert.match(statements[0], /ORDER BY id FOR UPDATE/);
 
   const fifthExecutor = callbackExecutor((sql) => {
     if (/FROM machines/.test(sql) && /FOR UPDATE/.test(sql)) return [{ id: 5, process_id: 1, machine_code: '5', is_automatic: 1, max_workers_per_machine: 4, output_basis: 'MACHINE' }];
-    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }, { worker_id: 2, machine_code: '5' }, { worker_id: 3, machine_code: '5' }, { worker_id: 4, machine_code: '5' }];
+    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }, { worker_id: 2, machine_code: '5' }];
     return [];
   });
-  const fifth = await validateMachineWorkerCapacityLocked({ executor: fifthExecutor, processCode: 'GC', processId: 1, machineLines: [{ machine_code: '5' }], workerId: 5, workDate: '2026-08-12', shift: 'A' });
-  assert.equal(fifth.valid, false);
+  const third = await validateMachineWorkerCapacityLocked({ executor: fifthExecutor, processCode: 'GC', processId: 1, machineLines: [{ machine_code: '5' }], workerId: 3, workDate: '2026-08-12', shift: 'A' });
+  assert.equal(third.valid, false);
+});
+
+test('deleted approved reports do not occupy a GC machine or event participant slot', () => {
+  const capacity = fs.readFileSync(path.join(root, 'services/factoryMachineRuleService.js'), 'utf8');
+  const events = fs.readFileSync(path.join(root, 'services/machineProductionEventService.js'), 'utf8');
+  assert.match(capacity, /pr\.status = 'approved'/);
+  assert.match(events, /WHERE ml\.machine_event_id=\? AND r\.status='approved'/);
+  assert.match(events, /WHERE ml\.machine_event_id=\? AND r\.status IN \('pending','need_fix','approved'\)/);
+});
+
+test('a worker cannot exceed 12 gross hours on one GC machine in a shift', async () => {
+  const executor = callbackExecutor((sql) => {
+    if (/FROM machines/.test(sql) && /FOR UPDATE/.test(sql)) {
+      return [{ id: 5, process_id: 1, machine_code: '5', is_automatic: 1, max_workers_per_machine: 4, output_basis: 'MACHINE' }];
+    }
+    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }];
+    if (/machine_hours/.test(sql)) return [{ worker_id: 1, machine_code: '5', total_hours: 11 }];
+    return [];
+  });
+  const result = await validateMachineWorkerCapacityLocked({
+    executor, processCode: 'GC', processId: 1, machineLines: [{ machine_code: '5', machine_time_hours: 2 }],
+    workerId: 1, workDate: '2026-08-12', shift: 'A'
+  });
+  assert.equal(result.valid, false);
+  assert.match(result.errors.machine_lines, /12 giờ/);
 });
 
 test('same worker repeated activity remains one distinct worker in capacity SQL', () => {
