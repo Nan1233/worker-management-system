@@ -43,7 +43,7 @@ async function assertWorkerShiftHours({
     "WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? AND pr.status='approved'" + approvedExclude,
     'UNION ALL',
     "SELECT pr.id, pr.process_id, p.process_code, pr.actual_time, pr.deduction_time, pr.total_time, 'temp' AS source,",
-    'ml.machine_code, ml.machine_time_hours, ml.actual_time_hours, ml.deduction_time_hours',
+    'ml.machine_code, ml.machine_time_hours, ml.deduction_time_hours',
     'FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id',
     'LEFT JOIN production_temp_machine_lines ml ON ml.temp_report_id=pr.id',
     "WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? AND pr.status IN ('pending','need_fix')" + tempExclude
