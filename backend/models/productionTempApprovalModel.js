@@ -29,6 +29,7 @@ function serializeExtraData(value) {
 const { createApprovedReportVersion } = require("../services/approvedVersionSnapshotService");
 const { assertReviewBatchSize } = require("../services/managerReportPaginationService");
 const { storedStandardSource } = require('../utils/standardSourceCode');
+const { assertWorkerShiftHours } = require('../services/workerShiftHoursGuard');
 
 
 
@@ -418,6 +419,22 @@ module.exports = {
       const tempLinesCache = new Map();
       for (const item of rows) {
         await validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache);
+        const approvalLines = tempLinesCache.get(Number(item.id)) || [];
+        await assertWorkerShiftHours({
+          executor: connection,
+          workerId: item.worker_id,
+          processId: item.process_id,
+          workDate: item.work_date,
+          shift: item.shift,
+          excludeTempReportId: Number(item.id),
+          candidate: {
+            processCode: item.process_code,
+            actual_time: item.actual_time,
+            deduction_time: item.deduction_time,
+            total_time: item.total_time,
+            machineLines: approvalLines
+          }
+        });
 
         const insertResult = await query(
           connection,
