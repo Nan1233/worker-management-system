@@ -21,9 +21,9 @@ test('GC automatic/shared machine rules match factory declaration', () => {
   }
   for (const n of [5,6,7,11]) {
     const rule = getGcMachineRule(String(n));
-    assert.equal(rule.maxWorkers, 4, `machine ${n}`);
+    assert.equal(rule.maxWorkers, 2, `machine ${n}`);
     assert.equal(rule.outputBasis, 'MACHINE', `machine ${n}`);
   }
-  assert.equal(getGcMachineRule('12').maxWorkers, 1);
+  assert.equal(getGcMachineRule('12').maxWorkers, 2);
   assert.equal(getGcMachineRule('12').outputBasis, 'PRODUCT');
 });
