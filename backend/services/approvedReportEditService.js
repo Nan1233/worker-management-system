@@ -440,6 +440,22 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
 
     // Validate every F05 reference before any destructive child replacement.
     await validateRestoreEventLinks({ snapshot: target, executor: connection });
+    const [processRows] = await connection.query('SELECT process_code FROM processes WHERE id=? LIMIT 1', [Number(target.report.process_id)]);
+    await assertWorkerShiftHours({
+      executor: connection,
+      workerId: target.report.worker_id,
+      processId: target.report.process_id,
+      workDate: target.report.work_date,
+      shift: target.report.shift,
+      excludeApprovedReportId: id,
+      candidate: {
+        processCode: processRows[0]?.process_code,
+        actual_time: target.report.actual_time,
+        deduction_time: target.report.deduction_time,
+        total_time: target.report.total_time,
+        machineLines: Array.isArray(target.machine_lines) ? target.machine_lines : []
+      }
+    });
 
     const preRestoreVersion = await createApprovedReportVersion({
       reportId: id,
