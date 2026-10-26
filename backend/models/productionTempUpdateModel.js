@@ -8,11 +8,11 @@ const { validateMachineWorkerCapacityLocked } = require("../services/factoryMach
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
-const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isGc = false, excludeTempReportId = null }) => {
-    const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
+const checkDailyHours = async (connection, { workerId, workDate, shift, incomingActualHours, incomingMachineLines = [], isGc = false, excludeTempReportId = null }) => {
+    const worker = Number(workerId), date = String(workDate || "").slice(0, 10), shiftValue = String(shift || "").trim();
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     const tempExcludeSql = excludeTempReportId ? "AND pr.id <> ?" : "";
-    const params = excludeTempReportId ? [worker, date, worker, date, excludeTempReportId] : [worker, date, worker, date];
+    const params = excludeTempReportId ? [worker, date, shiftValue, worker, date, shiftValue, excludeTempReportId] : [worker, date, shiftValue, worker, date, shiftValue];
     const rows = await query(connection, `
         SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
             SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
