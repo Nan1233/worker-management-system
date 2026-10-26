@@ -76,8 +76,12 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
     const workDate = String(data?.work_date || "").slice(0, 10);
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
     const processRows = await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
-    const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
-const incoming = isGc && machineLines.length
+    const resolvedProcessCode = String(processRows?.[0]?.process_code || "").trim().toUpperCase();
+    // The request may contain only process_id. Preserve the resolved code so the
+    // later split-GC persistence path uses the same authoritative process record.
+    if (!String(data?.process_code || "").trim() && resolvedProcessCode) data.process_code = resolvedProcessCode;
+    const isGc = (resolvedProcessCode || String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase()) === "GC";
+    const incoming = isGc && machineLines.length
         ? Math.max(...machineLines.map((line) => {
             const machineHours = Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0;
             const deductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
