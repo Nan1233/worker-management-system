@@ -40,7 +40,7 @@ test('monthly Excel is sourced only from approved parent reports and joins child
   const templateExcel = read('services/templateDrivenProcessExcelExportService.js');
   assert.match(templateExcel, /production_report_machine_defects/);
   assert.match(templateExcel, /machineDefectsByLineId/);
-  assert.match(excel, /WHERE pr\.work_date >= \?\s+AND pr\.work_date < \?/);
+  assert.match(excel, /AND pr\.work_date >= \?\s+AND pr\.work_date < \?/);
 });
 
 test('approved manager list has a matching count query and stable unique pagination order', () => {
