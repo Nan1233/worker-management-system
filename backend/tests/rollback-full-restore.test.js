@@ -121,7 +121,7 @@ function createFakeDb(initial, options = {}) {
       const q = String(sql).replace(/\s+/g, ' ').trim();
       if (/INFORMATION_SCHEMA\.COLUMNS/i.test(q)) return [[], []];
       if (/^CREATE TABLE/i.test(q)) return [[], []];
-      if (/FROM production_reports pr JOIN processes p ON p.id=pr.process_id WHERE pr.id=\? FOR UPDATE/i.test(q)) return [[{ ...deep(state.report), process_code: 'GC' }], []];
+      if (/FROM production_reports pr JOIN processes p ON p.id=pr.process_id JOIN workers w ON w.id=pr.worker_id WHERE pr.id=\? FOR UPDATE/i.test(q)) return [[{ ...deep(state.report), process_code: 'GC' }], []];
       if (/^SELECT \* FROM production_reports WHERE id=\? FOR UPDATE/i.test(q)) return [[deep(state.report)], []];
       if (/^SELECT \* FROM production_reports WHERE id=\? LIMIT 1/i.test(q)) return [[deep(state.report)], []];
       if (/^DELETE FROM production_report_defects/i.test(q)) { state.defects = []; return [{ affectedRows: 1 }, []]; }
