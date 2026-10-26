@@ -121,3 +121,46 @@ test('monthly Excel delegates GC accounting to the canonical shared implementati
   assert.match(source, /buildSharedGiaCongMachineAccounting\(\{ \.\.\.report, machineLines \}, eventMap\)/);
   assert.match(source, /deduction_type_code:\s*item\.deduction_code/);
 });
+
+test('GC worker credit uses MAX for parallel automatic machines 5, 6, 7 and 11, but SUM for ordinary machines', () => {
+  const physicalEvents = new Map([
+    [9101, { id: 9101, machine_id: 5, machine_time_hours: 5 }],
+    [9102, { id: 9102, machine_id: 6, machine_time_hours: 5 }],
+    [9103, { id: 9103, machine_id: 2, machine_time_hours: 5 }],
+    [9104, { id: 9104, machine_id: 3, machine_time_hours: 5 }]
+  ]);
+
+  const automaticResult = buildGiaCongMachineAccounting({
+    machineLines: [
+      { id: 501, machine_event_id: 9101, machine_id: 5, deductions_json: '[]' },
+      { id: 502, machine_event_id: 9102, machine_id: 6, deductions_json: '[]' }
+    ]
+  }, physicalEvents);
+  assert.equal(automaticResult.grossHours, 5, 'two automatic machines running in parallel count once for worker credit');
+
+  const mixedResult = buildGiaCongMachineAccounting({
+    machineLines: [
+      { id: 503, machine_event_id: 9101, machine_id: 5, deductions_json: '[]' },
+      { id: 504, machine_event_id: 9103, machine_id: 2, deductions_json: '[]' }
+    ]
+  }, physicalEvents);
+  assert.equal(mixedResult.grossHours, 10, 'ordinary machine hours are added to the automatic-machine maximum');
+
+  const ordinaryResult = buildGiaCongMachineAccounting({
+    machineLines: [
+      { id: 505, machine_event_id: 9103, machine_id: 2, deductions_json: '[]' },
+      { id: 506, machine_event_id: 9104, machine_id: 3, deductions_json: '[]' }
+    ]
+  }, physicalEvents);
+  assert.equal(ordinaryResult.grossHours, 10, 'different ordinary machines are summed');
+});
+
+test('GC automatic machine fallback lines use the maximum across machine IDs 5, 6, 7 and 11', () => {
+  const result = buildGiaCongMachineAccounting({
+    machineLines: [
+      { id: 601, machine_id: 7, machine_time_hours: 5, deductions_json: '[]' },
+      { id: 602, machine_id: 11, machine_time_hours: 4, deductions_json: '[]' }
+    ]
+  }, new Map());
+  assert.equal(result.grossHours, 5);
+});
