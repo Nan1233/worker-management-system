@@ -34,7 +34,7 @@ function callbackExecutor(handler) {
 
 const gcAwareHoursQuery = /FROM production_reports pr JOIN processes p/i;
 
-test('create daily cap counts worker actual hours and locks the worker row', async () => {
+test('create daily cap counts gross shift hours including deductions and locks the worker row', async () => {
   const executor = callbackExecutor((sql) => {
     if (/FROM workers/.test(sql)) return [{ id: 17 }];
     if (/FROM processes/.test(sql)) return [{ process_code: 'CUT' }];
@@ -43,29 +43,29 @@ test('create daily cap counts worker actual hours and locks the worker row', asy
   });
   await assert.rejects(
     createModel._enforceDailyHoursLocked(executor, {
-      worker_id: 17, process_id: 1, work_date: '2026-10-14',
+      worker_id: 17, process_id: 1, work_date: '2026-10-14', shift: 'A',
       actual_time: 3, deduction_time: 0.5, total_time: 3.5,
     }),
     (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED'
-      && error.details?.projected_hours === 13
-      && error.details?.counted_field === 'actual_time_or_gc_machine_line_actual_time',
+      && error.details?.projected_hours === 13.5
+      && error.details?.counted_field === 'gross_elapsed_hours_by_shift',
   );
   assert.ok(executor.statements.some(({ sql }) => /FROM workers[\s\S]*FOR UPDATE/i.test(sql)));
   assert.ok(executor.statements.some(({ sql }) => /production_report_machine_lines/.test(sql)));
   assert.ok(!executor.statements.some(({ sql }) => /SUM\(total_time\)/i.test(sql)));
 });
 
-test('create daily cap excludes deduction time when actual work is exactly 12 hours', async () => {
+test('create daily cap includes deduction time in gross shift hours', async () => {
   const executor = callbackExecutor((sql) => {
     if (/FROM workers/.test(sql)) return [{ id: 17 }];
     if (/FROM processes/.test(sql)) return [{ process_code: 'CUT' }];
     if (gcAwareHoursQuery.test(sql)) return [{ counted_hours: 10 }];
     return [];
   });
-  await assert.doesNotReject(() => createModel._enforceDailyHoursLocked(executor, {
-    worker_id: 17, process_id: 1, work_date: '2026-10-14',
+  await assert.rejects(() => createModel._enforceDailyHoursLocked(executor, {
+    worker_id: 17, process_id: 1, work_date: '2026-10-14', shift: 'A',
     actual_time: 2, deduction_time: 1.5, total_time: 3.5,
-  }));
+  }), (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED' && error.details?.projected_hours === 13.5);
 });
 
 test('GC preflight counts the longest actual machine line, not zero parent actual_time', async () => {
@@ -76,15 +76,15 @@ test('GC preflight counts the longest actual machine line, not zero parent actua
   });
   await assert.rejects(
     reportModel.enforceDailyWorkerHours({
-      worker_id: 17, process_id: 2, process_code: 'GC', work_date: '2026-10-14',
+      worker_id: 17, process_id: 2, process_code: 'GC', work_date: '2026-10-14', shift: 'A',
       actual_time: 0, machine_lines: [],
-    }, executor, [{ actual_time_hours: 3 }, { actual_time_hours: 4 }]),
+    }, executor, [{ machine_code: '5', actual_time_hours: 3, machine_time_hours: 3 }, { machine_code: '6', actual_time_hours: 4, machine_time_hours: 4 }]),
     (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED'
       && error.details?.projected_hours === 14,
   );
 });
 
-test('existing GC reports are counted by max machine actual time per report', async () => {
+test('existing GC reports use gross machine time for the same shift', async () => {
   const executor = callbackExecutor((sql) => {
     if (/FROM processes/.test(sql)) return [{ process_code: 'GC' }];
     if (gcAwareHoursQuery.test(sql)) return [{ counted_hours: 9 }];
@@ -92,12 +92,12 @@ test('existing GC reports are counted by max machine actual time per report', as
   });
   await assert.rejects(
     reportModel.enforceDailyWorkerHours({
-      worker_id: 17, process_id: 2, process_code: 'GC', work_date: '2026-10-14', actual_time: 0,
+      worker_id: 17, process_id: 2, process_code: 'GC', work_date: '2026-10-14', shift: 'A', actual_time: 0,
     }, executor, [{ actual_time_hours: 4 }]),
     (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED'
       && error.details?.projected_hours === 13,
   );
-  assert.ok(executor.statements.some(({ sql }) => /MAX\(GREATEST\(0, ml\.machine_time_hours - ml\.deduction_time_hours\)\)/i.test(sql)));
+  assert.ok(executor.statements.some(({ sql }) => /COALESCE\(SUM\(CASE WHEN/i.test(sql)));
 });
 
 test('edit daily-hours guard excludes the report being edited and counts GC machine-line time', async () => {
@@ -107,7 +107,7 @@ test('edit daily-hours guard excludes the report being edited and counts GC mach
   });
   await assert.rejects(
     updateModel._checkDailyHours(executor, {
-      workerId: 17, workDate: '2026-10-14', incomingActualHours: 0,
+      workerId: 17, workDate: '2026-10-14', shift: 'A', incomingActualHours: 0,
       incomingMachineLines: [{ actual_time_hours: 3 }], isGc: true, excludeTempReportId: 44,
     }),
     (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED'
