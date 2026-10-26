@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
 
-function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false }) {
+function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false, processCode = 'EP' }) {
   const log = [];
   let nextId = 1000;
   const answer = (rawSql) => {
@@ -13,7 +13,7 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
     if (/LAST_INSERT_ID/i.test(sql)) return [{ insertId: nextId }];
     if (/SUM\((?:group_hours|counted_hours)\)/i.test(sql)) return [{ counted_hours: dailyHours }];
     if (/training_percent FROM workers/i.test(sql)) return [{ training_percent: 100 }];
-    if (/FROM processes/i.test(sql)) return [{ process_code: 'EP' }];
+    if (/FROM processes/i.test(sql)) return [{ process_code: processCode }];
     if (existingRequest && /FROM production_reports_temp WHERE worker_id = \? AND client_request_id/i.test(sql)) return [{ id: 77, status: 'pending' }];
     if (/^\s*INSERT/i.test(sql)) { nextId += 1; return { insertId: /duplicate_locks/.test(sql) ? 0 : nextId, affectedRows: 1 }; }
     return [];
