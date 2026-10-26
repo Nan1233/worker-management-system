@@ -66,6 +66,7 @@ const recoverAfter1205 = async (data) => {
 const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
+    const shift = String(data?.shift || "").trim();
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
     const processRows = await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
     const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
