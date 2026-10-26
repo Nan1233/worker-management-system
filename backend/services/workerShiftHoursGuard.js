@@ -1,7 +1,11 @@
 const { calculateGcShiftHours, AUTO_MACHINE_NUMBERS, machineNumber, grossHours } = require('../utils/gcShiftHours');
 
 function query(executor, sql, params = []) {
-  return executor.promise ? executor.promise().query(sql, params) : executor.query(sql, params);
+  if (executor.promise) return executor.promise().query(sql, params);
+  if (executor.query.length >= 3) {
+    return new Promise((resolve, reject) => executor.query(sql, params, (error, rows) => error ? reject(error) : resolve([rows, []])));
+  }
+  return executor.query(sql, params);
 }
 
 function grossParentHours(row) {
