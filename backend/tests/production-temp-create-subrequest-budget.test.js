@@ -85,6 +85,17 @@ test('12-hour daily limit is still enforced and the transaction is rolled back w
   assert.ok(!log.some((sql) => /^INSERT INTO production_reports_temp/i.test(sql)));
 });
 
+test('GC daily cap counts machine_time_hours minus deductions when actual_time_hours is absent', async () => {
+  const { Model, log } = setup({ supportsBeginIsolation: true, dailyHours: 9, processCode: 'GC' });
+  const data = { ...baseData(), actual_time: 0, _daily_hours_machine_lines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }] };
+  await assert.rejects(
+    () => Model.createCompleteReport({ data, defects: [], deductions: [], machineLines: [], audit: { userId: 9 } }),
+    (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED' && error.status === 422
+  );
+  assert.equal(log.at(-1), 'ROLLBACK');
+  assert.ok(!log.some((sql) => /^INSERT INTO production_reports_temp/i.test(sql)));
+});
+
 test('re-submitting the same client_request_id returns the existing report and writes nothing', async () => {
   const { Model, log } = setup({ supportsBeginIsolation: true, existingRequest: true });
   const result = await run(Model);
