@@ -60,7 +60,7 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
   const connection = await db.promise().getConnection();
   try {
     await connection.beginTransaction();
-    const [lockedRows] = await connection.query('SELECT * FROM production_reports WHERE id=? FOR UPDATE', [Number(reportId)]);
+    const [lockedRows] = await connection.query('SELECT pr.*, p.process_code FROM production_reports pr JOIN processes p ON p.id=pr.process_id WHERE pr.id=? FOR UPDATE', [Number(reportId)]);
     if (!lockedRows[0]) throw httpError(404, 'REPORT_NOT_FOUND', 'Không tìm thấy báo cáo');
     await assertProcessScope(actor, lockedRows[0].process_id, { executor: connection, action: source === 'excel' ? 'REPORT_APPROVED_EDIT_EXCEL' : 'REPORT_APPROVED_EDIT' });
 
@@ -166,7 +166,7 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
     const allowed = ['machine_no','product_name','note','shift','work_date','operation_type','operation_mode','total_time','actual_time','deduction_time','standard_output','standard_version_id','machine_standard_id','exclude_kqd_from_tt_snapshot','actual_output','tt_ok','tt_ng'];
     const hourRelevantKeys = isMachineReport ? ['shift', 'work_date'] : ['shift', 'work_date', 'actual_time', 'deduction_time', 'total_time'];
     if (hourRelevantKeys.some((key) => Object.prototype.hasOwnProperty.call(inputPatch, key))) {
-      const [processRows] = await connection.query('SELECT process_code FROM processes WHERE id=? LIMIT 1', [Number(before.process_id)]);
+      const processCode = lockedRows[0]?.process_code;
       await assertWorkerShiftHours({
         executor: connection,
         workerId: before.worker_id,
@@ -175,7 +175,7 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
         shift: validation.normalized.shift,
         excludeApprovedReportId: Number(reportId),
         candidate: {
-          processCode: processRows[0]?.process_code,
+          processCode,
           actual_time: validation.normalized.actual_time,
           deduction_time: validation.normalized.deduction_time,
           total_time: validation.normalized.total_time,
@@ -404,7 +404,7 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
     await connection.beginTransaction();
     await AuditService.ensureSchema();
 
-    const [currentRows] = await connection.query('SELECT * FROM production_reports WHERE id=? FOR UPDATE', [id]);
+    const [currentRows] = await connection.query('SELECT pr.*, p.process_code FROM production_reports pr JOIN processes p ON p.id=pr.process_id WHERE pr.id=? FOR UPDATE', [id]);
     const currentRow = currentRows[0];
     if (!currentRow) throw httpError(404, 'REPORT_NOT_FOUND', 'Không tìm thấy báo cáo');
 
@@ -440,7 +440,7 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
 
     // Validate every F05 reference before any destructive child replacement.
     await validateRestoreEventLinks({ snapshot: target, executor: connection });
-    const [processRows] = await connection.query('SELECT process_code FROM processes WHERE id=? LIMIT 1', [Number(target.report.process_id)]);
+    const processCode = currentRow.process_code;
     await assertWorkerShiftHours({
       executor: connection,
       workerId: target.report.worker_id,
@@ -449,7 +449,7 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
       shift: target.report.shift,
       excludeApprovedReportId: id,
       candidate: {
-        processCode: processRows[0]?.process_code,
+        processCode,
         actual_time: target.report.actual_time,
         deduction_time: target.report.deduction_time,
         total_time: target.report.total_time,
