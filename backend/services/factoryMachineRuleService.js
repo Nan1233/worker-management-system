@@ -33,9 +33,7 @@ const canonicalMachineNumber = (value) => {
 
 const getGcMachineRule = (machineCode, dbRow = null) => {
   const machineNumber = canonicalMachineNumber(machineCode);
-  const automatic = dbRow?.is_automatic != null
-    ? Number(dbRow.is_automatic) === 1
-    : GC_AUTOMATIC_MACHINE_NUMBERS.includes(machineNumber);
+  const automatic = GC_AUTOMATIC_MACHINE_NUMBERS.includes(machineNumber);
 
   // Confirmed factory rule: at most two workers per GC machine, regardless of DB defaults.
   const maxWorkers = GC_MAX_WORKERS_PER_MACHINE;
@@ -67,9 +65,9 @@ const getProcessMachineRule = (processCode, machineCode, dbRow = null) => {
         : (dbRow?.max_workers_per_machine != null
           ? Math.max(1, Number(dbRow.max_workers_per_machine) || 1)
           : DEFAULT_SHARED_WORKERS_PER_MACHINE),
-      automatic: dbRow?.is_automatic != null
-        ? Number(dbRow.is_automatic) === 1
-        : code === "GC" ? GC_AUTOMATIC_MACHINE_NUMBERS.includes(canonicalMachineNumber(machineCode)) : false,
+      automatic: code === "GC"
+        ? GC_AUTOMATIC_MACHINE_NUMBERS.includes(canonicalMachineNumber(machineCode))
+        : (dbRow?.is_automatic != null ? Number(dbRow.is_automatic) === 1 : false),
       outputBasis: String(dbRow?.output_basis || "PRODUCT").toUpperCase()
     };
   }
