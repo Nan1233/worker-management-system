@@ -1,8 +1,8 @@
 const AUTO_MACHINE_NUMBERS = new Set([5, 6, 7, 11]);
 
 function machineNumber(value) {
-  const raw = String(value || '').trim().toUpperCase().replace(/[\\s_-]+/g, '');
-  const match = raw.match(/^(?:MÁY|MAY|MACHINE|M|GC|G|C)?(\\d{1,2})$/);
+  const raw = String(value || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+  const match = raw.match(/^(?:MÁY|MAY|MACHINE|M|GC|G|C)?(\d{1,2})$/);
   return match ? Number(match[1]) : null;
 }
 
