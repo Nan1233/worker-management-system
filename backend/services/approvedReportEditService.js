@@ -453,7 +453,7 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
         actual_time: target.report.actual_time,
         deduction_time: target.report.deduction_time,
         total_time: target.report.total_time,
-        machineLines: Array.isArray(target.machine_lines) ? target.machine_lines : []
+        machineLines: Array.isArray(target.machineLines) ? target.machineLines.map((item) => item?.line || item).filter(Boolean) : []
       }
     });
 
