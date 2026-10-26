@@ -269,7 +269,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
         if (machineLines.length) {
             const capacity = await validateMachineWorkerCapacityLocked({ executor: db, processCode: processRows[0]?.process_code, processId: data.process_id, machineLines, workerId: data.worker_id, workDate: data.work_date, shift: data.shift });
-            if (!capacity.valid) { const e = new Error("Số công nhân trên máy vượt giới hạn trong cùng ngày/ca"); e.status = 422; e.code = "MACHINE_WORKER_LIMIT_EXCEEDED"; e.isPublic = true; e.details = capacity.errors; throw e; }
+            if (!capacity.valid) { const e = new Error(capacity.code === "MACHINE_WORKER_HOURS_LIMIT_EXCEEDED" ? "Một công nhân không được vượt quá 12 giờ trên cùng máy trong một ca (đã tính cả giờ nghỉ)." : "Máy chỉ cho phép tối đa 2 công nhân trong cùng ca."); e.status = 422; e.code = capacity.code || "MACHINE_WORKER_LIMIT_EXCEEDED"; e.isPublic = true; e.details = capacity.errors; throw e; }
         }
 
         const auditUserId = Number(audit?.userId || 0);
