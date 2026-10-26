@@ -338,6 +338,7 @@ const validateMachineWorkerCapacityLocked = async ({
   );
 
   const errors = {};
+  let capacityCode = null;
   const machinePlaceholders = uniqueCodes.map(() => "?").join(",");
   const tempExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
   const tempParams = [
@@ -401,6 +402,7 @@ const validateMachineWorkerCapacityLocked = async ({
     if (workers.size > rule.maxWorkersPerMachine) {
       errors.machine_lines =
         `Máy ${machineCode} chỉ cho phép tối đa ${rule.maxWorkersPerMachine} người trong cùng ngày/ca.`;
+      capacityCode = "MACHINE_WORKER_LIMIT_EXCEEDED";
       break;
     }
   }
@@ -460,13 +462,15 @@ const validateMachineWorkerCapacityLocked = async ({
     const existingHours = existingHoursByWorkerMachine.get(`${Number(workerId)}:${machineCode}`) || 0;
     if (existingHours + incomingHours > 12 + 1e-9) {
       errors.machine_lines = `Công nhân đã sử dụng máy ${machineCode} ${existingHours.toFixed(2)} giờ trong ca; tổng cùng báo cáo không được vượt quá 12 giờ.`;
+      capacityCode = capacityCode || "MACHINE_WORKER_HOURS_LIMIT_EXCEEDED";
       break;
     }
   }
 
   return {
     valid: Object.keys(errors).length === 0,
-    errors
+    errors,
+    code: capacityCode
   };
 };
 
