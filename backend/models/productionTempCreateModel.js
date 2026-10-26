@@ -22,6 +22,7 @@ const getStoredWorkType = (value) => {
 const enforceDailyHoursLocked = async (executor, data) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
+    const shift = String(data?.shift || "").trim();
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
     await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
     // createCompleteReport already read processes.process_code inside this transaction; reuse it.
