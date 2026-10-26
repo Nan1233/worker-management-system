@@ -38,13 +38,10 @@ test('approved-report guard counts gross time including breaks and blocks more t
 
 test('approved-report guard uses parallel max for GC automatic machines and gross sum for sequential machines', async () => {
   const executor = promiseExecutor((sql) => {
-    if (/FROM production_reports pr JOIN processes/.test(sql)) return [{
-      id: 11, process_id: 1, process_code: 'GC', actual_time: 0, deduction_time: 0, total_time: 0, source: 'approved'
-    }];
-    if (/FROM production_report_machine_lines WHERE report_id IN/.test(sql)) return [
-      { parent_id: 11, machine_code: 'C5', machine_time_hours: 6, deduction_time_hours: 1 },
-      { parent_id: 11, machine_code: 'C6', machine_time_hours: 5, deduction_time_hours: 1 },
-      { parent_id: 11, machine_code: '8', machine_time_hours: 3, deduction_time_hours: 1 }
+    if (/FROM production_reports pr JOIN processes/.test(sql)) return [
+      { id: 11, process_id: 1, process_code: 'GC', actual_time: 0, deduction_time: 0, total_time: 0, source: 'approved', machine_code: 'C5', machine_time_hours: 6, deduction_time_hours: 1 },
+      { id: 11, process_id: 1, process_code: 'GC', actual_time: 0, deduction_time: 0, total_time: 0, source: 'approved', machine_code: 'C6', machine_time_hours: 5, deduction_time_hours: 1 },
+      { id: 11, process_id: 1, process_code: 'GC', actual_time: 0, deduction_time: 0, total_time: 0, source: 'approved', machine_code: '8', machine_time_hours: 3, deduction_time_hours: 1 }
     ];
     return [];
   });
