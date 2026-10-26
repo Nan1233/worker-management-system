@@ -114,7 +114,7 @@ test('a worker cannot exceed 12 gross hours on one GC machine in a shift', async
       return [{ id: 5, process_id: 1, machine_code: '5', is_automatic: 1, max_workers_per_machine: 4, output_basis: 'MACHINE' }];
     }
     if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }];
-    if (/SUM\(machine_hours\)/.test(sql)) return [{ worker_id: 1, machine_code: '5', total_hours: 11 }];
+    if (/machine_hours/.test(sql)) return [{ worker_id: 1, machine_code: '5', total_hours: 11 }];
     return [];
   });
   const result = await validateMachineWorkerCapacityLocked({
