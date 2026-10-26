@@ -147,7 +147,7 @@ test('split GC reports re-check the 12-hour cap under the worker lock only once 
 test('GC process code is resolved from the database when the client sends only process_id', () => {
   const source = fs.readFileSync(path.join(root, 'models/productionTempModel.js'), 'utf8');
   assert.match(source, /const resolvedProcessCode = String\(processRows\?\.\[0\]\?\.process_code/);
-  assert.match(source, /if \(!String\(data\?\.process_code \|\| ""\)\.trim\(\) && resolvedProcessCode\) data\.process_code = resolvedProcessCode/);
+  assert.match(source, /if \(resolvedProcessCode\) data\.process_code = resolvedProcessCode/);
   assert.match(source, /const splitGc = isGiaCongProcess\(data\) && machineLines\.length > 1/);
 });
 
