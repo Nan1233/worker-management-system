@@ -53,11 +53,11 @@ test('approved-report guard uses parallel max for GC automatic machines and gros
       executor, workerId: 7, processId: 1, workDate: '2026-10-26', shift: 'A',
       candidate: {
         processCode: 'GC', actual_time: 0, deduction_time: 0, total_time: 0,
-        machineLines: [{ machine_code: '9', actual_time_hours: 2, deduction_time_hours: 1, machine_time_hours: 3 }]
+        machineLines: [{ machine_code: '9', actual_time_hours: 3, deduction_time_hours: 1, machine_time_hours: 4 }]
       }
     }),
     (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED'
-      && error.details.projected_hours === 12
+      && error.details.projected_hours === 13
   );
   assert.ok(executor.statements[0].sql.includes('pr.shift=?'));
 });
