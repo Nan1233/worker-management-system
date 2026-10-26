@@ -18,6 +18,7 @@ Module._load = function (request, parent, isMain) {
 const createModel = require('../models/productionTempCreateModel');
 const reportModel = require('../models/productionTempModel');
 const updateModel = require('../models/productionTempUpdateModel');
+const { calculateGcShiftHours } = require('../utils/gcShiftHours');
 Module._load = originalLoad;
 
 function callbackExecutor(handler) {
@@ -33,6 +34,15 @@ function callbackExecutor(handler) {
 }
 
 const gcAwareHoursQuery = /FROM production_reports pr JOIN processes p/i;
+
+test('GC shift hours count machines 5/6/7/11 in parallel and all other machines sequentially, including breaks', () => {
+  assert.equal(calculateGcShiftHours([
+    { machine_code: 'C5', actual_time_hours: 3, deduction_time_hours: 0.5, machine_time_hours: 3.5 },
+    { machine_code: 'M6', actual_time_hours: 4, deduction_time_hours: 0.5, machine_time_hours: 4.5 },
+    { machine_code: '8', actual_time_hours: 2, deduction_time_hours: 0.5, machine_time_hours: 2.5 },
+    { machine_code: '9', actual_time_hours: 1, deduction_time_hours: 0.25, machine_time_hours: 1.25 },
+  ]), 8.25);
+});
 
 test('create daily cap counts gross shift hours including deductions and locks the worker row', async () => {
   const executor = callbackExecutor((sql) => {
@@ -68,7 +78,7 @@ test('create daily cap includes deduction time in gross shift hours', async () =
   }), (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED' && error.details?.projected_hours === 13.5);
 });
 
-test('GC preflight counts the longest actual machine line, not zero parent actual_time', async () => {
+test('GC preflight counts automatic machines in parallel and other machines sequentially', async () => {
   const executor = callbackExecutor((sql) => {
     if (/FROM processes/.test(sql)) return [{ process_code: 'GC' }];
     if (gcAwareHoursQuery.test(sql)) return [{ counted_hours: 10 }];
@@ -112,7 +122,7 @@ test('edit daily-hours guard excludes the report being edited and counts GC mach
     }),
     (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED'
       && error.details?.projected_hours === 13
-      && error.details?.counted_field === 'actual_time_or_gc_machine_line_actual_time',
+      && error.details?.counted_field === 'gross_elapsed_hours_by_shift',
   );
   assert.ok(executor.statements.some(({ sql, params }) =>
     /production_temp_machine_lines/.test(sql) && /pr\.id <> \?/i.test(sql) && params.includes(44)));
