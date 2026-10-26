@@ -140,7 +140,8 @@ test('split GC reports re-check the 12-hour cap under the worker lock only once 
   const source = fs.readFileSync(path.join(root, 'models/productionTempModel.js'), 'utf8');
   assert.match(source, /data\._daily_hours_machine_lines = machineLines/);
   assert.match(source, /childData\._skip_daily_hours_enforcement = index > 0/);
-  assert.match(source, /SELECT id FROM workers WHERE id=\? FOR UPDATE/);
+  const guardSource = fs.readFileSync(path.join(root, 'models/productionTempCreateModel.js'), 'utf8');
+  assert.match(guardSource, /SELECT id FROM workers WHERE id=\? FOR UPDATE/);
 });
 
 test('repository introduces no equal-split allocation in F05 production files', () => {
