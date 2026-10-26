@@ -134,6 +134,7 @@ function createFakeDb(initial, options = {}) {
         if (controls.corruptReload && controls.didInsertLine) list = list.map((x) => ({ ...x }));
         return [list, []];
       }
+      if (/SELECT pr.id, pr.process_id, p.process_code[\\s\\S]*'approved' AS source/i.test(q)) return [[], []];
       if (/FROM production_report_machine_lines/i.test(q) && !/^DELETE/i.test(q) && !/^INSERT/i.test(q)) {
         let list = deep(state.machineLines);
         if (controls.corruptReload && controls.didInsertLine) list[0] = { ...list[0], counted_output: '999999.000000' };
