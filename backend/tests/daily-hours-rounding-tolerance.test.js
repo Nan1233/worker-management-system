@@ -16,8 +16,8 @@ test('daily 12h limit tolerates 4-decimal rounding but still rejects real overru
 test('all three report flows delegate to one shared whole-minute boundary guard', () => {
   for (const file of ['models/productionTempModel.js', 'models/productionTempCreateModel.js', 'models/productionTempUpdateModel.js']) {
     const source = read(file);
-    assert.match(source, /assertWorkerShiftHours\\(/, file);
-    assert.doesNotMatch(source, /DAILY_HOURS_LIMIT \\+ 0\\.000001/, file);
+    assert.match(source, /assertWorkerShiftHours\(/, file);
+    assert.doesNotMatch(source, /DAILY_HOURS_LIMIT \+ 0\.000001/, file);
   }
-  assert.match(read('services/workerShiftHoursGuard.js'), /exceedsDailyHoursLimit\\(/);
+  assert.match(read('services/workerShiftHoursGuard.js'), /exceedsDailyHoursLimit\(/);
 });
