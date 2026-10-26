@@ -212,7 +212,7 @@ module.exports = {
                 normalizedMachineLines = validation.lines;
                 const nextShift = Object.prototype.hasOwnProperty.call(data, "shift") ? data.shift : current.shift;
                 const lockedCapacity = await validateMachineWorkerCapacityLocked({ executor: connection, processCode: processRows[0]?.process_code, processId: current.process_id, machineLines: normalizedMachineLines, workerId: current.worker_id, workDate: nextWorkDate, shift: nextShift, excludeTempReportId: id });
-                if (!lockedCapacity.valid) { const error = new Error("Máy đã đủ số người cho phép"); error.status = 422; error.code = "MACHINE_WORKER_LIMIT_EXCEEDED"; error.isPublic = true; error.details = lockedCapacity.errors; throw error; }
+                if (!lockedCapacity.valid) { const error = new Error(lockedCapacity.code === "MACHINE_WORKER_HOURS_LIMIT_EXCEEDED" ? "Một công nhân không được vượt quá 12 giờ trên cùng máy trong một ca (đã tính cả giờ nghỉ)." : "Máy chỉ cho phép tối đa 2 công nhân trong cùng ca."); error.status = 422; error.code = lockedCapacity.code || "MACHINE_WORKER_LIMIT_EXCEEDED"; error.isPublic = true; error.details = lockedCapacity.errors; throw error; }
                 data.machine_lines = normalizedMachineLines;
             }
             let dailyHoursMachineLines = normalizedMachineLines;
