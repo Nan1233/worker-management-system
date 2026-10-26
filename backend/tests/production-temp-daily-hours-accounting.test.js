@@ -67,11 +67,10 @@ test('exactly 12 gross hours in one shift are accepted', async () => {
 test('GC preflight counts automatic machines in parallel across the shift and other machines sequentially', async () => {
   const executor = callbackExecutor((sql) => {
     if (/SELECT process_code FROM processes/.test(sql)) return [{ process_code: 'GC' }];
-    if (reportsQuery.test(sql)) return [{ id: 20, process_code: 'GC', source: 'approved', actual_time: 0, deduction_time: 0, total_time: 0 }];
-    if (/FROM production_report_machine_lines WHERE report_id IN/.test(sql)) return [
-      { parent_id: 20, machine_code: 'C5', machine_time_hours: 6 },
-      { parent_id: 20, machine_code: 'C6', machine_time_hours: 5 },
-      { parent_id: 20, machine_code: '8', machine_time_hours: 2 }
+    if (reportsQuery.test(sql)) return [
+      { id: 20, process_code: 'GC', source: 'approved', actual_time: 0, deduction_time: 0, total_time: 0, machine_code: 'C5', machine_time_hours: 6 },
+      { id: 20, process_code: 'GC', source: 'approved', actual_time: 0, deduction_time: 0, total_time: 0, machine_code: 'C6', machine_time_hours: 5 },
+      { id: 20, process_code: 'GC', source: 'approved', actual_time: 0, deduction_time: 0, total_time: 0, machine_code: '8', machine_time_hours: 2 }
     ];
     return [];
   });
@@ -101,10 +100,10 @@ test('GC gross hours use max for automatic machines and include breaks', () => {
 
 test('edit guard excludes the report being edited and validates against the selected shift', async () => {
   const executor = callbackExecutor((sql) => {
-    if (reportsQuery.test(sql)) return [{ id: 20, process_code: 'GC', source: 'approved', actual_time: 0, deduction_time: 0, total_time: 0 }];
-    if (/FROM production_report_machine_lines WHERE report_id IN/.test(sql)) return [
-      { parent_id: 20, machine_code: 'C5', machine_time_hours: 10 }
-    ];
+    if (reportsQuery.test(sql)) return [{
+      id: 20, process_code: 'GC', source: 'approved', actual_time: 0, deduction_time: 0, total_time: 0,
+      machine_code: 'C5', machine_time_hours: 10
+    }];
     return [];
   });
   await assert.rejects(
