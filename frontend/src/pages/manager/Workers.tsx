@@ -163,7 +163,7 @@ export default function Workers() {
           const hours = Number(report.actual_time ?? report.actual_hours ?? 0);
           if (!code || !Number.isFinite(hours) || hours <= 0) continue;
           const standard = Number(report.standard_output ?? report.target_output ?? 0);
-          const actual = Number(report.actual_output ?? (Number(report.tt_ok ?? 0) + Number(report.tt_ng ?? 0)) ?? report.tt ?? 0);
+          const actual = Number(report.actual_output ?? ((report.tt_ok != null || report.tt_ng != null) ? Number(report.tt_ok ?? 0) + Number(report.tt_ng ?? 0) : report.tt ?? 0));
           const storedTtDinhMuc = report.tt_dinh_muc;
           const ttDinhMuc = storedTtDinhMuc !== null && storedTtDinhMuc !== undefined && storedTtDinhMuc !== ""
             ? Number(storedTtDinhMuc)
