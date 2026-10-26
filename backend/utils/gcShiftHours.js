@@ -8,7 +8,7 @@ function machineNumber(value) {
 
 function grossHours(line) {
   const stored = Number(line?.machine_time_hours);
-  if (Number.isFinite(stored) && stored >= 0) return stored;
+  if (Number.isFinite(stored) && stored > 0) return stored;
   return Math.max(0, Number(line?.actual_time_hours) || 0)
     + Math.max(0, Number(line?.deduction_time_hours) || 0);
 }
