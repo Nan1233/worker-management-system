@@ -100,6 +100,14 @@ test('transactional worker-capacity check locks machine row before counting part
   assert.equal(third.valid, false);
 });
 
+test('deleted approved reports do not occupy a GC machine or event participant slot', () => {
+  const capacity = fs.readFileSync(path.join(root, 'services/factoryMachineRuleService.js'), 'utf8');
+  const events = fs.readFileSync(path.join(root, 'services/machineProductionEventService.js'), 'utf8');
+  assert.match(capacity, /pr\.status = 'approved'/);
+  assert.match(events, /WHERE ml\.machine_event_id=\? AND r\.status='approved'/);
+  assert.match(events, /WHERE ml\.machine_event_id=\? AND r\.status IN \('pending','need_fix','approved'\)/);
+});
+
 test('same worker repeated activity remains one distinct worker in capacity SQL', () => {
   const source = fs.readFileSync(path.join(root, 'services/factoryMachineRuleService.js'), 'utf8');
   assert.match(source, /SELECT DISTINCT worker_id/);
