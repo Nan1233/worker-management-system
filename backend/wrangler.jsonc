@@ -8,10 +8,7 @@
   "keep_vars": true,
   "observability": { "enabled": true, "redact_query_string": true },
   "vars": {
-    "KTC_RUN_BUILD_DB_MIGRATIONS": "false",
     "KTC_CLOUDFLARE_WORKER": "true",
-    // Test-only: lets /api/health/ready return missingTables/missingColumns so
-    // DATABASE_CONTRACT_INVALID is diagnosable. Do not set on production.
     "KTC_EXPOSE_SCHEMA_DIAGNOSTICS": "true"
   }
 }
