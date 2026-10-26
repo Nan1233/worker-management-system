@@ -108,6 +108,23 @@ test('deleted approved reports do not occupy a GC machine or event participant s
   assert.match(events, /WHERE ml\.machine_event_id=\? AND r\.status IN \('pending','need_fix','approved'\)/);
 });
 
+test('a worker cannot exceed 12 gross hours on one GC machine in a shift', async () => {
+  const executor = callbackExecutor((sql) => {
+    if (/FROM machines/.test(sql) && /FOR UPDATE/.test(sql)) {
+      return [{ id: 5, process_id: 1, machine_code: '5', is_automatic: 1, max_workers_per_machine: 4, output_basis: 'MACHINE' }];
+    }
+    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }];
+    if (/SUM\(machine_hours\)/.test(sql)) return [{ worker_id: 1, machine_code: '5', total_hours: 11 }];
+    return [];
+  });
+  const result = await validateMachineWorkerCapacityLocked({
+    executor, processCode: 'GC', processId: 1, machineLines: [{ machine_code: '5', machine_time_hours: 2 }],
+    workerId: 1, workDate: '2026-08-12', shift: 'A'
+  });
+  assert.equal(result.valid, false);
+  assert.match(result.errors.machine_lines, /12 giờ/);
+});
+
 test('same worker repeated activity remains one distinct worker in capacity SQL', () => {
   const source = fs.readFileSync(path.join(root, 'services/factoryMachineRuleService.js'), 'utf8');
   assert.match(source, /SELECT DISTINCT worker_id/);
