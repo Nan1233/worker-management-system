@@ -8,7 +8,8 @@ const GC_SHARED_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
 // - Các công đoạn khác giữ capacity theo DB, mặc định 1 người/máy.
 const MULTI_MACHINE_PROCESS_CODES = new Set(["GC", "MAI"]);
 const MAX_MACHINES_PER_WORKER = 4;
-const DEFAULT_SHARED_WORKERS_PER_MACHINE = 2;
+const GC_MAX_WORKERS_PER_MACHINE = 2;
+const DEFAULT_SHARED_WORKERS_PER_MACHINE = 4;
 
 const canonicalMachineNumber = (value) => {
   const raw = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
@@ -37,7 +38,7 @@ const getGcMachineRule = (machineCode, dbRow = null) => {
     : GC_AUTOMATIC_MACHINE_NUMBERS.includes(machineNumber);
 
   // Confirmed factory rule: at most two workers per GC machine, regardless of DB defaults.
-  const maxWorkers = DEFAULT_SHARED_WORKERS_PER_MACHINE;
+  const maxWorkers = GC_MAX_WORKERS_PER_MACHINE;
 
   const outputBasis = String(
     dbRow?.output_basis ||
@@ -62,7 +63,7 @@ const getProcessMachineRule = (processCode, machineCode, dbRow = null) => {
       maxMachinesPerWorker: MAX_MACHINES_PER_WORKER,
       // Confirmed factory rule: at most two workers per GC machine.
       maxWorkersPerMachine: code === "GC"
-        ? DEFAULT_SHARED_WORKERS_PER_MACHINE
+        ? GC_MAX_WORKERS_PER_MACHINE
         : (dbRow?.max_workers_per_machine != null
           ? Math.max(1, Number(dbRow.max_workers_per_machine) || 1)
           : DEFAULT_SHARED_WORKERS_PER_MACHINE),
@@ -418,6 +419,7 @@ module.exports = {
   MULTI_MACHINE_PROCESS_CODES,
   MAX_MACHINES_PER_WORKER,
   DEFAULT_SHARED_WORKERS_PER_MACHINE,
+  GC_MAX_WORKERS_PER_MACHINE,
   canonicalMachineNumber,
   getGcMachineRule,
   getProcessMachineRule,
