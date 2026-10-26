@@ -191,6 +191,7 @@ module.exports = {
                 }
             }
             const nextWorkDate = Object.prototype.hasOwnProperty.call(data, "work_date") ? String(data.work_date || "").slice(0,10) : String(current.work_date || "").slice(0,10);
+            const nextShiftForHours = Object.prototype.hasOwnProperty.call(data, "shift") ? data.shift : current.shift;
             const nextActualTime = Object.prototype.hasOwnProperty.call(data, "actual_time") ? Math.max(0, Number(data.actual_time) || 0) : Math.max(0, Number(current.actual_time) || 0);
             const nextShiftForHours = Object.prototype.hasOwnProperty.call(data, "shift") ? data.shift : current.shift;
             let normalizedMachineLines = null;
