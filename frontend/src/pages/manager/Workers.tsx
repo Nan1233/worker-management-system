@@ -409,7 +409,7 @@ export default function Workers() {
 
           {loading ? <div className="personnel-state">Đang tải dữ liệu nhân sự...</div> : <section className="personnel-card personnel-directory-card">
             <div className="card-head"><div><h2>{tab === "lead" ? `Tổ trưởng (${filteredPeople.length})` : tab === "worker" ? `Công nhân (${filteredPeople.length})` : `Danh sách nhân sự (${filteredPeople.length})`}</h2><p>Danh sách được phân quyền theo các công đoạn quản lý phụ trách</p></div></div>
-            <PersonTable rows={filteredPeople} canEdit={canEdit} canPromote={!isAdminOps} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} promotingId={promotingId} />
+            <PersonTable rows={filteredPeople} monthlyTTByWorkerCode={monthlyTTByWorkerCode} canEdit={canEdit} canPromote={!isAdminOps} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} promotingId={promotingId} />
           </section>}
         </>
       ) : (
@@ -452,7 +452,7 @@ export default function Workers() {
   );
 }
 
-function PersonTable({ rows, canEdit, canPromote, onEdit, onDelete, onPromote, promotingId }: { rows: Person[]; canEdit: boolean; canPromote: boolean; onEdit: (p: Person) => void; onDelete: (p: Person) => void; onPromote: (p: Person) => void; promotingId: number | null }) {
+function PersonTable({ rows, monthlyTTByWorkerCode, canEdit, canPromote, onEdit, onDelete, onPromote, promotingId }: { rows: Person[]; monthlyTTByWorkerCode: Record<string, MonthlyTT>; canEdit: boolean; canPromote: boolean; onEdit: (p: Person) => void; onDelete: (p: Person) => void; onPromote: (p: Person) => void; promotingId: number | null }) {
   return <div className="personnel-table-wrap"><table className="personnel-table"><thead><tr><th>#</th><th>Nhân sự</th><th>Mã</th><th>Vai trò</th><th>Công đoạn phụ trách</th><th>% học việc</th><th>% TT tháng</th><th>SĐT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
     {rows.length ? rows.map((person, index) => <tr key={person.id}>
       <td>{index + 1}</td>
