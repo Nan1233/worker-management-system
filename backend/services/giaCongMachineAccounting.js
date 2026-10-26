@@ -14,6 +14,9 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   const events = physicalEventsById instanceof Map ? physicalEventsById : new Map();
   const seenEvents = new Set();
   let grossHours = 0;
+  let automaticMachineHours = 0;
+  const automaticMachineIds = new Set([5, 6, 7, 11]);
+  const countedFallbackLines = new Set();
   let hasPhysicalEvent = false;
   let deductionHours = 0;
   const deductions = [];
@@ -26,10 +29,20 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       hasPhysicalEvent = true;
       if (!seenEvents.has(eventId)) {
         seenEvents.add(eventId);
-        grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
+        const hours = Math.max(0, Number(event.machine_time_hours) || 0);
+        const machineId = Number(line.machine_id ?? event.machine_id) || 0;
+        if (automaticMachineIds.has(machineId)) automaticMachineHours = Math.max(automaticMachineHours, hours);
+        else grossHours += hours;
       }
     } else if (!eventId) {
-      grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
+      const lineId = Number(line.id) || lineIndex;
+      if (!countedFallbackLines.has(lineId)) {
+        countedFallbackLines.add(lineId);
+        const hours = Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
+        const machineId = Number(line.machine_id) || 0;
+        if (automaticMachineIds.has(machineId)) automaticMachineHours = Math.max(automaticMachineHours, hours);
+        else grossHours += hours;
+      }
     }
 
     const lineDeductions = parseJsonArray(line.deductions_json);
@@ -61,6 +74,8 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       }
     }
   });
+
+  grossHours += automaticMachineHours;
 
   const hasMachineLines = lines.length > 0;
   const hasMissingLinkedEvent = lines.some((line) => {
