@@ -16,27 +16,27 @@ const checkDailyHours = async (connection, { workerId, workDate, incomingActualH
     const rows = await query(connection, `
         SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
             SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
+                THEN COALESCE((SELECT (COALESCE(SUM(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN 0 ELSE GREATEST(0,COALESCE(ml.machine_time_hours,0)) END),0) + COALESCE(MAX(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN GREATEST(0,COALESCE(ml.machine_time_hours,0)) ELSE 0 END),0)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
                 ELSE COALESCE(pr.actual_time,0) END AS counted_hours
             FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
+            WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? AND pr.status <> 'deleted'
             UNION ALL
             SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
-                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
+                THEN COALESCE((SELECT (COALESCE(SUM(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN 0 ELSE GREATEST(0,COALESCE(ml.machine_time_hours,0)) END),0) + COALESCE(MAX(CASE WHEN UPPER(REPLACE(REPLACE(REPLACE(TRIM(ml.machine_code),'-',''),' ',''),'_','')) IN ('5','C5','M5','MAY5','MÁY5','MACHINE5','GC5','G5','6','C6','M6','MAY6','MÁY6','MACHINE6','GC6','G6','7','C7','M7','MAY7','MÁY7','MACHINE7','GC7','G7','11','C11','M11','MAY11','MÁY11','MACHINE11','GC11','G11') THEN GREATEST(0,COALESCE(ml.machine_time_hours,0)) ELSE 0 END),0)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
                 ELSE COALESCE(pr.actual_time,0) END AS counted_hours
             FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? ${tempExcludeSql} AND pr.status IN ('pending','need_fix')
+            WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? ${tempExcludeSql} AND pr.status IN ('pending','need_fix')
         ) daily_hours`, params);
     const existingHours = Number(rows?.[0]?.counted_hours || 0);
     const incoming = isGc && Array.isArray(incomingMachineLines) && incomingMachineLines.length
-        ? Math.max(...incomingMachineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0)))
-        : (Number(incomingActualHours) || 0);
+        ? calculateGcShiftHours(incomingMachineLines)
+        : Math.max(0, Number(incomingActualHours) || 0);
     const projectedHours = existingHours + incoming;
     if (exceedsDailyHoursLimit(projectedHours)) {
         const remainingHours = Math.max(0, DAILY_HOURS_LIMIT - existingHours);
         const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existingHours.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remainingHours.toFixed(2)} giờ.`);
         error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
-        error.details = { worker_id: worker, work_date: date, existing_hours: Number(existingHours.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projectedHours.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, remaining_hours: Number(remainingHours.toFixed(4)), counted_field: "actual_time_or_gc_machine_line_actual_time", excluded_from_daily_limit: "deduction_time / support hours" };
+        error.details = { worker_id: worker, work_date: date, existing_hours: Number(existingHours.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projectedHours.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, remaining_hours: Number(remainingHours.toFixed(4)), counted_field: "gross_elapsed_hours_by_shift" };
         throw error;
     }
     return { existingHours, incomingTotalHours: incoming, projectedHours, limitHours: DAILY_HOURS_LIMIT };
@@ -192,6 +192,7 @@ module.exports = {
             }
             const nextWorkDate = Object.prototype.hasOwnProperty.call(data, "work_date") ? String(data.work_date || "").slice(0,10) : String(current.work_date || "").slice(0,10);
             const nextActualTime = Object.prototype.hasOwnProperty.call(data, "actual_time") ? Math.max(0, Number(data.actual_time) || 0) : Math.max(0, Number(current.actual_time) || 0);
+            const nextShiftForHours = Object.prototype.hasOwnProperty.call(data, "shift") ? data.shift : current.shift;
             let normalizedMachineLines = null;
             // The controller already resolved the process code from the same report row; only query when a
             // direct caller did not provide it.
@@ -220,7 +221,7 @@ module.exports = {
                     : await query(connection, `SELECT machine_time_hours, deduction_time_hours FROM production_temp_machine_lines WHERE temp_report_id=?`, [id]);
                 dailyHoursMachineLines = storedLines.map(line => ({ actual_time_hours: Math.max(0, Number(line.machine_time_hours || 0) - Number(line.deduction_time_hours || 0)) }));
             }
-            await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, incomingActualHours: nextActualTime, incomingMachineLines: dailyHoursMachineLines || [], isGc, excludeTempReportId: id });
+            await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, shift: nextShiftForHours, incomingActualHours: nextActualTime + Math.max(0, Number(data.deduction_time ?? current.deduction_time) || 0), incomingMachineLines: dailyHoursMachineLines || [], isGc, excludeTempReportId: id });
             const changes = editableFields.filter(field => Object.prototype.hasOwnProperty.call(data, field)).filter(field => String(current[field] ?? "") !== String(data[field] ?? ""));
             const detailChanged = hasDeductions || hasDefects || hasMachineLines;
             if (changes.length === 0 && !detailChanged) { await rollback(connection); return { changed: false, report: current }; }
