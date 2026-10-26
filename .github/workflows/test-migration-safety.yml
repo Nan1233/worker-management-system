@@ -39,9 +39,7 @@ jobs:
         run: npm ci
       - name: Check backend source
         run: npm run check
-      - name: Run migration safety tests
-        run: node --test tests/no-automatic-migration.test.js tests/seed-scripts-safety.test.js
-      - name: Verify migration inventory without database writes
-        run: npm run db:migration-inventory
+      - name: Run database-first safety tests
+        run: node --test tests/database-first-no-migrations.test.js tests/seed-scripts-safety.test.js
       - name: Run backend test suite
         run: npm test
