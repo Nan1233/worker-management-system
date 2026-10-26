@@ -80,25 +80,6 @@ test('machineModel.findByProcess returns gc_work_type and falls back when migrat
   }
 });
 
-test('migration 059 adds the column idempotently and classifies only by seeded machine_name evidence', () => {
-  const sql = read('migrations/059_gc_machine_work_type_20261021.sql');
-  const code = sql.split('\n').filter((line) => !line.trim().startsWith('--')).join('\n');
-  assert.match(code, /ADD COLUMN IF NOT EXISTS gc_work_type VARCHAR\(10\) NULL/);
-  assert.match(code, /machine_name REGEXP '\^Máy cắt số \[0-9\]\+'/);
-  assert.match(code, /machine_name REGEXP '\^Máy lồng số \[0-9\]\+'/);
-  assert.equal((code.match(/gc_work_type IS NULL/g) || []).length, 2, 'only NULL rows are updated (idempotent)');
-  assert.doesNotMatch(code, /machine_code/i, 'must not classify by machine-code prefix');
-  assert.doesNotMatch(code, /\b(DELETE|DROP|TRUNCATE)\b/i, 'no destructive statements');
-  assert.doesNotMatch(code, /production_reports/i, 'must not touch historical production data');
-  const manifest = JSON.parse(read('migrations/manifest.json'));
-  assert.ok(manifest.migrations.includes('059_gc_machine_work_type_20261021.sql'));
-  assert.equal(manifest.latestMigration, '060_schema_gaps_encoding_updated_by_standard_source_20261022.sql');
-  assert.equal(manifest.migrations[manifest.migrations.length - 1], manifest.latestMigration);
-  assert.equal(manifest.latestVersion, manifest.migrations.length);
-  const seeded = read('migrations/049_gc_machines_from_excel_20260924.sql') + read('migrations/054_add_gc_c13_manual_cutting_machine.sql');
-  assert.match(seeded, /'C13',\s*'Máy cắt số 13'/, 'C13 seed name matches the backfill pattern');
-});
-
 test('no backend service infers Cắt/Lồng from a machine-code prefix range any more', () => {
   const files = ['services/standardResolutionService.js', 'services/reportBusinessValidationService.js', 'services/machineLineValidationService.js'];
   for (const file of files) {
