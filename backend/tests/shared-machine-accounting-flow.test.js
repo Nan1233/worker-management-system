@@ -151,11 +151,12 @@ test('repository introduces no equal-split allocation in F05 production files', 
 });
 
 
+
 test('soft-deleted approved reports do not occupy GC machine capacity', () => {
   const source = fs.readFileSync(path.join(root, 'services/factoryMachineRuleService.js'), 'utf8');
-  const productionReportQueries = source.match(/SELECT UPPER\\(TRIM\\(ml2\\.machine_code\\)\\) AS machine_code, pr\\.worker_id[\\s\\S]*?\\n     \\) used/g) || [];
+  const productionReportQueries = source.match(/SELECT UPPER\(TRIM\(ml2\.machine_code\)\) AS machine_code, pr\.worker_id[\s\S]*?\n     \) used/g) || [];
   assert.equal(productionReportQueries.length, 2, 'both unlocked and locked capacity checks must filter approved reports');
   for (const query of productionReportQueries) {
-    assert.match(query, /pr\\.status\\s*=\\s*'approved'/);
+    assert.match(query, /pr\.status\s*=\s*'approved'/);
   }
 });
