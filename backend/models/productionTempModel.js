@@ -294,38 +294,32 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         let tempId;
         const parentConnection = await getConnection();
         try {
+            // Keep the report parent and every child row in ONE transaction.
+            // Committing the parent first allowed a detail-write failure to leave
+            // a partial report marked need_fix; a retry with the same request ID
+            // then incorrectly returned that incomplete row as a successful duplicate.
             await beginReadCommittedTransaction(parentConnection);
             const race = await findExistingClientRequest(data, parentConnection);
             if (race) { await commit(parentConnection); return idempotent(race); }
-            try { tempId = await createModel.create(data, parentConnection); }
-            catch (error) {
+            try {
+                tempId = await createModel.create(data, parentConnection);
+                await createModel.createDefects(tempId, data.process_id, defects, parentConnection);
+                await createModel.createDeductions(tempId, data.process_id, deductions, parentConnection);
+                await createModel.replaceMachineLines(tempId, machineLines, parentConnection);
+                await commit(parentConnection);
+            } catch (error) {
                 await rollback(parentConnection);
                 if (error?.code === "ER_DUP_ENTRY") { const existing = await findExistingClientRequest(data); if (existing) return idempotent(existing); }
                 if (is1205(error)) return recoverAfter1205(data);
-                throw error;
+                const e = new Error(`Không thể lưu báo cáo: ${String(error?.message || error)}`);
+                e.status = Number(error?.status) >= 400 ? Number(error.status) : 422;
+                e.code = error?.code || "REPORT_PERSIST_FAILED";
+                e.isPublic = true; e.details = error?.details || { temp_report_id: tempId || null }; throw e;
             }
-            await commit(parentConnection);
         } finally { parentConnection.release(); }
 
-        // Persist child data in its own short transaction. Audit is deliberately
-        // separate so an audit/version failure cannot erase NG/trừ giờ details.
-        const childConnection = await getConnection();
-        try {
-            await beginTransaction(childConnection);
-            await createModel.createDefects(tempId, data.process_id, defects, childConnection);
-            await createModel.createDeductions(tempId, data.process_id, deductions, childConnection);
-            await createModel.replaceMachineLines(tempId, machineLines, childConnection);
-            await commit(childConnection);
-        } catch (error) {
-            await rollback(childConnection);
-            try { await query(db, `UPDATE production_reports_temp SET status='need_fix', review_note=? WHERE id=?`, [`Không thể lưu chi tiết báo cáo: ${String(error?.message || error).slice(0,450)}`, tempId]); } catch {}
-            if (is1205(error)) return recoverAfter1205(data);
-            const e = new Error(`Không thể lưu chi tiết báo cáo: ${String(error?.message || error)}`);
-            e.status = Number(error?.status) >= 400 ? Number(error.status) : 422;
-            e.code = error?.code || "REPORT_DETAIL_PERSIST_FAILED";
-            e.isPublic = true; e.details = error?.details || { temp_report_id: tempId }; throw e;
-        } finally { childConnection.release(); }
-
+        // Audit/version work stays separate so an audit failure cannot undo an
+        // already committed, complete report and its NG/trừ giờ/machine details.
         let auditWarning = null;
         try { await createAuditAfterChildren({ tempId, audit, data, requestId, logicalDuplicateKey: data.logical_duplicate_key }); }
         catch (error) {

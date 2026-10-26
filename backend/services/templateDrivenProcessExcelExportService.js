@@ -6,6 +6,7 @@ const path = require('node:path');
 const db = require('../config/db');
 const { resolveTemplatePath, getProcessTemplateContract, normalizeLabel } = require('./excelTemplateContractService');
 const { mergeDefects, normalizeDeductions } = require('../utils/reportDetailNormalizer');
+const { buildMachineExcelRows } = require('./machineLineExcelRows');
 
 const alias = (value) => normalizeLabel(value);
 const query = (sql, params = []) => new Promise((resolve, reject) => {
@@ -87,9 +88,19 @@ async function hydrateExportDetailFallbacks(reports) {
   const tempDeductionsById = new Map();
   const tempDefectsById = new Map();
   const machineDefectsByReportId = new Map();
+  const machineDefectsByLineId = new Map();
   for (const row of tempDeductionRows) { const id = Number(row.report_id); if (!tempDeductionsById.has(id)) tempDeductionsById.set(id, []); tempDeductionsById.get(id).push(row); }
   for (const row of tempDefectRows) { const id = Number(row.report_id); if (!tempDefectsById.has(id)) tempDefectsById.set(id, []); tempDefectsById.get(id).push(row); }
-  for (const row of machineDefectRows) { const id = Number(row.report_id); if (!machineDefectsByReportId.has(id)) machineDefectsByReportId.set(id, []); machineDefectsByReportId.get(id).push(row); }
+  for (const row of machineDefectRows) {
+    const id = Number(row.report_id);
+    if (!machineDefectsByReportId.has(id)) machineDefectsByReportId.set(id, []);
+    machineDefectsByReportId.get(id).push(row);
+    const lineId = Number(row.machine_line_id);
+    if (lineId > 0) {
+      if (!machineDefectsByLineId.has(lineId)) machineDefectsByLineId.set(lineId, []);
+      machineDefectsByLineId.get(lineId).push(row);
+    }
+  }
 
   for (const report of reports) {
     const id = Number(report.id);
@@ -103,6 +114,10 @@ async function hydrateExportDetailFallbacks(reports) {
     const existingDefects = Array.isArray(report.defects) ? report.defects : [];
     const tempDefects = tempDefectsById.get(id) || [];
     const machineDefects = machineDefectsByReportId.get(id) || [];
+    for (const line of (Array.isArray(report.machineLines) ? report.machineLines : [])) {
+      const lineDefects = machineDefectsByLineId.get(Number(line.id));
+      if (lineDefects?.length) line.defects = lineDefects;
+    }
     const defectRows = existingDefects.length ? existingDefects : [...tempDefects, ...machineDefects];
     report.defects = mergeDefects(report, defectRows, Array.isArray(report.machineLines) ? report.machineLines : []);
   }
@@ -141,15 +156,17 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   const processCode = String(reports?.[0]?.process_code || options.processCode || '').toUpperCase();
   const contract = getProcessTemplateContract(processCode); const templatePath = await resolveTemplatePath(); const workbook = new ExcelJS.Workbook(); await workbook.xlsx.readFile(templatePath);
   const sheet = workbook.getWorksheet(contract.sheet); if (!sheet) throw Object.assign(new Error(`File mẫu thiếu sheet ${contract.sheet}`), { code: 'KTC_EXCEL_TEMPLATE_SHEET_MISSING', statusCode: 500 });
-  if ((reports?.length || 0) > contract.dataEndRow - contract.dataStartRow + 1) throw Object.assign(new Error(`File mẫu ${contract.sheet} chỉ có ${contract.dataEndRow - contract.dataStartRow + 1} dòng chi tiết; tháng ${yearMonth} có ${reports.length} báo cáo`), { code: 'KTC_EXCEL_TEMPLATE_CAPACITY_EXCEEDED', statusCode: 422 });
   await hydrateExportDetailFallbacks(reports);
   await applyCurrentDbMasterData(reports);
+  const exportRows = buildMachineExcelRows(reports);
+  const capacity = contract.dataEndRow - contract.dataStartRow + 1;
+  if (exportRows.length > capacity) throw Object.assign(new Error(`File mẫu ${contract.sheet} chỉ có ${capacity} dòng chi tiết; tháng ${yearMonth} cần ${exportRows.length} dòng máy-người từ ${reports.length} báo cáo`), { code: 'KTC_EXCEL_TEMPLATE_CAPACITY_EXCEEDED', statusCode: 422 });
   const mapping = processColumns(sheet, contract, processCode); clearDetailConstants(sheet, contract.dataStartRow, contract.dataEndRow);
-  for (let index = 0; index < (reports || []).length; index += 1) writeReportRow(sheet, contract.dataStartRow + index, reports[index], processCode, mapping);
+  for (let index = 0; index < exportRows.length; index += 1) writeReportRow(sheet, contract.dataStartRow + index, exportRows[index], processCode, mapping);
   const removedBrokenFormulas = clearBrokenAndExternalFormulas(workbook); workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const exportRoot = options.exportRoot || path.join(process.cwd(), 'exports-process'); const [year, month] = String(yearMonth).split('-'); const folder = path.join(exportRoot, year, options.processName || processCode, month); await fs.mkdir(folder, { recursive: true });
   const fileName = options.fileName || `Bao-cao-${processCode}-${month}-${year}.xlsx`; const outputPath = path.join(folder, fileName); await workbook.xlsx.writeFile(outputPath);
-  return { archivePath: outputPath, fileName, processCode, templateFile: path.basename(templatePath), templateSheet: contract.sheet, templateHeaderRow: contract.headerRow, dataStartRow: contract.dataStartRow, reportCount: reports.length, removedBrokenFormulas };
+  return { archivePath: outputPath, fileName, processCode, templateFile: path.basename(templatePath), templateSheet: contract.sheet, templateHeaderRow: contract.headerRow, dataStartRow: contract.dataStartRow, reportCount: reports.length, rowCount: exportRows.length, removedBrokenFormulas };
 }
 
 module.exports = { buildTemplateDrivenProcessWorkbook, applyCurrentDbMasterData };

@@ -1,0 +1,33 @@
+name: Gia Cong Monthly Excel Regression
+
+on:
+  push:
+    branches: [test]
+    paths:
+      - 'backend/services/commonProcessMonthlyExcelService.js'
+      - 'backend/services/monthlyExcelService.js'
+      - 'backend/tests/common-process-gc-excel.test.js'
+      - '.github/workflows/gc-monthly-excel-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gia-cong-monthly-excel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: node --check services/commonProcessMonthlyExcelService.js
+      - run: node --check services/monthlyExcelService.js
+      - run: node --test tests/common-process-gc-excel.test.js tests/gc-worker-report-excel.test.js

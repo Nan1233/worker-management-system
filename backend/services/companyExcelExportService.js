@@ -5,6 +5,7 @@ const db = require('../config/db');
 const { loadProcessMonthReports, normalizeYearMonth } = require('./processExcelExportService');
 const { buildLayoutResolvers, writeDetailColumns } = require('./excelColumnMapping');
 const { writeGcWorkerSheet } = require('./gcWorkerReportExcel');
+const { buildMachineExcelRows } = require('./machineLineExcelRows');
 const { calculateCountedNg } = require('../utils/outputCalculation');
 const { normalizeTrainingPercent, trainingFactor } = require('../utils/trainingPercent');
 
@@ -392,12 +393,13 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
   for (const sheetConfig of group.sheets) {
     const processRows = loaded.filter(({ process }) => sheetConfig.processCodes.includes(String(process.process_code).toUpperCase()));
     const reports = processRows.flatMap((item) => item.reports).sort(sortReports);
+    await attachMachineLineDefects(reports);
+    const exportRows = sheetConfig.mode === 'WORKER_DAILY' ? reports : buildMachineExcelRows(reports);
     const deductionTypes = processRows.flatMap((item) => item.reports.deductionTypes || []);
     const defectTypes = processRows.flatMap((item) => item.reports.defectTypes || []);
     const sheet = workbook.getWorksheet(sheetConfig.sheetName);
     if (!sheet) throw new Error(`Thiếu sheet ${sheetConfig.sheetName} trong file mẫu`);
     if (sheetConfig.mode === 'WORKER_DAILY') {
-      await attachMachineLineDefects(reports);
       const written = writeGcWorkerSheet(sheet, reports, { deductionTypes, defectTypes });
       if (written.unmapped.length) {
         const summary = new Map();
@@ -428,7 +430,7 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
     ensureWorkerNameFormulas(sheet, blocks, layout, workerLookup);
 
     const byDay = new Map();
-    reports.forEach((report) => {
+    exportRows.forEach((report) => {
       const day = Number(normalizeDateKey(report.work_date).slice(8, 10));
       if (!byDay.has(day)) byDay.set(day, []);
       byDay.get(day).push(report);
