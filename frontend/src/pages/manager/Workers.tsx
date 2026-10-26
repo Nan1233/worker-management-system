@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import api from "../../services/api";
+import { getApprovedReports } from "../../services/productionService";
 import { getActivities, type ActivityItem } from "../../services/systemService";
 import { useToast } from "../../components/feedback/toastContext";
 import { usePermissions } from "../../hooks/usePermissions";
@@ -34,6 +35,8 @@ type Person = {
   process_ids?: string | null;
   process_names?: string | null;
 };
+
+type MonthlyTT = { percent: number | null; hours: number };
 
 type Process = { id: number; process_name: string; process_code?: string };
 
@@ -89,6 +92,7 @@ export default function Workers() {
   const isAdminOps = String(getStoredUser()?.role || "").toLowerCase() === "admin_ops";
 
   const [people, setPeople] = useState<Person[]>([]);
+  const [monthlyTTByWorkerCode, setMonthlyTTByWorkerCode] = useState<Record<string, MonthlyTT>>({});
   const [processes, setProcesses] = useState<Process[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +141,51 @@ export default function Workers() {
   };
 
   useEffect(() => void load(), []);
+
+  // % TT tháng chỉ áp dụng cho công nhân: trung bình gia quyền theo giờ
+  // của các báo cáo đã duyệt từ ngày đầu tháng đến hôm nay.
+  useEffect(() => {
+    let alive = true;
+    const loadMonthlyTT = async () => {
+      const now = new Date();
+      const dateTo = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
+      const dateFrom = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), "01"].join("-");
+      try {
+        const firstPage = await getApprovedReports({ dateFrom, dateTo, page: 1, pageSize: 100 });
+        const reports = [...firstPage.data];
+        for (let page = 2; page <= firstPage.pagination.total_pages; page += 1) {
+          const result = await getApprovedReports({ dateFrom, dateTo, page, pageSize: 100 });
+          reports.push(...result.data);
+        }
+        const totals: Record<string, { weighted: number; hours: number }> = {};
+        for (const report of reports as any[]) {
+          const code = String(report.worker_code || "").trim();
+          const hours = Number(report.actual_time ?? report.actual_hours ?? 0);
+          if (!code || !Number.isFinite(hours) || hours <= 0) continue;
+          const ttDm = Number(report.tt_dinh_muc ?? report.standard_output ?? report.target_output ?? 0);
+          const actual = Number(report.actual_output ?? report.tt ?? report.tt_ok ?? 0);
+          const rawPercent = Number(report.nang_suat_percent);
+          const percent = Number.isFinite(rawPercent) && rawPercent > 0
+            ? rawPercent
+            : ttDm > 0 ? actual / (ttDm * hours) * 100 : 0;
+          if (!Number.isFinite(percent) || percent < 0) continue;
+          if (!totals[code]) totals[code] = { weighted: 0, hours: 0 };
+          totals[code].weighted += percent * hours;
+          totals[code].hours += hours;
+        }
+        const result: Record<string, MonthlyTT> = {};
+        for (const [code, total] of Object.entries(totals)) {
+          result[code] = { percent: total.hours > 0 ? total.weighted / total.hours : null, hours: total.hours };
+        }
+        if (alive) setMonthlyTTByWorkerCode(result);
+      } catch {
+        if (alive) setMonthlyTTByWorkerCode({});
+      }
+    };
+    void loadMonthlyTT();
+    const timer = window.setInterval(() => void loadMonthlyTT(), 60_000);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, []);
   useEffect(() => {
     if (tab === "activity") void loadActivities();
   }, [tab]);
@@ -397,7 +446,7 @@ export default function Workers() {
 }
 
 function PersonTable({ rows, canEdit, canPromote, onEdit, onDelete, onPromote, promotingId }: { rows: Person[]; canEdit: boolean; canPromote: boolean; onEdit: (p: Person) => void; onDelete: (p: Person) => void; onPromote: (p: Person) => void; promotingId: number | null }) {
-  return <div className="personnel-table-wrap"><table className="personnel-table"><thead><tr><th>#</th><th>Nhân sự</th><th>Mã</th><th>Vai trò</th><th>Công đoạn phụ trách</th><th>% học việc</th><th>SĐT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+  return <div className="personnel-table-wrap"><table className="personnel-table"><thead><tr><th>#</th><th>Nhân sự</th><th>Mã</th><th>Vai trò</th><th>Công đoạn phụ trách</th><th>% học việc</th><th>% TT tháng</th><th>SĐT</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
     {rows.length ? rows.map((person, index) => <tr key={person.id}>
       <td>{index + 1}</td>
       <td><strong>{person.full_name || "—"}</strong><small>{person.username}</small></td>
@@ -405,10 +454,11 @@ function PersonTable({ rows, canEdit, canPromote, onEdit, onDelete, onPromote, p
       <td><span className={`role-pill ${person.role}`}>{roleText(person.role)}</span></td>
       <td className="process-cell">{person.process_names || "Chưa phân công"}</td>
       <td>{person.role === "worker" ? <span className={`training-pill ${Number(person.training_percent ?? 100) >= 100 ? "complete" : "learning"}`}>{Number(person.training_percent ?? 100)}%</span> : "—"}</td>
+      <td>{person.role === "worker" ? (monthlyTTByWorkerCode[String(person.worker_code || "").trim()]?.percent == null ? "—" : `${monthlyTTByWorkerCode[String(person.worker_code || "").trim()].percent!.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`) : "—"}</td>
       <td>{person.phone || "—"}</td>
       <td><span className={`person-status ${person.status}`}>{statusText(person.status)}</span></td>
       <td><div className="row-actions">{canEdit && <><button type="button" title="Sửa" onClick={() => onEdit(person)} disabled={promotingId !== null}><Pencil size={14} /></button>{canPromote && person.role === "worker" && <button type="button" title="Nâng lên Tổ trưởng" onClick={() => void onPromote(person)} disabled={promotingId !== null}><ShieldCheck size={14} /></button>}<button type="button" className="danger" title="Xóa" onClick={() => void onDelete(person)} disabled={promotingId !== null}><Trash2 size={14} /></button></>}</div></td>
-    </tr>) : <tr><td colSpan={9} className="empty">Không có dữ liệu</td></tr>}
+    </tr>) : <tr><td colSpan={10} className="empty">Không có dữ liệu</td></tr>}
   </tbody></table></div>;
 }
 
