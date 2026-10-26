@@ -35,40 +35,47 @@ async function assertWorkerShiftHours({
   if (excludeTempReportId) params.push(Number(excludeTempReportId));
 
   const sql = [
-    "SELECT pr.id, pr.process_id, p.process_code, pr.actual_time, pr.deduction_time, pr.total_time, 'approved' AS source",
+    "SELECT pr.id, pr.process_id, p.process_code, pr.actual_time, pr.deduction_time, pr.total_time, 'approved' AS source,",
+    'ml.machine_code, ml.machine_time_hours, ml.actual_time_hours, ml.deduction_time_hours',
     'FROM production_reports pr JOIN processes p ON p.id=pr.process_id',
+    'LEFT JOIN production_report_machine_lines ml ON ml.report_id=pr.id',
     "WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? AND pr.status='approved'" + approvedExclude,
     'UNION ALL',
-    "SELECT pr.id, pr.process_id, p.process_code, pr.actual_time, pr.deduction_time, pr.total_time, 'temp' AS source",
+    "SELECT pr.id, pr.process_id, p.process_code, pr.actual_time, pr.deduction_time, pr.total_time, 'temp' AS source,",
+    'ml.machine_code, ml.machine_time_hours, ml.actual_time_hours, ml.deduction_time_hours',
     'FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id',
+    'LEFT JOIN production_temp_machine_lines ml ON ml.temp_report_id=pr.id',
     "WHERE pr.worker_id=? AND pr.work_date=? AND pr.shift=? AND pr.status IN ('pending','need_fix')" + tempExclude
   ].join(' ');
 
-  const [reports] = await query(executor, sql, params);
-  const approvedGc = reports.filter((r) => r.source === 'approved' && String(r.process_code).toUpperCase() === 'GC');
-  const tempGc = reports.filter((r) => r.source === 'temp' && String(r.process_code).toUpperCase() === 'GC');
-  const approvedIds = approvedGc.map((r) => Number(r.id));
-  const tempIds = tempGc.map((r) => Number(r.id));
+  const [rows] = await query(executor, sql, params);
+  const reportMap = new Map();
   const lineGroups = new Map();
   const allGcLines = [];
-  if (approvedIds.length) {
-    const [lines] = await query(executor, 'SELECT report_id AS parent_id, machine_code, machine_time_hours, actual_time_hours, deduction_time_hours FROM production_report_machine_lines WHERE report_id IN (' + approvedIds.map(() => '?').join(',') + ')', approvedIds);
-    for (const line of lines) {
-      const key = 'approved:' + Number(line.parent_id);
+  for (const row of rows || []) {
+    const source = String(row.source);
+    const id = Number(row.id);
+    const key = source + ':' + id;
+    if (!reportMap.has(key)) {
+      reportMap.set(key, {
+        id, process_id: row.process_id, process_code: row.process_code,
+        actual_time: row.actual_time, deduction_time: row.deduction_time,
+        total_time: row.total_time, source
+      });
+    }
+    if (row.machine_code !== null && row.machine_code !== undefined && String(row.machine_code).trim() !== '') {
+      const line = {
+        machine_code: row.machine_code,
+        machine_time_hours: row.machine_time_hours,
+        actual_time_hours: row.actual_time_hours,
+        deduction_time_hours: row.deduction_time_hours
+      };
       if (!lineGroups.has(key)) lineGroups.set(key, []);
       lineGroups.get(key).push(line);
-      allGcLines.push(line);
+      if (String(row.process_code).toUpperCase() === 'GC') allGcLines.push(line);
     }
   }
-  if (tempIds.length) {
-    const [lines] = await query(executor, 'SELECT temp_report_id AS parent_id, machine_code, machine_time_hours, actual_time_hours, deduction_time_hours FROM production_temp_machine_lines WHERE temp_report_id IN (' + tempIds.map(() => '?').join(',') + ')', tempIds);
-    for (const line of lines) {
-      const key = 'temp:' + Number(line.parent_id);
-      if (!lineGroups.has(key)) lineGroups.set(key, []);
-      lineGroups.get(key).push(line);
-      allGcLines.push(line);
-    }
-  }
+  const reports = [...reportMap.values()];
 
   let existingHours = 0;
   for (const report of reports) {
@@ -79,7 +86,7 @@ async function assertWorkerShiftHours({
   }
 
   // Aggregate automatic-machine time across the whole shift, not report-by-report:
-  // the same worker may submit separate reports for automatic machines that ran in parallel.
+  // separate reports for machines 5/6/7/11 may represent machines running in parallel.
   const hoursByMachine = new Map();
   for (const line of allGcLines) {
     const number = machineNumber(line.machine_code);
@@ -89,8 +96,7 @@ async function assertWorkerShiftHours({
   let sequentialMachineHours = 0;
   let automaticMachineHours = 0;
   for (const [key, hours] of hoursByMachine) {
-    const number = Number(key);
-    if (AUTO_MACHINE_NUMBERS.has(number)) automaticMachineHours = Math.max(automaticMachineHours, hours);
+    if (AUTO_MACHINE_NUMBERS.has(Number(key))) automaticMachineHours = Math.max(automaticMachineHours, hours);
     else sequentialMachineHours += hours;
   }
   existingHours += sequentialMachineHours + automaticMachineHours;
