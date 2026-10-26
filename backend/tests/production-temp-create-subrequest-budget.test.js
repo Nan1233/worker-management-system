@@ -89,7 +89,7 @@ test('GC daily cap counts machine_time_hours minus deductions when actual_time_h
   const { Model, log } = setup({ supportsBeginIsolation: true, dailyHours: 9, processCode: 'GC' });
   const data = { ...baseData(), actual_time: 0, _daily_hours_machine_lines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }] };
   await assert.rejects(
-    () => Model.createCompleteReport({ data, defects: [], deductions: [], machineLines: [], audit: { userId: 9 } }),
+    () => Model.createCompleteReport({ data, defects: [], deductions: [], machineLines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }], audit: { userId: 9 } }),
     (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED' && error.status === 422
   );
   assert.equal(log.at(-1), 'ROLLBACK');
