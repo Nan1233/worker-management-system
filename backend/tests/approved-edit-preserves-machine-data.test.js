@@ -11,6 +11,7 @@ function build({ mode = 'MACHINE', processId = 60001, actualTime = 8, machineNo 
   const sqls = [];
   const report = { id: 5001, worker_id: 7, process_id: processId, status: 'approved', operation_mode: mode, work_date: '2026-10-23', shift: 'A', machine_no: machineNo, product_name: productName, actual_time: actualTime, total_time: actualTime, deduction_time: 0, standard_output: 500, tt_ok: 90, tt_ng: 10, actual_output: 100, exclude_kqd_from_tt_snapshot: 0, note: '', updated_at: '2026-10-23 01:00:00' };
   const answer = (sql) => {
+    if (/FROM production_reports pr JOIN processes p ON p.id=pr.process_id WHERE pr.id=\? FOR UPDATE/.test(sql)) return [[{ ...report, process_code: 'GC' }], []];
     if (/SELECT \* FROM production_reports WHERE id=\?/.test(sql)) return [[report], []];
     if (/FROM production_report_defects/.test(sql)) return [storedDefects, []];
     if (/FROM production_report_deductions/.test(sql)) return [[], []];
