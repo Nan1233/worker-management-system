@@ -60,7 +60,7 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
   const connection = await db.promise().getConnection();
   try {
     await connection.beginTransaction();
-    const [lockedRows] = await connection.query('SELECT pr.*, p.process_code FROM production_reports pr JOIN processes p ON p.id=pr.process_id WHERE pr.id=? FOR UPDATE', [Number(reportId)]);
+    const [lockedRows] = await connection.query('SELECT pr.*, p.process_code, w.id AS locked_worker_id FROM production_reports pr JOIN processes p ON p.id=pr.process_id JOIN workers w ON w.id=pr.worker_id WHERE pr.id=? FOR UPDATE', [Number(reportId)]);
     if (!lockedRows[0]) throw httpError(404, 'REPORT_NOT_FOUND', 'Không tìm thấy báo cáo');
     await assertProcessScope(actor, lockedRows[0].process_id, { executor: connection, action: source === 'excel' ? 'REPORT_APPROVED_EDIT_EXCEL' : 'REPORT_APPROVED_EDIT' });
 
