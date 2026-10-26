@@ -13,10 +13,11 @@ test('Worker source never requires or starts the migration runner', () => {
   assert.match(worker, /migration_enabled: false/);
 });
 
-test('wrangler config does not enable build/runtime migrations', () => {
+test('wrangler config disables automatic migrations and carries no runner allowlist', () => {
   const raw = read('wrangler.jsonc').replace(/\/\/.*$/gm, '');
   assert.match(raw, /"KTC_RUN_BUILD_DB_MIGRATIONS"\s*:\s*"false"/);
   assert.doesNotMatch(raw, /"KTC_RUN_BUILD_DB_MIGRATIONS"\s*:\s*"true"/);
+  assert.doesNotMatch(raw, /"KTC_MIGRATION_(?:MAX|INCLUDE|REF|REPOSITORY)"/);
 });
 
 test('build gate validates the inventory only and never loads the database', () => {
