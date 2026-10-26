@@ -249,6 +249,7 @@ const validateMachineWorkerCapacity = async ({
         WHERE pr.process_id = ?
           AND pr.work_date = ?
           AND pr.shift = ?
+          AND pr.status = 'approved'
           AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
      ) used
      ORDER BY machine_code, worker_id`,
@@ -375,6 +376,7 @@ const validateMachineWorkerCapacityLocked = async ({
         WHERE pr.process_id = ?
           AND pr.work_date = ?
           AND pr.shift = ?
+          AND pr.status = 'approved'
           AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
      ) used
      ORDER BY machine_code, worker_id`,
