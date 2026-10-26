@@ -1,6 +1,4 @@
-const GC_AUTOMATIC_MACHINE_NUMBERS = Object.freeze([
-  1, 2, 10, 11, 4, 3, 9, 8, 25, 26, 14, 17, 23, 24, 16
-]);
+const GC_AUTOMATIC_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
 
 const GC_SHARED_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
 
@@ -10,7 +8,7 @@ const GC_SHARED_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
 // - Các công đoạn khác giữ capacity theo DB, mặc định 1 người/máy.
 const MULTI_MACHINE_PROCESS_CODES = new Set(["GC", "MAI"]);
 const MAX_MACHINES_PER_WORKER = 4;
-const DEFAULT_SHARED_WORKERS_PER_MACHINE = 4;
+const DEFAULT_SHARED_WORKERS_PER_MACHINE = 2;
 
 const canonicalMachineNumber = (value) => {
   const raw = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
@@ -38,11 +36,8 @@ const getGcMachineRule = (machineCode, dbRow = null) => {
     ? Number(dbRow.is_automatic) === 1
     : GC_AUTOMATIC_MACHINE_NUMBERS.includes(machineNumber);
 
-  const maxWorkers = dbRow?.max_workers_per_machine != null
-    ? Number(dbRow.max_workers_per_machine)
-    : (GC_SHARED_MACHINE_NUMBERS.includes(machineNumber)
-      ? DEFAULT_SHARED_WORKERS_PER_MACHINE
-      : 1);
+  // Confirmed factory rule: at most two workers per GC machine, regardless of DB defaults.
+  const maxWorkers = DEFAULT_SHARED_WORKERS_PER_MACHINE;
 
   const outputBasis = String(
     dbRow?.output_basis ||
@@ -65,8 +60,7 @@ const getProcessMachineRule = (processCode, machineCode, dbRow = null) => {
   if (MULTI_MACHINE_PROCESS_CODES.has(code)) {
     return {
       maxMachinesPerWorker: MAX_MACHINES_PER_WORKER,
-      // All machines in Gia công (GC) may be shared by workers in the same day/shift.
-      // Keep the existing 4-worker cap consistently across C* and ML* machines.
+      // Confirmed factory rule: at most two workers per GC machine.
       maxWorkersPerMachine: code === "GC"
         ? DEFAULT_SHARED_WORKERS_PER_MACHINE
         : (dbRow?.max_workers_per_machine != null
@@ -249,6 +243,7 @@ const validateMachineWorkerCapacity = async ({
         WHERE pr.process_id = ?
           AND pr.work_date = ?
           AND pr.shift = ?
+          AND pr.status = 'approved'
           AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
      ) used
      ORDER BY machine_code, worker_id`,
@@ -375,6 +370,7 @@ const validateMachineWorkerCapacityLocked = async ({
         WHERE pr.process_id = ?
           AND pr.work_date = ?
           AND pr.shift = ?
+          AND pr.status = 'approved'
           AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
      ) used
      ORDER BY machine_code, worker_id`,
