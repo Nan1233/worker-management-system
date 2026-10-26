@@ -309,6 +309,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         } else if (data.force_create) { const e = new Error("Không có báo cáo trùng hợp lệ để xác nhận tạo lần thứ hai"); e.status = 409; e.code = "DUPLICATE_CONFIRMATION_REQUIRED"; e.isPublic = true; throw e; }
 
         const processRows = await query(db, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
+        data.process_code = processRows[0]?.process_code || data.process_code || null;
         const training = await resolveInitialTrainingSnapshot({ executor: db, workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, trainingPercent: data.training_percent });
         data.training_percent_snapshot = Number(training);
         data.standard_version_id = data.standard_version_id || null;
