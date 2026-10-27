@@ -166,7 +166,7 @@ exports.updateUser = async (req, res) => {
 };
 
 function normalizeHeader(value) {
-  const normalized = String(value || '').trim().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9%]+/g, '_').replace(/^_|_$/g, '');
+  const normalized = String(value || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9%]+/g, '_').replace(/^_|_$/g, '');
   // The exported "% học việc" header normalizes to "%_hoc_viec".
   // Strip the leading percent marker so import uses the canonical "hoc_viec" key.
   return normalized.replace(/^%_?/, '');
