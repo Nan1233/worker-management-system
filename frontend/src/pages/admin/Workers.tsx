@@ -219,8 +219,27 @@ export default function AdminWorkers() {
       const response = await api.get("/users/export/excel", { responseType: "blob" });
       const blob = new Blob([response.data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `KTC_TaiKhoanNhanSu_${new Date().toISOString().slice(0,10)}.xlsx`;
-      document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url); setTransferMessage("Đã xuất danh sách tài khoản.");
-    } catch (error:any) { setTransferMessage(error?.response?.data?.message || "Không thể xuất Excel."); }
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTransferMessage("Đã xuất danh sách tài khoản.");
+    } catch (error:any) {
+      let message = "Không thể xuất Excel nhân sự.";
+      const data = error?.response?.data;
+      if (data instanceof Blob) {
+        try {
+          const text = await data.text();
+          const parsed = JSON.parse(text);
+          message = parsed?.message || parsed?.error || message;
+        } catch {
+          if (data.size > 0) message = "Máy chủ trả về lỗi khi tạo file Excel. Vui lòng thử lại hoặc kiểm tra log backend.";
+        }
+      } else if (data?.message) {
+        message = data.message;
+      }
+      setTransferMessage(message);
+    }
     finally { setTransferBusy(false); }
   };
 
