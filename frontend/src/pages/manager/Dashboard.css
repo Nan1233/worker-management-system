@@ -92,3 +92,12 @@
 .manager-dashboard .plan-actual-column>small{position:absolute;bottom:0;left:0;right:0;text-align:center}
 
 .manager-dashboard .plan-actual-column>span{transform:none}
+
+/* Machine-level plan vs actual comparison */
+.manager-dashboard .machine-plan-pair{display:flex;flex-direction:column;gap:3px;margin:7px 0 5px}
+.manager-dashboard .machine-plan-pair span,.manager-dashboard .machine-plan-pair i{display:block;height:7px;min-width:2px;border-radius:99px}
+.manager-dashboard .machine-plan-pair span{background:#8ba2bf}
+.manager-dashboard .machine-plan-pair i{background:#2584e8}
+.manager-dashboard .machine-plan-legend{justify-content:flex-end;padding-top:10px}
+.manager-dashboard .machine-plan-legend span:first-child i{background:#8ba2bf}
+.manager-dashboard .machine-plan-legend span:last-child i{background:#2584e8}
