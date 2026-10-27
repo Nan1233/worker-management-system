@@ -31,16 +31,36 @@ async function ensureLegacyMachineLines(targets) {
         AND t.status IN ('pending','need_fix')
         AND NOT EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=t.id)`, normalized);
   for (const report of reports || []) {
-    const machineCode = String(report.machine_no || "").split(",")[0].trim();
-    const productCode = String(report.product_name || "").split(",")[0].trim();
+    const rawMachine = String(report.machine_no || "").trim();
+    const rawProduct = String(report.product_name || "").trim();
+    // A legacy report may encode multiple machines/products in comma-separated fields.
+    // Never silently backfill only the first item: that loses machine-level attribution.
+    const machineParts = rawMachine.split(",").map((value) => value.trim()).filter(Boolean);
+    const productParts = rawProduct.split(",").map((value) => value.trim()).filter(Boolean);
+    if (machineParts.length !== 1 || productParts.length !== 1) {
+      const error = new Error(`Báo cáo máy #${report.id} có nhiều máy/sản phẩm hoặc dữ liệu chưa rõ; cần kiểm tra trước khi duyệt.`);
+      error.status = 409;
+      error.code = "LEGACY_MACHINE_LINE_REQUIRES_REVIEW";
+      error.isPublic = true;
+      throw error;
+    }
+    const machineCode = machineParts[0] || "";
+    const productCode = productParts[0] || "";
     if (!machineCode || !productCode) continue;
+    const actualTime = Number(report.actual_time || 0);
+    if (!Number.isFinite(actualTime) || actualTime <= 0 || actualTime > 12) {
+      const error = new Error(`Báo cáo máy #${report.id} thiếu giờ máy hợp lệ (0–12 giờ); cần kiểm tra trước khi duyệt.`);
+      error.status = 409;
+      error.code = "LEGACY_MACHINE_LINE_REQUIRES_REVIEW";
+      error.isPublic = true;
+      throw error;
+    }
     // Reports that already have machine lines are filtered out by the NOT EXISTS above (one query for the whole batch).
     let machine = null;
     try {
       const [machines] = await db.promise().query(`SELECT id,machine_code FROM machines WHERE process_id=? AND UPPER(TRIM(machine_code))=UPPER(TRIM(?)) LIMIT 1`, [Number(report.process_id), machineCode]);
       machine = machines?.[0] || null;
     } catch (_) {}
-    const actualTime = Number(report.actual_time || 0);
     const standardOutput = Number(report.standard_output || 0);
     const actualOutput = Number(report.actual_output || 0);
     const maxOutput = standardOutput > 0 && actualTime > 0 ? standardOutput * actualTime : 0;
