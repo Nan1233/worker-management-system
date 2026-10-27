@@ -187,37 +187,77 @@ function parsePercent(value) {
 async function loadUsersForTransfer(connection, actor) {
   const roles = manageableRoles(actor?.role);
   if (!roles.length) return [];
-  const placeholders = roles.map(() => '?').join(',');
   const actorRole = String(actor?.role || '').toLowerCase();
   const actorId = Number(actor?.id);
-  const params = [actorRole,actorId,actorRole,actorId,...roles];
-  let scope = '';
-  if (actorRole !== 'admin') {
-    scope = `AND EXISTS (
-      SELECT 1 FROM manager_processes actor_mp
-      WHERE actor_mp.manager_id=? AND actor_mp.process_id IN (
-        SELECT wp2.process_id FROM worker_processes wp2 WHERE u.role='worker' AND wp2.worker_id=w.id
-        UNION
-        SELECT mp2.process_id FROM manager_processes mp2 WHERE u.role IN ('manager','lead') AND mp2.manager_id=u.id
-      )
-    )`;
-    params.push(actorId);
-  }
-  const [rows] = await connection.query(
+
+  // TiDB does not support subqueries in JOIN ... ON conditions.
+  // Load users first, then resolve assignments in separate queries.
+  const rolePlaceholders = roles.map(() => '?').join(',');
+  const [users] = await connection.query(
     `SELECT u.id,u.username,u.full_name,u.role,u.status,u.created_at,
-            w.id worker_id,w.worker_code,w.phone,w.department,w.position,w.training_percent,
-            GROUP_CONCAT(DISTINCT COALESCE(pw.process_name,pm.process_name) ORDER BY COALESCE(wp.process_id,mp.process_id) SEPARATOR ', ') process_names
+            w.id worker_id,w.worker_code,w.phone,w.department,w.position,w.training_percent
      FROM users u
      LEFT JOIN workers w ON w.user_id=u.id
-     LEFT JOIN worker_processes wp ON u.role='worker' AND wp.worker_id=w.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=wp.process_id))
-     LEFT JOIN processes pw ON pw.id=wp.process_id
-     LEFT JOIN manager_processes mp ON u.role IN ('manager','lead') AND mp.manager_id=u.id AND (?='admin' OR EXISTS (SELECT 1 FROM manager_processes actor_scope WHERE actor_scope.manager_id=? AND actor_scope.process_id=mp.process_id))
-     LEFT JOIN processes pm ON pm.id=mp.process_id
-     WHERE u.role IN (${placeholders}) ${scope}
-     GROUP BY u.id,u.username,u.full_name,u.role,u.status,u.created_at,w.id,w.worker_code,w.phone,w.department,w.position,w.training_percent
-     ORDER BY FIELD(u.role,'manager','lead','worker'),u.full_name,u.username`, params,
+     WHERE u.role IN (${rolePlaceholders})
+     ORDER BY FIELD(u.role,'manager','lead','worker'),u.full_name,u.username`,
+    roles,
   );
-  return rows;
+  if (!users.length) return [];
+
+  const userIds = users.map((row) => Number(row.id));
+  const workerIds = users.map((row) => Number(row.worker_id)).filter(Boolean);
+  const [workerAssignments] = workerIds.length
+    ? await connection.query(
+      `SELECT wp.worker_id AS target_id,wp.process_id,p.process_name
+       FROM worker_processes wp JOIN processes p ON p.id=wp.process_id
+       WHERE wp.worker_id IN (${workerIds.map(() => '?').join(',')})`,
+      workerIds,
+    )
+    : [[]];
+  const [managerAssignments] = await connection.query(
+    `SELECT mp.manager_id AS target_id,mp.process_id,p.process_name
+     FROM manager_processes mp JOIN processes p ON p.id=mp.process_id
+     WHERE mp.manager_id IN (${userIds.map(() => '?').join(',')})`,
+    userIds,
+  );
+
+  let actorProcessIds = null;
+  if (actorRole !== 'admin') {
+    const [actorAssignments] = await connection.query(
+      'SELECT process_id FROM manager_processes WHERE manager_id=?',
+      [actorId],
+    );
+    actorProcessIds = new Set(actorAssignments.map((row) => Number(row.process_id)));
+  }
+
+  const workerById = new Map();
+  for (const assignment of workerAssignments) {
+    const processId = Number(assignment.process_id);
+    if (actorProcessIds && !actorProcessIds.has(processId)) continue;
+    if (!workerById.has(Number(assignment.target_id))) workerById.set(Number(assignment.target_id), []);
+    workerById.get(Number(assignment.target_id)).push({ processId, name: assignment.process_name });
+  }
+  const managerById = new Map();
+  for (const assignment of managerAssignments) {
+    const processId = Number(assignment.process_id);
+    if (actorProcessIds && !actorProcessIds.has(processId)) continue;
+    if (!managerById.has(Number(assignment.target_id))) managerById.set(Number(assignment.target_id), []);
+    managerById.get(Number(assignment.target_id)).push({ processId, name: assignment.process_name });
+  }
+
+  return users.filter((user) => {
+    if (!actorProcessIds) return true;
+    const assignments = user.role === 'worker'
+      ? workerById.get(Number(user.worker_id)) || []
+      : managerById.get(Number(user.id)) || [];
+    return assignments.length > 0;
+  }).map((user) => {
+    const assignments = user.role === 'worker'
+      ? workerById.get(Number(user.worker_id)) || []
+      : managerById.get(Number(user.id)) || [];
+    assignments.sort((a, b) => a.processId - b.processId);
+    return { ...user, process_names: [...new Set(assignments.map((item) => item.name))].join(', ') };
+  });
 }
 
 exports.exportUsersExcel = async (req, res) => {
