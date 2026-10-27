@@ -46,7 +46,13 @@ async function ensureLegacyMachineLines(targets) {
     }
     const machineCode = machineParts[0] || "";
     const productCode = productParts[0] || "";
-    if (!machineCode || !productCode) continue;
+    if (!machineCode || !productCode) {
+      const error = new Error(`Báo cáo máy #${report.id} thiếu mã máy hoặc mã sản phẩm; không thể tự tạo dòng máy an toàn. Hãy bổ sung dữ liệu nguồn rồi thử duyệt lại.`);
+      error.status = 409;
+      error.code = "LEGACY_MACHINE_LINE_REQUIRES_REVIEW";
+      error.isPublic = true;
+      throw error;
+    }
     const actualTime = Number(report.actual_time || 0);
     if (!Number.isFinite(actualTime) || actualTime <= 0 || actualTime > 12) {
       const error = new Error(`Báo cáo máy #${report.id} thiếu giờ máy hợp lệ (0–12 giờ); cần kiểm tra trước khi duyệt.`);
@@ -76,7 +82,15 @@ async function ensureLegacyMachineLines(targets) {
         [Number(report.id),null,machine ? Number(machine.id) : null,machine?.machine_code || machineCode,null,
          report.standard_version_id || null,report.machine_standard_id || null,productCode,actualTime,standardOutput,null,"LEGACY",
          Number(report.exclude_kqd_from_tt_snapshot || 0) === 1 ? 1 : 0,Number(report.tt_ok || 0),Number(report.tt_ng || 0),maxOutput,actualOutput,earnedStandardHours,"[]",1]);
-    } catch (error) { console.warn(`[KTC] Legacy machine-line backfill skipped for temp #${report.id}: ${error.message}`); }
+    } catch (cause) {
+      console.error(`[KTC] Legacy machine-line backfill failed for temp #${report.id}: ${cause.message}`);
+      const error = new Error(`Không thể khôi phục dòng máy cho báo cáo #${report.id}; chưa duyệt báo cáo để tránh sai dữ liệu.`);
+      error.status = 409;
+      error.code = "LEGACY_MACHINE_LINE_BACKFILL_FAILED";
+      error.isPublic = true;
+      error.cause = cause;
+      throw error;
+    }
   }
 }
 
