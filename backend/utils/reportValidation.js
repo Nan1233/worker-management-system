@@ -107,12 +107,14 @@ const validateProductionReport = (payload = {}, options = {}) => {
     // process (e.g. GC/Cắt-Lồng), so process_code may identify the parent
     // rather than CVK. Recognize the explicit work-type code independently
     // from the parent process policy; otherwise standard_output=0 is rejected.
-    const isZeroStandardLongWork = (
+    // Zero-standard long-work codes are a GC/Cắt-Lồng exception, not a
+    // generic work-type bypass for processes such as Mài, Đo, or Ép.
+    const isZeroStandardLongWork = isGcProcessForPolicy && (
         ZERO_STANDARD_LONG_WORK_CODES.has(productCodeForPolicy) ||
         ZERO_STANDARD_LONG_WORK_CODES.has(productWorkCode) ||
         ZERO_STANDARD_LONG_WORK_CODES.has(workTypeForPolicy)
     ) &&
-        (String(payload.operation_type || '').trim().toUpperCase() === 'LONG' || isGcProcessForPolicy || ZERO_STANDARD_LONG_WORK_CODES.has(workTypeForPolicy)) &&
+        (String(payload.operation_type || '').trim().toUpperCase() === 'LONG' || ZERO_STANDARD_LONG_WORK_CODES.has(workTypeForPolicy)) &&
         Number(payload.process_id) !== 60006;
     const isMachineReport = String(payload.operation_mode || payload.execution_method || '').trim().toUpperCase() === 'MACHINE' ||
         (Array.isArray(payload.machine_lines) && payload.machine_lines.length > 0);
