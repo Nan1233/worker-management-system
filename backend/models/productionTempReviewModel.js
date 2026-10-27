@@ -64,9 +64,25 @@ async function ensureLegacyMachineLines(targets) {
     // Reports that already have machine lines are filtered out by the NOT EXISTS above (one query for the whole batch).
     let machine = null;
     try {
-      const [machines] = await db.promise().query(`SELECT id,machine_code FROM machines WHERE process_id=? AND UPPER(TRIM(machine_code))=UPPER(TRIM(?)) LIMIT 1`, [Number(report.process_id), machineCode]);
-      machine = machines?.[0] || null;
-    } catch (_) {}
+      const [machines] = await db.promise().query(`SELECT id,machine_code FROM machines WHERE process_id=? AND status='active' AND UPPER(TRIM(machine_code))=UPPER(TRIM(?)) LIMIT 2`, [Number(report.process_id), machineCode]);
+      if ((machines || []).length !== 1) {
+        const error = new Error(`Mã máy ${machineCode} của báo cáo #${report.id} không khớp duy nhất với máy đang hoạt động trong công đoạn; cần kiểm tra danh mục máy.`);
+        error.status = 409;
+        error.code = "LEGACY_MACHINE_LINE_REQUIRES_REVIEW";
+        error.isPublic = true;
+        throw error;
+      }
+      machine = machines[0];
+    } catch (cause) {
+      if (cause?.code === "LEGACY_MACHINE_LINE_REQUIRES_REVIEW") throw cause;
+      console.error(`[KTC] Machine lookup failed for temp #${report.id}: ${cause.message}`);
+      const error = new Error(`Không thể xác minh mã máy của báo cáo #${report.id}; chưa duyệt báo cáo để tránh sai dữ liệu.`);
+      error.status = 409;
+      error.code = "LEGACY_MACHINE_LINE_BACKFILL_FAILED";
+      error.isPublic = true;
+      error.cause = cause;
+      throw error;
+    }
     const standardOutput = Number(report.standard_output || 0);
     const actualOutput = Number(report.actual_output || 0);
     const maxOutput = standardOutput > 0 && actualTime > 0 ? standardOutput * actualTime : 0;
