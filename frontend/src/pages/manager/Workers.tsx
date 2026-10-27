@@ -319,10 +319,22 @@ export default function Workers() {
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       setTransferMessage("Đã xuất dữ liệu nhân sự.");
     } catch (error: any) {
-      setTransferMessage(error?.response?.data?.message || "Không thể xuất Excel nhân sự.");
+      let message = "Không thể xuất Excel nhân sự.";
+      const data = error?.response?.data;
+      if (data instanceof Blob) {
+        try {
+          const parsed = JSON.parse(await data.text());
+          message = parsed?.message || parsed?.error || message;
+        } catch {
+          if (data.size > 0) message = "Máy chủ trả về lỗi khi tạo file Excel. Vui lòng thử lại hoặc kiểm tra log backend.";
+        }
+      } else if (data?.message) {
+        message = data.message;
+      }
+      setTransferMessage(message);
     } finally {
       setTransferBusy(false);
     }
