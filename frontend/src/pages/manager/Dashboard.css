@@ -85,3 +85,8 @@
  .manager-dashboard .plan-actual-group>strong{font-size:9px}
  .manager-dashboard .plan-actual-group>label{font-size:8px}
 }
+
+.manager-dashboard .plan-actual-column{justify-content:initial}
+.manager-dashboard .plan-actual-column>span{position:absolute;top:auto;transform:translateY(50%);z-index:1}
+.manager-dashboard .plan-actual-column>i{position:absolute;bottom:13px;left:50%;transform:translateX(-50%);z-index:0}
+.manager-dashboard .plan-actual-column>small{position:absolute;bottom:0;left:0;right:0;text-align:center}
