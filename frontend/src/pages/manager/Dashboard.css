@@ -60,3 +60,28 @@
 
 /* Dashboard chart-first refinement, applied on test while preserving existing sections. */
 .manager-dashboard .production-legend{justify-content:flex-end;min-height:20px;padding:0 0 2px}.manager-dashboard .production-legend span:first-child i{background:#159f79}.manager-dashboard .production-legend span:last-child i{background:#ed626a}.manager-dashboard .output-chart{height:148px;padding-top:5px}.manager-dashboard .output-axis{top:5px;bottom:26px}.manager-dashboard .output-bars{top:5px}.manager-dashboard .production-bar-group{padding-bottom:22px}.manager-dashboard .production-stack{width:34px;height:calc(100% - 20px);min-height:5px;display:flex;flex-direction:column-reverse;justify-content:flex-start;overflow:hidden;border-radius:5px 5px 0 0;background:#f0f4f8}.manager-dashboard .production-stack i{display:block;flex:0 0 auto;width:100%;min-height:0;border-radius:0}.manager-dashboard .production-stack .production-ok{background:#159f79}.manager-dashboard .production-stack .production-ng{background:#ed626a}.manager-dashboard .quality-caption{color:#8195ad;font-size:10px;white-space:nowrap;padding-top:8px}.manager-dashboard .quality-ranking{gap:12px;padding-top:8px}.manager-dashboard .quality-ranking>div{grid-template-columns:74px minmax(50px,1fr) 82px;gap:8px}.manager-dashboard .quality-ranking section{height:20px;background:#f1f5f9}.manager-dashboard .quality-ranking section em{display:block;min-width:0;max-width:100%;height:100%;background:#ed626a;border-radius:5px;color:#fff;white-space:nowrap;padding:0 3px;text-align:center;line-height:20px;font-size:9px}.manager-dashboard .quality-ranking small{color:#d94f59;text-align:right;font-size:10px;white-space:nowrap}.manager-dashboard .quality-ranking small span{color:#8195ad}.manager-dashboard .chart-empty{margin:auto;color:#8195ad;font-size:12px}@media(max-width:480px){.manager-dashboard .production-stack{width:25px}.manager-dashboard .quality-ranking>div{grid-template-columns:58px minmax(35px,1fr) 76px;gap:6px}.manager-dashboard .quality-ranking small{font-size:9px}}
+
+
+/* Planned versus actual production chart. */
+.manager-dashboard .production-legend .legend-plan{background:#8ba2bf}
+.manager-dashboard .production-legend .legend-actual{background:#2584e8}
+.manager-dashboard .plan-actual-bars{position:absolute;left:50px;right:8px;top:8px;bottom:0;display:flex;align-items:flex-end;justify-content:space-around;gap:8px;border-bottom:1px solid #dfeaf5;background:repeating-linear-gradient(to bottom,transparent 0,transparent 40px,#edf3f8 41px)}
+.manager-dashboard .plan-actual-group{height:100%;min-width:0;flex:1;display:flex;align-items:center;flex-direction:column;justify-content:flex-end;position:relative;padding-bottom:22px}
+.manager-dashboard .plan-actual-group>strong{height:17px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#168a68;font-size:10px;font-weight:700}
+.manager-dashboard .plan-actual-group>strong.achievement-low{color:#d84a55}
+.manager-dashboard .plan-actual-columns{height:calc(100% - 17px);width:100%;display:flex;align-items:flex-end;justify-content:center;gap:4px}
+.manager-dashboard .plan-actual-column{height:100%;min-width:0;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;position:relative}
+.manager-dashboard .plan-actual-column>span{max-width:100%;height:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#244a78;font-size:9px;font-weight:650;line-height:13px}
+.manager-dashboard .plan-actual-column>i{display:block;width:min(100%,23px);min-height:2px;border-radius:4px 4px 0 0}
+.manager-dashboard .plan-actual-column>.plan-bar{background:#8ba2bf}
+.manager-dashboard .plan-actual-column>.actual-bar{background:linear-gradient(180deg,#3289e8,#2579dc)}
+.manager-dashboard .plan-actual-column>small{height:13px;color:#56769a;font-size:9px;line-height:13px}
+.manager-dashboard .plan-actual-group>label{position:absolute;bottom:1px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4f729e;font-size:10px}
+@media(max-width:480px){
+ .manager-dashboard .plan-actual-bars{left:44px;gap:4px}
+ .manager-dashboard .plan-actual-column{gap:0}
+ .manager-dashboard .plan-actual-column>span{font-size:8px}
+ .manager-dashboard .plan-actual-column>i{width:17px}
+ .manager-dashboard .plan-actual-group>strong{font-size:9px}
+ .manager-dashboard .plan-actual-group>label{font-size:8px}
+}
