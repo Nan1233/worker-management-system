@@ -31,16 +31,31 @@ async function ensureLegacyMachineLines(targets) {
         AND t.status IN ('pending','need_fix')
         AND NOT EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=t.id)`, normalized);
   for (const report of reports || []) {
-    const machineCode = String(report.machine_no || "").split(",")[0].trim();
-    const productCode = String(report.product_name || "").split(",")[0].trim();
-    if (!machineCode || !productCode) continue;
+    // Never synthesize an approved machine line from a comma-separated report:
+    // doing so silently drops additional machines/products. Also never manufacture
+    // machine hours or maximum output when the source report has no positive time.
+    const rawMachineNo = String(report.machine_no || "").trim();
+    const rawProductName = String(report.product_name || "").trim();
+    const machineCodes = rawMachineNo.split(",").map((value) => value.trim()).filter(Boolean);
+    const productCodes = rawProductName.split(",").map((value) => value.trim()).filter(Boolean);
+    const machineCode = machineCodes[0] || "";
+    const productCode = productCodes[0] || "";
+    const actualTime = Number(report.actual_time || 0);
+    if (!machineCode || !productCode || machineCodes.length !== 1 || productCodes.length !== 1 || actualTime <= 0) {
+      const error = new Error(
+        `Báo cáo máy tạm #${report.id} thiếu dòng máy chi tiết hoặc thời gian máy hợp lệ; không tự tạo dòng LEGACY để tránh ghi sai giờ máy/KH. Hãy nhập/xác nhận từng máy, sản phẩm và giờ máy trước khi duyệt.`
+      );
+      error.status = 409;
+      error.code = "LEGACY_MACHINE_LINE_REQUIRES_REVIEW";
+      error.isPublic = true;
+      throw error;
+    }
     // Reports that already have machine lines are filtered out by the NOT EXISTS above (one query for the whole batch).
     let machine = null;
     try {
       const [machines] = await db.promise().query(`SELECT id,machine_code FROM machines WHERE process_id=? AND UPPER(TRIM(machine_code))=UPPER(TRIM(?)) LIMIT 1`, [Number(report.process_id), machineCode]);
       machine = machines?.[0] || null;
     } catch (_) {}
-    const actualTime = Number(report.actual_time || 0);
     const standardOutput = Number(report.standard_output || 0);
     const actualOutput = Number(report.actual_output || 0);
     const maxOutput = standardOutput > 0 && actualTime > 0 ? standardOutput * actualTime : 0;
