@@ -137,7 +137,7 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
     const selectedMachine = normalizeMachineKey(machineCode);
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
-    if (useEncodedMachineSuffix) {
+    if (useEncodedMachineSuffix || selectedRawMachine.startsWith("C")) {
         let canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
         // In GC, C-prefixed machines are cutting machines. Their product picker
         // must never show legacy/non-C product codes (e.g. 0575, 125) even if
@@ -147,12 +147,14 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
                 [alias, product.product_code, product.encoding_code, product.alias_code]
                     .some((value) => normalize(value).startsWith("C")));
         }
-        const hasMachineTypeMetadata = (machineOptions || []).some((item) => item?.gc_work_type !== undefined);
-        const selectedMachineWorkType = hasMachineTypeMetadata
-            ? gcWorkTypeOfMachine(machineOptions, selectedRawMachine)
-            : selectedRawMachine
-                ? (isGcLongMachine(selectedRawMachine, machineOptions) ? "LONG" : "CUT")
-                : null;
+        // Prefer the selected machine's configured work type, but do not let
+        // unrelated machines' metadata force an empty list. Older/incomplete
+        // master-data responses may include gc_work_type for other machines
+        // while ML20 (or another selected machine) has it missing/null.
+        const selectedMachineWorkType = selectedRawMachine
+            ? (gcWorkTypeOfMachine(machineOptions, selectedRawMachine)
+                || (isGcLongMachine(selectedRawMachine, machineOptions) ? "LONG" : "CUT"))
+            : null;
         // The API may merge CUT and LONG standards. Scope by the selected machine's
         // master work type before rendering suggestions; never leak other-process-type products.
         if (selectedRawMachine) {
@@ -239,11 +241,27 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
 };
 
 export const toProductAutocompleteOptions = (products: ProductStandardOption[]) => {
-    const seen = new Set<string>();
-    return products.map((product) => ({ value: getProductDisplayAlias(product), label: getProductDisplayAlias(product) })).filter((option) => {
-        const key = normalize(option.label);
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
+    // Keep the alias as the option value because downstream standard resolution
+    // expects the shop-floor alias. Put stored/encoding codes in the searchable
+    // label so typing e.g. "1467" finds its product without selecting a fake code.
+    // Keep one option per alias even when multiple standards share that alias.
+    const byAlias = new Map<string, { value: string; codes: Set<string> }>();
+    for (const product of products) {
+        const alias = getProductDisplayAlias(product);
+        if (!alias) continue;
+        const key = normalize(alias);
+        let entry = byAlias.get(key);
+        if (!entry) {
+            entry = { value: alias, codes: new Set<string>() };
+            byAlias.set(key, entry);
+        }
+        for (const candidate of [product.product_code, product.encoding_code]) {
+            const code = String(candidate || "").trim();
+            if (code && normalize(code) !== key) entry.codes.add(code);
+        }
+    }
+    return Array.from(byAlias.values()).map(({ value, codes }) => ({
+        value,
+        label: codes.size ? `${value} · ${Array.from(codes).join(" · ")}` : value,
+    }));
 };
