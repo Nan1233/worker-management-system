@@ -242,6 +242,7 @@ export const toProductAutocompleteOptions = (products: ProductStandardOption[]) 
     // Keep the alias as the option value because downstream standard resolution
     // expects the shop-floor alias. Put stored/encoding codes in the searchable
     // label so typing e.g. "1467" finds its product without selecting a fake code.
+    // Keep one option per alias even when multiple standards share that alias.
     const byAlias = new Map<string, { value: string; codes: Set<string> }>();
     for (const product of products) {
         const alias = getProductDisplayAlias(product);
