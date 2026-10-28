@@ -25,7 +25,49 @@ export const normalizeWorkType = (value: unknown): string => {
 
 const eligibleMachineCodes = (product: ProductStandardOption): string[] => String(product.eligible_machine_codes || "").split(",").map(normalizeMachineKey).filter(Boolean);
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11", "C5", "C6", "C7", "C11"]);
-const GC_AUTOMATIC_ALIAS_CODES = new Set(["C2556", "C5770", "CGYX", "C3880", "C8052"]);
+const GC_AUTOMATIC_ALIAS_CODES = new Set(["C2556", "C5770", "CGYX", "C3880", "C8052", "C9149"]);
+
+/** Resolve machine-only suffixes in product codes (for example C9149-1 and C9149-AUTO). */
+export const getProductMachineHint = (value: unknown): { kind: "AUTO" | "NUMBER"; value: string } | null => {
+    const code = normalize(value).replace(/\s+/g, "");
+    const match = code.match(/^(?:C\d[0-9A-Z]*?)-(AUTO|AUTOMATIC|\d+)$/i);
+    if (!match) return null;
+    const suffix = normalize(match[1]);
+    if (suffix === "AUTO" || suffix === "AUTOMATIC") return { kind: "AUTO", value: "AUTO" };
+    return { kind: "NUMBER", value: String(Number(suffix)) };
+};
+
+const isAutomaticGcMachine = (machineCode: string, machineOptions?: MachineOption[]): boolean => {
+    const selected = normalize(machineCode).replace(/\s+/g, "");
+    const machine = (machineOptions || []).find((item) => normalize(item.machine_code).replace(/\s+/g, "") === selected
+        || normalizeMachineKey(item.machine_code) === normalizeMachineKey(selected));
+    return Number(machine?.is_automatic || 0) === 1 || GC_AUTOMATIC_MACHINE_CODES.has(selected)
+        || GC_AUTOMATIC_MACHINE_CODES.has(normalizeMachineKey(selected));
+};
+
+const filterC9149FamilyForMachine = (
+    rows: Array<{ product: ProductStandardOption; alias: string }>,
+    machineCode: string,
+    machineOptions?: MachineOption[],
+): Array<{ product: ProductStandardOption; alias: string }> => {
+    const selected = normalizeMachineKey(machineCode);
+    const isAuto = isAutomaticGcMachine(machineCode, machineOptions);
+    const isMachineOne = selected === "1" && !isAuto;
+    return rows.filter(({ product }) => {
+        const fields = [product.product_code, product.encoding_code, product.alias_code].map((value) => normalize(value));
+        const isC9149Family = fields.some((value) => /^C9149(?:-1|-AUTO)?$/.test(value));
+        if (!isC9149Family) {
+            const hint = getProductMachineHint(product.product_code) || getProductMachineHint(product.alias_code);
+            if (!hint) return true;
+            return hint.kind === "AUTO" ? isAuto : !isAuto && selected === hint.value;
+        }
+        const isNumberOne = fields.some((value) => value === "C9149-1");
+        const isAutoVariant = fields.some((value) => value === "C9149-AUTO");
+        if (isNumberOne) return isMachineOne;
+        if (isAutoVariant) return isAuto;
+        return !isMachineOne && !isAuto;
+    });
+};
 
 export const normalizeGcAlias = (value: unknown): string => {
     const alias = normalize(value);
@@ -95,8 +137,21 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
     if (useEncodedMachineSuffix) {
-        const canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
-        const productWorkTypes = new Set(products.map((product) => normalizeWorkType(product.work_type)).filter(Boolean));
+        let canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
+        const hasMachineTypeMetadata = (machineOptions || []).some((item) => item?.gc_work_type !== undefined);
+        const selectedMachineWorkType = hasMachineTypeMetadata
+            ? gcWorkTypeOfMachine(machineOptions, selectedRawMachine)
+            : selectedRawMachine
+                ? (isGcLongMachine(selectedRawMachine, machineOptions) ? "LONG" : "CUT")
+                : null;
+        // The API may merge CUT and LONG standards. Scope by the selected machine's
+        // master work type before rendering suggestions; never leak other-process-type products.
+        if (selectedRawMachine) {
+            if (!selectedMachineWorkType) return [];
+            canonicalProducts = canonicalProducts.filter(({ product }) => normalizeWorkType(product.work_type) === selectedMachineWorkType);
+            canonicalProducts = filterC9149FamilyForMachine(canonicalProducts, selectedRawMachine, machineOptions);
+        }
+        const productWorkTypes = new Set(canonicalProducts.map(({ product }) => normalizeWorkType(product.work_type)).filter(Boolean));
         // Apply the C13/C7236 compatibility option before branching on work_type:
         // merged product APIs can return mixed CUT/LONG rows, so the CUT-only
         // branch below is not guaranteed to run even when the selected form is CUT.
