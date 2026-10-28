@@ -1,7 +1,6 @@
 const db = require("../config/db");
 const approvalModel = require("./productionTempApprovalModel");
 const { createStandardResolver } = require("../services/standardResolutionService");
-const { explicitGcWorkType } = require("../utils/gcMachineWorkType");
 
 const approvalStage = async (name, task) => {
   const started = Date.now();
@@ -97,7 +96,10 @@ async function ensureLegacyMachineLines(targets) {
         machineId: Number(machine.id),
         machineCode: machine.machine_code,
         workDate: report.work_date,
-        workType: explicitGcWorkType({ isGc: Number(report.process_id) === 1, operationType: report.operation_type }),
+        // For machine reports, the machine master is the source of truth for Cắt/Lồng.
+        // Imported legacy operation_type can be wrong (e.g. ML* machine stored as CUT).
+        // Omit the report's explicit type here so resolveStandard derives it from machines.gc_work_type.
+        workType: null,
       });
     } catch (cause) {
       if (cause?.code === "GC_WORK_TYPE_MISMATCH" || cause?.code === "GC_WORK_TYPE_UNRESOLVED"
