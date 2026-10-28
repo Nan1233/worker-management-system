@@ -49,7 +49,11 @@ const GC_ALIAS_SELECT = `
         ps.id,
         pa.process_id,
         p.process_code,
-        CASE WHEN UPPER(TRIM(pa.alias_code)) LIKE 'C%' THEN 'CUT' ELSE 'LONG' END AS work_type,
+        CASE
+            WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('CẮT', 'CUT', 'CAT') THEN 'CUT'
+            WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('LỒNG', 'LONG', 'LONG TAY') THEN 'LONG'
+            ELSE NULL
+        END AS work_type,
         ps.product_code,
         pa.alias_code,
         ps.encoding_code,
