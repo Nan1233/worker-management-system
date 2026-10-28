@@ -36,7 +36,6 @@ export default function Dashboard(){
  const productRows=(summary.product_summary||[]).slice(0,8);
  const dailyRows=(summary.daily_summary||[]).slice(-10);
  const dailyMax=Math.max(1,...dailyRows.map(r=>Number(r.ok||0)+Number(r.ng||0)));
- const machineMax=Math.max(1,...machineRows.map(r=>Number(r.counted_output||0)));
  const productMax=Math.max(1,...productRows.map(r=>Number(r.quantity||0)));
  const totalOutput=Number(summary.total_ok||0)+Number(summary.total_ng||0);
  if(loading)return <main className="manager-dashboard dashboard-loading"><div className="dashboard-loading-heading"/><div className="dashboard-loading-body"/></main>;
