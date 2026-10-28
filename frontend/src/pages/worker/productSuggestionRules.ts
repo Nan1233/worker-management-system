@@ -52,14 +52,15 @@ const filterC9149FamilyForMachine = (
 ): Array<{ product: ProductStandardOption; alias: string }> => {
     const selected = normalizeMachineKey(machineCode);
     const isAuto = isAutomaticGcMachine(machineCode, machineOptions);
-    const isMachineOne = selected === "1" && !isAuto;
+    const selectedNumber = /^\\d+$/.test(selected) ? String(Number(selected)) : null;
+    const isMachineOne = selectedNumber === "1" && !isAuto;
     return rows.filter(({ product }) => {
         const fields = [product.product_code, product.encoding_code, product.alias_code].map((value) => normalize(value));
         const isC9149Family = fields.some((value) => /^C9149(?:-1|-AUTO)?$/.test(value));
         if (!isC9149Family) {
             const hint = getProductMachineHint(product.product_code) || getProductMachineHint(product.alias_code);
             if (!hint) return true;
-            return hint.kind === "AUTO" ? isAuto : !isAuto && selected === hint.value;
+            return hint.kind === "AUTO" ? isAuto : !isAuto && hint.value === selectedNumber;
         }
         const isNumberOne = fields.some((value) => value === "C9149-1");
         const isAutoVariant = fields.some((value) => value === "C9149-AUTO");
