@@ -25,10 +25,15 @@ async function ensureLegacyMachineLines(targets) {
   const [reports] = await db.promise().query(
     `SELECT t.id,t.process_id,t.work_date,t.operation_type,t.operation_mode,t.machine_no,t.product_name,
             t.actual_time,t.standard_output,t.standard_version_id,t.machine_standard_id,
-            t.exclude_kqd_from_tt_snapshot,t.actual_output,t.tt_ok,t.tt_ng
+            t.exclude_kqd_from_tt_snapshot,t.actual_output,t.tt_ok,t.tt_ng,
+            UPPER(TRIM(COALESCE(p.process_code,''))) AS process_code,
+            t.extra_data
        FROM production_reports_temp t
+       LEFT JOIN processes p ON p.id=t.process_id
       WHERE t.id IN (${placeholders})
         AND UPPER(COALESCE(t.operation_mode,''))='MACHINE'
+        AND UPPER(TRIM(COALESCE(p.process_code,''))) NOT IN ('CVK','XLBV','SX3')
+        AND t.process_id NOT IN (30002,60006)
         AND t.status IN ('pending','need_fix')
         AND NOT EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=t.id)`, normalized);
   for (const report of reports || []) {
