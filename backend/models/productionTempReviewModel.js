@@ -102,7 +102,8 @@ async function ensureLegacyMachineLines(targets) {
     } catch (cause) {
       if (cause?.code === "GC_WORK_TYPE_MISMATCH" || cause?.code === "GC_WORK_TYPE_UNRESOLVED"
           || cause?.code === "STANDARD_EFFECTIVE_RANGE_CONFLICT" || cause?.code === "PRODUCT_ALIAS_CONFLICT"
-          || cause?.code === "HISTORICAL_STANDARD_NOT_FOUND") {
+          || cause?.code === "HISTORICAL_STANDARD_NOT_FOUND" || cause?.code === "STANDARD_WORK_TYPE_MISMATCH"
+          || cause?.code === "MACHINE_NOT_FOUND") {
         const error = new Error(`Không thể tự khôi phục dòng máy cho báo cáo #${report.id}: ${cause.message}. Cần sửa dữ liệu nguồn trước khi duyệt.`);
         error.status = 409;
         error.code = "LEGACY_MACHINE_LINE_REQUIRES_REVIEW";
