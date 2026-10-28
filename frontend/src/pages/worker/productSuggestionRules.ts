@@ -239,22 +239,26 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
 };
 
 export const toProductAutocompleteOptions = (products: ProductStandardOption[]) => {
-    const seen = new Set<string>();
-    return products.flatMap((product) => {
+    // Keep the alias as the option value because downstream standard resolution
+    // expects the shop-floor alias. Put stored/encoding codes in the searchable
+    // label so typing e.g. "1467" finds its product without selecting a fake code.
+    const byAlias = new Map<string, { value: string; codes: Set<string> }>();
+    for (const product of products) {
         const alias = getProductDisplayAlias(product);
-        const storedCode = String(product.product_code || "").trim();
-        const encodingCode = String(product.encoding_code || "").trim();
-        // Keep the display alias used by the shop floor, but also expose the
-        // actual stored/encoding codes. Otherwise searching for 1467 can only
-        // show its alias C1464 and hide the code the worker typed.
-        const candidates = [alias, storedCode, encodingCode]
-            .map((value) => String(value || "").trim())
-            .filter(Boolean);
-        return candidates.filter((value) => {
-            const key = normalize(value);
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        }).map((value) => ({ value, label: value }));
-    });
+        if (!alias) continue;
+        const key = normalize(alias);
+        let entry = byAlias.get(key);
+        if (!entry) {
+            entry = { value: alias, codes: new Set<string>() };
+            byAlias.set(key, entry);
+        }
+        for (const candidate of [product.product_code, product.encoding_code]) {
+            const code = String(candidate || "").trim();
+            if (code && normalize(code) !== key) entry.codes.add(code);
+        }
+    }
+    return Array.from(byAlias.values()).map(({ value, codes }) => ({
+        value,
+        label: codes.size ? `${value} · ${Array.from(codes).join(" · ")}` : value,
+    }));
 };
