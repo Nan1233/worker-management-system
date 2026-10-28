@@ -147,12 +147,14 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
                 [alias, product.product_code, product.encoding_code, product.alias_code]
                     .some((value) => normalize(value).startsWith("C")));
         }
-        const hasMachineTypeMetadata = (machineOptions || []).some((item) => item?.gc_work_type !== undefined);
-        const selectedMachineWorkType = hasMachineTypeMetadata
-            ? gcWorkTypeOfMachine(machineOptions, selectedRawMachine)
-            : selectedRawMachine
-                ? (isGcLongMachine(selectedRawMachine, machineOptions) ? "LONG" : "CUT")
-                : null;
+        // Prefer the selected machine's configured work type, but do not let
+        // unrelated machines' metadata force an empty list. Older/incomplete
+        // master-data responses may include gc_work_type for other machines
+        // while ML20 (or another selected machine) has it missing/null.
+        const selectedMachineWorkType = selectedRawMachine
+            ? (gcWorkTypeOfMachine(machineOptions, selectedRawMachine)
+                || (isGcLongMachine(selectedRawMachine, machineOptions) ? "LONG" : "CUT"))
+            : null;
         // The API may merge CUT and LONG standards. Scope by the selected machine's
         // master work type before rendering suggestions; never leak other-process-type products.
         if (selectedRawMachine) {
