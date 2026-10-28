@@ -240,10 +240,21 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
 
 export const toProductAutocompleteOptions = (products: ProductStandardOption[]) => {
     const seen = new Set<string>();
-    return products.map((product) => ({ value: getProductDisplayAlias(product), label: getProductDisplayAlias(product) })).filter((option) => {
-        const key = normalize(option.label);
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
+    return products.flatMap((product) => {
+        const alias = getProductDisplayAlias(product);
+        const storedCode = String(product.product_code || "").trim();
+        const encodingCode = String(product.encoding_code || "").trim();
+        // Keep the display alias used by the shop floor, but also expose the
+        // actual stored/encoding codes. Otherwise searching for 1467 can only
+        // show its alias C1464 and hide the code the worker typed.
+        const candidates = [alias, storedCode, encodingCode]
+            .map((value) => String(value || "").trim())
+            .filter(Boolean);
+        return candidates.filter((value) => {
+            const key = normalize(value);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        }).map((value) => ({ value, label: value }));
     });
 };
