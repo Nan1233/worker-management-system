@@ -7,6 +7,8 @@ const root = path.resolve(__dirname, '..');
 const rules = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/productSuggestionRules.ts'), 'utf8');
 const page = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/ProcessPage.tsx'), 'utf8');
 const basic = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx'), 'utf8');
+const standardController = fs.readFileSync(path.join(root, 'backend/controllers/productStandardController.js'), 'utf8');
+const standardModel = fs.readFileSync(path.join(root, 'backend/models/productStandardModel.js'), 'utf8');
 
 test('product suggestions are scoped by operation mode and selected machine', () => {
   assert.ok(rules.includes('getProductMachineHint'));
@@ -19,6 +21,8 @@ test('product suggestions are scoped by operation mode and selected machine', ()
   assert.ok(rules.includes('"C9149"'));
   assert.ok(rules.includes('filterC9149FamilyForMachine'));
   assert.ok(rules.includes('selectedMachineWorkType'));
+  assert.ok(!standardController.includes("UPPER(TRIM(COALESCE(pa.alias_code, ''))) LIKE 'C%' THEN 'CUT'"));
+  assert.ok(!standardModel.includes("CASE WHEN UPPER(TRIM(pa.alias_code)) LIKE 'C%' THEN 'CUT' ELSE 'LONG' END AS work_type"));
   assert.ok(page.includes('filterProductsForSelection'));
   assert.ok(page.includes('getMachineProductOptions(line.machineCode)'));
   assert.ok(page.includes('useEncodedMachineSuffix: processCode === "GC"'));
