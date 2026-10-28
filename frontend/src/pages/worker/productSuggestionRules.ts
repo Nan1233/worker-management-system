@@ -25,7 +25,7 @@ export const normalizeWorkType = (value: unknown): string => {
 
 const eligibleMachineCodes = (product: ProductStandardOption): string[] => String(product.eligible_machine_codes || "").split(",").map(normalizeMachineKey).filter(Boolean);
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11", "C5", "C6", "C7", "C11"]);
-const GC_AUTOMATIC_ALIAS_CODES = new Set(["C2556", "C5770", "CGYX", "C3880", "C8052", "C9149"]);
+const GC_AUTOMATIC_ALIAS_CODES = new Set(["C2556", "C5770", "CGYX", "C3880", "C8052"]);
 
 /** Resolve machine-only suffixes in product codes (for example C9149-1 and C9149-AUTO). */
 export const getProductMachineHint = (value: unknown): { kind: "AUTO" | "NUMBER"; value: string } | null => {
@@ -52,7 +52,7 @@ const filterC9149FamilyForMachine = (
 ): Array<{ product: ProductStandardOption; alias: string }> => {
     const selected = normalizeMachineKey(machineCode);
     const isAuto = isAutomaticGcMachine(machineCode, machineOptions);
-    const selectedNumber = /^\\d+$/.test(selected) ? String(Number(selected)) : null;
+    const selectedNumber = /^\d+$/.test(selected) ? String(Number(selected)) : null;
     const isMachineOne = selectedNumber === "1" && !isAuto;
     return rows.filter(({ product }) => {
         const fields = [product.product_code, product.encoding_code, product.alias_code].map((value) => normalize(value));
@@ -203,15 +203,13 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
         if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
             if (!selectedMachine) return [];
             if (isGcAutomaticMachine(selectedRawMachine)) {
-                const automaticProducts = canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias));
-                const presentAliases = new Set(automaticProducts.map(({ alias }) => alias));
-                const template = automaticProducts[0]?.product || canonicalProducts[0]?.product;
-                if (template) {
-                    for (const alias of GC_AUTOMATIC_ALIAS_CODES) {
-                        if (presentAliases.has(alias)) continue;
-                        automaticProducts.push({ product: { ...template, product_code: alias, alias_code: alias }, alias });
-                    }
-                }
+                // Only offer automatic products that have real rows in the API.
+                // Never fabricate product standards by cloning another product.
+                const automaticProducts = canonicalProducts.filter(({ product, alias }) =>
+                    GC_AUTOMATIC_ALIAS_CODES.has(alias)
+                    || getProductMachineHint(alias)?.kind === "AUTO"
+                    || getProductMachineHint(product.product_code)?.kind === "AUTO"
+                    || getProductMachineHint(product.encoding_code)?.kind === "AUTO");
                 return workerSelectionProducts(automaticProducts);
             }
             return workerSelectionProducts(canonicalProducts);
