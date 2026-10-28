@@ -9,7 +9,7 @@ const GC_NO_STANDARD_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
 // Cache-key versions deliberately invalidate stale master data after external DB updates.
 const MACHINE_CACHE_VERSION = "v3";
-const PRODUCT_STANDARD_CACHE_VERSION = "v4";
+const PRODUCT_STANDARD_CACHE_VERSION = "v5";
 
 const loadGcProductStandardsDirect = async (processId, processCode) => {
   const where = processCode
