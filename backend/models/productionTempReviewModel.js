@@ -1,5 +1,7 @@
 const db = require("../config/db");
 const approvalModel = require("./productionTempApprovalModel");
+const { createStandardResolver } = require("../services/standardResolutionService");
+const { explicitGcWorkType } = require("../utils/gcMachineWorkType");
 
 const approvalStage = async (name, task) => {
   const started = Date.now();
@@ -22,7 +24,7 @@ async function ensureLegacyMachineLines(targets) {
   if (!normalized.length) return;
   const placeholders = normalized.map(() => "?").join(",");
   const [reports] = await db.promise().query(
-    `SELECT t.id,t.process_id,t.operation_mode,t.machine_no,t.product_name,
+    `SELECT t.id,t.process_id,t.work_date,t.operation_type,t.operation_mode,t.machine_no,t.product_name,
             t.actual_time,t.standard_output,t.standard_version_id,t.machine_standard_id,
             t.exclude_kqd_from_tt_snapshot,t.actual_output,t.tt_ok,t.tt_ng
        FROM production_reports_temp t
@@ -64,7 +66,7 @@ async function ensureLegacyMachineLines(targets) {
     // Reports that already have machine lines are filtered out by the NOT EXISTS above (one query for the whole batch).
     let machine = null;
     try {
-      const [machines] = await db.promise().query(`SELECT id,machine_code FROM machines WHERE process_id=? AND status='active' AND UPPER(TRIM(machine_code))=UPPER(TRIM(?)) LIMIT 2`, [Number(report.process_id), machineCode]);
+      const [machines] = await db.promise().query(`SELECT id,machine_code,gc_work_type FROM machines WHERE process_id=? AND status='active' AND UPPER(TRIM(machine_code))=UPPER(TRIM(?)) LIMIT 2`, [Number(report.process_id), machineCode]);
       if ((machines || []).length !== 1) {
         const error = new Error(`Mã máy ${machineCode} của báo cáo #${report.id} không khớp duy nhất với máy đang hoạt động trong công đoạn; cần kiểm tra danh mục máy.`);
         error.status = 409;
@@ -83,10 +85,44 @@ async function ensureLegacyMachineLines(targets) {
       error.cause = cause;
       throw error;
     }
-    const standardOutput = Number(report.standard_output || 0);
+    // Resolve the canonical standard from the active machine + product + work date.
+    // Never copy the parent report's possibly stale standard into a synthetic machine line.
+    // The resolver also rejects a CUT/NEST operation that conflicts with machines.gc_work_type.
+    let resolved;
+    try {
+      const resolver = createStandardResolver();
+      resolved = await resolver.resolveStandard({
+        processId: Number(report.process_id),
+        productCode,
+        machineId: Number(machine.id),
+        machineCode: machine.machine_code,
+        workDate: report.work_date,
+        workType: explicitGcWorkType({ isGc: Number(report.process_id) === 1, operationType: report.operation_type }),
+      });
+    } catch (cause) {
+      if (cause?.code === "GC_WORK_TYPE_MISMATCH" || cause?.code === "GC_WORK_TYPE_UNRESOLVED"
+          || cause?.code === "STANDARD_EFFECTIVE_RANGE_CONFLICT" || cause?.code === "PRODUCT_ALIAS_CONFLICT"
+          || cause?.code === "HISTORICAL_STANDARD_NOT_FOUND") {
+        const error = new Error(`Không thể tự khôi phục dòng máy cho báo cáo #${report.id}: ${cause.message}. Cần sửa dữ liệu nguồn trước khi duyệt.`);
+        error.status = 409;
+        error.code = "LEGACY_MACHINE_LINE_REQUIRES_REVIEW";
+        error.isPublic = true;
+        error.cause = cause;
+        throw error;
+      }
+      throw cause;
+    }
+    const standardOutput = Number(resolved?.standardOutput || 0);
+    if (!Number.isFinite(standardOutput) || standardOutput <= 0) {
+      const error = new Error(`Không xác minh được định mức cho báo cáo #${report.id}; cần kiểm tra dữ liệu nguồn trước khi duyệt.`);
+      error.status = 409;
+      error.code = "LEGACY_MACHINE_LINE_REQUIRES_REVIEW";
+      error.isPublic = true;
+      throw error;
+    }
     const actualOutput = Number(report.actual_output || 0);
-    const maxOutput = standardOutput > 0 && actualTime > 0 ? standardOutput * actualTime : 0;
-    const earnedStandardHours = standardOutput > 0 ? actualOutput / standardOutput : 0;
+    const maxOutput = standardOutput * actualTime;
+    const earnedStandardHours = actualOutput / standardOutput;
     try {
       await db.promise().query(
         `INSERT INTO production_temp_machine_lines
@@ -95,9 +131,11 @@ async function ensureLegacyMachineLines(targets) {
           standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,
           ok_quantity,ng_quantity,maximum_output,counted_output,earned_standard_hours,
           defects_json,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [Number(report.id),null,machine ? Number(machine.id) : null,machine?.machine_code || machineCode,null,
-         report.standard_version_id || null,report.machine_standard_id || null,productCode,actualTime,standardOutput,null,"LEGACY",
-         Number(report.exclude_kqd_from_tt_snapshot || 0) === 1 ? 1 : 0,Number(report.tt_ok || 0),Number(report.tt_ng || 0),maxOutput,actualOutput,earnedStandardHours,"[]",1]);
+        [Number(report.id),null,Number(machine.id),machine.machine_code, resolved.productStandardId || null,
+         resolved.standardVersionId || null,resolved.machineStandardId || null,productCode,actualTime,standardOutput,
+         resolved.standardTimeSeconds || null,resolved.source || "LEGACY",
+         Number(resolved.excludeKqdFromTt || 0) === 1 ? 1 : 0,Number(report.tt_ok || 0),Number(report.tt_ng || 0),
+         maxOutput,actualOutput,earnedStandardHours,"[]",1]);
     } catch (cause) {
       console.error(`[KTC] Legacy machine-line backfill failed for temp #${report.id}: ${cause.message}`);
       const error = new Error(`Không thể khôi phục dòng máy cho báo cáo #${report.id}; chưa duyệt báo cáo để tránh sai dữ liệu.`);
