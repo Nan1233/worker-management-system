@@ -137,7 +137,7 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
     const selectedMachine = normalizeMachineKey(machineCode);
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
-    if (useEncodedMachineSuffix) {
+    if (useEncodedMachineSuffix || selectedRawMachine.startsWith("C")) {
         let canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
         // In GC, C-prefixed machines are cutting machines. Their product picker
         // must never show legacy/non-C product codes (e.g. 0575, 125) even if
