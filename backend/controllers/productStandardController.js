@@ -28,7 +28,7 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
             OR UPPER(TRIM(COALESCE(ps.encoding_code, ''))) LIKE 'C%'
             OR UPPER(TRIM(COALESCE(ps.product_code, ''))) LIKE 'C%' THEN 'CUT'
           WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('LỒNG','LONG','LONG TAY') THEN 'LONG'
-          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('CẮT','CUT','CAT') THEN 'LONG'
+          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('CẮT','CUT','CAT') THEN 'CUT'
           ELSE NULL
         END AS work_type,
         ps.product_code,
