@@ -205,7 +205,11 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
             if (isGcAutomaticMachine(selectedRawMachine)) {
                 // Only offer automatic products that have real rows in the API.
                 // Never fabricate product standards by cloning another product.
-                const automaticProducts = canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias));
+                const automaticProducts = canonicalProducts.filter(({ product, alias }) =>
+                    GC_AUTOMATIC_ALIAS_CODES.has(alias)
+                    || getProductMachineHint(alias)?.kind === "AUTO"
+                    || getProductMachineHint(product.product_code)?.kind === "AUTO"
+                    || getProductMachineHint(product.encoding_code)?.kind === "AUTO");
                 return workerSelectionProducts(automaticProducts);
             }
             return workerSelectionProducts(canonicalProducts);
