@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-test('legacy machine-line backfill resolves standard from machine/product/date instead of copying parent snapshot', () => {
+test('legacy machine-line backfill resolves standard from machine master, product, and work date instead of copying parent snapshot', () => {
   const file = path.join(__dirname, '..', 'models', 'productionTempReviewModel.js');
   const source = fs.readFileSync(file, 'utf8');
 
@@ -12,17 +12,18 @@ test('legacy machine-line backfill resolves standard from machine/product/date i
   assert.match(source, /machineId:\s*Number\(machine\.id\)/);
   assert.match(source, /machineCode:\s*machine\.machine_code/);
   assert.match(source, /workDate:\s*report\.work_date/);
-  assert.match(source, /explicitGcWorkType\(/);
+  assert.match(source, /workType:\s*null/);
+  assert.match(source, /machine master is the source of truth for Cắt\/Lồng/i);
   assert.match(source, /resolved\.standardOutput/);
   assert.match(source, /resolved\.productStandardId/);
   assert.match(source, /resolved\.machineStandardId/);
 });
 
-test('legacy machine-line backfill fails closed when machine work type and report operation conflict', () => {
+test('legacy machine-line backfill does not trust imported operation_type over machine master', () => {
   const file = path.join(__dirname, '..', 'models', 'productionTempReviewModel.js');
   const source = fs.readFileSync(file, 'utf8');
 
-  assert.match(source, /GC_WORK_TYPE_MISMATCH/);
+  assert.match(source, /Imported legacy operation_type can be wrong/);
+  assert.match(source, /workType:\s*null/);
   assert.match(source, /LEGACY_MACHINE_LINE_REQUIRES_REVIEW/);
-  assert.match(source, /Cần sửa dữ liệu nguồn trước khi duyệt/);
 });
