@@ -139,6 +139,14 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
 
     if (useEncodedMachineSuffix) {
         let canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
+        // In GC, C-prefixed machines are cutting machines. Their product picker
+        // must never show legacy/non-C product codes (e.g. 0575, 125) even if
+        // the merged API omits or mislabels work_type on some standard rows.
+        if (selectedRawMachine.startsWith("C")) {
+            canonicalProducts = canonicalProducts.filter(({ product, alias }) =>
+                [alias, product.product_code, product.encoding_code, product.alias_code]
+                    .some((value) => normalize(value).startsWith("C")));
+        }
         const hasMachineTypeMetadata = (machineOptions || []).some((item) => item?.gc_work_type !== undefined);
         const selectedMachineWorkType = hasMachineTypeMetadata
             ? gcWorkTypeOfMachine(machineOptions, selectedRawMachine)
