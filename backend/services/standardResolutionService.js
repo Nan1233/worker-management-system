@@ -70,7 +70,12 @@ function createStandardResolver({query=defaultQuery}={}) {
       // ambiguous standards fail-closed through selectProductRow().
       return query(`${fields} AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) ORDER BY id LIMIT 2`,[pid,product]);
     }
-    return query(`${fields} AND BINARY TRIM(product_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,String(aliasRows[0].product_code||'').trim()]);
+    const canonicalRows=await query(`${fields} AND BINARY TRIM(product_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,String(aliasRows[0].product_code||'').trim()]);
+    if(canonicalRows.length)return canonicalRows;
+    // An active alias can point to a retired/imported canonical code that has no standard
+    // for this work type. Only then retry the entered product case-insensitively; still fail
+    // closed if the case-insensitive lookup returns multiple candidates.
+    return query(`${fields} AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) ORDER BY id LIMIT 2`,[pid,product]);
   }
   function pickEquivalentRow(rows){if(!Array.isArray(rows)||rows.length<2)return null;const out=Number(rows[0]?.standard_output),kqd=Number(rows[0]?.exclude_kqd_from_tt||0);if(!Number.isFinite(out)||out<=0)return null;const allSame=rows.every(row=>sameDecimal(Number(row?.standard_output),out)&&Number(row?.exclude_kqd_from_tt||0)===kqd);return allSame?rows[0]:null;}
   function pickExactRow(rows,product){if(!Array.isArray(rows)||rows.length<2)return null;const wanted=normalizeCode(product);const exact=rows.filter(row=>normalizeCode(row?.product_code)===wanted||normalizeCode(row?.encoding_code)===wanted);return exact.length===1?exact[0]:null;}
