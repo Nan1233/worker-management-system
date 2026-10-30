@@ -22,9 +22,13 @@ function storedStandardSource(value) {
   const processFallback = source.endsWith('_PROCESS_FALLBACK');
   const base = machineFallback ? source.slice(0, -'_MACHINE_FALLBACK'.length)
     : processFallback ? source.slice(0, -'_PROCESS_FALLBACK'.length) : source;
-  const baseCode = exact[base] || (base.startsWith('PRODUCT_VERSION') ? 'PROD_VERSION'
-    : base.startsWith('LEGACY_PRODUCT_STANDARD') ? (machineFallback ? 'LEGACY' : 'LEGACY_PRODUCT')
-    : base.startsWith('MACHINE') ? 'MACHINE' : null);
+  // Handle legacy machine fallbacks before exact base mapping. Otherwise
+  // exact[base] resolves to LEGACY_PRODUCT first and appending _MACH_FB
+  // exceeds VARCHAR(20), causing STANDARD_SOURCE_CODE_UNMAPPED.
+  const baseCode = (machineFallback && base.startsWith('LEGACY_PRODUCT_STANDARD')) ? 'LEGACY'
+    : exact[base] || (base.startsWith('PRODUCT_VERSION') ? 'PROD_VERSION'
+      : base.startsWith('LEGACY_PRODUCT_STANDARD') ? 'LEGACY_PRODUCT'
+      : base.startsWith('MACHINE') ? 'MACHINE' : null);
   if (baseCode) {
     const code = baseCode + (machineFallback ? '_MACH_FB' : processFallback ? '_PROC_FB' : '');
     if (code.length <= 20) return code;
