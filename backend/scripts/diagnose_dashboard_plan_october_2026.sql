@@ -108,10 +108,10 @@ LIMIT 500;
 -- 4) Summary of negative/zero/null plan fields across the period.
 SELECT
   COUNT(*) AS machine_line_count,
-  SUM(CASE WHEN COALESCE(machine_time_hours,0)<=0 THEN 1 ELSE 0 END) AS nonpositive_machine_hours,
-  SUM(CASE WHEN COALESCE(maximum_output,0)<=0 THEN 1 ELSE 0 END) AS nonpositive_maximum_output,
-  SUM(CASE WHEN COALESCE(standard_output,0)<=0 THEN 1 ELSE 0 END) AS nonpositive_standard_output,
-  SUM(CASE WHEN COALESCE(maximum_output,0)<0 OR COALESCE(standard_output,0)<0 THEN 1 ELSE 0 END) AS negative_plan_values
+  SUM(CASE WHEN COALESCE(ml.machine_time_hours,0)<=0 THEN 1 ELSE 0 END) AS nonpositive_machine_hours,
+  SUM(CASE WHEN COALESCE(ml.maximum_output,0)<=0 THEN 1 ELSE 0 END) AS nonpositive_maximum_output,
+  SUM(CASE WHEN COALESCE(ml.standard_output,0)<=0 THEN 1 ELSE 0 END) AS nonpositive_standard_output,
+  SUM(CASE WHEN COALESCE(ml.maximum_output,0)<0 OR COALESCE(ml.standard_output,0)<0 THEN 1 ELSE 0 END) AS negative_plan_values
 FROM production_report_machine_lines ml
 JOIN production_reports r ON r.id=ml.report_id
 WHERE r.work_date BETWEEN '2026-10-01' AND '2026-10-30';
