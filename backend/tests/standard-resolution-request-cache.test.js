@@ -115,6 +115,7 @@ test('standard resolver refuses ambiguous AUTO casing variants', async () => {
   const resolver = createStandardResolver({ query: fakeQuery });
   await assert.rejects(
     resolver.resolveStandard({ processId: 1, productCode: 'c5770-AUTO', machineId: 11, machineCode: 'C6', workDate: '2026-10-10' }),
-    /Không xác định duy nhất định mức sản phẩm/
+    (error) => error.code === 'STANDARD_EFFECTIVE_RANGE_CONFLICT'
+      && /Có nhiều định mức khả dĩ/.test(error.message)
   );
 });
