@@ -23,12 +23,11 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ps.process_id,
         p.process_code,
         CASE
+          -- Explicit legacy jobs remain Long Tay exceptions; all other GC rows
+          -- follow the persisted product_standards.work_type value.
           WHEN UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP') THEN 'LONG'
-          WHEN UPPER(TRIM(COALESCE(pa.alias_code, ''))) LIKE 'C%'
-            OR UPPER(TRIM(COALESCE(ps.encoding_code, ''))) LIKE 'C%'
-            OR UPPER(TRIM(COALESCE(ps.product_code, ''))) LIKE 'C%' THEN 'CUT'
           WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('LỒNG','LONG','LONG TAY') THEN 'LONG'
-          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('CẮT','CUT','CAT') THEN 'LONG'
+          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('CẮT','CUT','CAT') THEN 'CUT'
           ELSE NULL
         END AS work_type,
         ps.product_code,
