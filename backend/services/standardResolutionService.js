@@ -176,7 +176,10 @@ function createStandardResolver({query=defaultQuery}={}) {
       // is named with an explicit -AUTO suffix. Try entered product and its AUTO variant
       // only after the canonical alias lookup found no usable machine standard.
       const fallbackCodes=[requestedProduct, /-AUTO$/i.test(requestedProduct)?requestedProduct:(requestedProduct+'-AUTO')];
-      const fallbackRows=await query(`SELECT id,process_id,product_code,machine_id,standard_output,calculated_output_per_hour,standard_time_seconds,effective_from,effective_to,is_active FROM product_machine_standards WHERE process_id=? AND machine_id=? AND UPPER(TRIM(product_code)) IN (${fallbackCodes.map(()=>'?').join(',')}) AND (effective_from IS NULL OR effective_from<=?) AND (effective_to IS NULL OR effective_to>=?) ORDER BY COALESCE(effective_from,'1000-01-01') DESC,id DESC`,[pid,Number(machine.id),...fallbackCodes,date,date]);
+      const fallbackWarmKeys=fallbackCodes.map(code=>`${pid}|${Number(machine.id)}|${sqlTrim(code)}|${date}`);
+      const fallbackRows=fallbackWarmKeys.every(key=>warmMachineStandards.has(key))
+        ? fallbackWarmKeys.flatMap(key=>warmMachineStandards.get(key))
+        : await query(`SELECT id,process_id,product_code,machine_id,standard_output,calculated_output_per_hour,standard_time_seconds,effective_from,effective_to,is_active FROM product_machine_standards WHERE process_id=? AND machine_id=? AND UPPER(TRIM(product_code)) IN (${fallbackCodes.map(()=>'?').join(',')}) AND (effective_from IS NULL OR effective_from<=?) AND (effective_to IS NULL OR effective_to>=?) ORDER BY COALESCE(effective_from,'1000-01-01') DESC,id DESC`,[pid,Number(machine.id),...fallbackCodes,date,date]);
       const fallbackActive=fallbackRows.filter(r=>Number(r.is_active)===1),fallbackUsable=fallbackActive.length?fallbackActive:fallbackRows;
       if(fallbackUsable.length>1)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức máy cùng hiệu lực cho ${requestedProduct} / ${machine.machine_code}`);
       if(fallbackUsable.length===1)rows.push(...fallbackUsable);
@@ -244,13 +247,17 @@ function createStandardResolver({query=defaultQuery}={}) {
     for(const item of list){
       const machine=machineById.get(`${item.machineId||''}|${item.machineCode}`);
       if(!machine||!item.productCode)continue;
-      msPairs.push({machineId:Number(machine.id),product:canonicalByProduct.get(sqlTrim(item.productCode))||item.productCode});
+      const canonical=canonicalByProduct.get(sqlTrim(item.productCode))||item.productCode;
+      const fallback=[item.productCode, /-AUTO$/i.test(item.productCode)?item.productCode:(item.productCode+'-AUTO')];
+      msPairs.push({machineId:Number(machine.id),products:[...new Set([canonical,...fallback].map(sqlTrim).filter(Boolean))]});
     }
     if(msPairs.length){
-      const ids=[...new Set(msPairs.map(p=>p.machineId))],prods=[...new Set(msPairs.map(p=>sqlTrim(p.product)))];
+      const ids=[...new Set(msPairs.map(p=>p.machineId))],prods=[...new Set(msPairs.flatMap(p=>p.products))];
       const rows=await query(`SELECT id,process_id,product_code,machine_id,standard_output,calculated_output_per_hour,standard_time_seconds,effective_from,effective_to,is_active FROM product_machine_standards WHERE process_id=? AND machine_id IN (${ids.map(()=>'?').join(',')}) AND TRIM(product_code) IN (${prods.map(()=>'?').join(',')}) AND (effective_from IS NULL OR effective_from<=?) AND (effective_to IS NULL OR effective_to>=?) ORDER BY COALESCE(effective_from,'1000-01-01') DESC,id DESC`,[pid,...ids,...prods,date,date]);
       for(const pair of msPairs){
-        warmMachineStandards.set(`${pid}|${pair.machineId}|${sqlTrim(pair.product)}|${date}`,(rows||[]).filter(row=>Number(row.machine_id)===pair.machineId&&sqlTrim(row.product_code)===sqlTrim(pair.product)));
+        for(const product of pair.products){
+          warmMachineStandards.set(`${pid}|${pair.machineId}|${sqlTrim(product)}|${date}`,(rows||[]).filter(row=>Number(row.machine_id)===pair.machineId&&sqlTrim(row.product_code)===sqlTrim(product)));
+        }
       }
     }
   }
