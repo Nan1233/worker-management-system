@@ -344,23 +344,9 @@ exports.updateTempReport = async (req, res) => {
         if (!editFactoryRules.valid) {
             return res.status(422).json({ success: false, message: "Cách sử dụng máy không đúng quy tắc thực tế tại xưởng", errors: editFactoryRules.errors });
         }
-        const editCapacity = await validateMachineWorkerCapacity({
-            processCode: machinePolicy.code,
-            processId: current.process_id,
-            machineLines: machineValidation.lines.length
-                ? machineValidation.lines
-                : (normalizedMachineNo ? [{ machine_code: normalizedMachineNo }] : []),
-            workerId: current.worker_id,
-            workDate: payload.work_date,
-            shift: payload.shift,
-            excludeTempReportId: reportId,
-            // same process, same machines as the rules check above: no second machine-master read
-            machineRows: editFactoryRules.machineRows
-        });
-        if (!editCapacity.valid) {
-            return res.status(422).json({ success: false, message: "Máy đã đủ số người cho phép trong ngày/ca", errors: editCapacity.errors });
-        }
-
+        // Capacity is checked again under the transaction's worker/machine locks by updateReport().
+        // Do not issue an unlocked preflight query here: it is both racy (another request can claim the
+        // machine immediately after this check) and duplicates the authoritative locked check.
         const firstLine = machineValidation.lines[0] || null;
         // validateMachineLines already proved, for the first line, the same facts validateMasterData re-derives with
         // 7 more queries (machine in process, product + standard on the work date, GC work type). That re-check is only
