@@ -61,7 +61,12 @@ function createStandardResolver({query=defaultQuery}={}) {
     if(encodingRows.length)return encodingRows;
     // Resolve aliases only after exact product_code and encoding_code misses.
     // Multiple active canonical targets are a data conflict, never a tie-break.
-    const aliasRows=await query(`SELECT DISTINCT product_code FROM product_aliases WHERE process_id=? AND status='active' AND BINARY TRIM(alias_code)=BINARY TRIM(?) ORDER BY product_code LIMIT 2`,[pid,product]);
+    // warmUp() has already loaded aliases for every product in this report. Reuse that
+    // exact per-request snapshot so alias resolution does not fall back to an extra SQL round trip.
+    const warmedAliases=warmAliases.get(`${pid}|${sqlTrim(product)}`);
+    const aliasRows=warmAliases.has(`${pid}|${sqlTrim(product)}`)
+      ? (warmedAliases||[])
+      : await query(`SELECT DISTINCT product_code FROM product_aliases WHERE process_id=? AND status='active' AND BINARY TRIM(alias_code)=BINARY TRIM(?) ORDER BY product_code LIMIT 2`,[pid,product]);
     const aliasProducts=[...new Set(aliasRows.map(row=>normalizeCode(row?.product_code)).filter(Boolean))];
     if(aliasProducts.length>1)throw businessError('PRODUCT_ALIAS_CONFLICT',`Mã alias ${product} ánh xạ tới nhiều sản phẩm`,{process_id:pid,alias_code:product,product_codes:aliasProducts});
     if(!aliasRows.length){
