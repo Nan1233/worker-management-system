@@ -151,7 +151,7 @@ function createStandardResolver({query=defaultQuery}={}) {
     // Machine master is the source of truth for Cắt/Lồng (machines.gc_work_type); never the code prefix.
     const machineQuery=(sql,params)=>queryWithOptionalGcWorkType(query,(withType)=>withType?sql.replace('SELECT m.id,m.machine_code,p.process_code','SELECT m.id,m.machine_code,m.gc_work_type,p.process_code'):sql,params);
     if(requestedMachineStandardId&&!requestedMachineId&&!requestedMachineCode)machineRows=await machineQuery(`SELECT m.id,m.machine_code,p.process_code FROM machines m JOIN processes p ON p.id=m.process_id JOIN product_machine_standards pms ON pms.machine_id=m.id WHERE m.process_id=? AND pms.id=? LIMIT 2`,[pid,requestedMachineStandardId]);
-    else if((requestedMachineId||requestedMachineCode)&&warmMachines.has(machineLookupKey(pid,requestedMachineId,requestedMachineCode)))machineRows=warmMachines.get(machineLookupKey(pid,requestedMachineId,requestedMachineCode));
+    else if((requestedMachineId||requestedMachineCode)&&(warmMachines.has(machineLookupKey(pid,requestedMachineId,requestedMachineCode))||warmMachines.has(machineLookupKey(pid,requestedMachineId,''))||warmMachines.has(machineLookupKey(pid,null,requestedMachineCode))))machineRows=warmMachines.get(warmMachines.has(machineLookupKey(pid,requestedMachineId,requestedMachineCode))?machineLookupKey(pid,requestedMachineId,requestedMachineCode):warmMachines.has(machineLookupKey(pid,requestedMachineId,''))?machineLookupKey(pid,requestedMachineId,''):machineLookupKey(pid,null,requestedMachineCode));
     else if(requestedMachineId||requestedMachineCode)machineRows=await machineQuery(`SELECT m.id,m.machine_code,p.process_code FROM machines m JOIN processes p ON p.id=m.process_id WHERE m.process_id=? AND m.status='active' AND (? IS NULL OR m.id=?) AND (?='' OR UPPER(TRIM(m.machine_code))=UPPER(TRIM(?))) LIMIT 2`,[pid,requestedMachineId,requestedMachineId,requestedMachineCode,requestedMachineCode]);
     if(machineRows.length>1)throw businessError('MACHINE_NOT_FOUND','Máy xác định không duy nhất trong công đoạn');
     if((requestedMachineId||requestedMachineCode||requestedMachineStandardId)&&machineRows.length!==1)throw businessError('MACHINE_NOT_FOUND','Máy không tồn tại hoặc không thuộc công đoạn');
@@ -214,6 +214,8 @@ function createStandardResolver({query=defaultQuery}={}) {
         if(!item.machineId&&!item.machineCode)continue;
         const matched=(rows||[]).filter(row=>(!item.machineId||Number(row.id)===item.machineId)&&(!item.machineCode||String(row.machine_code||'').trim().toUpperCase()===item.machineCode.toUpperCase())).slice(0,2);
         warmMachines.set(machineLookupKey(pid,item.machineId,item.machineCode),matched);
+        if(item.machineId)warmMachines.set(machineLookupKey(pid,item.machineId,''),matched);
+        if(item.machineCode)warmMachines.set(machineLookupKey(pid,null,item.machineCode),matched);
         if(matched.length===1)machineById.set(`${item.machineId||''}|${item.machineCode}`,matched[0]);
       }
     }
