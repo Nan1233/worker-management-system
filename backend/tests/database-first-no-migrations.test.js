@@ -6,8 +6,12 @@ const path = require('node:path');
 const backend = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(backend, rel), 'utf8');
 
-test('database-first setup has no migration directory or runner scripts', () => {
-  assert.equal(fs.existsSync(path.join(backend, 'migrations')), false);
+test('database-first setup may retain historical SQL files but has no migration runner scripts', () => {
+  // Historical/manual SQL is retained for auditability; runtime and build must not execute it.
+  const migrationsDir = path.join(backend, 'migrations');
+  if (fs.existsSync(migrationsDir)) {
+    assert.ok(fs.readdirSync(migrationsDir).every((name) => name.endsWith('.sql')), 'migration directory contains only archived SQL files');
+  }
   for (const file of [
     'scripts/runPendingMigrations.js',
     'scripts/runBuildMigrations.js',
