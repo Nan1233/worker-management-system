@@ -140,23 +140,13 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
     const selectedMachine = normalizeMachineKey(machineCode);
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
-    if (useEncodedMachineSuffix || selectedRawMachine.startsWith("C")) {
+    if (useEncodedMachineSuffix) {
         let canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
-        // In GC, C-prefixed machines are cutting machines. Their product picker
-        // must never show legacy/non-C product codes (e.g. 0575, 125) even if
-        // the merged API omits or mislabels work_type on some standard rows.
-        if (selectedRawMachine.startsWith("C")) {
-            canonicalProducts = canonicalProducts.filter(({ product, alias }) =>
-                [alias, product.product_code, product.encoding_code, product.alias_code]
-                    .some((value) => normalize(value).startsWith("C")));
-        }
-        // Prefer the selected machine's configured work type, but do not let
-        // unrelated machines' metadata force an empty list. Older/incomplete
-        // master-data responses may include gc_work_type for other machines
-        // while the selected machine has it missing/null.
+        // Only the selected machine's configured master-data type is authoritative.
+        // Missing/unknown metadata fails closed instead of guessing from C/ML/numeric
+        // machine or product-code prefixes.
         const selectedMachineWorkType = selectedRawMachine
-            ? (gcWorkTypeOfMachine(machineOptions, selectedRawMachine)
-                || (isGcLongMachine(selectedRawMachine, machineOptions) ? "LONG" : "CUT"))
+            ? gcWorkTypeOfMachine(machineOptions, selectedRawMachine)
             : null;
         // The API may merge CUT and LONG standards. Scope by the selected machine's
         // master work type before rendering suggestions; never leak other-process-type products.
