@@ -372,7 +372,10 @@ exports.updateTempReport = async (req, res) => {
             operationType: validation.normalized.operation_type ?? payload.operation_type,
             workDate: payload.work_date,
             reuseValidatedMachine,
-            knownProcessCode: current.process_code || null
+            knownProcessCode: current.process_code || null,
+            // Existing manager-scoped reports remain editable even if the worker's assignment
+            // changed after submission; report ownership and manager process scope were checked above.
+            skipWorkerProcessAssignment: String(req.user?.role || "").toLowerCase() !== "worker"
         });
         if (!master.valid) return res.status(422).json({ success: false, message: "Dữ liệu danh mục không hợp lệ", errors: master.errors });
 
