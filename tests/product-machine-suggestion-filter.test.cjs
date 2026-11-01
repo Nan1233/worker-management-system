@@ -24,6 +24,8 @@ test('product suggestions are scoped by operation mode and selected machine', ()
   assert.ok(rules.includes('useEncodedMachineSuffix || selectedRawMachine.startsWith("C")'));
   assert.ok(rules.includes('gcWorkTypeOfMachine(machineOptions, selectedRawMachine)'));
   assert.ok(rules.includes('const byAlias = new Map<string, { value: string; codes: Set<string> }>()'));
+  assert.ok(rules.includes('selected?.gc_work_type ?? ""'));
+  assert.ok(rules.includes('return /^ML\\d+$/i.test(raw) || /^\\d+$/.test(normalizeMachineKey(raw))'));
   assert.ok(standardController.includes("UPPER(TRIM(COALESCE(pa.alias_code, ''))) LIKE 'C%'"));
   assert.ok(standardController.includes('const PRODUCT_STANDARD_CACHE_VERSION = "v5";'));
   assert.ok(!standardModel.includes("CASE WHEN UPPER(TRIM(pa.alias_code)) LIKE 'C%' THEN 'CUT' ELSE 'LONG' END AS work_type"));
