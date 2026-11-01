@@ -21,7 +21,11 @@ test('product suggestions are scoped by operation mode and selected machine', ()
   assert.ok(rules.includes('"C9149"'));
   assert.ok(rules.includes('filterC9149FamilyForMachine'));
   assert.ok(rules.includes('selectedMachineWorkType'));
-  assert.ok(!standardController.includes("UPPER(TRIM(COALESCE(pa.alias_code, ''))) LIKE 'C%' THEN 'CUT'"));
+  assert.ok(rules.includes('useEncodedMachineSuffix || selectedRawMachine.startsWith("C")'));
+  assert.ok(rules.includes('gcWorkTypeOfMachine(machineOptions, selectedRawMachine)'));
+  assert.ok(rules.includes('const byAlias = new Map<string, { value: string; codes: Set<string> }>()'));
+  assert.ok(standardController.includes("UPPER(TRIM(COALESCE(pa.alias_code, ''))) LIKE 'C%'"));
+  assert.ok(standardController.includes('const PRODUCT_STANDARD_CACHE_VERSION = "v5";'));
   assert.ok(!standardModel.includes("CASE WHEN UPPER(TRIM(pa.alias_code)) LIKE 'C%' THEN 'CUT' ELSE 'LONG' END AS work_type"));
   assert.ok(page.includes('filterProductsForSelection'));
   assert.ok(page.includes('getMachineProductOptions(line.machineCode)'));
