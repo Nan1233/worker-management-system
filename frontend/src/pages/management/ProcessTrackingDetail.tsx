@@ -4,37 +4,38 @@ import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
 import "./ProcessTracking.css";
 
-type Process={id:number;process_code?:string;process_name:string;status?:string};
-type Summary={processes:Process[];process_summary:{process_id:number;process_code?:string;process_name:string;report_count:number;ok:number;ng:number}[];plan_summary:{process_id:number;planned_quantity:number;planned_minutes:number;plan_count:number}[]};
+type Process={id:number;process_code?:string;process_name:string};
 const pad=(n:number)=>String(n).padStart(2,"0");
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;};
 const monthStart=()=>today().slice(0,8)+"01";
-const number=(v:number)=>Number(v||0).toLocaleString("vi-VN",{maximumFractionDigits:1});
+const num=(v:number)=>Number(v||0).toLocaleString("vi-VN",{maximumFractionDigits:1});
+const percent=(actual:number,plan:number)=>plan>0?`${(actual/plan*100).toLocaleString("vi-VN",{maximumFractionDigits:1})}%`:"—";
 export default function ProcessTrackingDetail(){
  const {processId}=useParams(),navigate=useNavigate();
  const [from,setFrom]=useState(monthStart()),[to,setTo]=useState(today()),[appliedFrom,setAppliedFrom]=useState(monthStart()),[appliedTo,setAppliedTo]=useState(today());
- const [processes,setProcesses]=useState<Process[]>([]),[summary,setSummary]=useState<Summary|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
+ const [processes,setProcesses]=useState<Process[]>([]),[summary,setSummary]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const process=useMemo(()=>processes.find(p=>String(p.id)===String(processId)),[processes,processId]);
- const processRow=summary?.process_summary.find(p=>String(p.process_id)===String(processId));
- const planRow=summary?.plan_summary.find(p=>String(p.process_id)===String(processId));
- const load=async(start=appliedFrom,end=appliedTo)=>{setLoading(true);setError("");try{const [master,stats]=await Promise.all([api.get("/admin/master/processes"),api.get("/dashboard/summary",{params:{from:start,to:end}})]);const allowed=(Array.isArray(master.data?.data)?master.data.data:[]).filter((p:Process)=>String(p.status||"active").toLowerCase()==="active");setProcesses(allowed);setSummary(stats.data?.data||null);if(!allowed.some((p:Process)=>String(p.id)===String(processId)))setError("Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.");}catch(e:any){setError(e?.response?.status===403?"Bạn không có quyền xem công đoạn này.":e?.response?.data?.message||"Không thể tải dữ liệu công đoạn.");}finally{setLoading(false);}};
+ const row=summary?.process_summary?.find((p:any)=>String(p.process_id)===String(processId));
+ const plan=summary?.plan_summary?.find((p:any)=>String(p.process_id)===String(processId));
+ const load=async(start=appliedFrom,end=appliedTo)=>{setLoading(true);setError("");try{const response=await api.get("/dashboard/summary",{params:{from:start,to:end,process_id:processId}});const data=response.data?.data||{};setProcesses(Array.isArray(data.processes)?data.processes:[]);setSummary(data);if(!data.processes?.some((p:Process)=>String(p.id)===String(processId)))setError("Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.");}catch(e:any){setError(e?.response?.status===403||e?.response?.status===404?"Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.":e?.response?.data?.message||"Không thể tải dữ liệu công đoạn.");}finally{setLoading(false);}};
  useEffect(()=>{void load();},[processId,appliedFrom,appliedTo]);
  const apply=()=>{if(!from||!to||from>to){setError("Khoảng thời gian không hợp lệ.");return;}setAppliedFrom(from);setAppliedTo(to);};
- const total=(processRow?.ok||0)+(processRow?.ng||0);
+ const ok=Number(row?.ok||0),ng=Number(row?.ng||0),actual=ok+ng,planned=Number(plan?.planned_quantity||0);
+ const machineActual=Number(summary?.machine_performance?.counted_output||0),machinePlan=(summary?.machine_plan_summary||[]).reduce((s:number,x:any)=>s+Number(x.planned_quantity||0),0);
+ const products=summary?.product_summary||[],machines=summary?.machine_summary||[];
+ const qualityTotal=ok+ng;
  return <main className="process-tracking-page">
   <button className="process-tracking-back" type="button" onClick={()=>navigate("..")}><ArrowLeft size={16}/> Danh sách công đoạn</button>
   <header className="process-tracking-heading"><div><span className="process-tracking-eyebrow">CHI TIẾT CÔNG ĐOẠN</span><h1>{process?.process_name||"Công đoạn"}</h1><p>{process?.process_code||"Theo dõi tình hình sản xuất"} · Dữ liệu trong phạm vi được phân công</p></div><button className="process-tracking-refresh" type="button" onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/> Làm mới</button></header>
   <section className="process-tracking-filter"><label><span>Từ ngày</span><input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label><span>Đến ngày</span><input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><button type="button" onClick={apply}><CalendarDays size={16}/> Áp dụng</button></section>
-  {loading?<div className="process-tracking-state" role="status">Đang tải dữ liệu…</div>:error?<div className="process-tracking-state error" role="alert">{error}</div>:!processRow?<div className="process-tracking-state">Chưa có báo cáo sản xuất đã duyệt trong khoảng thời gian này.</div>:<>
+  {loading?<div className="process-tracking-state" role="status">Đang tải dữ liệu…</div>:error?<div className="process-tracking-state error" role="alert">{error}</div>:<>
    <div className="process-tracking-period">Dữ liệu từ {appliedFrom.split("-").reverse().join("/")} đến {appliedTo.split("-").reverse().join("/")}</div>
-   <section className="process-tracking-metrics">
-    <article><span className="metric-icon blue"><ClipboardList size={19}/></span><small>Số báo cáo đã duyệt</small><strong>{number(processRow.report_count)}</strong></article>
-    <article><span className="metric-icon green"><CheckCircle2 size={19}/></span><small>Sản lượng OK</small><strong>{number(processRow.ok)}</strong></article>
-    <article><span className="metric-icon red"><XCircle size={19}/></span><small>Sản lượng NG</small><strong>{number(processRow.ng)}</strong></article>
-    <article><span className="metric-icon purple"><PackageCheck size={19}/></span><small>Sản lượng kế hoạch</small><strong>{number(planRow?.planned_quantity||0)}</strong></article>
-   </section>
-   <section className="process-tracking-summary"><div><span>Tỷ lệ OK</span><strong>{total?((processRow.ok/total)*100).toLocaleString("vi-VN",{maximumFractionDigits:2}):"0"}%</strong></div><div><span>Tổng sản lượng ghi nhận</span><strong>{number(total)}</strong></div><div><span>Số dòng kế hoạch</span><strong>{number(planRow?.plan_count||0)}</strong></div></section>
-   <p className="process-tracking-footnote">Các chỉ số trên được tổng hợp từ báo cáo đã duyệt của công đoạn. Chi tiết máy, nhân viên và giờ công sẽ được bổ sung ở các phần tiếp theo; trang này không tự suy diễn các số liệu chưa có API phân tách theo công đoạn.</p>
+   <section className="tracking-section"><header><div><span>A</span><h2>Tình hình sản xuất</h2></div><small>{num(row?.report_count||0)} báo cáo đã duyệt</small></header><div className="tracking-kpis"><Metric label="Sản lượng kế hoạch" value={num(planned)}/><Metric label="Sản lượng thực tế" value={num(actual)}/><Metric label="Hoàn thành kế hoạch" value={percent(actual,planned)} progress={planned>0?actual/planned*100:0}/></div></section>
+   <section className="tracking-section"><header><div><span>B</span><h2>Nhân công</h2></div><small>{num(summary?.worker_performance?.worker_count||0)} công nhân thực tế</small></header><div className="tracking-kpis"><Metric label="Sản lượng công nhân kế hoạch" value={num(planned)}/><Metric label="Sản lượng công nhân thực tế" value={num(actual)}/><Metric label="Hoàn thành kế hoạch" value={percent(actual,planned)}/></div><p className="tracking-note">Giờ công thực tế: {num(summary?.worker_performance?.actual_worker_hours||0)} giờ. Sản lượng kế hoạch và thực tế lấy theo công đoạn; không quy đổi giờ máy từ giờ công nhân.</p></section>
+   <section className="tracking-section"><header><div><span>C</span><h2>Máy móc</h2></div><small>{num(summary?.machine_performance?.machine_count||0)} máy thực tế</small></header><div className="tracking-kpis"><Metric label="Sản lượng kế hoạch" value={num(machinePlan)}/><Metric label="Sản lượng thực tế" value={num(machineActual)}/><Metric label="Hoàn thành kế hoạch" value={percent(machineActual,machinePlan)}/></div><p className="tracking-note">Giờ máy thực tế: {num(summary?.machine_performance?.total_machine_hours||0)} giờ. Giờ máy được lấy từ dữ liệu máy, không nhân theo số công nhân.</p>{machines.length>0&&<div className="tracking-table-wrap"><table><thead><tr><th>Mã máy</th><th>Sản lượng kế hoạch</th><th>Sản lượng thực tế</th><th>Giờ máy</th></tr></thead><tbody>{machines.map((m:any)=><tr key={m.machine_id}><td>{m.machine_code||`Máy ${m.machine_id}`}</td><td>{num(m.maximum_output)}</td><td>{num(m.counted_output)}</td><td>{num(m.machine_hours)}</td></tr>)}</tbody></table></div>}</section>
+   <section className="tracking-section"><header><div><span>D</span><h2>Sản lượng theo sản phẩm</h2></div></header><div className="tracking-table-wrap"><table><thead><tr><th>Mã sản phẩm</th><th>Sản lượng kế hoạch</th><th>Sản lượng thực tế</th></tr></thead><tbody>{products.length?products.map((p:any)=><tr key={p.product_code}><td>{p.product_code}</td><td>{num(p.planned_quantity||0)}</td><td>{num(p.quantity)}</td></tr>):<tr><td colSpan={3} className="tracking-empty">Chưa có dữ liệu sản phẩm trong kỳ</td></tr>}</tbody></table></div></section>
+   <section className="tracking-section"><header><div><span>E</span><h2>Chất lượng</h2></div></header><div className="tracking-kpis"><Metric label="Tổng OK" value={num(ok)} tone="good"/><Metric label="Tổng NG" value={num(ng)} tone="bad"/><Metric label="Tỷ lệ OK" value={qualityTotal?(ok/qualityTotal*100).toLocaleString("vi-VN",{maximumFractionDigits:2})+"%":"—"}/><Metric label="Tỷ lệ NG" value={qualityTotal?(ng/qualityTotal*100).toLocaleString("vi-VN",{maximumFractionDigits:2})+"%":"—"}/></div></section>
   </>}
  </main>;
 }
+function Metric({label,value,progress,tone}:{label:string;value:string;progress?:number;tone?:string}){return <article className={`tracking-metric ${tone||""}`}><small>{label}</small><strong>{value}</strong>{progress!==undefined&&<div className="tracking-progress"><i style={{width:`${Math.max(0,Math.min(100,progress))}%`}}/></div>}</article>}

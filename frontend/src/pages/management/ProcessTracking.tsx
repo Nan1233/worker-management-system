@@ -8,7 +8,7 @@ type Process = { id:number; process_code?:string; process_name:string; status?:s
 export default function ProcessTracking(){
  const [items,setItems]=useState<Process[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const navigate=useNavigate();
- const load=async()=>{setLoading(true);setError("");try{const response=await api.get("/admin/master/processes");const rows=Array.isArray(response.data?.data)?response.data.data:[];setItems(rows.filter((p:Process)=>String(p.status||"active").toLowerCase()==="active"));}catch(e:any){setError(e?.response?.data?.message||"Không thể tải danh sách công đoạn.");}finally{setLoading(false);}};
+ const load=async()=>{setLoading(true);setError("");try{const now=new Date(),pad=(n:number)=>String(n).padStart(2,"0"),to=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`,from=to.slice(0,8)+"01";const response=await api.get("/dashboard/summary",{params:{from,to}});const rows=Array.isArray(response.data?.data?.processes)?response.data.data.processes:[];setItems(rows);}catch(e:any){setError(e?.response?.data?.message||"Không thể tải danh sách công đoạn.");}finally{setLoading(false);}};
  useEffect(()=>{void load();},[]);
  return <main className="process-tracking-page">
   <header className="process-tracking-heading"><div><span className="process-tracking-eyebrow">SẢN XUẤT</span><h1>Theo dõi công đoạn</h1><p>Chọn công đoạn được phân công để xem tình hình sản xuất chi tiết.</p></div><button className="process-tracking-refresh" type="button" onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/> Làm mới</button></header>
