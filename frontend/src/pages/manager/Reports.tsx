@@ -271,9 +271,10 @@ export default function Reports() {
 
     return (
         <div className="pending-reference-page">
-            <div className="pending-page-title">
-                <h1 style={{ margin: 0, color: "#12385f", fontSize: 26, fontWeight: 800 }}>Báo cáo chờ duyệt</h1>
-                <div style={{ marginTop: 5, color: "#6f89a8", fontSize: 13 }}>Xem các báo cáo sản xuất đang chờ duyệt.</div>
+            <div className="pending-page-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div><h1 style={{ margin: 0, color: "#12385f", fontSize: 26, fontWeight: 800 }}>Báo cáo chờ duyệt</h1>
+                <div style={{ marginTop: 5, color: "#6f89a8", fontSize: 13 }}>Xem và xử lý báo cáo sản xuất, bao gồm các đề xuất chỉnh sửa.</div></div>
+                {window.location.pathname.startsWith("/manager") && <button type="button" onClick={() => navigate("/manager/edit-proposals")} style={{ border: "1px solid #cbd9e8", borderRadius: 8, padding: "9px 13px", background: "#fff", color: "#24547d", fontWeight: 700, cursor: "pointer" }}>Đề xuất chỉnh sửa</button>}
             </div>
 
             <div className="pending-filter-card" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(140px, .9fr)", gridTemplateAreas: '"search date process shift" "quick quick quick quick"', gap: "10px 12px", alignItems: "end", padding: 14, border: "1px solid #dbe6f2", borderRadius: 12, background: "#fff", boxShadow: "0 4px 14px rgba(35,76,125,.045)" }}>
