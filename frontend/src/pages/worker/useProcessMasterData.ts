@@ -28,17 +28,21 @@ const normalizeMasterLabel = (value: unknown): string => String(value ?? "")
   .replace(/[^a-z0-9]/g, "");
 
 const MAI_ALLOWED_DEDUCTION_NAMES = new Set([
-  "Bật máy, xét máy, đầu giờ",
-  "Chuyển mã",
-  "Chỉnh máy",
-  "Chờ chỉnh máy",
-  "Mài đá",
+  "Bảo dưỡng máy",
   "Ko có KHSX, Dừng máy ko HT",
   "Chờ hàng, hết hàng",
+  "Khí yếu",
   "Nghỉ giải lao",
+  "Giao ca",
   "Dừng máy đi hỗ trợ",
   "5s, đổ bụi,xì bụi,lấy bụi",
- ].map(normalizeMasterLabel));
+  "Học việc",
+  "Thổi bụi,lấy bụi",
+  "Đi đo kiểm soát",
+  "Đi muộn/về sớm",
+  "Tắt máy hút bụi",
+  "Mất điện",
+].map(normalizeMasterLabel));
 
 const MAI_DISPLAY_LABELS = new Map<string, string>([
   ["chohanghethang", "Chờ hàng, hết hàng"],
