@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Boxes, ClipboardCheck, Cog, Download, FileWarning, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown } from "lucide-react";
+import { Bell, Boxes, ClipboardCheck, Cog, Download, FileWarning, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown, Layers3 } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser } from "../utils/authStorage";
 import { logout } from "../services/authService";
@@ -20,6 +20,7 @@ const items:ManagementMenuItem[]=[
  {label:"Tổng quan",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW",roles:allManagementRoles},
  {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW",roles:allManagementRoles},
  {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW",roles:allManagementRoles},
+ {label:"Theo dõi công đoạn",path:"processes",icon:Layers3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
  {label:"Thống kê sản xuất",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
  {label:"Nhân sự",path:"workers",icon:Users,permission:"USER_VIEW",roles:allManagementRoles},
  {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW",roles:managementRoles},
@@ -32,7 +33,7 @@ const items:ManagementMenuItem[]=[
 const navGroups=[
  {title:"TỔNG QUAN",paths:[""]},
  {title:"BÁO CÁO SẢN XUẤT",paths:["reports","approved"]},
- {title:"HIỆU SUẤT",paths:["statistics"]},
+ {title:"HIỆU SUẤT",paths:["processes","statistics"]},
  {title:"NGUỒN LỰC",paths:["workers","master/machines"]},
  {title:"DANH MỤC & QUY CHUẨN",paths:["master/standards","master/defects","master/deductions"]},
  {title:"BÁO CÁO & HỆ THỐNG",paths:["export","permissions"]}
