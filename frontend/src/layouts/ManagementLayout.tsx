@@ -64,7 +64,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
     {navGroups.map(group=>{const groupItems=visible.filter(item=>(group.paths as readonly string[]).includes(item.path));return groupItems.length?<section className="management-nav-group" key={group.title}><div className="management-nav-group-title">{group.title}</div>{groupItems.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} aria-current={active(item.path)?"page":undefined} onClick={()=>navigate(base+(item.path?"/"+item.path:""))}><Icon size={18}/><span>{item.label}</span></button>;})}</section>:null;})}
    </nav>
    <div className="management-sidebar-account">
-    <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile")}><UserRound size={18}/><span>Tài khoản</span></button>
+    <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Tài khoản</span></button>
     <button type="button" className="management-logout" onClick={handleLogout}><LogOut size={18}/><span>Đăng xuất</span></button>
    </div>
    <div className="management-sidebar-footer"><strong>KTC (HANOI) CO., LTD</strong><span>Production Management System</span><small>v1.0.0</small></div>
@@ -74,8 +74,8 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
     <div className="management-header-context"><strong>KTC Production Management</strong><span>{roleLabel[role]}</span></div>
     <div className="management-header-actions">
      <div className="management-date"><CalendarDays size={17}/><span>{today}</span></div>
-     {can("NOTIFICATION_VIEW")&&<button className={`management-notification ${notificationsActive?"active":""}`} type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications")}><Bell size={20}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>}
-     <button className="management-user" type="button" aria-label="Mở trang cá nhân" onClick={()=>navigate(`${base}/profile")}><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]}</small></span><ChevronDown size={16}/></button>
+     {can("NOTIFICATION_VIEW")&&<button className={`management-notification ${notificationsActive?"active":""}`} type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={20}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>}
+     <button className="management-user" type="button" aria-label="Mở trang cá nhân" onClick={()=>navigate(`${base}/profile`)}><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]}</small></span><ChevronDown size={16}/></button>
     </div>
    </header>
    <main className="management-content"><MasterDataTransferActions/><Outlet/></main>
