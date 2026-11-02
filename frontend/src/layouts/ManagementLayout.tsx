@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Boxes, ClipboardCheck, Cog, Download, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown, FilePenLine } from "lucide-react";
+import { Bell, Boxes, ClipboardCheck, Cog, Download, FileWarning, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser } from "../utils/authStorage";
 import { logout } from "../services/authService";
@@ -16,12 +16,10 @@ type ManagementMenuItem = { label:string; path:string; icon:typeof LayoutDashboa
 const allManagementRoles:ManagementRole[]=["lead","manager","admin_ops","admin"];
 const managementRoles:ManagementRole[]=["lead","manager","admin_ops","admin"];
 const adminRoles:ManagementRole[]=["manager","admin"];
-const proposalRoles:ManagementRole[]=["lead","manager"];
 const items:ManagementMenuItem[]=[
  {label:"Tổng quan",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW",roles:allManagementRoles},
  {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW",roles:allManagementRoles},
  {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW",roles:allManagementRoles},
- {label:"Đề xuất chỉnh sửa",path:"edit-proposals",icon:FilePenLine,permission:"REPORT_APPROVE",roles:proposalRoles},
  {label:"Thống kê sản xuất",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
  {label:"Nhân sự",path:"workers",icon:Users,permission:"USER_VIEW",roles:allManagementRoles},
  {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW",roles:managementRoles},
@@ -29,16 +27,15 @@ const items:ManagementMenuItem[]=[
  {label:"Danh mục lỗi NG",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:adminRoles},
  {label:"Quy tắc trừ giờ",path:"master/deductions",icon:Timer,permission:"MASTER_VIEW",roles:managementRoles},
  {label:"Xuất báo cáo Excel",path:"export",icon:Download,permission:"REPORT_EXPORT",roles:allManagementRoles},
- {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW",roles:managementRoles},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE",roles:["admin"]}
 ];
 const navGroups=[
  {title:"TỔNG QUAN",paths:[""]},
- {title:"BÁO CÁO SẢN XUẤT",paths:["reports","approved","edit-proposals"]},
+ {title:"BÁO CÁO SẢN XUẤT",paths:["reports","approved"]},
  {title:"HIỆU SUẤT",paths:["statistics"]},
  {title:"NGUỒN LỰC",paths:["workers","master/machines"]},
  {title:"DANH MỤC & QUY CHUẨN",paths:["master/standards","master/defects","master/deductions"]},
- {title:"BÁO CÁO & HỆ THỐNG",paths:["export","system","permissions"]}
+ {title:"BÁO CÁO & HỆ THỐNG",paths:["export","permissions"]}
 ] as const;
 const roleLabel:Record<ManagementRole,string>={lead:"Tổ trưởng",manager:"Quản lý",admin_ops:"Quản trị vận hành",admin:"Quản trị viên"};
 
