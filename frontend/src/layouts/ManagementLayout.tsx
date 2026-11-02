@@ -8,7 +8,7 @@ import { usePermissions } from "../hooks/usePermissions";
 import type { PermissionCode } from "../security/permissions";
 import MasterDataTransferActions from "../components/master/MasterDataTransferActions";
 import "./ManagementLayout.css";
-import "./ManagementSidebarCompact.css";
+import "./ManagementNavigation.css";
 import "../styles/HideManagementPageDescriptions.css";
 
 type ManagementRole = "lead" | "manager" | "admin_ops" | "admin";
@@ -46,7 +46,14 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  return <div className="management-layout" data-management-role={role}>
   <aside className="management-sidebar">
    <nav className="management-menu" aria-label="Management navigation">
-    {visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={21}/><span>{item.label}</span></button>;})}
+    {([
+      {title:"TỔNG QUAN",paths:[""]},
+      {title:"QUẢN LÝ BÁO CÁO",paths:["reports","approved","edit-proposals"]},
+      {title:"SẢN XUẤT & HIỆU SUẤT",paths:["statistics"]},
+      {title:"NHÂN SỰ",paths:["workers"]},
+      {title:"DỮ LIỆU DANH MỤC",paths:["master/machines","master/standards","master/defects","master/deductions"]},
+      {title:"HỆ THỐNG",paths:["export","system","permissions"]}
+    ] as const).map(group=>{const groupItems=visible.filter(item=>(group.paths as readonly string[]).includes(item.path));return groupItems.length?<section className="management-nav-group" key={group.title}><div className="management-nav-group-title">{group.title}</div>{groupItems.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} aria-current={active(item.path)?"page":undefined} onClick={()=>navigate(base+(item.path?"/"+item.path:""))}><Icon size={19}/><span>{item.label}</span></button>;})}</section>:null;})}
     <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={21}/><span>Tài khoản</span></button>
     <button type="button" className="management-logout" onClick={handleLogout}><LogOut size={21}/><span>Đăng xuất</span></button>
    </nav>
