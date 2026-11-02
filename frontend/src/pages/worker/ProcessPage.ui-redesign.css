@@ -428,3 +428,129 @@
     grid-template-columns:minmax(0,1fr)!important;
   }
 }
+
+/* Readability pass — preserve KTC's existing visual language and form behavior. */
+.worker-form-page{
+  padding-top:20px!important;
+  padding-bottom:40px!important;
+}
+.worker-form-shell{
+  gap:16px!important;
+}
+.worker-form-card{
+  padding:18px!important;
+  margin-bottom:14px!important;
+}
+.worker-form-card+.worker-form-card{
+  margin-top:0!important;
+}
+.worker-form-card .worker-card-heading{
+  display:flex!important;
+  align-items:flex-start!important;
+  gap:11px!important;
+  margin-bottom:14px!important;
+  padding-bottom:12px!important;
+}
+.worker-form-card .worker-card-step{
+  flex:0 0 28px!important;
+  width:28px!important;
+  height:28px!important;
+  display:grid!important;
+  place-items:center!important;
+  border-radius:8px!important;
+  font-size:11px!important;
+  font-weight:800!important;
+}
+.worker-form-card .worker-card-title{
+  margin:0!important;
+  font-size:16px!important;
+  line-height:1.35!important;
+}
+.worker-form-card .worker-card-subtitle{
+  margin:4px 0 0!important;
+  color:#71869a!important;
+  font-size:12px!important;
+  line-height:1.5!important;
+}
+.worker-form-card .worker-field-label,
+.worker-form-card .worker-field-block>label,
+.worker-form-card .worker-time-item>label{
+  display:block!important;
+  margin-bottom:6px!important;
+  font-size:12px!important;
+  line-height:1.4!important;
+}
+.worker-form-card .worker-text-input,
+.worker-form-card .worker-field-block input:not([type=checkbox]):not([type=radio]),
+.worker-form-card .worker-field-block select,
+.worker-form-card .worker-field-block textarea{
+  min-height:42px!important;
+  padding:9px 11px!important;
+  font-size:14px!important;
+}
+.worker-form-card .worker-basic-grid{
+  gap:14px!important;
+}
+.worker-form-card .worker-mode-panel{
+  padding:12px!important;
+  border-radius:10px!important;
+}
+.worker-form-card .worker-selection-card{
+  padding:13px!important;
+  border-radius:10px!important;
+}
+.worker-form-card .worker-selection-heading{
+  align-items:center!important;
+  gap:10px!important;
+  margin-bottom:10px!important;
+}
+.worker-form-card .worker-selection-heading strong{
+  font-size:13px!important;
+  line-height:1.4!important;
+}
+.worker-form-card .worker-selection-heading small{
+  display:block!important;
+  margin-top:3px!important;
+  color:#71869a!important;
+  font-size:11px!important;
+  line-height:1.45!important;
+}
+.worker-form-card .worker-time-grid,
+.worker-form-card .worker-time-split{
+  gap:10px!important;
+}
+.worker-form-card .worker-time-item{
+  padding:12px!important;
+  border-radius:10px!important;
+}
+.worker-form-card .worker-time-part input,
+.worker-form-card .worker-time-item>input{
+  min-height:42px!important;
+  font-size:15px!important;
+}
+.worker-form-card .worker-dropdown-box{
+  margin-top:12px!important;
+  border-radius:10px!important;
+}
+.worker-form-card .worker-dropdown-title{
+  min-height:46px!important;
+  padding:9px 12px!important;
+}
+.worker-form-card .worker-quality-card{
+  padding:13px!important;
+  border-radius:10px!important;
+}
+.worker-form-page .worker-action-group{
+  margin-top:14px!important;
+  padding:12px!important;
+  border-radius:12px!important;
+}
+@media(max-width:680px){
+  .worker-form-page{padding:12px 8px 28px!important;}
+  .worker-form-card{padding:13px!important;margin-bottom:10px!important;}
+  .worker-form-card .worker-card-heading{margin-bottom:11px!important;padding-bottom:10px!important;}
+  .worker-form-card .worker-card-title{font-size:15px!important;}
+  .worker-form-card .worker-basic-grid{gap:11px!important;}
+  .worker-form-card .worker-time-item{padding:9px!important;}
+  .worker-form-page .worker-action-group{padding:10px!important;}
+}

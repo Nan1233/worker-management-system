@@ -127,3 +127,17 @@ test('production bundle version replacement matches the frontend and service-wor
   assert.equal(forcedVersion, frontendVersion);
   assert.ok(workerVersion.startsWith(frontendVersion));
 });
+
+
+test('GC Cắt/Lồng classification never guesses from C-prefixed product or machine codes', () => {
+  const backend = fs.readFileSync(path.join(root, '..', 'backend/controllers/productStandardController.js'), 'utf8');
+  const machineType = fs.readFileSync(path.join(root, 'src/services/gcMachineWorkType.js'), 'utf8');
+  assert.ok(backend.includes('ps.work_type'));
+  assert.ok(!backend.includes("COALESCE(pa.alias_code, '') ) LIKE 'C%'"));
+  assert.ok(!backend.includes("COALESCE(ps.product_code, ''))) LIKE 'C%'"));
+  assert.ok(rules.includes('gcWorkTypeOfMachine(machineOptions, selectedRawMachine)'));
+  assert.ok(!rules.includes('selectedRawMachine.startsWith("C")'));
+  assert.ok(rules.includes('const isGcLongMachine ='));
+  assert.ok(rules.includes('normalizeWorkType(configuredType) === "LONG"'));
+  assert.ok(machineType.includes('return machine ? normalizeGcWorkType(machine.gc_work_type) : null'));
+});
