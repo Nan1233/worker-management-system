@@ -8,18 +8,21 @@ type Process={id:number;process_code?:string;process_name:string};
 const pad=(n:number)=>String(n).padStart(2,"0");
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;};
 const monthStart=()=>today().slice(0,8)+"01";
+type QuickRange="today"|"yesterday"|"last7"|"thisMonth"|"lastMonth"|"custom";
+const rangeFor=(key:QuickRange)=>{const end=new Date(),start=new Date(end);if(key==="yesterday"){start.setDate(start.getDate()-1);end.setDate(end.getDate()-1);}else if(key==="last7")start.setDate(start.getDate()-6);else if(key==="thisMonth")start.setDate(1);else if(key==="lastMonth"){start.setDate(1);start.setMonth(start.getMonth()-1);end.setDate(0);}const fmt=(d:Date)=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;return{from:fmt(start),to:fmt(end)};};
 const num=(v:number)=>Number(v||0).toLocaleString("vi-VN",{maximumFractionDigits:1});
 const percent=(actual:number,plan:number)=>plan>0?`${(actual/plan*100).toLocaleString("vi-VN",{maximumFractionDigits:1})}%`:"—";
 export default function ProcessTrackingDetail(){
  const {processId}=useParams(),navigate=useNavigate();
- const [from,setFrom]=useState(monthStart()),[to,setTo]=useState(today()),[appliedFrom,setAppliedFrom]=useState(monthStart()),[appliedTo,setAppliedTo]=useState(today());
+ const [from,setFrom]=useState(today()),[to,setTo]=useState(today()),[appliedFrom,setAppliedFrom]=useState(today()),[appliedTo,setAppliedTo]=useState(today()),[quickRange,setQuickRange]=useState<QuickRange>("today");
  const [processes,setProcesses]=useState<Process[]>([]),[summary,setSummary]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const process=useMemo(()=>processes.find(p=>String(p.id)===String(processId)),[processes,processId]);
  const row=summary?.process_summary?.find((p:any)=>String(p.process_id)===String(processId));
  const plan=summary?.plan_summary?.find((p:any)=>String(p.process_id)===String(processId));
  const load=async(start=appliedFrom,end=appliedTo)=>{setLoading(true);setError("");try{const response=await api.get("/dashboard/summary",{params:{from:start,to:end,process_id:processId}});const data=response.data?.data||{};setProcesses(Array.isArray(data.processes)?data.processes:[]);setSummary(data);if(!data.processes?.some((p:Process)=>String(p.id)===String(processId)))setError("Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.");}catch(e:any){setError(e?.response?.status===403||e?.response?.status===404?"Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.":e?.response?.data?.message||"Không thể tải dữ liệu công đoạn.");}finally{setLoading(false);}};
  useEffect(()=>{void load();},[processId,appliedFrom,appliedTo]);
- const apply=()=>{if(!from||!to||from>to){setError("Khoảng thời gian không hợp lệ.");return;}setAppliedFrom(from);setAppliedTo(to);};
+ const apply=()=>{if(!from||!to||from>to){setError("Khoảng thời gian không hợp lệ.");return;}setQuickRange("custom");setAppliedFrom(from);setAppliedTo(to);};
+ const chooseRange=(key:QuickRange)=>{setQuickRange(key);if(key==="custom")return;const range=rangeFor(key);setFrom(range.from);setTo(range.to);setAppliedFrom(range.from);setAppliedTo(range.to);};
  const ok=Number(row?.ok||0),ng=Number(row?.ng||0),actual=ok+ng,planned=Number(plan?.planned_quantity||0);
  const machineActual=Number(summary?.machine_performance?.counted_output||0),machinePlan=(summary?.machine_plan_summary||[]).reduce((s:number,x:any)=>s+Number(x.planned_quantity||0),0);
  const products=summary?.product_summary||[],machines=summary?.machine_summary||[];
@@ -27,7 +30,7 @@ export default function ProcessTrackingDetail(){
  return <main className="process-tracking-page">
   <button className="process-tracking-back" type="button" onClick={()=>navigate("..")}><ArrowLeft size={16}/> Danh sách công đoạn</button>
   <header className="process-tracking-heading"><div><span className="process-tracking-eyebrow">CHI TIẾT CÔNG ĐOẠN</span><h1>{process?.process_name||"Công đoạn"}</h1><p>{process?.process_code||"Theo dõi tình hình sản xuất"} · Dữ liệu trong phạm vi được phân công</p></div><button className="process-tracking-refresh" type="button" onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/> Làm mới</button></header>
-  <section className="process-tracking-filter"><label><span>Từ ngày</span><input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label><span>Đến ngày</span><input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><button type="button" onClick={apply}><CalendarDays size={16}/> Áp dụng</button></section>
+  <section className="process-tracking-filter"><div className="tracking-quick-ranges" role="group" aria-label="Khoảng thời gian nhanh">{([["today","Hôm nay"],["yesterday","Hôm qua"],["last7","7 ngày qua"],["thisMonth","Tháng này"],["lastMonth","Tháng trước"],["custom","Tùy chọn"]] as [QuickRange,string][]).map(([key,label])=><button key={key} type="button" className={quickRange===key?"active":""} onClick={()=>chooseRange(key)}>{label}</button>)}</div><label><span>Từ ngày</span><input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label><span>Đến ngày</span><input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><button type="button" onClick={apply}><CalendarDays size={16}/> Áp dụng</button></section>
   {loading?<div className="process-tracking-state" role="status">Đang tải dữ liệu…</div>:error?<div className="process-tracking-state error" role="alert">{error}</div>:<>
    <div className="process-tracking-period">Dữ liệu từ {appliedFrom.split("-").reverse().join("/")} đến {appliedTo.split("-").reverse().join("/")}</div>
    <section className="tracking-section"><header><div><span>A</span><h2>Tình hình sản xuất</h2></div><small>{num(row?.report_count||0)} báo cáo đã duyệt</small></header><div className="tracking-kpis"><Metric label="Sản lượng kế hoạch" value={num(planned)}/><Metric label="Sản lượng thực tế" value={num(actual)}/><Metric label="Hoàn thành kế hoạch" value={percent(actual,planned)} progress={planned>0?actual/planned*100:0}/></div></section>
