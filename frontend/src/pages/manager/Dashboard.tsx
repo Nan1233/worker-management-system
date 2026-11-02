@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, BarChart3, ClipboardCheck, FileText, Settings, Clock3, Target, PackageCheck, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
-import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
 import { getStoredUser } from "../../utils/authStorage";
 import "./Dashboard.css";
@@ -23,7 +22,7 @@ function dateText(v?:string){if(!v)return"—";const d=new Date(v);return Number
 function timeText(hours:number){if(!hours)return"—";return `${Math.floor(hours).toString().padStart(2,"0")}:${Math.round((hours%1)*60).toString().padStart(2,"0")}`}
 
 export default function Dashboard(){
- const navigate=useNavigate(),toast=useToast(),user=useMemo(()=>getStoredUser(),[]);const basePath=user?.role==="admin"?"/admin":user?.role==="admin_ops"?"/admin-ops":user?.role==="lead"?"/lead":"/manager";const name=user?.full_name||user?.username||"Quản lý";
+ const navigate=useNavigate(),user=useMemo(()=>getStoredUser(),[]);const basePath=user?.role==="admin"?"/admin":user?.role==="admin_ops"?"/admin-ops":user?.role==="lead"?"/lead":"/manager";const name=user?.full_name||user?.username||"Quản lý";
  const [period,setPeriod]=useState<PeriodKey>("today"),[summary,setSummary]=useState(EMPTY),[pending,setPending]=useState<PendingReport[]>([]),[loading,setLoading]=useState(true),[summaryError,setSummaryError]=useState<string|null>(null),[retryKey,setRetryKey]=useState(0);
  useEffect(()=>{const controller=new AbortController(),range=rangeFor(period);setLoading(true);setPending([]);
   void api.get("/dashboard/summary",{params:range,signal:controller.signal}).then(a=>{if(!controller.signal.aborted){setSummary({...EMPTY,...(a.data?.data||{})});setSummaryError(null)}}).catch(e=>{if(!controller.signal.aborted)setSummaryError(getApiError(e,"Không thể tải dữ liệu tổng quan").message)}).finally(()=>{if(!controller.signal.aborted)setLoading(false)});
