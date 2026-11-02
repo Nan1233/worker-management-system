@@ -132,3 +132,54 @@
 .manager-dashboard .notification-list p{color:#334155!important}
 .manager-dashboard .notification-list small{color:#94a3b8!important}
 @media(max-width:800px){.manager-dashboard .dashboard-welcome{padding:14px!important}.manager-dashboard .dashboard-welcome h1{font-size:19px!important}.manager-dashboard .dashboard-chart-grid .dashboard-panel{height:auto!important;min-height:245px!important}.manager-dashboard .pending-table-panel,.manager-dashboard .notifications-panel{min-height:0!important}.manager-dashboard .pending-table-wrap{max-height:420px!important}}
+
+
+/* Dashboard page-by-page UX refinement */
+.manager-dashboard .dashboard-period-context{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin:0 0 12px;padding:9px 12px;
+  border:1px solid #e5eaf0;border-radius:8px;background:#fff;
+  color:#64748b;font-size:11px;
+}
+.manager-dashboard .dashboard-period-context strong{
+  color:#245f9f;font-size:11px;font-weight:700;
+  padding:3px 8px;border-radius:5px;background:#edf4fd;
+}
+.manager-dashboard .dashboard-period-hint{margin-left:auto;color:#94a3b8}
+.manager-dashboard .dashboard-error-state{min-height:260px;display:flex;align-items:flex-start}
+.manager-dashboard .dashboard-error-card{
+  width:100%;display:flex;align-items:center;gap:14px;
+  padding:20px;border:1px solid #f0d6d6;border-radius:12px;background:#fff;
+}
+.manager-dashboard .dashboard-error-icon{
+  flex:0 0 42px;width:42px;height:42px;display:grid;place-items:center;
+  border-radius:10px;background:#fff1f1;color:#c45b5b;
+}
+.manager-dashboard .dashboard-error-card>div{min-width:0;flex:1}
+.manager-dashboard .dashboard-error-card h1{margin:0 0 5px;color:#27384d;font-size:16px;font-weight:700}
+.manager-dashboard .dashboard-error-card p{margin:0 0 4px;color:#64748b;font-size:12px;overflow-wrap:anywhere}
+.manager-dashboard .dashboard-error-card small{color:#94a3b8;font-size:11px}
+.manager-dashboard .dashboard-error-card button{
+  flex:0 0 auto;min-height:36px;padding:0 13px;border:1px solid #cbdced;
+  border-radius:7px;background:#f7fbff;color:#245f9f;font-size:12px;font-weight:650;cursor:pointer
+}
+.manager-dashboard .dashboard-error-card button:hover{background:#edf4fd;border-color:#a9c5e4}
+.manager-dashboard .dashboard-kpi-row{margin-bottom:12px}
+.manager-dashboard .pending-table-wrap{overscroll-behavior:contain}
+.manager-dashboard .pending-table-wrap th:first-child,
+.manager-dashboard .pending-table-wrap td:first-child{
+  position:sticky;left:0;z-index:2;background:#fff
+}
+.manager-dashboard .pending-table-wrap th:first-child{z-index:3;background:#f8fafc}
+.manager-dashboard .pending-table-wrap tbody tr:hover td:first-child{background:#f8fbff}
+@media(max-width:800px){
+  .manager-dashboard .dashboard-period-context{align-items:flex-start;gap:6px}
+  .manager-dashboard .dashboard-period-hint{flex-basis:100%;margin-left:0}
+  .manager-dashboard .dashboard-error-card{align-items:flex-start;flex-wrap:wrap;padding:15px}
+  .manager-dashboard .dashboard-error-card>div{flex:1 1 calc(100% - 58px)}
+  .manager-dashboard .dashboard-error-card button{margin-left:56px}
+}
+@media(max-width:480px){
+  .manager-dashboard .dashboard-period-context{font-size:10px}
+  .manager-dashboard .dashboard-error-card h1{font-size:14px}
+}
