@@ -101,3 +101,34 @@
 .manager-dashboard .machine-plan-legend{justify-content:flex-end;padding-top:10px}
 .manager-dashboard .machine-plan-legend span:first-child i{background:#8ba2bf}
 .manager-dashboard .machine-plan-legend span:last-child i{background:#2584e8}
+
+
+/* 2026 minimal manager workspace refinement: information-first, less decoration. */
+.manager-dashboard{color:#243449!important;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif!important}
+.manager-dashboard .dashboard-welcome{height:auto!important;min-height:104px!important;margin-bottom:12px!important;padding:17px 20px!important;border:1px solid #e5eaf0!important;border-radius:10px!important;background:#fff!important;box-shadow:none!important}
+.manager-dashboard .dashboard-welcome:before,.manager-dashboard .dashboard-motto{display:none!important}
+.manager-dashboard .dashboard-welcome h1{color:#172b4d!important;font-size:21px!important;font-weight:650!important;letter-spacing:-.02em!important}
+.manager-dashboard .dashboard-welcome p{color:#64748b!important;font-size:12px!important;margin:5px 0 9px!important}
+.manager-dashboard .dashboard-tags span,.manager-dashboard .dashboard-tags span:nth-child(n){height:23px!important;padding:0 8px!important;border:1px solid #e7edf4!important;border-radius:5px!important;background:#f8fafc!important;color:#52647a!important;font-size:10px!important;font-weight:500!important}
+.manager-dashboard .dashboard-chart-grid,.manager-dashboard .dashboard-bottom-grid{gap:12px!important;margin-bottom:12px!important}
+.manager-dashboard .dashboard-panel{border:1px solid #e5eaf0!important;border-radius:10px!important;background:#fff!important;box-shadow:none!important}
+.manager-dashboard .dashboard-chart-grid .dashboard-panel{height:232px!important;padding:14px 15px!important}
+.manager-dashboard .dashboard-panel-title h2{color:#243449!important;font-size:14px!important;font-weight:650!important}
+.manager-dashboard .dashboard-panel-title>div>span{color:#8492a6!important;font-size:9px!important;letter-spacing:.07em!important}
+.manager-dashboard .dashboard-panel-title select{border-color:#e2e8f0!important;border-radius:6px!important;background:#fff!important;color:#475569!important}
+.manager-dashboard .output-bars i{background:#3978bd!important}
+.manager-dashboard .quality-list section{border-radius:4px!important;background:#f1f5f9!important}
+.manager-dashboard .quality-list section b{background:#259b75!important}
+.manager-dashboard .quality-list section em{background:#d97777!important}
+.manager-dashboard .pending-table-panel,.manager-dashboard .notifications-panel{height:auto!important;min-height:300px!important;padding:14px 15px!important}
+.manager-dashboard .pending-table-wrap{max-height:340px!important;overflow:auto!important}
+.manager-dashboard .pending-table-wrap table{min-width:820px!important}
+.manager-dashboard .pending-table-wrap th{position:sticky!important;top:0!important;z-index:1!important;background:#f8fafc!important;color:#64748b!important;border-bottom:1px solid #e5eaf0!important}
+.manager-dashboard .pending-table-wrap td{height:40px!important;border-bottom:1px solid #eef2f6!important;color:#334155!important}
+.manager-dashboard .pending-status{height:21px!important;border-radius:4px!important;background:#fff7e6!important;color:#a66b13!important}
+.manager-dashboard .view-btn{border:1px solid #dbe7f5!important;border-radius:5px!important;background:#f8fbff!important;color:#2867a8!important}
+.manager-dashboard .notification-list>div{border-bottom:1px solid #eef2f6!important}
+.manager-dashboard .notification-list span,.manager-dashboard .notification-list>div:nth-child(n) span{width:30px!important;height:30px!important;border-radius:7px!important;background:#f1f5f9!important;color:#64748b!important}
+.manager-dashboard .notification-list p{color:#334155!important}
+.manager-dashboard .notification-list small{color:#94a3b8!important}
+@media(max-width:800px){.manager-dashboard .dashboard-welcome{padding:14px!important}.manager-dashboard .dashboard-welcome h1{font-size:19px!important}.manager-dashboard .dashboard-chart-grid .dashboard-panel{height:auto!important;min-height:245px!important}.manager-dashboard .pending-table-panel,.manager-dashboard .notifications-panel{min-height:0!important}.manager-dashboard .pending-table-wrap{max-height:420px!important}}
