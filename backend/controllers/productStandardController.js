@@ -9,7 +9,7 @@ const GC_NO_STANDARD_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
 // Cache-key versions deliberately invalidate stale master data after external DB updates.
 const MACHINE_CACHE_VERSION = "v3";
-const PRODUCT_STANDARD_CACHE_VERSION = "v4";
+const PRODUCT_STANDARD_CACHE_VERSION = "v5";
 
 const loadGcProductStandardsDirect = async (processId, processCode) => {
   const where = processCode
@@ -23,10 +23,13 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ps.process_id,
         p.process_code,
         CASE
+          -- Explicit legacy jobs remain Long Tay exceptions; all other GC rows
+          -- follow the persisted product_standards.work_type value. Never infer
+          -- Cắt/Lồng from a product or alias prefix.
           WHEN UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP') THEN 'LONG'
-          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('LỒNG','LONG') THEN 'LONG'
-          WHEN UPPER(TRIM(COALESCE(pa.alias_code, ''))) LIKE 'C%' THEN 'CUT'
-          ELSE COALESCE(ps.work_type, 'LONG')
+          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('LỒNG','LONG','LONG TAY') THEN 'LONG'
+          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('CẮT','CUT','CAT') THEN 'CUT'
+          ELSE NULL
         END AS work_type,
         ps.product_code,
         COALESCE(pa.alias_code, ps.encoding_code) AS alias_code,

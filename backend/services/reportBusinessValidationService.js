@@ -11,7 +11,7 @@ const normalizeText = (value) => String(value ?? "").trim();
 const uniquePositiveIds = (items, key) => [...new Set((Array.isArray(items) ? items : []).map((item) => Number(item?.[key])).filter((id) => Number.isInteger(id) && id > 0))];
 const ZERO_STANDARD_GC_LONG_MANUAL_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
-const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, skipActualOutputValidation = false, allowEmptyMachine = false, operationMode = null, operationType = null, workDate, workType = null, nonProductWork = false , reuseValidatedMachine = null, knownProcessCode = null}) => {
+const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, skipActualOutputValidation = false, allowEmptyMachine = false, operationMode = null, operationType = null, workDate, workType = null, nonProductWork = false , reuseValidatedMachine = null, knownProcessCode = null, skipWorkerProcessAssignment = false}) => {
     const errors = {};
     const normalizedMachineNo = normalizeText(machineNo);
     const normalizedProductName = normalizeText(productName);
@@ -19,7 +19,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     const deductionIds = uniquePositiveIds(deductions, "deduction_type_id");
 
     const [assignments, machines, products, validDefectRows, validDeductionRows, processRows] = await Promise.all([
-        query(`SELECT 1 FROM worker_processes WHERE worker_id = ? AND process_id = ? LIMIT 1`, [workerId, processId]),
+        skipWorkerProcessAssignment ? Promise.resolve([{ assigned: 1 }]) : query(`SELECT 1 FROM worker_processes WHERE worker_id = ? AND process_id = ? LIMIT 1`, [workerId, processId]),
         normalizedMachineNo && !reuseValidatedMachine ? queryWithOptionalGcWorkType(query, (withType) => `SELECT id, machine_code${withType ? ', gc_work_type' : ''}, COALESCE(is_automatic, 0) AS is_automatic FROM machines WHERE process_id = ? AND status = 'active' AND machine_code = ? LIMIT 1`, [processId, normalizedMachineNo]) : Promise.resolve([]),
         normalizedProductName && !reuseValidatedMachine ? query(
             `SELECT ps.id, ps.product_code, ps.encoding_code, ps.standard_output, COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
