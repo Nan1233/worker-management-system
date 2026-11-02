@@ -29,6 +29,7 @@ import "./pages/worker/HistoryVerticalCompact.css";
 import "./pages/system/SystemCenter.css";
 import "./pages/system/ActivityLogMinimal.css";
 import "./styles/ManagerDashboardMinimal.css";
+import "./styles/ManagementExperience.css";
 import "./components/feedback/toast.css";
 import "./components/system/NetworkStatusBanner.css";
 import "./components/system/OfflineReportSync.css";
