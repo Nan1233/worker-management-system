@@ -3,6 +3,7 @@ import type { MachineLineState } from "./processPageConfig";
 const normalizeProduct = (value: unknown): string => String(value ?? "").trim().toUpperCase();
 
 export function validateMachineLines(args: {
+  processCode?: string;
   machineLines: MachineLineState[];
   isMachineValid?: (code:string)=>boolean;
   isProductValid?: (machineCode:string, productCode:string)=>boolean;
@@ -20,6 +21,16 @@ export function validateMachineLines(args: {
     // the source of truth for whether that product is valid without a machine.
     // Other machine workflows still fail here because their product validator
     // returns false for an empty machine.
+    if (String(args.processCode || "").trim().toUpperCase() === "MAI") {
+      const ok = Math.max(0, Math.trunc(Number(line.okQuantity) || 0));
+      const ng = Math.max(0, Math.trunc(Number(line.ngQuantity) || 0));
+      const kqsx = String((line as MachineLineState & { actualQuantity?: string }).actualQuantity ?? "").trim();
+      if (!kqsx) return `Máy ${machineCode || "đang chọn"}: vui lòng nhập KQSX`;
+      if (!/^\\d+$/.test(kqsx)) return `Máy ${machineCode || "đang chọn"}: KQSX phải là số nguyên không âm`;
+      if (Number(kqsx) !== ok + ng) return `Máy ${machineCode || "đang chọn"}: KQSX phải bằng OK + NG (${ok + ng})`;
+      const defectTotal = Object.values(line.defects || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0);
+      if (defectTotal !== ng) return `Máy ${machineCode || "đang chọn"}: tổng chi tiết lỗi (${defectTotal}) phải bằng NG (${ng})`;
+    }
     if (!productCode) return "Thiếu mã sản phẩm";
     if (!machineCode && !manualWithoutMachine) return "Thiếu số máy";
     if (machineCode && args.isMachineValid && !args.isMachineValid(machineCode)) return `Máy ${machineCode} không hợp lệ`;
