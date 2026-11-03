@@ -36,7 +36,9 @@
     "device:ios:check": "node scripts/deviceSmoke.cjs ios",
     "prepare:source": "node scripts/patchManagerReportSave.cjs && node scripts/patchWorkerReportEdit.cjs && node scripts/patchCvkWorkerEntryV3.cjs && node scripts/patchCvkClickFix.cjs && node scripts/patchCvkFinalCleanup.cjs",
     "pretypecheck": "npm run prepare:source",
-    "pretest": "npm run prepare:source"
+    "pretest": "npm run prepare:source",
+    "build:cloudflare:test": "npm run prepare:source && npm run clean && tsc -b && vite build --mode test && node scripts/forceFrontendVersion.cjs && npm run check:bundle",
+    "build:cloudflare:production": "npm run prepare:source && npm run clean && tsc -b && vite build --mode production && node scripts/forceFrontendVersion.cjs && npm run check:bundle"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",
