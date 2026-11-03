@@ -13,7 +13,7 @@ const {
 const { validateMasterData } = require("../services/reportBusinessValidationService");
 const { validateProductionReport } = require("../utils/reportValidation");
 const { queuePostCreateSideEffects } = require("../services/productionReportSideEffectsService");
-const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
+const { calculateProductionOutput } = require("../../shared/productionOutput.cjs");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 const { issueDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
