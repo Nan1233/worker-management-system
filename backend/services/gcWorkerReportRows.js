@@ -3,8 +3,8 @@
 // Pure row model for the Gia công "Báo cáo công nhân" sheet (04_CAT_LONG layout).
 //
 // One Excel row per machine line; reports without machine lines (manual work)
-// produce one row. Nothing here reads report-level totals to fill machine rows:
-// time, deductions, output and defects always come from that line itself.
+// produce one row. Report-level deduction details/totals are used only as a safe
+// fallback when there is exactly one machine line, never copied across machines.
 
 const { trainingFactor } = require('../utils/trainingPercent');
 
@@ -150,7 +150,8 @@ function buildGcWorkerRows(report) {
       : [];
     return lines.map((line, index) => {
       const row = machineLineRow(report, line, safeReportFallback, lines.length === 1);
-      if (lines.length > 1 && !hasLineBreakdown && index === 0 && normalizeDeductions(report.deductions).length) {
+      if (lines.length > 1 && !hasLineBreakdown && index === 0
+        && (normalizeDeductions(report.deductions).length || toNumber(report.deduction_time) > 0)) {
         row.warnings.push('REPORT_DEDUCTIONS_NOT_ALLOCATED_TO_MULTIPLE_MACHINE_LINES');
       }
       return row;
