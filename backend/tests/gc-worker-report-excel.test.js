@@ -186,7 +186,7 @@ test('row builder: machine rows ignore report totals; legacy reports without lin
   assert.equal(buildGcWorkerRows(manual).length, 1);
 });
 
-test('GC Excel row prefers physical export machine time over worker participation time', () => {
+test('GC worker Excel row uses worker participation time while physical event time stays separate', () => {
   const rows = buildGcWorkerRows({
     ...report2Machines,
     machineLines: [{
@@ -197,9 +197,9 @@ test('GC Excel row prefers physical export machine time over worker participatio
       deductions_json: JSON.stringify([{ deduction_type_id: dedId('5s'), deduction_name: '5s', hours: 0.5 }])
     }]
   });
-  assert.equal(rows[0].totalHours, 5);
+  assert.equal(rows[0].totalHours, 3);
   assert.equal(rows[0].deductionHours, 0.5);
-  assert.equal(rows[0].workedHours, 4.5);
+  assert.equal(rows[0].workedHours, 2.5);
 });
 
 test('GC machine report with no machine detail does not export worker hours as machine hours', () => {
