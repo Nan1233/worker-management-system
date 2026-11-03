@@ -94,3 +94,21 @@ test('Desktop hidden machine-event sheet stores each physical event exactly once
   assert.equal(sheet.getCell('P3').value, null);
   assert.equal(sheet.getCell('R3').value, 'CONFLICTING_PARTICIPANT_LINES');
 });
+
+test('Desktop NG metrics preserve approved total NG while excluding configured KQD from counted NG', () => {
+  const report = {
+    tt_ok: 90,
+    tt_ng: 10,
+    actual_output: 96,
+    exclude_kqd_from_tt_snapshot: 1,
+    defects: [
+      { defect_code: 'BAVIA', quantity: 6 },
+      { defect_code: 'KQD', quantity: 4 }
+    ]
+  };
+
+  const snapshot = _private.reportSnapshot(report);
+  assert.equal(snapshot.ng, 10, 'visible total NG remains the approved DB snapshot');
+  assert.equal(_private.countedNg(report), 6, 'KQD is excluded from counted NG');
+  assert.equal(snapshot.output, 96, 'approved actual output is not recalculated');
+});
