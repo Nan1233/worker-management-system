@@ -53,6 +53,8 @@ test('shared event deduction is counted once and flagged as ambiguous', () => {
   assert.equal(result.reason, 'SHARED_EVENT_DEDUCTION_DUPLICATE_RISK');
   assert.equal(result.machine_deduction_hours, 0.5);
   assert.equal(result.duplicate_event_links, 1);
+  assert.equal(result.lines[1].machine_event_id, 99);
+  assert.equal(result.lines[1].duplicate_event_link, true);
 });
 
 test('machine report without machine lines cannot infer machine deductions', () => {
