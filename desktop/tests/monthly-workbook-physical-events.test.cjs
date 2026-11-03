@@ -177,3 +177,32 @@ test('Desktop GC MACHINE monthly snapshot derives Worker credit from machine lin
   assert.notEqual(snapshot.workingTime, 9, 'shared physical event hours must not replace Worker participation hours');
   assert.notEqual(snapshot.output, 900, 'shared physical event output must not replace Worker credit');
 });
+
+test('Desktop GC MACHINE monthly workbook reads Worker deduction details from each machine line', () => {
+  const report = {
+    process_code: 'GC',
+    operation_mode: 'MACHINE',
+    deductions: [],
+    machineLines: [
+      {
+        id: 801,
+        deductions_json: JSON.stringify([
+          { deduction_type_id: 88, deduction_code: 'STOP', deduction_name: 'Dừng máy của công nhân', hours: 0.5 }
+        ])
+      },
+      {
+        id: 802,
+        deductions_json: JSON.stringify([
+          { deduction_type_id: 88, deduction_code: 'STOP', deduction_name: 'Dừng máy của công nhân', hours: 0.25 }
+        ])
+      }
+    ]
+  };
+
+  const details = _private.reportDetailItems(report, 'GC', 'deduction');
+  assert.equal(details.length, 2);
+  assert.equal(details.reduce((sum, item) => sum + item.hours, 0), 0.75);
+
+  const types = _private.processDetailTypes('GC', { reports: [report] }, 'deductionTypes', 'deductions', 'deduction');
+  assert.ok(types.some((item) => item.aliases.includes('id:88')));
+});
