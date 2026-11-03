@@ -51,7 +51,7 @@ export default function ProcessBasicInfoSection({ processCode, form, setForm, on
     const visibleGcMachineOptions = getVisibleGcMachineOptions(machineAutocompleteOptions, operationType, cutExecutionMode);
     const visibleMachineOptions = isCutLongProcess ? visibleGcMachineOptions : machineAutocompleteOptions;
     const hasSharedGcMachine = isCutLongProcess && machineLines.some((line) => {
-        const machineNumber = String(line.machineCode || "").trim().match(/(\\d{1,2})$/)?.[1];
+        const machineNumber = String(line.machineCode || "").trim().match(/([0-9]{1,2})$/)?.[1];
         return ["5", "6", "7", "11"].includes(machineNumber || "");
     });
     const visibleNgOptions = isCutLongProcess ? activeNgOptions.filter((item) => { const code = normalizeDefectCode(item.code); return operationType === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG"); }) : activeNgOptions;
