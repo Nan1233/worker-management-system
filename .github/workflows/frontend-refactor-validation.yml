@@ -1,0 +1,49 @@
+name: Frontend Refactor Validation
+
+on:
+  pull_request:
+    branches:
+      - test
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-refactor-validation.yml"
+  push:
+    branches:
+      - refactor/fe-cleanup-20261103
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-refactor-validation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-refactor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend lint, typecheck, tests and Cloudflare builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Frontend test suite
+        run: npm test
+      - name: Cloudflare TEST build
+        run: npm run build:cloudflare:test
+      - name: Cloudflare PRODUCTION build
+        run: npm run build:cloudflare:production
