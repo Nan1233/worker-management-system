@@ -81,10 +81,10 @@ module.exports = {
                 worker_id, process_id, work_date, entry_date, shift,
                 operation_type, operation_mode, machine_no,
                 product_name, total_time, actual_time, deduction_time,
-                standard_output, standard_version_id, machine_standard_id, training_percent_snapshot, exclude_kqd_from_tt_snapshot, actual_output, tt_ok, tt_ng, note, extra_data,
+                standard_output, standard_version_id, machine_standard_id, training_percent_snapshot, actual_output, tt_ok, tt_ng, note, extra_data,
                 client_request_id, logical_duplicate_key, status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         `;
 
         const result = await query(executor, sql, [
@@ -104,7 +104,6 @@ module.exports = {
             Number(data.standard_version_id) || null,
             Number(data.machine_standard_id) || null,
             data.training_percent_snapshot === null || data.training_percent_snapshot === undefined ? null : Number(data.training_percent_snapshot),
-            data.exclude_kqd_from_tt_snapshot === null || data.exclude_kqd_from_tt_snapshot === undefined ? null : (Number(data.exclude_kqd_from_tt_snapshot) === 1 ? 1 : 0),
             Number(data.actual_output) || 0,
             Number(data.tt_ok) || 0,
             Number(data.tt_ng) || 0,
@@ -466,7 +465,6 @@ module.exports = {
                 Number(line.standard_output) || 0,
                 Number(line.standard_time_seconds) || null,
                 storedStandardSource(line.standard_source),
-                Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
                 Math.max(0, Math.trunc(Number(line.ok_quantity) || 0)),
                 Math.max(0, Math.trunc(Number(line.ng_quantity) || 0)),
                 Number(line.maximum_output) || 0,
@@ -492,10 +490,10 @@ module.exports = {
 
         await query(executor, `INSERT INTO production_temp_machine_lines
             (temp_report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
-             machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
+             machine_time_hours, standard_output, standard_time_seconds, standard_source,
              ok_quantity, ng_quantity, maximum_output, deduction_time_hours, deductions_json, counted_output, earned_standard_hours,
              defects_json, sort_order)
-            VALUES ${lineRows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`, lineRows.flat());
+            VALUES ${lineRows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`, lineRows.flat());
 
         if (!defectRows.length) return;
         await query(executor,
@@ -648,11 +646,7 @@ module.exports = {
             data.training_percent_snapshot = trainingSnapshot.training_percent;
             data.standard_version_id = data.standard_version_id || null;
             data.machine_standard_id = data.machine_standard_id || null;
-            data.exclude_kqd_from_tt_snapshot =
-                data.exclude_kqd_from_tt_snapshot ??
-                data.exclude_kqd_from_tt ??
-                null;
-
+            
             if (Array.isArray(machineLines) && machineLines.length) {
                 const capacity = await validateMachineWorkerCapacityLocked({
                     executor: connection,
