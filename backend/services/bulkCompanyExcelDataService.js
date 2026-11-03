@@ -362,6 +362,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
           const machineDeductions = [];
           machineAccounting = buildGiaCongMachineAccounting(
             {
+              operation_mode: report.operation_mode,
               machineLines,
               deductions: tempDeductions.length ? tempDeductions : persistedDeductions,
               total_time: report.total_time,
