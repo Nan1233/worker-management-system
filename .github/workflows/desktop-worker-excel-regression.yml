@@ -6,7 +6,11 @@ on:
     paths:
       - 'desktop/electron/exportMachineTime.cjs'
       - 'desktop/electron/workerReportTemplateLocal.v2.cjs'
+      - 'desktop/electron/monthlyWorkbookLocal.cjs'
       - 'desktop/tests/export-machine-time.test.cjs'
+      - 'desktop/tests/monthly-workbook-physical-events.test.cjs'
+      - 'desktop/package-lock.json'
+      - 'desktop/package.json'
       - '.github/workflows/desktop-worker-excel-regression.yml'
   workflow_dispatch:
 
@@ -17,14 +21,20 @@ jobs:
   desktop-worker-excel:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: desktop
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install Desktop dependencies
+        run: npm ci --no-audit --no-fund
       - name: Check Desktop Excel module syntax
         run: |
-          node --check desktop/electron/exportMachineTime.cjs
-          node --check desktop/electron/workerReportTemplateLocal.v2.cjs
+          node --check electron/exportMachineTime.cjs
+          node --check electron/workerReportTemplateLocal.v2.cjs
+          node --check electron/monthlyWorkbookLocal.cjs
       - name: Run worker Excel regression tests
-        run: node --test desktop/tests/export-machine-time.test.cjs
+        run: node --test tests/export-machine-time.test.cjs tests/monthly-workbook-physical-events.test.cjs
