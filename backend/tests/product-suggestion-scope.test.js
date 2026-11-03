@@ -24,10 +24,13 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   assert.match(basic, /productOptions\.find/);
   assert.doesNotMatch(page, /product_code:\s*productOptions\.find/);
 
-  // Cắt may uses encoded aliases/machine suffixes; Lồng must not inherit
-  // those suffix rules and instead stays eligible through the real machine mapping.
+  // Cắt may uses encoded aliases/machine suffixes. Lồng eligibility is
+  // determined only by the selected machine's explicit master-data work type;
+  // never infer it from an ML/numeric/C-prefixed code.
   assert.match(rules, /const isGcAutomaticMachine =/);
-  assert.match(rules, /const isGcLongMachine =/);
+  assert.match(rules, /const selectedMachineWorkType = selectedRawMachine/);
+  assert.match(rules, /selectedMachineWorkType !== "LONG"/);
+  assert.doesNotMatch(rules, /isGcLongMachine/);
   assert.match(rules, /productWorkTypes\.has\("CUT"\)/);
   assert.match(rules, /productWorkTypes\.has\("LONG"\)/);
   assert.match(rules, /if \(useEncodedMachineSuffix\)/);
