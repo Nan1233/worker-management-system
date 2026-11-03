@@ -187,7 +187,6 @@ function validateApprovedVersionSnapshot(value) {
   } else if (!finiteNonNegative(report.training_percent_snapshot) || Number(report.training_percent_snapshot) > 100) {
     pushIssue(issues, 'ROLLBACK_SNAPSHOT_INVALID', 'report.training_percent_snapshot', 'Snapshot % học việc không hợp lệ');
   }
-    pushIssue(issues, 'ROLLBACK_MISSING_KQD_POLICY', 'report.exclude_kqd_from_tt_snapshot', 'Thiếu/không hợp lệ snapshot chính sách KQD');
   }
 
   snapshot.defects.forEach((item, index) => {
@@ -254,7 +253,6 @@ function classifyApprovedVersionSnapshot(value) {
     }
     if (legacyReport.training_percent_snapshot === null || legacyReport.training_percent_snapshot === undefined) {
       reasons.push('ROLLBACK_MISSING_TRAINING_SNAPSHOT'); missing.push('training_percent_snapshot');
-    }
     }
     if (!Object.prototype.hasOwnProperty.call(snapshot, 'machineLines')) {
       reasons.push('ROLLBACK_EVENT_LINK_UNKNOWN'); missing.push('machine_event_id');
