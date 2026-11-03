@@ -112,12 +112,10 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
         onUpdateExisting();
     };
 
-    // Một thao tác duy nhất: bấm "Nộp dữ liệu" sẽ validate và gửi báo cáo ngay
-    // (xem handleSubmit trong ProcessPage.tsx). Không còn bước "Xác nhận nộp"
-    // trung gian ở đây — giới hạn tổng giờ làm/ngày (12 giờ) vẫn được backend
-    // kiểm tra có khóa (enforceDailyHoursLocked trong productionTempCreateModel.js/
-    // productionTempUpdateModel.js) và lỗi DAILY_WORKING_HOURS_LIMIT_EXCEEDED sẽ
-    // hiện ra qua toast lỗi của handleSubmit, giữ nguyên dữ liệu đã nhập.
+    // Một thao tác duy nhất: bấm "Nộp dữ liệu" sẽ validate và gửi báo cáo ngay.
+    // Backend áp dụng giới hạn 12 giờ/ngày cho công đoạn không thuộc nhóm đa máy.
+    // GC/MAI tạm không áp dụng tổng giờ theo công nhân/ngày cho tới khi chốt
+    // quy tắc giới hạn theo từng máy.
     const handleSubmitClick = () => handleProcessSubmitClick(submitting, onSubmit);
 
     return (
