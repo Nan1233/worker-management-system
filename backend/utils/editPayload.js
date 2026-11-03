@@ -19,7 +19,7 @@ function omitUnsentCollections(body, update) {
 // re-resolved for today's date) must not overwrite stored lines or the parent columns that mirror them.
 const MACHINE_DERIVED_FIELDS = [
   "machine_lines", "machine_no", "product_name", "standard_output", "actual_output", "tt_ok", "tt_ng",
-  "exclude_kqd_from_tt", "exclude_kqd_from_tt_snapshot", "standard_version_id", "machine_standard_id", "operation_mode",
+  "standard_version_id", "machine_standard_id", "operation_mode",
 ];
 
 function preserveStoredMachineData(body, update) {
