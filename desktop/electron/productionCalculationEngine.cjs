@@ -126,7 +126,6 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
   let ok = 0;
   let allNg = 0;
   let countedNg = 0;
-  let excludedKqd = 0;
   let enteredOutput = 0;
   let adjustedOutput = 0;
   let plannedOutput = 0;
@@ -150,9 +149,6 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
 
     const lineOk = Math.max(0, asInteger(line.ok_quantity) || 0);
     const lineNg = Math.max(0, asInteger(line.ng_quantity) || 0);
-    const lineDefects = parseArray(line.defects).length
-      ? parseArray(line.defects)
-      : parseArray(line.defects_json);
     const lineCountedNg = lineNg;
     const lineStandard = positiveHours(line.standard_output);
     const trainingMultiplier = resolved.apply_training_percent
@@ -165,7 +161,6 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     ok += lineOk;
     allNg += lineNg;
     countedNg += lineCountedNg;
-    excludedKqd += lineExcludedKqd;
     enteredOutput += lineOk + lineNg;
     adjustedOutput += lineOk + lineCountedNg;
     if (trainingMultiplier !== null) plannedOutput += Math.round(lineStandard * workedHours * trainingMultiplier);
@@ -193,7 +188,6 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     ok,
     allNg,
     countedNg,
-    excludedKqd,
     enteredOutput,
     adjustedOutput,
     standard,
@@ -287,7 +281,6 @@ function calculateProductionMetrics(report = {}, settings = {}) {
     ok,
     allNg: ng.allNg,
     countedNg: ng.countedNg,
-    excludedKqd: ng.excludedKqd,
     detailNg: ng.detailNg,
     enteredOutput,
     adjustedOutput,
