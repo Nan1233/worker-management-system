@@ -250,6 +250,36 @@ module.exports = {
         );
     },
 
+    async lockMachineCapacityKeys(processId, workDate, shift, machineLines, executor = db) {
+        const machines = [...new Set((Array.isArray(machineLines) ? machineLines : [])
+            .map((line) => String(line?.machine_code || "").trim().toUpperCase())
+            .filter(Boolean))].sort();
+        const date = String(workDate || "").slice(0, 10);
+        const shiftKey = String(shift || "").trim().toUpperCase();
+        const process = Number(processId);
+        if (!Number.isInteger(process) || process <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !shiftKey || !machines.length) return;
+
+        // Serialize capacity checks per physical machine/day/shift across Worker isolates.
+        // Sorted acquisition order prevents deadlocks for submissions sharing multiple machines.
+        for (const machineCode of machines) {
+            const key = crypto.createHash("sha256")
+                .update(`machine-capacity:${process}:${date}:${shiftKey}:${machineCode}`, "utf8")
+                .digest("hex");
+            await query(
+                executor,
+                `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
+                 VALUES (?, NOW())
+                 ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
+                [key]
+            );
+            await query(
+                executor,
+                `SELECT logical_key FROM production_report_duplicate_locks WHERE logical_key = ? FOR UPDATE`,
+                [key]
+            );
+        }
+    },
+
 
     async findRecentIdentical(data, executor = db) {
         const rows = await query(
