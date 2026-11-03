@@ -96,7 +96,7 @@ const assertNoLogicalDuplicate = async (data, executor = db) => {
         if (!confirmation.valid) {
             const error = new Error("Xác nhận tạo báo cáo trùng không hợp lệ hoặc đã hết hạn");
             error.status = 409; error.code = "DUPLICATE_CONFIRMATION_REQUIRED"; error.isPublic = true;
-            error.existing_report = existing; error.details = { reason: confirmation.reason, existing }; throw error;
+            error.existing_report = existing; throw error;
         }
     } else if (!existing && data.force_create) {
         const error = new Error("Không có báo cáo trùng hợp lệ để xác nhận tạo lần thứ hai");
