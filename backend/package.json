@@ -31,7 +31,6 @@
     "load:readiness": "node scripts/loadReadiness.js",
     "audit:historical-standards": "node scripts/auditHistoricalStandards.js",
     "audit:training-snapshots": "node scripts/auditTrainingSnapshots.js",
-    "audit:kqd": "node scripts/auditKqdSnapshots.js",
     "audit:shared-machines": "node scripts/auditSharedMachineAccounting.js",
     "audit:historical-machine-hours:remote": "node scripts/auditHistoricalMachineHoursRemote.cjs",
     "audit:historical-machine-hours": "node scripts/auditHistoricalMachineHoursRemote.cjs",
