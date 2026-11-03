@@ -101,7 +101,7 @@ const report = {
   branchIntent: 'test',
   mode: 'source-only; no database/network/deploy/build/publish',
   branchStatus: 'TEST_BRANCH_SOURCE_CHECKS',
-  testProfileStatus: (hasTestDesktopApi && hasTestDesktopWeb && /ktc-be-test\\.nan978971\\.workers\\.dev\\/api/i.test(frontendRender))
+  testProfileStatus: (hasTestDesktopApi && hasTestDesktopWeb && /ktc-be-test\.nan978971\.workers\.dev\/api/i.test(frontendRender))
     ? 'EXPLICIT_TEST_ENDPOINTS'
     : 'TEST_PROFILE_MIXED_OR_UNCLEAR',
   releaseStatus: blockers.length ? 'BLOCKED' : 'READY_FOR_MANUAL_APPROVAL',
