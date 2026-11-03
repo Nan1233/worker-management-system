@@ -167,7 +167,7 @@ test('F07 matching expected_updated_at succeeds and returns a fresh updated_at b
     '../config/db': fakeDb,
     './auditService': { logActivity: async () => true },
     '../utils/reportValidation': { validateProductionReport: (payload) => ({ valid: true, normalized: { ...payload } }) },
-    './reportBusinessValidationService': { validateMasterData: async () => ({ valid: true, standardOutput: 617.1, standardVersionId: 11, machineStandardId: null, excludeKqdFromTt: 0, authoritativeDefects: [] }) },
+    './reportBusinessValidationService': { validateMasterData: async () => ({ valid: true, standardOutput: 617.1, standardVersionId: 11, machineStandardId: null, authoritativeDefects: [] }) },
     './reportGovernanceService': { isPeriodLocked: async () => false },
     './productionOutputCalculationService': { recalculateReportOutput: ({ ttOk }) => ({ ttOk, totalNg: 0, actualOutput: ttOk }) },
     './processAuthorizationService': { assertProcessScope: async () => true },
