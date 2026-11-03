@@ -159,7 +159,10 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
   if (!lines.length) return null;
 
-  const reportDeductions = parseArray(report.deductions);
+  const positiveDetails = (value) => parseArray(value)
+    .map((item) => ({ ...item, hours: positiveHours(item?.hours) }))
+    .filter((item) => item.hours > 0);
+  const reportDeductions = positiveDetails(report.deductions);
   const allowReportFallback = lines.length === 1;
   let workingTime = 0;
   let deductionTime = 0;
@@ -174,19 +177,19 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
 
   for (const line of lines) {
     const machineHours = positiveHours(line.machine_time_hours);
-    const lineDeductions = parseArray(line.deductions).length
-      ? parseArray(line.deductions)
-      : parseArray(line.deductions_json);
+    const lineDeductions = positiveDetails(
+      parseArray(line.deductions).length ? line.deductions : line.deductions_json
+    );
     const reportLineDeductions = lineDeductions.length
       ? lineDeductions
       : (allowReportFallback ? reportDeductions : []);
-    const detailHours = reportLineDeductions.reduce((sum, item) => sum + positiveHours(item?.hours), 0);
+    const detailHours = reportLineDeductions.reduce((sum, item) => sum + item.hours, 0);
     const fallbackHours = Math.max(
       positiveHours(line.deduction_time_hours),
       positiveHours(line.adjustment_minutes) / 60,
       allowReportFallback && !reportLineDeductions.length ? positiveHours(report.deduction_time) : 0
     );
-    const deductionHours = detailHours > 0 ? detailHours : fallbackHours;
+    const deductionHours = reportLineDeductions.length ? detailHours : fallbackHours;
     const workedHours = Math.max(0, machineHours - deductionHours);
 
     const lineOk = Math.max(0, asInteger(line.ok_quantity) || 0);
@@ -200,7 +203,7 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     const lineExcludeKqd = Number(policyValue || 0) === 1;
     const lineExcludedKqd = lineExcludeKqd
       ? lineDefects.reduce((sum, defect) => (
-        sum + (isKqdDefect(defect) ? positiveHours(defect?.quantity) : 0)
+        sum + (isKqdDefect(defect) ? Math.max(0, asInteger(defect?.quantity) || 0) : 0)
       ), 0)
       : 0;
     const lineCountedNg = Math.max(0, lineNg - lineExcludedKqd);
@@ -218,7 +221,7 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     excludedKqd += lineExcludedKqd;
     enteredOutput += lineOk + lineNg;
     adjustedOutput += lineOk + lineCountedNg;
-    if (trainingMultiplier !== null) plannedOutput += lineStandard * workedHours * trainingMultiplier;
+    if (trainingMultiplier !== null) plannedOutput += Math.round(lineStandard * workedHours * trainingMultiplier);
   }
 
   const outputPerHour = actualTime > 0 ? adjustedOutput / actualTime : null;
@@ -267,13 +270,15 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   const ok = asInteger(report.tt_ok);
   const ng = calculateNg(report);
   const enteredOutput = asInteger(report.actual_output);
-  const trainingPercent = Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot')
-    && (report.training_percent_snapshot === null || report.training_percent_snapshot === undefined || String(report.training_percent_snapshot).trim() === '')
+  const hasTrainingSnapshot = Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot');
+  const snapshotMissing = hasTrainingSnapshot
+    && (report.training_percent_snapshot === null
+      || report.training_percent_snapshot === undefined
+      || String(report.training_percent_snapshot).trim() === '');
+  const trainingPercent = snapshotMissing
     ? null
     : normalizeTrainingPercent(
-      Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot')
-        ? report.training_percent_snapshot
-        : report.training_percent
+      hasTrainingSnapshot ? report.training_percent_snapshot : report.training_percent
     );
   const factor = trainingPercent === null ? null : trainingPercent / 100;
   const standard = asNumber(report.standard_output);
