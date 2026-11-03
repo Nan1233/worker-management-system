@@ -977,8 +977,10 @@ function addReconciliationSheet(workbook, payload) {
     for (const report of sortReports(processData.reports)) {
       const itemSettings = settingsForReport(report, baseSettings, processData.formulaSettingsByDate || {});
       const item = reportSnapshot(report, itemSettings);
-      const detailDeduction = (report.deductions || []).reduce((sum, value) => sum + (detailValue(value, 'deduction') || 0), 0);
-      const detailNg = (report.defects || []).reduce((sum, value) => sum + (detailValue(value, 'defect') || 0), 0);
+      const detailDeduction = reportDetailItems(report, code, 'deduction')
+        .reduce((sum, value) => sum + (detailValue(value, 'deduction') || 0), 0);
+      const detailNg = reportDetailItems(report, code, 'defect')
+        .reduce((sum, value) => sum + (detailValue(value, 'defect') || 0), 0);
       const deductionDiff = (item.deductionTime || 0) - detailDeduction;
       const ngDiff = (item.ng || 0) - detailNg;
       const ok = Math.abs(deductionDiff) < 0.0001 && Math.abs(ngDiff) < 0.0001;
