@@ -123,19 +123,6 @@ export const getFullProductCode = (alias: string, products: ProductStandardOptio
 };
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean => GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
-const isGcLongMachine = (machineCode: unknown, machineOptions?: MachineOption[]): boolean => {
-    const raw = normalize(machineCode).replace(/\s+/g, "");
-    // Use metadata only when the selected machine itself has a configured value.
-    // A partial API response must not let another machine's metadata suppress the
-    // legacy ML/numeric fallback for this selected machine.
-    const selected = (machineOptions || []).find((item) =>
-        normalize(item.machine_code).replace(/\s+/g, "") === raw
-        || normalizeMachineKey(item.machine_code) === normalizeMachineKey(raw));
-    const configuredType = String(selected?.gc_work_type ?? "").trim();
-    if (configuredType) return normalizeWorkType(configuredType) === "LONG";
-    return /^ML\d+$/i.test(raw) || /^\d+$/.test(normalizeMachineKey(raw));
-};
-
 export const filterProductsForSelection = ({ products, mode, machineCode, machineOptions, useEncodedMachineSuffix = false }: { products: ProductStandardOption[]; mode: ProductSuggestionMode; machineCode?: string; machineOptions?: MachineOption[]; useEncodedMachineSuffix?: boolean; }): ProductStandardOption[] => {
     const selectedMachine = normalizeMachineKey(machineCode);
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
@@ -200,7 +187,7 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
                     ...specialProducts.filter(({ alias }) => !existingAliases.has(alias)),
                 ]);
             }
-            if (!selectedMachine || !isGcLongMachine(selectedRawMachine, machineOptions)) return [];
+            if (!selectedMachine || selectedMachineWorkType !== "LONG") return [];
             return workerSelectionProducts(canonicalProducts);
         }
         if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
