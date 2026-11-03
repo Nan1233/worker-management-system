@@ -55,7 +55,6 @@ async function createApprovedSnapshot(reportId, createdBy, executor = db.promise
       actual_output: Number(report.actual_output || 0),
       tt_ok: Number(report.tt_ok || 0),
       tt_ng: Number(report.tt_ng || 0),
-      exclude_kqd_from_tt: Number(report.exclude_kqd_from_tt || 0)
     },
     defects,
     deductions
