@@ -47,7 +47,10 @@ const isCloudflareWorker = String(process.env.KTC_CLOUDFLARE_WORKER || "").toLow
 
 function parseCorsOrigins() {
   const configured = String(process.env.CORS_ORIGINS || "").split(",").map(v => v.trim()).filter(Boolean);
-  return new Set(["http://localhost:5173", "https://localhost", "capacitor://localhost", ...configured]);
+  const defaults = isProduction
+    ? ["https://localhost", "capacitor://localhost"]
+    : ["http://localhost:5173", "https://localhost", "capacitor://localhost"];
+  return new Set([...defaults, ...configured]);
 }
 const allowedOrigins = parseCorsOrigins();
 app.set("trust proxy", resolveTrustProxySetting(process.env));
