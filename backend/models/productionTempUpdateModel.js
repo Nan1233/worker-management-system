@@ -11,7 +11,7 @@ const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, processCode, excludeTempReportId = null }) => {
     const worker = Number(workerId);
     const date = String(workDate || "").slice(0, 10);
-    if (!Number.isInteger(worker) || worker <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return null;
+    if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     if (isDailyHoursLimitExemptProcess(processCode)) return null;
 
     const tempExcludeSql = excludeTempReportId ? "AND pr.id <> ?" : "";
