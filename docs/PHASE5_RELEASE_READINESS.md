@@ -37,7 +37,7 @@ Desktop now resolves URLs from packaged metadata. The default package is TEST; t
 - The Worker rejects CORS configuration that includes the opposite environment's frontend origin.
 - The generic Express CORS allowlist no longer silently includes the old Render frontend hostname.
 - Worker startup validates that TiDB connection material and a JWT secret of at least 32 characters are present. Secret values are never stored in Git.
-- Runtime master-data bootstrap remains disabled in the Worker entrypoint and is guarded by the deployment profile; this avoids implicit master-data writes triggered by normal API traffic.
+- Request-triggered master-data seeding was removed from the Worker request path. Master-data repair/seeding remains a separate operator action; normal API traffic cannot invoke those seed scripts.
 
 ## Required Cloudflare secrets (not verified)
 
