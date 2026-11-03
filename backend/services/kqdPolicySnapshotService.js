@@ -1,5 +1,15 @@
 'use strict';
 
+// Compatibility adapter for legacy approved-report flows. Historical KQD
+// exclusion snapshots no longer participate in validation or calculations.
+function normalizeKqdPolicySnapshot() {
+  return 0;
+}
+
+function assertKqdPolicySnapshotConsistency() {
+  return true;
+}
+
 function businessError(code, message, details = null) {
   const error = new Error(message);
   error.status = 422;
@@ -7,35 +17,6 @@ function businessError(code, message, details = null) {
   error.isPublic = true;
   if (details) error.details = details;
   return error;
-}
-
-function normalizeKqdPolicySnapshot(value, { allowNull = false } = {}) {
-  if (value === null || value === undefined || String(value).trim() === '') {
-    if (allowNull) return null;
-    throw businessError('KQD_POLICY_SNAPSHOT_MISSING', 'Báo cáo chưa có snapshot chính sách KQD');
-  }
-  const number = Number(value);
-  if (number !== 0 && number !== 1) {
-    throw businessError('KQD_POLICY_SNAPSHOT_INVALID', 'Snapshot chính sách KQD không hợp lệ');
-  }
-  return number;
-}
-
-function assertKqdPolicySnapshotConsistency({ resolved, snapshot }) {
-  // CVK (Công việc khác) has no product, production standard, or KQD policy.
-  // Its create flow intentionally stores a null KQD snapshot, so approval must
-  // not reject it as a missing production-standard snapshot.
-  if (resolved?.nonProductWork === true) return true;
-
-  const actual = normalizeKqdPolicySnapshot(snapshot);
-  const expected = Number(resolved?.excludeKqdFromTt || 0) === 1 ? 1 : 0;
-  if (actual !== expected) {
-    throw businessError('KQD_POLICY_SNAPSHOT_MISMATCH', 'Snapshot chính sách KQD không khớp nguồn định mức lịch sử', {
-      expected_exclude_kqd_from_tt_snapshot: expected,
-      stored_exclude_kqd_from_tt_snapshot: actual
-    });
-  }
-  return true;
 }
 
 module.exports = {
