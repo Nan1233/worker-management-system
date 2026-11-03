@@ -39,6 +39,7 @@ function loadFacadeHarness() {
     findSimilarApprovedReport: async () => null,
     lockClientRequestId: async () => {},
     lockLogicalDuplicateKey: async () => {},
+    lockMachineCapacityKeys: async () => {},
     create: async (data, connection) => {
       const id = nextId++;
       connection.pendingReport = {
