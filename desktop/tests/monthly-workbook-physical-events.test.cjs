@@ -112,3 +112,68 @@ test('Desktop NG metrics preserve approved total NG while excluding configured K
   assert.equal(_private.countedNg(report), 6, 'KQD is excluded from counted NG');
   assert.equal(snapshot.output, 96, 'approved actual output is not recalculated');
 });
+
+test('Desktop GC MACHINE monthly snapshot derives Worker credit from machine lines, not zero parent fields or shared physical hours', () => {
+  const snapshot = _private.reportSnapshot({
+    id: 77,
+    process_code: 'GC',
+    operation_mode: 'MACHINE',
+    total_time: 0,
+    actual_time: 0,
+    deduction_time: 0,
+    actual_output: 0,
+    tt_ok: 0,
+    tt_ng: 0,
+    standard_output: 0,
+    training_percent_snapshot: 50,
+    exclude_kqd_from_tt_snapshot: 1,
+    machineLines: [
+      {
+        id: 701,
+        machine_event_id: 9001,
+        machine_time_hours: 2,
+        excel_machine_time_hours: 9,
+        deduction_time_hours: 0.5,
+        ok_quantity: 100,
+        ng_quantity: 10,
+        standard_output: 80,
+        exclude_kqd_from_tt: 1,
+        defects: [
+          { defect_code: 'BAVIA', quantity: 6 },
+          { defect_code: 'KQD', quantity: 4 }
+        ]
+      },
+      {
+        id: 702,
+        machine_event_id: 9001,
+        machine_time_hours: 3,
+        excel_machine_time_hours: 9,
+        deduction_time_hours: 0,
+        ok_quantity: 120,
+        ng_quantity: 0,
+        standard_output: 100,
+        exclude_kqd_from_tt: 1,
+        defects: []
+      }
+    ],
+    physicalMachineEvents: [{
+      id: 9001,
+      machine_time_hours: 9,
+      physical_counted_output: 900
+    }]
+  });
+
+  assert.equal(snapshot.workingTime, 5, 'sum Worker participation time from the two machine lines');
+  assert.equal(snapshot.deductionTime, 0.5);
+  assert.equal(snapshot.actualTime, 4.5, 'Worker worked time is participation less Worker deductions');
+  assert.equal(snapshot.ok, 220);
+  assert.equal(snapshot.ng, 10, 'all Worker NG remains visible');
+  assert.equal(snapshot.countedNg, 6, 'KQD is excluded only from counted NG');
+  assert.equal(snapshot.enteredOutput, 230);
+  assert.equal(snapshot.output, 226);
+  assert.equal(snapshot.plannedOutput, 210, 'line standards are weighted by Worker worked time and training snapshot');
+  assert.equal(snapshot.outputPerHour, 226 / 4.5);
+  assert.equal(snapshot.achievement, 226 / 210);
+  assert.notEqual(snapshot.workingTime, 9, 'shared physical event hours must not replace Worker participation hours');
+  assert.notEqual(snapshot.output, 900, 'shared physical event output must not replace Worker credit');
+});
