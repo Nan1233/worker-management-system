@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { calculateProductionOutput } = require('../../shared/kqdPolicy.cjs');
+const { calculateProductionOutput } = require('../../shared/productionOutput.cjs');
 const { recalculateReportOutput } = require('../services/kqdReportCalculationService');
 const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
 
