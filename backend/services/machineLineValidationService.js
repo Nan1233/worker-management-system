@@ -344,11 +344,9 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             // chỉ biết chính xác sau khi công nhân khai báo chi tiết lỗi.
             const maximumOutput = standardOutput * machineTimeHours;
             const maximumOkOutput = maximumOutput * 2;
-            const excludeKqdFromTt = Number(resolvedStandard.excludeKqdFromTt || 0) === 1 ? 1 : 0;
             const outputMetrics = calculateProductionOutput({
                 ok: okQuantity,
-                defects: normalizedDefects,
-                excludeKqdFromTt: Boolean(excludeKqdFromTt)
+                defects: normalizedDefects
             });
             const countedOutput = outputMetrics.actualOutput;
             const earnedStandardHours = standardOutput > 0 ? countedOutput / standardOutput : 0;
@@ -373,7 +371,6 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                 standard_time_seconds: Number(resolvedStandard.standardTimeSeconds || 0) || null,
                 standard_output: standardOutput,
                 standard_source: resolvedStandard.source === "MACHINE" ? "MACHINE" : "PRODUCT_VERSION",
-                exclude_kqd_from_tt: excludeKqdFromTt,
                 counted_output: countedOutput,
                 earned_standard_hours: earnedStandardHours,
                 ok_quantity: okQuantity,
