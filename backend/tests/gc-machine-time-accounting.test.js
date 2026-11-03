@@ -162,3 +162,35 @@ test('report-level worker deduction rows are not projected onto machine time wit
   assert.equal(result.netHours, 8);
   assert.deepEqual(result.deductions, []);
 });
+
+test('zero-hour deduction row on an earlier shared participant does not hide another participant deduction', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'MACHINE',
+    machineLines: [
+      {
+        id: 601,
+        machine_event_id: 9601,
+        machine_time_hours: 8,
+        deduction_time_hours: 0,
+        deductions_json: JSON.stringify([
+          { deduction_type_id: 10, deduction_code: 'CHO_HANG', deduction_name: 'Chờ hàng', hours: 0 }
+        ])
+      },
+      {
+        id: 602,
+        machine_event_id: 9601,
+        machine_time_hours: 8,
+        deduction_time_hours: 1.5,
+        deductions_json: JSON.stringify([
+          { deduction_type_id: 11, deduction_code: 'BAO_TRI', deduction_name: 'Bảo trì', hours: 1.5 }
+        ])
+      }
+    ]
+  }, new Map([[9601, { id: 9601, machine_time_hours: 8 }]]));
+
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 1.5);
+  assert.equal(result.netHours, 6.5);
+  assert.equal(result.deductions.length, 1);
+  assert.equal(result.deductions[0].deduction_code, 'BAO_TRI');
+});
