@@ -36,3 +36,11 @@ test('obsolete source patch scripts are removed after their changes were promote
     assert.equal(fs.existsSync(path.join(frontendRoot, 'scripts', name)), false, name);
   }
 });
+
+test('CVK component styles are kept in a stylesheet, not injected as runtime style JSX', () => {
+  const component = fs.readFileSync(path.join(frontendRoot, 'src', 'pages', 'worker', 'components', 'ProcessBasicInfoSection.tsx'), 'utf8');
+  const stylesheet = path.join(frontendRoot, 'src', 'pages', 'worker', 'components', 'ProcessBasicInfoSection.css');
+  assert.match(component, /import ["']\.\/ProcessBasicInfoSection\.css["']/);
+  assert.equal(fs.existsSync(stylesheet), true);
+  assert.doesNotMatch(component, /cvkWorkerInlineStyle|<style className=/);
+});
