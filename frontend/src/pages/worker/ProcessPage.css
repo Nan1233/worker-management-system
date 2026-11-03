@@ -240,3 +240,35 @@
     scroll-behavior: auto !important;
   }
 }
+
+
+/* Machine-line controls: visible, touch-friendly actions for adding/removing rows. */
+.worker-machine-add-button,
+.worker-machine-remove-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--ktc-border, #d5e0eb);
+  border-radius: 8px;
+  background: var(--ktc-surface, #fff);
+  color: var(--ktc-text, #24364b);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.worker-machine-add-button:hover:not(:disabled) {
+  border-color: var(--ktc-primary, #3978bd);
+  background: var(--ktc-surface-subtle, #f4f8fc);
+}
+.worker-machine-remove-button {
+  color: var(--ktc-danger, #b42318);
+}
+.worker-machine-add-button:disabled,
+.worker-machine-remove-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
