@@ -1147,7 +1147,7 @@ function addPhysicalMachineEventsMetadata(workbook, processData) {
 
   const linesByEvent = new Map();
   for (const report of processData?.reports || []) {
-    for (const line of report.machineLines || []) {
+    for (const line of (Array.isArray(report.machineLines) ? report.machineLines : [])) {
       const eventId = Number(line.machine_event_id) || 0;
       if (!eventId) continue;
       if (!linesByEvent.has(eventId)) linesByEvent.set(eventId, []);
