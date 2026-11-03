@@ -1,11 +1,21 @@
 "use strict";
-// 12-hour daily cap. Working time is entered in whole minutes but stored as decimal hours with 4 decimals
-// (1 h 40 min = 1.6667), so three such reports add up to 5.0001 h and a strict `> 12` check on a day that is
-// exactly 12 h (3 x 1h40 + 7h) rejected a legal day. Compare in whole minutes instead.
-const DAILY_HOURS_LIMIT = 12;
+
+const { DAILY_HOURS_POLICY, isDailyHoursLimitExemptProcess } = require("../config/productionRulePolicy");
+
+const DAILY_HOURS_LIMIT = DAILY_HOURS_POLICY.limitHours;
+const DAILY_HOURS_EXCLUDED_PROCESS_CODES = DAILY_HOURS_POLICY.excludedProcessCodes;
+
 const exceedsDailyHoursLimit = (projectedHours, limitHours = DAILY_HOURS_LIMIT) => {
+    if (!DAILY_HOURS_POLICY.enabled) return false;
     const projected = Number(projectedHours);
     if (!Number.isFinite(projected)) return false;
+    // Values are entered in whole minutes but persisted as decimal hours.
     return Math.round(projected * 60) > Math.round(limitHours * 60);
 };
-module.exports = { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit };
+
+module.exports = {
+    DAILY_HOURS_LIMIT,
+    DAILY_HOURS_EXCLUDED_PROCESS_CODES,
+    exceedsDailyHoursLimit,
+    isDailyHoursLimitExemptProcess,
+};
