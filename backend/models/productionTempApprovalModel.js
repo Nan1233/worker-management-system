@@ -568,7 +568,11 @@ module.exports = {
         dates: [...dates],
       };
     } catch (error) {
-      await rollback(connection);
+      const rollbackResult = await rollback(connection);
+      if (rollbackResult?.ok === false) {
+        error.rollbackError = rollbackResult.error;
+        console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackResult.error?.message || rollbackResult.error}`);
+      }
       throw error;
     } finally {
       connection.release();
@@ -677,7 +681,11 @@ module.exports = {
       }
       return {count:rows.length,ids:rows.map((row)=>row.id)};
     } catch (error) {
-      await rollback(connection);
+      const rollbackResult = await rollback(connection);
+      if (rollbackResult?.ok === false) {
+        error.rollbackError = rollbackResult.error;
+        console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackResult.error?.message || rollbackResult.error}`);
+      }
       throw error;
     } finally {
       connection.release();
