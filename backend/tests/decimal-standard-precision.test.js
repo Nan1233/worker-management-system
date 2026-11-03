@@ -33,7 +33,7 @@ test('historical decimal boundary preserves value and version identity together'
     const text = String(sql).toLowerCase();
     if (text.includes('from product_standards')) return [{ product_standard_id: 1, product_code: 'P1' }];
     if (text.includes('from product_standard_versions')) return String(params[2]) === '2026-08-10'
-      ? [{ id: 21, standard_output: 617.1, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: '2026-08-10' }]
+      ? [{ id: 21, standard_output: 617.1, version_no: 1, effective_from: '2026-01-01', effective_to: '2026-08-10' }]
       : [{ id: 22, standard_output: 900.77, exclude_kqd_from_tt: 0, version_no: 2, effective_from: '2026-08-11', effective_to: null }];
     throw new Error(`Unexpected SQL ${text}`);
   };
@@ -65,7 +65,7 @@ test('machine historical decimals preserve 900.77 and 950.25', async () => {
 test('capacity uses decimal standard before comparison and does not round 617.1 to 617', async () => {
   const validate = createMachineLineValidator({
     query: async (sql) => String(sql).toLowerCase().includes('from machines') ? [{ id: 1, machine_code: 'M1', is_automatic: 1, process_code: 'MAI' }] : [],
-    standardResolver: { resolveStandard: async () => ({ productStandardId:1, standardVersionId:1, machineStandardId:1, productCode:'P1', standardOutput:617.1, excludeKqdFromTt:0, source:'MACHINE' }) }
+    standardResolver: { resolveStandard: async () => ({ productStandardId:1, standardVersionId:1, machineStandardId:1, productCode:'P1', standardOutput:617.1, source:'MACHINE' }) }
   });
   const result = await validate({ processId:1, workDate:'2026-08-10', operationMode:'MACHINE', machineLines:[{ machine_code:'M1', product_code:'P1', machine_time_hours:8, ok_quantity:4936, ng_quantity:0, defects:[] }] });
   assert.equal(result.valid, true, JSON.stringify(result.errors));
