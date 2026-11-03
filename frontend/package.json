@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/patchManagerReportSave.cjs && node scripts/patchWorkerReportEdit.cjs && node scripts/patchCvkWorkerEntryV3.cjs && node scripts/patchCvkClickFix.cjs && node scripts/patchCvkFinalCleanup.cjs",
+    "prebuild": "npm run prepare:source",
     "build": "npm run clean && tsc -b && vite build && node scripts/forceFrontendVersion.cjs && npm run check:bundle",
     "build:cloudflare": "npm install --include=dev --no-save --package-lock=false @vitejs/plugin-react@6.0.3 && node scripts/patchManagerReportSave.cjs && node scripts/patchWorkerReportEdit.cjs && node scripts/patchCvkWorkerEntryV3.cjs && node scripts/patchCvkClickFix.cjs && node scripts/patchCvkFinalCleanup.cjs && vite build && node scripts/forceFrontendVersion.cjs",
     "lint": "eslint .",
@@ -33,7 +33,10 @@
     "ios:doctor:production": "npm run ios:doctor && node scripts/checkIosReleaseContract.cjs",
     "ios:release:check": "node scripts/checkIosReleaseContract.cjs",
     "device:android:check": "node scripts/deviceSmoke.cjs android",
-    "device:ios:check": "node scripts/deviceSmoke.cjs ios"
+    "device:ios:check": "node scripts/deviceSmoke.cjs ios",
+    "prepare:source": "node scripts/patchManagerReportSave.cjs && node scripts/patchWorkerReportEdit.cjs && node scripts/patchCvkWorkerEntryV3.cjs && node scripts/patchCvkClickFix.cjs && node scripts/patchCvkFinalCleanup.cjs",
+    "pretypecheck": "npm run prepare:source",
+    "pretest": "npm run prepare:source"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",
