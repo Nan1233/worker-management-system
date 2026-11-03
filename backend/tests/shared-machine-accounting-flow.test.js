@@ -182,4 +182,5 @@ test('bulk company Excel preserves worker deductions separately from physical ma
   assert.match(loader, /const deductions = tempDeductions\.length \? tempDeductions : persistedDeductions/);
   assert.match(loader, /machineDeductions: machineAccounting\?\.deductions \|\| \[\]/);
   assert.doesNotMatch(loader, /deductions = machineDeductions/);
+  assert.doesNotMatch(loader, /machineLines,\s*deductions,\s*total_time/);
 });
