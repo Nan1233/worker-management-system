@@ -105,13 +105,15 @@ function loadFacadeHarness() {
 
   const originalLoad = Module._load;
   const facadePath = require.resolve('../models/productionTempModel');
+  const servicePath = require.resolve('../services/productionTempSubmissionService');
   delete require.cache[facadePath];
+  delete require.cache[servicePath];
   Module._load = function (request, parent, ...rest) {
     if (mocks.has(request)) return mocks.get(request);
     return originalLoad.call(this, request, parent, ...rest);
   };
   let facade;
-  try { facade = require(facadePath); }
+  try { facade = require(facadePath); require(servicePath); }
   finally { Module._load = originalLoad; }
 
   return { facade, persisted, sqlLog, connections };
