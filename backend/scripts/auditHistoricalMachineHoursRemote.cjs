@@ -432,6 +432,10 @@ async function main() {
   const machineHoursCounts = findings.reduce((acc, item) => {
     const audit = item.machine_hours_audit;
     if (!audit) return acc;
+    const isMachineRelevant = String(item.operation_mode || '').trim().toUpperCase() === 'MACHINE'
+      || item.machine_count > 0
+      || String(item.machine_no || '').trim() !== '';
+    if (!isMachineRelevant) return acc;
     acc[audit.physical_machine_hours_source] = (acc[audit.physical_machine_hours_source] || 0) + 1;
     if (audit.physical_machine_hours_complete) acc.complete += 1;
     else acc.incomplete += 1;
