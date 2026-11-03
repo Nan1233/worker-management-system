@@ -73,9 +73,16 @@ function calculateNg(report = {}) {
     if (excludeKqd && isKqdDefect({ defect_code: defectCode(item) })) excludedKqd += quantity;
   }
 
+  // Keep the approved DB total as the displayed all-NG snapshot, while
+  // applying the historical KQD policy to the counted-NG metric. Detail
+  // rows identify the excluded quantity; they must not replace the DB total.
+  const countedNg = databaseNg === null
+    ? null
+    : Math.max(0, databaseNg - excludedKqd);
+
   return {
     allNg: databaseNg,
-    countedNg: databaseNg,
+    countedNg,
     excludedKqd,
     detailNg,
     excludeKqd
