@@ -2,12 +2,8 @@ const crypto = require("node:crypto");
 const db = require("../config/db");
 
 
-const AuditService = require("../services/auditService");
-const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback } = require("./productionTempModelShared");
-const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
-const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
+const { query } = require("./productionTempModelShared");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
-const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { storedStandardSource } = require('../utils/standardSourceCode');
