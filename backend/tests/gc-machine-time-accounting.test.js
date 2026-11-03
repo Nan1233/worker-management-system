@@ -122,7 +122,7 @@ test('monthly Excel delegates GC accounting to the canonical shared implementati
   assert.match(source, /deduction_type_code:\s*item\.deduction_code/);
 });
 
-test('legacy single-line GC MACHINE report may use report-level deduction total when line detail is absent', () => {
+test('legacy single-line GC MACHINE report may use explicitly named machine deduction fields', () => {
   const result = buildGiaCongMachineAccounting({
     operation_mode: 'MACHINE',
     machineLines: [{
@@ -139,6 +139,32 @@ test('legacy single-line GC MACHINE report may use report-level deduction total 
   assert.equal(result.grossHours, 8);
   assert.equal(result.deductionHours, 1.25);
   assert.equal(result.netHours, 6.75);
+});
+
+test('explicit legacy machine deduction details are retained without using Worker deductions', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 504,
+      machine_event_id: null,
+      machine_time_hours: 8,
+      deduction_time_hours: 0,
+      deductions_json: '[]'
+    }],
+    machineDeductionTime: 0.75,
+    machineDeductions: [{
+      deduction_type_id: 12,
+      deduction_code: 'DUNG_MAY',
+      deduction_name: 'Dừng máy',
+      hours: 0.75
+    }],
+    deduction_time: 1.5,
+    deductions: [{ deduction_type_id: 9, deduction_code: 'CHO_VIEC', deduction_name: 'Chờ việc', hours: 1.5 }]
+  }, new Map());
+
+  assert.equal(result.deductionHours, 0.75);
+  assert.equal(result.netHours, 7.25);
+  assert.deepEqual(result.deductions.map((item) => item.deduction_code), ['DUNG_MAY']);
 });
 
 test('report-level worker deduction rows are not projected onto machine time without explicit MACHINE mode', () => {
