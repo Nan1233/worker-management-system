@@ -63,7 +63,7 @@ test('Cloudflare profile rejects missing environment and cross-environment origi
   );
 });
 
-test('Cloudflare Worker uses profile-driven CORS and keeps master-data bootstrap disabled by default', () => {
+test('Cloudflare Worker uses profile-driven CORS and has no request-triggered master-data seed path', () => {
   const worker = read('cloudflare-worker.js');
   assert.match(worker, /resolveCloudflareDeploymentProfile/);
   assert.doesNotMatch(worker, /const cloudflareFrontendOrigin\s*=|const cloudflareTestFrontendOrigin\s*=/);
