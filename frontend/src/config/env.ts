@@ -2,6 +2,7 @@ const configuredApiUrl = String(import.meta.env.VITE_API_URL || "").trim();
 const developmentApiUrl = "http://127.0.0.1:10000/api";
 const testApiOrigin = "https://ktc-be-test.nan978971.workers.dev";
 const testFrontendHostname = "ktc-fe-test.nan978971.workers.dev";
+const productionFrontendHostname = "ktc-frontend.nan978971.workers.dev";
 const isTestBuild = import.meta.env.MODE === "test";
 const isProductionBuild = import.meta.env.PROD && !isTestBuild;
 
@@ -34,6 +35,9 @@ function resolveApiUrl(): string {
     const hostname = window.location.hostname.toLowerCase();
     if (isProductionBuild && hostname === testFrontendHostname) {
       throw new Error("Production frontend bundle cannot run on the TEST frontend hostname");
+    }
+    if (isTestBuild && hostname === productionFrontendHostname) {
+      throw new Error("TEST frontend bundle cannot run on the production frontend hostname");
     }
     if (hostname === testFrontendHostname && !isTestBuild) {
       throw new Error("The TEST frontend hostname requires a TEST build profile");
