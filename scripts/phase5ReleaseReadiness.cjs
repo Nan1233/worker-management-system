@@ -60,7 +60,10 @@ const testProfileOk = Boolean(
   backendTest.vars?.KTC_FRONTEND_ORIGIN === 'https://ktc-fe-test.nan978971.workers.dev' &&
   frontendTest.name === 'ktc-fe-test' &&
   testFrontendApi === expectedTestApi &&
+  frontendPackage.scripts?.['build:cloudflare']?.includes('--mode test') &&
+  frontendPackage.scripts?.['build:cloudflare:test']?.includes('--mode test') &&
   desktopPackage.ktcDeploymentEnvironment === 'test' &&
+  desktopPackage.scripts?.['dist:win:test']?.includes('--publish never') &&
   /ktc-be-test\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   /ktc-fe-test\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   testBackendProfile?.environment === 'test'
@@ -72,7 +75,9 @@ const productionProfileOk = Boolean(
   backendProduction.vars?.KTC_RUN_MASTER_DATA_BOOTSTRAP === 'false' &&
   frontendProduction.name === 'ktc-frontend' &&
   productionFrontendApi === expectedProductionApi &&
+  frontendPackage.scripts?.['build:cloudflare:production']?.includes('--mode production') &&
   desktopProductionBuilder.extraMetadata?.ktcDeploymentEnvironment === 'production' &&
+  desktopPackage.scripts?.['dist:win:production']?.includes('electron-builder.production.json') &&
   /ktc-be\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   /ktc-frontend\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   productionBackendProfile?.environment === 'production'
@@ -119,7 +124,8 @@ if (/resolveCloudflareDeploymentProfile/.test(cloudflareWorker) &&
 
 if (/const cloudflareFrontendOrigin\s*=|const cloudflareTestFrontendOrigin\s*=/.test(cloudflareWorker) ||
     !/testApiOrigin/.test(frontendEnvSource) ||
-    !/isProductionBuild/.test(frontendEnvSource)) {
+    !/isProductionBuild/.test(frontendEnvSource) ||
+    !/productionFrontendHostname/.test(frontendEnvSource)) {
   add(blockers, 'CROSS_ENVIRONMENT_ENDPOINT_GUARD', 'Frontend hoặc Worker còn endpoint hardcode dùng chung giữa TEST và production, hoặc thiếu guard build fail-closed.', null);
 } else {
   checks.push({ id: 'CROSS_ENVIRONMENT_ENDPOINT_GUARD', status: 'PASS' });
