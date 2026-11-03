@@ -13,7 +13,7 @@ export const getTempReportsByDate=async(date:string):Promise<ProductionReport[]>
 export const getTempReportById=async(id:number):Promise<ProductionReport>=>{const res=await api.get(`/production-temp/${id}`,{params:{_t:Date.now()},headers:{"Cache-Control":"no-cache"}});return res.data.data||res.data;};
 export const getTempReportDetail=async(id:number):Promise<ProductionReport>=>getTempReportById(id);
 export const getMyTempReports=async()=>{const res=await api.get("/production-temp/my",{params:{_t:Date.now()},headers:{"Cache-Control":"no-cache","Pragma":"no-cache"}});return res.data.data||res.data||[];};
-export interface DailyWorkingHours{work_date:string;counted_hours:number;limit_hours:number;}
+export interface DailyWorkingHours{work_date:string;counted_hours:number;limit_hours:number;excluded_process_codes?:string[];}
 export const getMyDailyWorkingHours=async(date:string):Promise<DailyWorkingHours>=>{const res=await api.get("/production-temp/daily-hours",{params:{date}});return res.data?.data||res.data;};
 export interface ManagerReportPagination{page:number;page_size:number;total:number;total_pages:number;}
 export interface ManagerReportPage{data:ProductionReport[];pagination:ManagerReportPagination;processes?:string[];previous_count?:number;}
