@@ -35,7 +35,6 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         COALESCE(pa.alias_code, ps.encoding_code) AS alias_code,
         ps.encoding_code,
         ps.standard_output,
-        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
         EXISTS(
           SELECT 1 FROM product_machine_standards pms
           WHERE pms.process_id = ps.process_id
