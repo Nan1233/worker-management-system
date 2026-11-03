@@ -18,6 +18,9 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   let deductionHours = 0;
   const deductions = [];
   const seenDeductionKeys = new Set();
+  const reportLevelDeductions = parseJsonArray(report.deductions);
+  const hasLineBreakdown = lines.some((line) => parseJsonArray(line.deductions_json).length > 0);
+  const safeReportFallback = lines.length === 1 && !hasLineBreakdown ? reportLevelDeductions : [];
 
   lines.forEach((line, lineIndex) => {
     const eventId = Number(line.machine_event_id) || 0;
@@ -32,7 +35,8 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
     }
 
-    const lineDeductions = parseJsonArray(line.deductions_json);
+    const storedLineDeductions = parseJsonArray(line.deductions_json);
+    const lineDeductions = storedLineDeductions.length ? storedLineDeductions : safeReportFallback;
     const detailDeductionHours = lineDeductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
     const lineDeductionHours = Math.max(
       0,
