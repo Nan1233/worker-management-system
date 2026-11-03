@@ -218,17 +218,32 @@ function auditMachineHours(report) {
     ? report.machineAccounting
     : null;
   const actualGrossHours = actualAccounting ? round(num(actualAccounting.grossHours)) : null;
+  const actualDeductionHours = actualAccounting ? round(num(actualAccounting.deductionHours)) : null;
+  const actualNetHours = actualAccounting ? round(num(actualAccounting.netHours)) : null;
   const actualSource = actualAccounting ? String(actualAccounting.source || '') : null;
+  const expectedDeductionHours = auditMachineDeductions(report).machine_deduction_hours;
+  const expectedNetHours = round(Math.max(0, accountingGrossHoursExpected - expectedDeductionHours));
   const accountingComparison = actualAccounting
     ? {
         status: Math.abs(actualGrossHours - round(accountingGrossHoursExpected)) <= 0.0001
+          && Math.abs(actualDeductionHours - expectedDeductionHours) <= 0.0001
+          && Math.abs(actualNetHours - expectedNetHours) <= 0.0001
           && actualSource === expectedSource ? 'MATCH' : 'MISMATCH',
         expected_gross_hours: round(accountingGrossHoursExpected),
         actual_gross_hours: actualGrossHours,
+        expected_deduction_hours: expectedDeductionHours,
+        actual_deduction_hours: actualDeductionHours,
+        expected_net_hours: expectedNetHours,
+        actual_net_hours: actualNetHours,
         expected_source: expectedSource,
         actual_source: actualSource
       }
-    : { status: 'NOT_PROVIDED', expected_gross_hours: round(accountingGrossHoursExpected) };
+    : {
+        status: 'NOT_PROVIDED',
+        expected_gross_hours: round(accountingGrossHoursExpected),
+        expected_deduction_hours: expectedDeductionHours,
+        expected_net_hours: expectedNetHours
+      };
 
   return {
     worker_hours: round(num(report.total_time)),
