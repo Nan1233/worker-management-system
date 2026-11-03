@@ -56,7 +56,7 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       detailDeductionHours,
       hasLegacySingleLineDeduction ? Math.max(0, Number(report.deduction_time) || 0) : 0
     );
-    if (lineDeductionHours > 0 || lineDeductions.length) {
+    if (lineDeductionHours > 0) {
       const deductionKey = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || lineIndex);
       if (!seenDeductionKeys.has(deductionKey)) {
         seenDeductionKeys.add(deductionKey);
