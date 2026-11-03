@@ -361,27 +361,27 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         const persistedDeductions = deductionByReport.get(reportId) || [];
         const persistedDefects = defectByReport.get(reportId) || [];
         const eventLines = (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean);
-        let deductions = tempDeductions.length ? tempDeductions : persistedDeductions;
+        // Keep report-level deductions as Worker credit. Physical machine
+        // deductions stay under machineAccounting and must not overwrite them.
+        const deductions = tempDeductions.length ? tempDeductions : persistedDeductions;
         let machineAccounting = null;
         if (code === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE') {
-          const machineDeductions = [];
           machineAccounting = buildGiaCongMachineAccounting(
             {
               operation_mode: report.operation_mode,
               machineLines,
-              deductions: tempDeductions.length ? tempDeductions : persistedDeductions,
+              deductions,
               total_time: report.total_time,
               actual_time: report.actual_time,
               deduction_time: report.deduction_time
             },
             eventMap
           );
-          machineAccounting.deductions.forEach((item) => machineDeductions.push(item));
-          deductions = machineDeductions.length ? machineDeductions : deductions;
         }
         return {
           ...report,
           deductions,
+          machineDeductions: machineAccounting?.deductions || [],
           defects: tempDefects.length ? tempDefects : persistedDefects,
           machineLines,
           eventLines,
