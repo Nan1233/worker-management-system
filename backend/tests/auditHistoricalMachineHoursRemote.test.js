@@ -120,8 +120,11 @@ test('rejected linked event is not treated as physical machine time', () => {
     total_time: 8,
     deduction_time: 0,
     operation_mode: 'MACHINE',
-    machineLines: [{ id: 321, machine_code: 'GC01', machine_time_hours: 8, machine_event_id: 9902 }],
-    eventLines: [{ id: 9902, machine_time_hours: 8, status: 'rejected' }],
+    machineLines: [{
+      id: 321, machine_code: 'GC01', machine_time_hours: 8,
+      machine_event_id: 9902, machine_event_status: 'rejected'
+    }],
+    eventLines: [],
     machineAccounting: {
       source: 'MACHINE_EVENT_MISSING',
       grossHours: 0,
