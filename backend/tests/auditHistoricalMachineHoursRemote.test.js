@@ -262,3 +262,61 @@ test('MACHINE report without machineAccounting payload remains REVIEW', () => {
   assert.equal(result.action, 'REVIEW');
   assert.equal(result.reason, 'MACHINE_ACCOUNTING_PAYLOAD_MISSING');
 });
+
+
+test('partial physical event coverage is REVIEW and only approved event hours are counted', () => {
+  const result = classifyReport({
+    id: 39,
+    total_time: 8,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [
+      { id: 391, machine_code: 'GC01', machine_time_hours: 4, machine_event_id: 9951 },
+      { id: 392, machine_code: 'GC02', machine_time_hours: 4, machine_event_id: 9952 }
+    ],
+    eventLines: [{ id: 9951, machine_time_hours: 4, status: 'approved' }],
+    machineAccounting: {
+      source: 'MACHINE_EVENT_PARTIAL',
+      grossHours: 4,
+      deductionHours: 0,
+      netHours: 4
+    }
+  });
+
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'LINKED_MACHINE_EVENT_MISSING_OR_NOT_APPROVED');
+  assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 4);
+  assert.equal(result.machine_hours_audit.physical_machine_hours_complete, false);
+  assert.equal(result.machine_hours_audit.machine_accounting_comparison.status, 'MATCH');
+});
+
+test('legacy machine-line fallback reconciles accounting but remains REVIEW for physical truth', () => {
+  const result = classifyReport({
+    id: 40,
+    total_time: 8,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 401,
+      machine_code: 'GC01',
+      machine_time_hours: 8,
+      excel_machine_time_hours: 8,
+      machine_event_id: null,
+      deduction_time_hours: 0,
+      deductions_json: '[]'
+    }],
+    eventLines: [],
+    machineAccounting: {
+      source: 'MACHINE_LINE',
+      grossHours: 8,
+      deductionHours: 0,
+      netHours: 8
+    }
+  });
+
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'MACHINE_LINE_WITHOUT_PHYSICAL_EVENT');
+  assert.equal(result.machine_hours_audit.machine_accounting_comparison.status, 'MATCH');
+  assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 0);
+  assert.equal(result.machine_hours_audit.machine_line_hours_total, 8);
+});
