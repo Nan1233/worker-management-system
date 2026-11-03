@@ -180,13 +180,11 @@ module.exports = {
             if (hasDefects) {
                 if (!machineLinesOwnNg) data.tt_ng = normalizedDefects.reduce((sum, item) => sum + item.quantity, 0);
                 if (!hasMachineLines) {
-                    const policySnapshot = Object.prototype.hasOwnProperty.call(data, "exclude_kqd_from_tt_snapshot") ? data.exclude_kqd_from_tt_snapshot : current.exclude_kqd_from_tt_snapshot;
-                    if (policySnapshot === null || policySnapshot === undefined || String(policySnapshot).trim() === "") { const error = new Error("Báo cáo cũ chưa có snapshot chính sách KQD"); error.status = 422; error.code = "KQD_POLICY_SNAPSHOT_MISSING"; error.isPublic = true; throw error; }
                     const defectIds = normalizedDefects.map((item) => Number(item.defect_type_id)).filter(Boolean);
                     const codeRows = defectIds.length ? await query(connection, `SELECT id,defect_code,defect_name FROM defect_types WHERE id IN (${defectIds.map(() => "?").join(",")})`, defectIds) : [];
                     const byId = new Map(codeRows.map((row) => [Number(row.id), row]));
                     const calculationDefects = normalizedDefects.map((item) => ({ ...item, defect_code: byId.get(Number(item.defect_type_id))?.defect_code || null, defect_name: byId.get(Number(item.defect_type_id))?.defect_name || null }));
-                    const output = recalculateReportOutput({ ttOk: Object.prototype.hasOwnProperty.call(data, "tt_ok") ? Number(data.tt_ok || 0) : Number(current.tt_ok || 0), defects: calculationDefects, excludeKqdFromTtSnapshot: policySnapshot });
+                    const output = recalculateReportOutput({ ttOk: Object.prototype.hasOwnProperty.call(data, "tt_ok") ? Number(data.tt_ok || 0) : Number(current.tt_ok || 0), defects: calculationDefects });
                     data.tt_ok = output.ttOk; data.actual_output = output.actualOutput;
                 }
             }
