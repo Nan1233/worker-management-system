@@ -1,4 +1,3 @@
-const { isKqdDefect } = require("../../shared/kqdPolicy.cjs");
 require('dotenv').config();
 const db = require('../config/db');
 const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
@@ -45,7 +44,7 @@ async function main(){
   }
   const settingsByDate = new Map();
   const today = new Date().toISOString().slice(0,10);
-  const coverage={processes:new Set(),workers:new Set(),dates:new Set(),multiMachine:0,zeroTraining:0,kqdExcluded:0,withDefects:0,withDeductions:0};
+  const coverage={processes:new Set(),workers:new Set(),dates:new Set(),multiMachine:0,zeroTraining:0,withDefects:0,withDeductions:0};
   for(const report of reports){
     const d=details.get(Number(report.id)); report.defects=d.defects; report.machineLines=d.machineLines;
     Object.assign(report, calculateReportPerformance({ report, machineLines:d.machineLines }));
@@ -63,7 +62,7 @@ async function main(){
     const date=String(report.work_date).slice(0,10); if(date>today) issue(report,'FUTURE_WORK_DATE',date);
     if(!report.entry_date) warn(report,'MISSING_ENTRY_DATE','entry_date is null');
     if(num(report.standard_output)<=0) warn(report,'MISSING_STANDARD',`standard=${report.standard_output}`);
-    const countedNg=d.defects.length ? d.defects.reduce((s,x)=>s+(Number(report.exclude_kqd_from_tt)===1 && isKqdDefect(x)?0:num(x.quantity)),0) : num(report.tt_ng);
+    const countedNg=d.defects.length ? d.defects.reduce((s,x)=>s+num(x.quantity),0) : num(report.tt_ng);
     const expectedEntered=num(report.tt_ok)+countedNg;
     if(!near(report.actual_output,expectedEntered)) issue(report,'ACTUAL_OUTPUT_MISMATCH',`actual_output=${report.actual_output}, expected=${expectedEntered}`);
     if(!settingsByDate.has(date)) settingsByDate.set(date, await formulaSettings.getSettingsMap(date));
@@ -86,7 +85,7 @@ async function main(){
     if(coverage.withDefects===0) warnings.push({code:'NO_DEFECT_SAMPLE',detail:'Mẫu chưa có báo cáo NG'});
     if(coverage.withDeductions===0) warnings.push({code:'NO_DEDUCTION_SAMPLE',detail:'Mẫu chưa có báo cáo trừ giờ'});
   }
-  const summary={success:issues.length===0,sampled:reports.length,coverage:{processes:coverage.processes.size,workers:coverage.workers.size,dates:coverage.dates.size,multiMachine:coverage.multiMachine,zeroTraining:coverage.zeroTraining,kqdExcluded:coverage.kqdExcluded,withDefects:coverage.withDefects,withDeductions:coverage.withDeductions},issues:issues.length,warnings:warnings.length,issue_samples:issues.slice(0,50),warning_samples:warnings.slice(0,50)};
+  const summary={success:issues.length===0,sampled:reports.length,coverage:{processes:coverage.processes.size,workers:coverage.workers.size,dates:coverage.dates.size,multiMachine:coverage.multiMachine,zeroTraining:coverage.zeroTraining,withDefects:coverage.withDefects,withDeductions:coverage.withDeductions},issues:issues.length,warnings:warnings.length,issue_samples:issues.slice(0,50),warning_samples:warnings.slice(0,50)};
   console.log(JSON.stringify(summary,null,2));
   if(issues.length) process.exitCode=1;
   await db.closePool().catch(()=>{});
