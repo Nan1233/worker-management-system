@@ -194,3 +194,28 @@ test('zero-hour deduction row on an earlier shared participant does not hide ano
   assert.equal(result.deductions.length, 1);
   assert.equal(result.deductions[0].deduction_code, 'BAO_TRI');
 });
+
+test('zero-only machine deduction detail allows the guarded legacy report breakdown fallback', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 701,
+      machine_event_id: null,
+      machine_time_hours: 8,
+      deduction_time_hours: 0,
+      deductions_json: JSON.stringify([
+        { deduction_type_id: 12, deduction_code: 'EMPTY', deduction_name: 'Placeholder', hours: 0 }
+      ])
+    }],
+    deduction_time: 1.25,
+    deductions: [
+      { deduction_type_id: 13, deduction_code: 'CHO_HANG', deduction_name: 'Chờ hàng', hours: 1.25 }
+    ]
+  }, new Map());
+
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 1.25);
+  assert.equal(result.netHours, 6.75);
+  assert.equal(result.deductions.length, 1);
+  assert.equal(result.deductions[0].deduction_code, 'CHO_HANG');
+});
