@@ -61,7 +61,7 @@ const loadMonthReports = async (yearMonth) => {
             w.department,
             u.full_name,
             p.process_name,
-            p.process_code,
+            p.process_code
          FROM production_reports AS pr
          INNER JOIN workers AS w ON w.id = pr.worker_id
          INNER JOIN users AS u ON u.id = w.user_id
