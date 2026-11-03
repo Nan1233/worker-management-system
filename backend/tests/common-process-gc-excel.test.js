@@ -75,14 +75,14 @@ test('shared physical event time is not copied into each worker participation ro
   });
   const rows = __test.expandGiaCongMachineLines([
     sharedEvent(1, 10, 'CN01', 3),
-    sharedEvent(2, 11, 'CN02', 2)
+    sharedEvent(2, 11, 'CN02', 1)
   ]);
   assert.deepEqual(rows.map((r) => [r.worker_code, r.excelExportTimes.totalHours, r.excelExportTimes.actualHours]), [
     ['CN01', 3, 3],
-    ['CN02', 2, 2]
+    ['CN02', 1, 1]
   ]);
-  // The physical event remains a single 5-hour event, not 5 hours per worker.
-  assert.equal(rows.reduce((sum, r) => sum + r.excelExportTimes.totalHours, 0), 5);
+  // Worker participation is 3 + 1 = 4; it must not be replaced by 5 physical hours per worker.
+  assert.equal(rows.reduce((sum, r) => sum + r.excelExportTimes.totalHours, 0), 4);
 });
 
 test('historical GC reports without machineLines stay one row without fabricated machine data', () => {
