@@ -13,7 +13,6 @@ function calculateProductionOutput({ ok = 0, defects = [] } = {}) {
   return {
     totalNg,
     countedNg: totalNg,
-    excludedKqd: 0,
     actualOutput: ttOk + totalNg,
     ttOk
   };
