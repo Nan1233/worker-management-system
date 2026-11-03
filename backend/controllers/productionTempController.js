@@ -205,4 +205,4 @@ const rejectSelectedReports = async (req, res) => {
     }
 };
 
-module.exports = { ...workerController, ...managementController, createTempReport, rejectSelectedReports, validateManualOutputCeiling };
+module.exports = { ...workerController, ...managementController, createTempReport, rejectSelectedReports, validateManualOutputCeiling, getDailyHours: require("./productionTempDailyHoursController").getDailyHours };
