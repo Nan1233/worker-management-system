@@ -79,5 +79,5 @@ test('valid worker hours never make a missing machine time eligible for automati
     }]
   });
   assert.equal(result.action, 'REVIEW');
-  assert.equal(result.reason, 'MISSING_MACHINE_TIME_CANNOT_BE_INFERRED_FROM_WORKER_TIME');
+  assert.equal(result.reason, 'MACHINE_LINE_WITHOUT_PHYSICAL_EVENT');
 });
