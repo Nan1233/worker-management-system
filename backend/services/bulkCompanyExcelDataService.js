@@ -127,9 +127,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         pr.training_percent_snapshot,
         COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent,
         w.position, w.department,
-        u.full_name, p.process_name, p.process_code,
-        pr.exclude_kqd_from_tt_snapshot,
-        COALESCE(pr.exclude_kqd_from_tt_snapshot, 0) AS exclude_kqd_from_tt
+        u.full_name, p.process_name, p.process_code
        FROM production_reports pr
        LEFT JOIN workers w ON w.id = pr.worker_id
        LEFT JOIN users u ON u.id = w.user_id
@@ -167,8 +165,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     query(
       `SELECT e.id,e.process_id,e.machine_id,e.machine_code,e.product_code,e.work_date,e.shift,
               e.physical_ok_quantity,e.physical_ng_quantity,e.physical_counted_output,e.physical_total_output,
-              e.machine_time_hours,e.maximum_output,e.standard_output,e.standard_version_id,e.machine_standard_id,
-              e.exclude_kqd_from_tt_snapshot,e.status
+              e.machine_time_hours,e.maximum_output,e.standard_output,e.standard_version_id,e.machine_standard_id ,e.status
          FROM machine_production_events e
         WHERE e.status='approved' AND e.process_id IN (${processPlaceholders})
           AND e.work_date>=? AND e.work_date<?
