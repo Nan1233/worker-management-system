@@ -62,7 +62,35 @@ function resolveCloudflareDeploymentProfile(env = process.env) {
   });
 }
 
+function validateCloudflareRuntimeSecrets(env = {}) {
+  const missing = [];
+  const jwtSecret = String(env.JWT_SECRET || '').trim();
+  if (jwtSecret.length < 32) missing.push('JWT_SECRET (at least 32 characters)');
+
+  const databaseUrl = String(env.TIDB_DATABASE_URL || env.TIDB_URL || env.DATABASE_URL || env.DB_URL || '').trim();
+  const hasSplitCredentials = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'].every((key) => String(env[key] || '').trim());
+  if (!databaseUrl && !hasSplitCredentials) {
+    missing.push('TIDB_DATABASE_URL or DB_HOST + DB_USER + DB_PASSWORD + DB_NAME');
+  } else if (databaseUrl) {
+    try {
+      const parsed = new URL(databaseUrl);
+      if (!parsed.hostname) missing.push('valid TIDB_DATABASE_URL host');
+    } catch {
+      missing.push('valid TIDB_DATABASE_URL');
+    }
+  }
+
+  if (missing.length) {
+    const error = new Error(`Cloudflare Worker runtime secrets are incomplete: ${missing.join('; ')}`);
+    error.code = 'CLOUDFLARE_RUNTIME_SECRET_MISSING';
+    error.missing = missing;
+    throw error;
+  }
+  return { valid: true };
+}
+
 module.exports = {
+  validateCloudflareRuntimeSecrets,
   TEST_FRONTEND_ORIGIN,
   PRODUCTION_FRONTEND_ORIGIN,
   MOBILE_ORIGINS,
