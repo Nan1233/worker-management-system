@@ -132,8 +132,8 @@ test('legacy single-line GC MACHINE report may use report-level deduction total 
       deduction_time_hours: 0,
       deductions_json: '[]'
     }],
-    deduction_time: 1.25,
-    deductions: []
+    machineDeductionTime: 1.25,
+    machineDeductions: []
   }, new Map());
 
   assert.equal(result.grossHours, 8);
@@ -155,6 +155,26 @@ test('report-level worker deduction rows are not projected onto machine time wit
     deductions: [
       { deduction_type_id: 9, deduction_code: 'CHO_VIEC', deduction_name: 'Chờ việc', hours: 1.25 }
     ]
+  }, new Map());
+
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 0);
+  assert.equal(result.netHours, 8);
+  assert.deepEqual(result.deductions, []);
+});
+
+test('single-line GC MACHINE report never converts Worker deductions into machine deductions', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 503,
+      machine_event_id: null,
+      machine_time_hours: 8,
+      deduction_time_hours: 0,
+      deductions_json: '[]'
+    }],
+    deduction_time: 1.25,
+    deductions: [{ deduction_type_id: 9, deduction_code: 'CHO_VIEC', deduction_name: 'Chờ việc', hours: 1.25 }]
   }, new Map());
 
   assert.equal(result.grossHours, 8);
