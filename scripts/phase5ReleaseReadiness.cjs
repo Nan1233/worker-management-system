@@ -61,8 +61,8 @@ const testProfileOk = Boolean(
   frontendTest.name === 'ktc-fe-test' &&
   testFrontendApi === expectedTestApi &&
   desktopPackage.ktcDeploymentEnvironment === 'test' &&
-  /ktc-be-test\\.nan978971\\.workers\\.dev/.test(desktopProfileSource) &&
-  /ktc-fe-test\\.nan978971\\.workers\\.dev/.test(desktopProfileSource) &&
+  /ktc-be-test\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
+  /ktc-fe-test\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   testBackendProfile?.environment === 'test'
 );
 const productionProfileOk = Boolean(
@@ -73,8 +73,8 @@ const productionProfileOk = Boolean(
   frontendProduction.name === 'ktc-frontend' &&
   productionFrontendApi === expectedProductionApi &&
   desktopProductionBuilder.extraMetadata?.ktcDeploymentEnvironment === 'production' &&
-  /ktc-be\\.nan978971\\.workers\\.dev/.test(desktopProfileSource) &&
-  /ktc-frontend\\.nan978971\\.workers\\.dev/.test(desktopProfileSource) &&
+  /ktc-be\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
+  /ktc-frontend\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   productionBackendProfile?.environment === 'production'
 );
 
