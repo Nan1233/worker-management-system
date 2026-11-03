@@ -99,10 +99,8 @@ import {
 import {
     aggregateMachineLines,
     getMachineNgTotal,
-    getMaxMachineCount,
-    toggleMachineDefectLine,
-    updateMachineDefectLine,
 } from "./processMachineLines";
+import { useProcessMachineLines } from "./useProcessMachineLines";
 import { validateMachineLines } from "./processPageValidation";
 import {
     calculateDeductionTimeSummary,
@@ -261,8 +259,17 @@ const machineAutocompleteOptions =
         [productOptions, processCode, processInfo.id, operationType]
     );
 
-    const [machineCount, setMachineCount] = useState(1);
-    const [machineLines, setMachineLines] = useState<MachineLineState[]>([createEmptyMachineLine()]);
+    const {
+        machineCount,
+        setMachineCount,
+        machineLines,
+        setMachineLines,
+        maxMachineCount,
+        resizeMachineLines,
+        updateMachineLine,
+        toggleMachineDefect,
+        updateMachineDefectValue,
+    } = useProcessMachineLines({ processCode, machineOptions });
     const [extraData, setExtraData] = useState<Record<string, string>>({});
     const currentExtraFields = processExtraFields[process] || [];
     const usesMultiMachineLines = resolveUsesMultiMachineLines(processCapabilities, operationMode);
@@ -329,28 +336,7 @@ const machineAutocompleteOptions =
         }
     }, [usesSingleMachine]);
 
-    const maxMachineCount = getMaxMachineCount(processCode, machineLines, machineOptions);
 
-    useEffect(() => {
-        if (machineCount > maxMachineCount) {
-            setMachineCount(maxMachineCount);
-            setMachineLines((current) => current.slice(0, maxMachineCount));
-        }
-    }, [machineCount, maxMachineCount]);
-
-    const resizeMachineLines = (count: number) => {
-        const normalizedCount = Math.min(maxMachineCount, Math.max(1, count));
-        setMachineCount(normalizedCount);
-        setMachineLines((current) =>
-            Array.from({ length: normalizedCount }, (_, index) => current[index] || createEmptyMachineLine())
-        );
-    };
-
-    const updateMachineLine = (index: number, patch: Partial<MachineLineState>) => {
-        setMachineLines((current) => current.map((line, lineIndex) =>
-            lineIndex === index ? { ...line, ...patch } : line
-        ));
-    };
 
     const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {
         const normalizedMachine = machineCode.trim();
@@ -403,17 +389,7 @@ const machineAutocompleteOptions =
         }
     };
 
-    const toggleMachineDefect = (lineIndex: number, key: string) => {
-        setMachineLines((current) => current.map((line, index) =>
-            index === lineIndex ? toggleMachineDefectLine(line, key) : line
-        ));
-    };
 
-    const updateMachineDefectValue = (lineIndex: number, key: string, value: string) => {
-        setMachineLines((current) => current.map((line, index) =>
-            index === lineIndex ? updateMachineDefectLine(line, key, value) : line
-        ));
-    };
 
     useEffect(() => {
         if (!usesMultiMachineLines) return;
