@@ -23,14 +23,14 @@ async function main(){
  for(const id of [ids.GC,ids.MAI,ids.K1,ids.K2,ids.DO,ids.CAN,ids.EP]) await db.execute(`INSERT IGNORE INTO manager_processes(manager_id,process_id) VALUES(?,?)`,[mu.id,id]);
  for(const [code,list] of Object.entries(machines)) for(const m of list){
    const auto=code==='GC'&&['5','6','7','11','1'].includes(m)?1:0; const max=code==='GC'&&['5','6','7','11'].includes(m)?4:1; const basis=code==='GC'&&auto?'MACHINE':'PRODUCT';
-   await db.execute(`INSERT INTO machines(process_id,machine_code,machine_name,exclude_kqd_from_tt,status,is_automatic,max_workers_per_machine,output_basis) VALUES(?,?,?,?, 'active',?,?,?) ON DUPLICATE KEY UPDATE status='active',is_automatic=VALUES(is_automatic),max_workers_per_machine=VALUES(max_workers_per_machine),output_basis=VALUES(output_basis)`,[ids[code],m,`E2E ${m}`,code==='GC'?1:0,auto,max,basis]);
+   await db.execute(`INSERT INTO machines(process_id,machine_code,machine_name,status,is_automatic,max_workers_per_machine,output_basis) VALUES(?,?,?, 'active',?,?,?) ON DUPLICATE KEY UPDATE status='active',is_automatic=VALUES(is_automatic),max_workers_per_machine=VALUES(max_workers_per_machine),output_basis=VALUES(output_basis)`,[ids[code],m,`E2E ${m}`,auto,max,basis]);
  }
  const fixture={worker:{username:workerUser,code:workerCode},manager:{username:managerUser,password:managerPassword},processes:{},date:today};
  for(const [code,pid] of Object.entries(ids)){
-   const product=`E2E_${code}`; const exclude=code==='GC'?1:0;
-   await db.execute(`INSERT INTO product_standards(process_id,work_type,product_code,standard_output,exclude_kqd_from_tt,status) VALUES(?, '', ?,100,?,'active') ON DUPLICATE KEY UPDATE standard_output=100,exclude_kqd_from_tt=VALUES(exclude_kqd_from_tt),status='active'`,[pid,product,exclude]);
+   const product=`E2E_${code}`;
+   await db.execute(`INSERT INTO product_standards(process_id,work_type,product_code,standard_output,status) VALUES(?, '', ?,100,'active') ON DUPLICATE KEY UPDATE standard_output=100,status='active'`,[pid,product,exclude]);
    const [[ps]]=await db.execute(`SELECT id FROM product_standards WHERE process_id=? AND product_code=?`,[pid,product]);
-   await db.execute(`INSERT INTO product_standard_versions(process_id,product_code,standard_output,exclude_kqd_from_tt,version_no,effective_from,effective_to,status) SELECT ?,?,100,?,1,'2020-01-01',NULL,'active' WHERE NOT EXISTS (SELECT 1 FROM product_standard_versions WHERE process_id=? AND product_code=? AND status='active')`,[pid,product,exclude,pid,product]);
+   await db.execute(`INSERT INTO product_standard_versions(process_id,product_code,standard_output,version_no,effective_from,effective_to,status) SELECT ?,?,100,1,'2020-01-01',NULL,'active' WHERE NOT EXISTS (SELECT 1 FROM product_standard_versions WHERE process_id=? AND product_code=? AND status='active')`,[pid,product,pid,product]);
    const machineRows=[];
    for(const m of (machines[code]||[])){
      const [[mr]]=await db.execute(`SELECT id FROM machines WHERE process_id=? AND machine_code=?`,[pid,m]); machineRows.push({code:m,id:mr.id});
