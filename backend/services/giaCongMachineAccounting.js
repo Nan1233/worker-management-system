@@ -18,19 +18,21 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   let deductionHours = 0;
   const deductions = [];
   const seenDeductionKeys = new Set();
-  const reportLevelDeductions = parseJsonArray(report.deductions);
+  const reportLevelDeductions = parseJsonArray(report.machineDeductions);
   const isLegacySingleMachineReport = lines.length === 1
     && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE';
   const hasLineBreakdown = lines.some((line) => parseJsonArray(line.deductions_json)
     .some((item) => Math.max(0, Number(item?.hours) || 0) > 0));
-  // Report-level deduction rows are a legacy fallback only for a single
-  // MACHINE-mode line. Other modes can carry worker-level deductions and must
-  // never project those values onto physical machine time.
+  // Only explicitly named machine-level fields may be used as a legacy
+  // fallback. report.deductions and report.deduction_time belong to Worker
+  // credit and must never be projected onto physical machine time.
   const safeReportFallback = isLegacySingleMachineReport && !hasLineBreakdown
     ? reportLevelDeductions
     : [];
   const hasLegacySingleLineDeduction = isLegacySingleMachineReport
-    && Array.isArray(report.deductions)
+    && report.machineDeductionTime !== null
+    && report.machineDeductionTime !== undefined
+    && String(report.machineDeductionTime).trim() !== ''
     && !hasLineBreakdown;
 
   lines.forEach((line, lineIndex) => {
@@ -57,7 +59,7 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       Number(line.deduction_time_hours) || 0,
       (Number(line.adjustment_minutes) || 0) / 60,
       detailDeductionHours,
-      hasLegacySingleLineDeduction ? Math.max(0, Number(report.deduction_time) || 0) : 0
+      hasLegacySingleLineDeduction ? Math.max(0, Number(report.machineDeductionTime) || 0) : 0
     );
     if (lineDeductionHours > 0) {
       const deductionKey = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || lineIndex);
