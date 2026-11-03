@@ -123,6 +123,14 @@ test('Excel company payload carries physical events separately from worker repor
   assert.match(desktop, /physical_counted_output/);
 });
 
+test('company export exposes linked event status but physical accounting uses approved events only', () => {
+  const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
+  assert.match(loader, /const linkedEventMap = new Map\(eventRows\.map/);
+  assert.match(loader, /filter\(\(row\) => String\(row\.status \|\| ''\)\.trim\(\)\.toLowerCase\(\) === 'approved'\)/);
+  assert.match(loader, /machine_event_status: linkedEvent \? String\(linkedEvent\.status \|\| ''\) : null/);
+  assert.match(loader, /buildGiaCongMachineAccounting\([\s\S]*?eventMap\)/);
+});
+
 test('shared-machine scanner is read-only and never creates events automatically', () => {
   const scanner = fs.readFileSync(path.join(root, 'services/sharedMachineAccountingAuditService.js'), 'utf8');
   const cli = fs.readFileSync(path.join(root, 'scripts/auditSharedMachineAccounting.js'), 'utf8');
