@@ -74,7 +74,7 @@ function validateCloudflareRuntimeSecrets(env = {}) {
   } else if (databaseUrl) {
     try {
       const parsed = new URL(databaseUrl);
-      if (!parsed.hostname) missing.push('valid TIDB_DATABASE_URL host');
+      if (parsed.protocol !== 'mysql:' || !parsed.hostname) missing.push('valid mysql:// TIDB_DATABASE_URL');
     } catch {
       missing.push('valid TIDB_DATABASE_URL');
     }
