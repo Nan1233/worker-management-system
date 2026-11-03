@@ -169,3 +169,10 @@ test('company Excel passes GC machine mode into canonical accounting for legacy 
   const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
   assert.match(loader, /buildGiaCongMachineAccounting\([\s\S]*?operation_mode:\s*report\.operation_mode/);
 });
+
+test('bulk company Excel indexes temp report IDs once for deduction and defect hydration', () => {
+  const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
+  assert.match(loader, /const reportIdBySourceTempId = new Map/);
+  assert.match(loader, /reportIdBySourceTempId\.get\(Number\(row\.temp_report_id\)\)/);
+  assert.doesNotMatch(loader, /reports\.find\(\(item\) => Number\(item\.source_temp_id\)/);
+});
