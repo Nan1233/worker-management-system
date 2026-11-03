@@ -25,7 +25,7 @@ async function ensureLegacyMachineLines(targets) {
   const [reports] = await db.promise().query(
     `SELECT t.id,t.process_id,t.work_date,t.operation_type,t.operation_mode,t.machine_no,t.product_name,
             t.actual_time,t.standard_output,t.standard_version_id,t.machine_standard_id,
-            t.exclude_kqd_from_tt_snapshot,t.actual_output,t.tt_ok,t.tt_ng,
+            t.actual_output,t.tt_ok,t.tt_ng,
             UPPER(TRIM(COALESCE(p.process_code,''))) AS process_code,
             t.extra_data
        FROM production_reports_temp t
