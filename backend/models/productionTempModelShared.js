@@ -210,7 +210,6 @@ const editableFields = [
     "standard_output",
     "standard_version_id",
     "machine_standard_id",
-    "exclude_kqd_from_tt_snapshot",
     "actual_output",
     "tt_ok",
     "tt_ng",
