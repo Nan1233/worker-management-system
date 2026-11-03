@@ -6,6 +6,7 @@ import AppIcon from "../../../components/common/AppIcon";
 import type { DeductionKey, FormState, MachineLineState, NgKey, OperationMode, OperationType } from "../processPageConfig";
 import { MAX_TOTAL_WORK_MINUTES } from "../processFormUtils";
 import { getVisibleGcMachineOptions } from "../cutExecutionMode.js";
+import "./ProcessBasicInfoSection.css";
 
 interface NgOption { key: NgKey; code: string; label: string; }
 interface DeductionOption { key: DeductionKey; label: string; id?: number; code?: string; deduction_type_id?: number; deduction_name?: string; }
@@ -118,9 +119,7 @@ export default function ProcessBasicInfoSection({ processCode, form, setForm, on
         });
     };
 
-    const cvkWorkerInlineStyle = <style className="cvk-worker-inline-style">{`.worker-operation-type-row{grid-template-columns:repeat(3,minmax(0,1fr))}.worker-operation-type-row button{width:100%;min-width:0}.worker-operation-type-row button::before,.worker-operation-type-row button::after{content:none!important;display:none!important}.worker-cvk-entry{display:grid;gap:12px}.worker-cvk-note textarea{width:100%;min-height:84px;resize:vertical;box-sizing:border-box;border:1px solid #c9dbf2;border-radius:10px;padding:10px 12px;font:inherit;color:inherit;background:#fff;outline:none}.worker-cvk-note textarea:focus{border-color:#4f94e8;box-shadow:0 0 0 2px rgba(79,148,232,.12)}`}</style>;
     return <section className="worker-form-card worker-form-card-basic">
-        {cvkWorkerInlineStyle}
         <div className="worker-card-heading"><div className="worker-card-step">02</div><div><h2 className="worker-card-title"><span><AppIcon name="checklist" size={15} /></span> Sản phẩm &amp; máy</h2></div></div>
         <div className="worker-basic-grid">
             <div className="worker-field-block worker-field-full worker-shift-block"><label className="worker-field-label">Ca làm việc <em>*</em></label><div className="worker-shift-list">{["A", "B", "C", "D"].map((shift) => <label key={shift} className="worker-shift-item"><input type="radio" name="shift" value={shift} checked={form.shift === shift} onChange={onFormChange} /><span>{shift}</span></label>)}</div></div>
