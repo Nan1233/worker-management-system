@@ -354,6 +354,39 @@ function detailKey(item, kind) {
   return name ? `name:${normalize(name)}` : '';
 }
 
+function parseDetailArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+// GC MACHINE parent-level deductions are intentionally empty. The Worker
+// deduction credit lives on each machine line, so read those line snapshots
+// without borrowing shared physical-event deductions.
+function reportDetailItems(report, processCode, kind) {
+  const reportKey = kind === 'deduction' ? 'deductions' : 'defects';
+  const reportItems = Array.isArray(report?.[reportKey]) ? report[reportKey] : [];
+  const isGcMachine = normalize(processCode) === 'GC'
+    && normalize(report?.operation_mode) === 'MACHINE';
+  const lines = Array.isArray(report?.machineLines) ? report.machineLines : [];
+  if (!isGcMachine || !lines.length) return reportItems;
+
+  const lineItems = lines.flatMap((line) => {
+    const direct = parseDetailArray(line?.[kind]);
+    if (direct.length) return direct;
+    return parseDetailArray(line?.[kind === 'deduction' ? 'deductions_json' : 'defects_json']);
+  });
+
+  if (kind === 'defect') return reportItems.length ? reportItems : lineItems;
+  if (lineItems.length) return lineItems;
+  return lines.length === 1 ? reportItems : [];
+}
+
 function detailAliases(item, kind) {
   const aliases = new Set();
   const id = detailId(item, kind);
@@ -399,7 +432,7 @@ function processDetailTypes(processCode, processData, masterKey, reportKey, kind
   for (const label of templateLabels) append({ code: normalize(label), name: label });
   for (const item of processData?.[masterKey] || []) append(item);
   for (const report of processData?.reports || []) {
-    for (const item of report?.[reportKey] || []) append(item);
+    for (const item of reportDetailItems(report, processCode, kind)) append(item);
   }
   return result.map((item) => ({ key: item.key, label: item.label, aliases: [...item.aliases] }));
 }
@@ -610,8 +643,8 @@ function parseExtraData(report) {
 
 function rowValues(processCode, report, deductionTypes, defectTypes, settings) {
   const snapshot = reportSnapshot(report, settings);
-  const deductions = detailMap(report.deductions, 'deduction');
-  const defects = detailMap(report.defects, 'defect');
+  const deductions = detailMap(reportDetailItems(report, processCode, 'deduction'), 'deduction');
+  const defects = detailMap(reportDetailItems(report, processCode, 'defect'), 'defect');
   const extra = parseExtraData(report);
   const values = {
     ...snapshot,
@@ -1355,6 +1388,7 @@ module.exports = {
     assertApprovedDatabasePayload,
     normalize,
     reportSnapshot,
+    reportDetailItems,
     detailKey,
     processDetailTypes,
     makeColumns,
