@@ -10,7 +10,6 @@ exports.list = async (req, res, next) => {
     const [products] = await db.promise().query(`
       SELECT ps.id, ps.process_id, ps.product_code,
              ps.standard_output AS standard_output,
-             COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
              p.process_code, p.process_name
       FROM product_standards ps
       LEFT JOIN processes p ON p.id = ps.process_id
