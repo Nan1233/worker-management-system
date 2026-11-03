@@ -84,3 +84,12 @@ test('Cloudflare runtime requires TiDB connection material and a strong JWT secr
     JWT_SECRET: 'x'.repeat(40),
   }), { valid: true });
 });
+
+test('Cloudflare Worker CORS does not include the opposite environment or legacy Render frontend by default', () => {
+  const worker = read('cloudflare-worker.js');
+  const server = read('server.js');
+  assert.doesNotMatch(worker, /worker-management-system-3-dzox\\.onrender\\.com/);
+  assert.doesNotMatch(worker, /cloudflareTestFrontendOrigin|cloudflareFrontendOrigin/);
+  assert.doesNotMatch(server, /worker-management-system-3-dzox\\.onrender\\.com/);
+  assert.match(server, /const defaults = isProduction/);
+});
