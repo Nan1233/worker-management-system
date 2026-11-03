@@ -160,11 +160,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
       report.trainingSnapshotSource = 'IMMUTABLE_SNAPSHOT';
     }
 
-    const isMachineReport = String(report.operation_mode || '').toUpperCase() === 'MACHINE';
-    if (!isMachineReport && (report.exclude_kqd_from_tt === null || report.exclude_kqd_from_tt === undefined)) {
-      report.exclude_kqd_from_tt = 0;
-      report.excludeKqdSnapshotSource = 'LEGACY_DEFAULT_0';
-    }
   }
 
   const reportIds = reports.map((report) => Number(report.id));
