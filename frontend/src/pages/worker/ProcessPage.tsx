@@ -1046,7 +1046,7 @@ const updateDeductionValue = (
 
     const normalizedValue = normalizeDeductionInput(value);
 
-    if (normalizedValue !== "" && Number(normalizedValue) > MAX_TOTAL_WORK_MINUTES) {
+    if (!usesMachineLineAccounting && normalizedValue !== "" && Number(normalizedValue) > MAX_TOTAL_WORK_MINUTES) {
         showToast("Tổng thời gian tối đa là 12 giờ", "warning");
         return;
     }
@@ -1063,7 +1063,7 @@ const updateDeductionValue = (
             form.actualMinutes
         );
 
-        if (prospectiveTotalMinutes > MAX_TOTAL_WORK_MINUTES) {
+        if (!usesMachineLineAccounting && prospectiveTotalMinutes > MAX_TOTAL_WORK_MINUTES) {
             showToast(
                 "Không thể tăng thời gian trừ vì tổng thời gian sẽ vượt quá 12 giờ",
                 "warning"
