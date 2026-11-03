@@ -114,6 +114,7 @@
         "to": "shared",
         "filter": [
           "excelSyncContract.cjs",
+          "kqdPolicy.cjs"
         ]
       }
     ]
