@@ -39,10 +39,10 @@ function defectQuantity(item) {
 function calculateNg(report = {}) {
   const details = Array.isArray(report.defects) ? report.defects : [];
   const databaseNg = asInteger(report.tt_ng);
-  if (!details.length) return { allNg: databaseNg, countedNg: databaseNg, excludedKqd: 0 };
+  if (!details.length) return { allNg: databaseNg, countedNg: databaseNg };
   const detailNg = details.reduce((sum, item) => sum + defectQuantity(item), 0);
   const allNg = databaseNg === null ? detailNg : databaseNg;
-  return { allNg, countedNg: allNg, excludedKqd: 0, detailNg };
+  return { allNg, countedNg: allNg, detailNg };
 }
 
 function machineLineHours(report = {}) {
