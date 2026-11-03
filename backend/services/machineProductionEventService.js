@@ -1,7 +1,7 @@
 const getDb = () => require('../config/db');
 const getAuditService = () => require('./auditService');
 const { createStandardResolver } = require('./standardResolutionService');
-const { calculateProductionOutput } = require('../../shared/kqdPolicy.cjs');
+const { calculateProductionOutput } = require('../../shared/productionOutput.cjs');
 const { canonicalMachineNumber, GC_SHARED_MACHINE_NUMBERS, getGcMachineRule } = require('./factoryMachineRuleService');
 const { assertProcessScope } = require('./processAuthorizationService');
 const { storedStandardSource } = require('../utils/standardSourceCode');
