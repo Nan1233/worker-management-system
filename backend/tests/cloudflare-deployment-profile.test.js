@@ -8,6 +8,7 @@ const {
   TEST_FRONTEND_ORIGIN,
   PRODUCTION_FRONTEND_ORIGIN,
   resolveCloudflareDeploymentProfile,
+  validateCloudflareRuntimeSecrets,
 } = require('../config/cloudflareDeploymentProfile.cjs');
 
 const backendRoot = path.resolve(__dirname, '..');
@@ -66,4 +67,18 @@ test('Cloudflare Worker uses profile-driven CORS and keeps master-data bootstrap
   assert.doesNotMatch(worker, /const cloudflareFrontendOrigin\s*=|const cloudflareTestFrontendOrigin\s*=/);
   assert.match(worker, /masterDataBootstrapEnabled/);
   assert.match(worker, /if\s*\(!deploymentProfile\.masterDataBootstrapEnabled\)\s*return true/);
+});
+
+test('Cloudflare runtime requires TiDB connection material and a strong JWT secret', () => {
+  assert.throws(() => validateCloudflareRuntimeSecrets({}), {
+    code: 'CLOUDFLARE_RUNTIME_SECRET_MISSING',
+  });
+  assert.throws(() => validateCloudflareRuntimeSecrets({
+    TIDB_DATABASE_URL: 'not-a-url',
+    JWT_SECRET: 'x'.repeat(40),
+  }), { code: 'CLOUDFLARE_RUNTIME_SECRET_MISSING' });
+  assert.deepEqual(validateCloudflareRuntimeSecrets({
+    TIDB_DATABASE_URL: 'mysql://user:password@tidb.example:4000/ktc',
+    JWT_SECRET: 'x'.repeat(40),
+  }), { valid: true });
 });
