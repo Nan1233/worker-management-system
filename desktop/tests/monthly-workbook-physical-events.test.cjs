@@ -48,7 +48,21 @@ test('Desktop hidden machine-event sheet stores each physical event exactly once
     status: 'approved'
   };
   _private.addPhysicalMachineEventsMetadata(workbook, {
-    physicalMachineEvents: [event, { ...event }, { ...event, id: 56, machine_time_hours: 2 }]
+    physicalMachineEvents: [event, { ...event }, { ...event, id: 56, machine_time_hours: 2 }],
+    reports: [
+      { machineLines: [{
+        machine_event_id: 55,
+        deduction_time_hours: 0.5,
+        deductions_json: JSON.stringify([{ deduction_type_id: 7, deduction_code: 'STOP', deduction_name: 'Dừng máy', hours: 0.5 }])
+      }] },
+      { machineLines: [{
+        machine_event_id: 55,
+        deduction_time_hours: 0.5,
+        deductions_json: JSON.stringify([{ deduction_type_id: 7, deduction_code: 'STOP', deduction_name: 'Dừng máy', hours: 0.5 }])
+      }] },
+      { machineLines: [{ machine_event_id: 56, deduction_time_hours: 0.25, deductions_json: '[]' }] },
+      { machineLines: [{ machine_event_id: 56, deduction_time_hours: 0.5, deductions_json: '[]' }] }
+    ]
   });
 
   const sheet = workbook.getWorksheet('_KTC_MACHINE_EVENTS');
@@ -59,4 +73,9 @@ test('Desktop hidden machine-event sheet stores each physical event exactly once
   assert.equal(sheet.getCell('K2').value, 6);
   assert.equal(sheet.getCell('A3').value, 56);
   assert.equal(sheet.getCell('K3').value, 2);
+  assert.equal(sheet.getCell('P2').value, 0.5);
+  assert.match(sheet.getCell('Q2').value, /STOP/);
+  assert.equal(sheet.getCell('R2').value, 'RECORDED_ONCE');
+  assert.equal(sheet.getCell('P3').value, null);
+  assert.equal(sheet.getCell('R3').value, 'CONFLICTING_PARTICIPANT_LINES');
 });
