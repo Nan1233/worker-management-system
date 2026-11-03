@@ -18,7 +18,6 @@ async function main(){
   const [reports] = await db.promise().query(`
     SELECT pr.*, w.worker_code, p.process_code,
            pr.training_percent_snapshot AS training_percent,
-           pr.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt
     FROM production_reports pr
     JOIN workers w ON w.id=pr.worker_id
     JOIN processes p ON p.id=pr.process_id
