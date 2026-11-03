@@ -1,16 +1,10 @@
-const GC_AUTOMATIC_MACHINE_NUMBERS = Object.freeze([
-  1, 2, 10, 11, 4, 3, 9, 8, 25, 26, 14, 17, 23, 24, 16
-]);
+const { MACHINE_CAPACITY_POLICY } = require("../config/productionRulePolicy");
 
-const GC_SHARED_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
-
-// Business rule:
-// - Cắt/Lồng (GC): 1 worker tối đa 4 máy; 1 máy tối đa 2 workers.
-// - Mài (MAI): 1 worker tối đa 4 máy; 1 máy tối đa 2 workers.
-// - Các công đoạn khác giữ capacity theo DB, mặc định 1 người/máy.
-const MULTI_MACHINE_PROCESS_CODES = new Set(["GC", "MAI"]);
-const MAX_MACHINES_PER_WORKER = 4;
-const DEFAULT_SHARED_WORKERS_PER_MACHINE = 4;
+const GC_AUTOMATIC_MACHINE_NUMBERS = MACHINE_CAPACITY_POLICY.gcAutomaticMachineNumbers;
+const GC_SHARED_MACHINE_NUMBERS = MACHINE_CAPACITY_POLICY.gcSharedMachineNumbers;
+const MULTI_MACHINE_PROCESS_CODES = new Set(MACHINE_CAPACITY_POLICY.multiMachineProcessCodes);
+const MAX_MACHINES_PER_WORKER = MACHINE_CAPACITY_POLICY.maxMachinesPerWorker;
+const DEFAULT_SHARED_WORKERS_PER_MACHINE = MACHINE_CAPACITY_POLICY.defaultSharedWorkersPerMachine;
 
 const canonicalMachineNumber = (value) => {
   const raw = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
@@ -67,11 +61,9 @@ const getProcessMachineRule = (processCode, machineCode, dbRow = null) => {
       maxMachinesPerWorker: MAX_MACHINES_PER_WORKER,
       // All machines in Gia công (GC) may be shared by workers in the same day/shift.
       // Keep the existing 4-worker cap consistently across C* and ML* machines.
-      maxWorkersPerMachine: code === "GC"
-        ? DEFAULT_SHARED_WORKERS_PER_MACHINE
-        : (dbRow?.max_workers_per_machine != null
-          ? Math.max(1, Number(dbRow.max_workers_per_machine) || 1)
-          : DEFAULT_SHARED_WORKERS_PER_MACHINE),
+      maxWorkersPerMachine: dbRow?.max_workers_per_machine != null
+        ? Math.max(1, Number(dbRow.max_workers_per_machine) || 1)
+        : DEFAULT_SHARED_WORKERS_PER_MACHINE,
       automatic: dbRow?.is_automatic != null
         ? Number(dbRow.is_automatic) === 1
         : code === "GC" ? GC_AUTOMATIC_MACHINE_NUMBERS.includes(canonicalMachineNumber(machineCode)) : false,
