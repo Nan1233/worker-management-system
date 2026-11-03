@@ -80,9 +80,9 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
   if (!tempLines.length) return { ids: [], rows: [] };
 
   const columns = `report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
-        machine_time_hours,standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,ok_quantity,ng_quantity,
+        machine_time_hours,standard_output,standard_time_seconds,standard_source,ok_quantity,ng_quantity,
         maximum_output,deduction_time_hours,deductions_json,counted_output,earned_standard_hours,defects_json,sort_order`;
-  const rowPlaceholder = `(${new Array(22).fill("?").join(",")})`;
+  const rowPlaceholder = `(${new Array(21).fill("?").join(",")})`;
   const values = tempLines.flatMap((line) => [
     approvedReportId,
     line.machine_event_id || null,
@@ -96,7 +96,6 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
     line.standard_output,
     line.standard_time_seconds || null,
     storedStandardSource(line.standard_source),
-    Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
     line.ok_quantity,
     line.ng_quantity,
     line.maximum_output,
@@ -318,7 +317,6 @@ async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, 
       standard_version_id: item.standard_version_id || null,
       machine_standard_id: item.machine_standard_id || null,
       training_percent_snapshot: item.training_percent_snapshot ?? null,
-      exclude_kqd_from_tt_snapshot: item.exclude_kqd_from_tt_snapshot ?? null,
     },
     defects: snapshotDefects,
     deductions: snapshotDeductions,
@@ -411,15 +409,15 @@ module.exports = {
           `INSERT INTO production_reports
            (source_temp_id,worker_id,process_id,work_date,entry_date,shift,operation_type,operation_mode,machine_no,
             product_name,total_time,actual_time,deduction_time,standard_output,standard_version_id,machine_standard_id,
-            training_percent_snapshot,exclude_kqd_from_tt_snapshot,actual_output,tt_ok,tt_ng,kqd_dap_lai,kqd_tuot,
+            training_percent_snapshot,actual_output,tt_ok,tt_ng,kqd_dap_lai,kqd_tuot,
             vo_do_long,xuoc_do_long,cong_gay,xoay,khong_dut,bavia_hut,ppcm,loi_cao_su,ng_kich_thuoc,cat_lem,note,
             extra_data,status,review_note,reviewed_by,approved_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
           [
             item.id,item.worker_id,item.process_id,item.work_date,item.entry_date || item.work_date,item.shift,
             item.operation_type ?? null,item.operation_mode ?? null,item.machine_no,item.product_name,
             item.total_time,item.actual_time,item.deduction_time,item.standard_output,item.standard_version_id || null,
-            item.machine_standard_id || null,item.training_percent_snapshot ?? null,item.exclude_kqd_from_tt_snapshot ?? null,
+            item.machine_standard_id || null,item.training_percent_snapshot ?? null,
             item.actual_output,item.tt_ok,item.tt_ng,item.kqd_dap_lai,item.kqd_tuot,item.vo_do_long,item.xuoc_do_long,
             item.cong_gay,item.xoay,item.khong_dut,item.bavia_hut,item.ppcm,item.loi_cao_su,item.ng_kich_thuoc,
             item.cat_lem,item.note,serializeExtraData(item.extra_data),"approved",item.review_note,reviewerId,
