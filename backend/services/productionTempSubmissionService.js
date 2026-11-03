@@ -362,7 +362,6 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
         data.logical_duplicate_key = buildLogicalDuplicateKey({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, operationMode: data.operation_mode ?? data.operationMode, machineNo: data.machine_no, productName: data.product_name, workType: data.work_type || data.extra_data?.work_type, machineLines });
 
-        await assertNoLogicalDuplicate(data);
 
         const processRows = await query(db, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
         data.process_code = processRows[0]?.process_code || data.process_code || null;
