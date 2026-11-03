@@ -128,7 +128,7 @@ async function applyCurrentDbMasterData(reports) {
   if (!Array.isArray(reports) || !reports.length) return reports;
   const processId = Number(reports[0]?.process_id); if (!Number.isInteger(processId) || processId <= 0) return reports;
   const [standards, machines] = await Promise.all([
-    query(`SELECT id, product_code, encoding_code, standard_output, exclude_kqd_from_tt FROM product_standards WHERE process_id=? AND LOWER(COALESCE(status,'active')) IN ('active','enabled','1') ORDER BY id`, [processId]),
+    query(`SELECT id, product_code, encoding_code, standard_output FROM product_standards WHERE process_id=? AND LOWER(COALESCE(status,'active')) IN ('active','enabled','1') ORDER BY id`, [processId]),
     query(`SELECT id, machine_code FROM machines WHERE process_id=? AND LOWER(COALESCE(status,'active')) IN ('active','enabled','1') ORDER BY id`, [processId])
   ]);
   const normalize = (value) => String(value ?? '').trim().toUpperCase();
