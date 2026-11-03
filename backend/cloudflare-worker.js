@@ -34,7 +34,7 @@ process.env.KTC_CLOUDFLARE_WORKER = "true";
 
 const { app, initializeRuntime, runtimeReadiness } = require("./server.js");
 const db = require("./config/db");
-const productionTempCreateModel = require("./models/productionTempCreateModel");
+const productionTempModel = require("./models/productionTempModel");
 
 // The Worker never applies schema changes. Migrations are a manual, backed-up operator action
 // (see scripts/ and the runbook); nothing in this file may start one.
@@ -80,8 +80,8 @@ async function normalizeTempChildRows(defects, deductions, processId) {
 }
 async function queryMasterRows(sql, params) { const [rows] = await db.promise().query(sql, params); return rows || []; }
 
-const originalCreateCompleteReport = productionTempCreateModel.createCompleteReport.bind(productionTempCreateModel);
-productionTempCreateModel.createCompleteReport = async (payload) => { if (payload && typeof payload === "object" && payload.data) { const normalized = await normalizeTempChildRows(payload.defects, payload.deductions, payload.data.process_id); return originalCreateCompleteReport({ ...payload, ...normalized }); } return originalCreateCompleteReport(payload); };
+const originalCreateCompleteReport = productionTempModel.createCompleteReport.bind(productionTempModel);
+productionTempModel.createCompleteReport = async (payload) => { if (payload && typeof payload === "object" && payload.data) { const normalized = await normalizeTempChildRows(payload.defects, payload.deductions, payload.data.process_id); return originalCreateCompleteReport({ ...payload, ...normalized }); } return originalCreateCompleteReport(payload); };
 
 app.listen(Number(process.env.PORT || 3000));
 const httpHandler = httpServerHandler({ port: Number(process.env.PORT || 3000) });
