@@ -80,3 +80,29 @@ test('machine-line details take precedence over report-level aggregate details',
   assert.equal(rows[0].deductionHours, 0.5);
   assert.equal(rows[0].deductions[0].hours, 0.5);
 });
+
+test('single machine line preserves report total when imported record has no detail rows', () => {
+  const report = {
+    id: 570003,
+    operation_mode: 'MACHINE',
+    deduction_time: 1.83,
+    deductions: [],
+    machineLines: [{
+      id: 5700031,
+      machine_code: 'GC02',
+      machine_time_hours: 8.33,
+      deduction_time_hours: 0,
+      deductions_json: null
+    }]
+  };
+
+  const rows = buildGcWorkerRows(report);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].deductionHours, 1.83);
+  assert.deepEqual(rows[0].deductions, []);
+  assert.ok(rows[0].warnings.includes('DEDUCTION_WITHOUT_BREAKDOWN'));
+
+  const accounting = buildGiaCongMachineAccounting(report, new Map());
+  assert.equal(accounting.deductionHours, 1.83);
+  assert.deepEqual(accounting.deductions, []);
+});
