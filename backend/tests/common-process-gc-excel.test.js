@@ -64,6 +64,27 @@ test('multiple workers sharing one machine remain separate credits; repeated bui
   assert.equal(first.reduce((sum, r) => sum + r.actual_output, 0), 100);
 });
 
+test('shared physical event time is not copied into each worker participation row', () => {
+  const sharedEvent = (id, workerId, workerCode, participationHours) => report({
+    id, worker_id: workerId, worker_code: workerCode,
+    machineLines: [{
+      ...line(id * 100, 'M01', 'SP01', participationHours, 50, 0),
+      machine_event_id: 7001,
+      excel_machine_time_hours: 5
+    }]
+  });
+  const rows = __test.expandGiaCongMachineLines([
+    sharedEvent(1, 10, 'CN01', 3),
+    sharedEvent(2, 11, 'CN02', 2)
+  ]);
+  assert.deepEqual(rows.map((r) => [r.worker_code, r.excelExportTimes.totalHours, r.excelExportTimes.actualHours]), [
+    ['CN01', 3, 3],
+    ['CN02', 2, 2]
+  ]);
+  // The physical event remains a single 5-hour event, not 5 hours per worker.
+  assert.equal(rows.reduce((sum, r) => sum + r.excelExportTimes.totalHours, 0), 5);
+});
+
 test('historical GC reports without machineLines stay one row without fabricated machine data', () => {
   const rows = __test.expandGiaCongMachineLines([report({ machineLines: [], machine_no: '', actual_output: 120, tt_ok: 110, tt_ng: 10 })]);
   assert.equal(rows.length, 1);
