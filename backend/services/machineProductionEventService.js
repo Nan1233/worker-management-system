@@ -185,11 +185,10 @@ async function linkTempLines(executor, event, tempLineIds = []) {
   return rows;
 }
 
-function calculateEventPhysical({ physicalOkQuantity, defects, excludeKqdFromTt, machineTimeHours, standardOutput }) {
+function calculateEventPhysical({ physicalOkQuantity, defects, machineTimeHours, standardOutput }) {
   const ok = nonNegativeInteger(physicalOkQuantity || 0, 'physical_ok_quantity');
-  // Physical event truth always counts every physical NG, including KQD.
-  // excludeKqdFromTt belongs to worker/report credit calculation, not physical output.
-  const output = calculateProductionOutput({ ok, defects, excludeKqdFromTt: false });
+  // Physical output counts every NG defect, including KQD.
+  const output = calculateProductionOutput({ ok, defects });
   return {
     physicalOkQuantity: ok,
     physicalNgQuantity: output.totalNg,
@@ -209,7 +208,7 @@ async function createEvent({ actor, data, req = null }) {
     const ctx = await loadEventContext(connection, { processId:data.process_id, machineId:data.machine_id, machineCode:data.machine_code, productCode:data.product_code, workDate });
     await assertActorProcessScope(connection, actor, ctx.process.id);
     const defects = await authoritativeDefects(connection, ctx.process.id, data.defects);
-    const calc = calculateEventPhysical({ physicalOkQuantity:data.physical_ok_quantity, defects, excludeKqdFromTt:ctx.resolved.excludeKqdFromTt, machineTimeHours:data.machine_time_hours, standardOutput:ctx.resolved.standardOutput });
+    const calc = calculateEventPhysical({ physicalOkQuantity:data.physical_ok_quantity, defects, machineTimeHours:data.machine_time_hours, standardOutput:ctx.resolved.standardOutput });
     const [insert] = await connection.query(`INSERT INTO machine_production_events
       (process_id,machine_id,machine_code,product_code,work_date,shift,physical_ok_quantity,physical_ng_quantity,
        physical_counted_output,physical_total_output,machine_time_hours,maximum_output,standard_output,standard_version_id,
@@ -254,7 +253,7 @@ async function updateEvent({ id, actor, patch, req = null }) {
     const defects=Object.prototype.hasOwnProperty.call(patch||{},'defects')
       ? await authoritativeDefects(connection,ctx.process.id,patch.defects)
       : await q(connection,`SELECT defect_type_id,defect_code,defect_name,quantity,responsible_worker_id FROM machine_production_event_defects WHERE machine_event_id=? ORDER BY id`,[before.id]);
-    const calc=calculateEventPhysical({physicalOkQuantity:resulting.physical_ok_quantity,defects,excludeKqdFromTt:ctx.resolved.excludeKqdFromTt,machineTimeHours:resulting.machine_time_hours,standardOutput:ctx.resolved.standardOutput});
+    const calc=calculateEventPhysical({physicalOkQuantity:resulting.physical_ok_quantity,defects,machineTimeHours:resulting.machine_time_hours,standardOutput:ctx.resolved.standardOutput});
     if(linked.length){const participantIds=new Set(linked.map((r)=>Number(r.worker_id)));for(const d of defects)if(!participantIds.has(Number(d.responsible_worker_id)))throw eventError(422,'DEFECT_WORKER_NOT_PARTICIPANT','Công nhân chịu trách nhiệm NG phải tham gia event');}
     await connection.query(`UPDATE machine_production_events SET process_id=?,machine_id=?,machine_code=?,product_code=?,work_date=?,shift=?,
       physical_ok_quantity=?,physical_ng_quantity=?,physical_counted_output=?,physical_total_output=?,machine_time_hours=?,maximum_output=?,
