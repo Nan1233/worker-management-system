@@ -81,6 +81,7 @@ function loadFacadeHarness() {
   const mocks = new Map([
     ['../config/db', db],
     ['./productionTempCreateModel', createModel],
+    ['../models/productionTempCreateModel', createModel],
     ['./nonProductWorkCreateModel', { createCompleteReport: async () => { throw new Error('unexpected CVK path'); } }],
     ['./productionTempReadModel', {}],
     ['./productionTempReviewModel', {}],
@@ -92,6 +93,13 @@ function loadFacadeHarness() {
     ['../services/factoryMachineRuleService', { validateMachineWorkerCapacityLocked: async () => ({ valid: true }) }],
     ['../services/logicalDuplicateReportService', { buildLogicalDuplicateKey: () => 'logical-key' }],
     ['../services/duplicateConfirmationService', { verifyDuplicateConfirmation: () => ({ valid: true }) }],
+    ['../models/nonProductWorkCreateModel', { createCompleteReport: async () => { throw new Error('unexpected CVK path'); } }],
+    ['../models/productionTempModelShared', shared],
+    ['./auditService', audit],
+    ['./trainingSnapshotService', { resolveInitialTrainingSnapshot: async () => ({ training_percent: 100 }) }],
+    ['./factoryMachineRuleService', { validateMachineWorkerCapacityLocked: async () => ({ valid: true }) }],
+    ['./logicalDuplicateReportService', { buildLogicalDuplicateKey: () => 'logical-key' }],
+    ['./duplicateConfirmationService', { verifyDuplicateConfirmation: () => ({ valid: true }) }],
     ['../utils/dailyHoursLimit', { DAILY_HOURS_LIMIT: 12, exceedsDailyHoursLimit: (hours) => hours > 12 }],
   ]);
 
