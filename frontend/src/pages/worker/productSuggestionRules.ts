@@ -27,6 +27,49 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] => Strin
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11", "C5", "C6", "C7", "C11"]);
 const GC_AUTOMATIC_ALIAS_CODES = new Set(["C2556", "C5770", "CGYX", "C3880", "C8052"]);
 
+/** Resolve machine-only suffixes in product codes (for example C9149-1 and C9149-AUTO). */
+export const getProductMachineHint = (value: unknown): { kind: "AUTO" | "NUMBER"; value: string } | null => {
+    const code = normalize(value).replace(/\s+/g, "");
+    const match = code.match(/^(?:C\d[0-9A-Z]*?)-(AUTO|AUTOMATIC|\d+)$/i);
+    if (!match) return null;
+    const suffix = normalize(match[1]);
+    if (suffix === "AUTO" || suffix === "AUTOMATIC") return { kind: "AUTO", value: "AUTO" };
+    return { kind: "NUMBER", value: String(Number(suffix)) };
+};
+
+const isAutomaticGcMachine = (machineCode: string, machineOptions?: MachineOption[]): boolean => {
+    const selected = normalize(machineCode).replace(/\s+/g, "");
+    const machine = (machineOptions || []).find((item) => normalize(item.machine_code).replace(/\s+/g, "") === selected
+        || normalizeMachineKey(item.machine_code) === normalizeMachineKey(selected));
+    return Number(machine?.is_automatic || 0) === 1 || GC_AUTOMATIC_MACHINE_CODES.has(selected)
+        || GC_AUTOMATIC_MACHINE_CODES.has(normalizeMachineKey(selected));
+};
+
+const filterC9149FamilyForMachine = (
+    rows: Array<{ product: ProductStandardOption; alias: string }>,
+    machineCode: string,
+    machineOptions?: MachineOption[],
+): Array<{ product: ProductStandardOption; alias: string }> => {
+    const selected = normalizeMachineKey(machineCode);
+    const isAuto = isAutomaticGcMachine(machineCode, machineOptions);
+    const selectedNumber = /^\d+$/.test(selected) ? String(Number(selected)) : null;
+    const isMachineOne = selectedNumber === "1" && !isAuto;
+    return rows.filter(({ product }) => {
+        const fields = [product.product_code, product.encoding_code, product.alias_code].map((value) => normalize(value));
+        const isC9149Family = fields.some((value) => /^C9149(?:-1|-AUTO)?$/.test(value));
+        if (!isC9149Family) {
+            const hint = getProductMachineHint(product.product_code) || getProductMachineHint(product.alias_code);
+            if (!hint) return true;
+            return hint.kind === "AUTO" ? isAuto : !isAuto && hint.value === selectedNumber;
+        }
+        const isNumberOne = fields.some((value) => value === "C9149-1");
+        const isAutoVariant = fields.some((value) => value === "C9149-AUTO");
+        if (isNumberOne) return isMachineOne;
+        if (isAutoVariant) return isAuto;
+        return !isMachineOne && !isAuto;
+    });
+};
+
 export const normalizeGcAlias = (value: unknown): string => {
     const alias = normalize(value);
     if (!alias) return "";
@@ -82,11 +125,14 @@ export const getFullProductCode = (alias: string, products: ProductStandardOptio
 const isGcAutomaticMachine = (machineCode: unknown): boolean => GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
 const isGcLongMachine = (machineCode: unknown, machineOptions?: MachineOption[]): boolean => {
     const raw = normalize(machineCode).replace(/\s+/g, "");
-    // Machine master (gc_work_type) decides Lồng when the API supplies it. The
-    // prefix rule below is only the legacy fallback for an API without the column.
-    if ((machineOptions || []).some((item) => item?.gc_work_type !== undefined)) {
-        return gcWorkTypeOfMachine(machineOptions, raw) === "LONG";
-    }
+    // Use metadata only when the selected machine itself has a configured value.
+    // A partial API response must not let another machine's metadata suppress the
+    // legacy ML/numeric fallback for this selected machine.
+    const selected = (machineOptions || []).find((item) =>
+        normalize(item.machine_code).replace(/\s+/g, "") === raw
+        || normalizeMachineKey(item.machine_code) === normalizeMachineKey(raw));
+    const configuredType = String(selected?.gc_work_type ?? "").trim();
+    if (configuredType) return normalizeWorkType(configuredType) === "LONG";
     return /^ML\d+$/i.test(raw) || /^\d+$/.test(normalizeMachineKey(raw));
 };
 
@@ -95,8 +141,21 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
     if (useEncodedMachineSuffix) {
-        const canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
-        const productWorkTypes = new Set(products.map((product) => normalizeWorkType(product.work_type)).filter(Boolean));
+        let canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
+        // Only the selected machine's configured master-data type is authoritative.
+        // Missing/unknown metadata fails closed instead of guessing from C/ML/numeric
+        // machine or product-code prefixes.
+        const selectedMachineWorkType = selectedRawMachine
+            ? gcWorkTypeOfMachine(machineOptions, selectedRawMachine)
+            : null;
+        // The API may merge CUT and LONG standards. Scope by the selected machine's
+        // master work type before rendering suggestions; never leak other-process-type products.
+        if (selectedRawMachine) {
+            if (!selectedMachineWorkType) return [];
+            canonicalProducts = canonicalProducts.filter(({ product }) => normalizeWorkType(product.work_type) === selectedMachineWorkType);
+            canonicalProducts = filterC9149FamilyForMachine(canonicalProducts, selectedRawMachine, machineOptions);
+        }
+        const productWorkTypes = new Set(canonicalProducts.map(({ product }) => normalizeWorkType(product.work_type)).filter(Boolean));
         // Apply the C13/C7236 compatibility option before branching on work_type:
         // merged product APIs can return mixed CUT/LONG rows, so the CUT-only
         // branch below is not guaranteed to run even when the selected form is CUT.
@@ -147,15 +206,13 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
         if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
             if (!selectedMachine) return [];
             if (isGcAutomaticMachine(selectedRawMachine)) {
-                const automaticProducts = canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias));
-                const presentAliases = new Set(automaticProducts.map(({ alias }) => alias));
-                const template = automaticProducts[0]?.product || canonicalProducts[0]?.product;
-                if (template) {
-                    for (const alias of GC_AUTOMATIC_ALIAS_CODES) {
-                        if (presentAliases.has(alias)) continue;
-                        automaticProducts.push({ product: { ...template, product_code: alias, alias_code: alias }, alias });
-                    }
-                }
+                // Only offer automatic products that have real rows in the API.
+                // Never fabricate product standards by cloning another product.
+                const automaticProducts = canonicalProducts.filter(({ product, alias }) =>
+                    GC_AUTOMATIC_ALIAS_CODES.has(alias)
+                    || getProductMachineHint(alias)?.kind === "AUTO"
+                    || getProductMachineHint(product.product_code)?.kind === "AUTO"
+                    || getProductMachineHint(product.encoding_code)?.kind === "AUTO");
                 return workerSelectionProducts(automaticProducts);
             }
             return workerSelectionProducts(canonicalProducts);
@@ -177,11 +234,27 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
 };
 
 export const toProductAutocompleteOptions = (products: ProductStandardOption[]) => {
-    const seen = new Set<string>();
-    return products.map((product) => ({ value: getProductDisplayAlias(product), label: getProductDisplayAlias(product) })).filter((option) => {
-        const key = normalize(option.label);
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
+    // Keep the alias as the option value because downstream standard resolution
+    // expects the shop-floor alias. Put stored/encoding codes in the searchable
+    // label so typing a stored code can find the alias without selecting a fake code.
+    // Keep one option per alias even when multiple standards share that alias.
+    const byAlias = new Map<string, { value: string; codes: Set<string> }>();
+    for (const product of products) {
+        const alias = getProductDisplayAlias(product);
+        if (!alias) continue;
+        const key = normalize(alias);
+        let entry = byAlias.get(key);
+        if (!entry) {
+            entry = { value: alias, codes: new Set<string>() };
+            byAlias.set(key, entry);
+        }
+        for (const candidate of [product.product_code, product.encoding_code]) {
+            const code = String(candidate || "").trim();
+            if (code && normalize(code) !== key) entry.codes.add(code);
+        }
+    }
+    return Array.from(byAlias.values()).map(({ value, codes }) => ({
+        value,
+        label: codes.size ? `${value} · ${Array.from(codes).join(" · ")}` : value,
+    }));
 };

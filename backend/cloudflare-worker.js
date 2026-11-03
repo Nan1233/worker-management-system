@@ -100,51 +100,6 @@ async function ensureCloudflareSeeded() {
   return cloudflareSeedPromise;
 }
 
-// Served directly from the Worker fetch handler, NOT via app.get(): requiring
-// ./server.js above already registered its catch-all 404, and Express matches
-// in registration order, so anything mounted here would be shadowed and return
-// {"message":"API không tồn tại"} instead of migration status.
-function migrationStatusJson(body, status) {
-  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
-}
-
-function expectedMigrationManifest() {
-  try {
-    const manifest = require("./migrations/manifest.json");
-    const names = Array.isArray(manifest?.migrations) ? manifest.migrations : [];
-    return { expected_migration_count: names.length, expected_latest_migration: names.length ? String(names[names.length - 1]) : null };
-  } catch (error) {
-    console.warn("[KTC][MIGRATION][STATUS] manifest unavailable", error?.message || String(error));
-    return { expected_migration_count: null, expected_latest_migration: null };
-  }
-}
-
-async function handleMigrationStatus() {
-  try {
-    const [appliedRows] = await db.promise().query(`SELECT migration_id, applied_at FROM schema_migrations ORDER BY CAST(SUBSTRING_INDEX(migration_id, '_', 1) AS UNSIGNED) DESC, migration_id DESC`);
-    const applied = (appliedRows || []).map((row) => ({ migration_id: String(row.migration_id), applied_at: row.applied_at }));
-    const latestAppliedVersion = applied.length ? Math.max(...applied.map((row) => Number(String(row.migration_id).split("_", 1)[0]) || 0)) : 0;
-    // Surface any half-applied migration so a resume point is visible instead of
-    // being inferred from logs.
-    let inProgress = null;
-    try {
-      const [stepRows] = await db.promise().query("SELECT migration_id, statement_index, updated_at FROM schema_migration_steps WHERE id=1 LIMIT 1");
-      if (stepRows && stepRows[0]) inProgress = { migration_id: String(stepRows[0].migration_id), statement_index: Number(stepRows[0].statement_index), updated_at: stepRows[0].updated_at };
-    } catch (_) {}
-    return migrationStatusJson({
-      success: true,
-      migration_enabled: false,
-      ...expectedMigrationManifest(),
-      applied_count: applied.length,
-      latest_applied_version: latestAppliedVersion,
-      in_progress: inProgress,
-      latest_applied: applied.slice(0, 10)
-    }, 200);
-  } catch (error) {
-    console.error("[KTC][MIGRATION][STATUS] failed", error);
-    return migrationStatusJson({ success: false, code: "MIGRATION_STATUS_FAILED", message: error?.message || String(error) }, 503);
-  }
-}
 
 app.listen(Number(process.env.PORT || 3000));
 const httpHandler = httpServerHandler({ port: Number(process.env.PORT || 3000) });
@@ -161,7 +116,6 @@ async function enrichApprovedReportMachineDefects(request, response) { const url
 const wrappedServer = { async fetch(request, envArg, ctx) {
   const preflight = handleCorsPreflight(request); if (preflight) return preflight;
   const pathname = new URL(request.url).pathname;
-  if (pathname === "/api/health/migrations") return handleMigrationStatus();
   if (pathname === "/api/health" || pathname === "/api/health/ready") {
     if (!runtimeReadiness.ready) await initializeRuntime();
   } else if (shouldBootstrapBeforeRequest(request)) {

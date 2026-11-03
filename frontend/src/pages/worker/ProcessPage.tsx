@@ -1330,6 +1330,7 @@ const updateDeductionValue = (
 
         if (usesMultiMachineLines) {
             const machineLinesError = validateMachineLines({
+                processCode,
                 machineLines,
                 maxMachines: maxMachineCount,
                 isMachineValid: (machineCode) => machineOptions.some(
@@ -1733,6 +1734,7 @@ window.setTimeout(() => {
                 />
 
                 <ProcessBasicInfoSection
+                    processCode={processCode}
                     form={form}
                     setForm={setForm}
                     onFormChange={handleChange}

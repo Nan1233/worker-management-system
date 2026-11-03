@@ -140,8 +140,12 @@ test('admin_ops user lists, details, and Excel exports reveal only assigned-proc
   assert.match(users, /actor_scope\.process_id=wp2\.process_id/);
   assert.match(users, /actor_scope\.process_id=mp2\.process_id/);
   assert.match(users, /actor_scope\.process_id=wp2\.process_id[\s\S]*?WHERE u\.id=\? LIMIT 1/);
-  assert.match(extras, /actor_scope\.process_id=wp\.process_id/);
-  assert.match(extras, /actor_scope\.process_id=mp\.process_id/);
+  // Excel import/export now loads assignments separately (TiDB-compatible) and
+  // filters both worker and manager assignments against the actor's process scope.
+  assert.match(extras, /async function loadUsersForTransfer[\s\S]*?SELECT wp\.worker_id AS target_id,wp\.process_id,p\.process_name/);
+  assert.match(extras, /SELECT mp\.manager_id AS target_id,mp\.process_id,p\.process_name/);
+  assert.match(extras, /if \(actorProcessIds && !actorProcessIds\.has\(processId\)\) continue/);
+  assert.match(extras, /return assignments\.length > 0/);
 });
 
 

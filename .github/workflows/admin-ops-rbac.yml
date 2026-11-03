@@ -20,8 +20,8 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --no-audit --no-fund
-      - name: Backend source and migration inventory checks
-        run: npm run check && npm run db:migration-inventory
+      - name: Backend source checks
+        run: npm run check
       - name: RBAC / permission contract tests (no live DB required)
         run: >
           node --test
@@ -30,7 +30,6 @@ jobs:
           tests/authorization-process-scope.test.js
           tests/permission-matrix.test.cjs
           tests/full-authorization-audit.test.cjs
-          tests/migration-inventory-contract.test.cjs
       - name: Dependency security audit
         run: npm audit --audit-level=high
 

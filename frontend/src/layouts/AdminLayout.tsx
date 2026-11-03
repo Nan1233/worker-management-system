@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart3, Boxes, ClipboardCheck, Cog, Download, Factory, FileWarning, History, LayoutDashboard, Menu, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, Bell, X } from "lucide-react";
+import { BarChart3, Boxes, ClipboardCheck, Cog, Download, Factory, FileWarning, History, LayoutDashboard, Menu, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, Bell, X, Layers3 } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -12,6 +12,7 @@ const items:AdminMenuItem[]=[
  {label:"Tổng quan hệ thống",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW"},
  {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW"},
  {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW"},
+ {label:"Theo dõi công đoạn",path:"processes",icon:Layers3,permission:"STATISTICS_VIEW"},
  {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW"},
  {label:"Xuất Excel",path:"export",icon:Download,permission:"REPORT_EXPORT"},
  {label:"Tài khoản & nhân sự",path:"workers",icon:Users,permission:"USER_VIEW"},

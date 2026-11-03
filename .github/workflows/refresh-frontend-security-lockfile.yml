@@ -1,0 +1,52 @@
+name: Refresh frontend security lockfile
+
+on:
+  push:
+    branches:
+      - test
+    paths:
+      - "frontend/package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: frontend-security-lockfile-test
+  cancel-in-progress: false
+
+jobs:
+  refresh-lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+        with:
+          ref: test
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Regenerate frontend lockfile from security overrides
+        working-directory: frontend
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Verify patched frontend dependencies
+        working-directory: frontend
+        run: |
+          node -e "const p=require('./package-lock.json'); const cmp=(a,b)=>{const x=a.split('.').map(Number),y=b.split('.').map(Number);for(let i=0;i<Math.max(x.length,y.length);i++){if((x[i]||0)!==(y[i]||0))return (x[i]||0)-(y[i]||0)}return 0}; for (const [name,min] of [['react-router','6.30.6'],['react-router-dom','6.30.6'],['zod','4.6.6']]) { const v=p.packages['node_modules/'+name]?.version; if (!v || cmp(v,min)<0) { console.error(name+' resolved to '+v+', expected >= '+min); process.exitCode=1; } else console.log(name+' '+v); }"
+          npm audit --audit-level=high
+      - name: Commit frontend lockfile update to test
+        run: |
+          if git diff --quiet -- frontend/package-lock.json; then
+            echo "Frontend lockfile already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/package-lock.json
+          git commit -m "security(test): refresh frontend dependency lockfile"
+          git push origin HEAD:test

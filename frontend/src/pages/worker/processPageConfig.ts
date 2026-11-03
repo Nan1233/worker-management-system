@@ -69,6 +69,7 @@ export type MachineLineState = {
     adjustmentCount: string;
     deductions: DeductionState;
     selectedDeductions: DeductionKey[];
+    actualQuantity: string;
     okQuantity: string;
     ngQuantity: string;
     standardOutputPerHour: number;
@@ -89,6 +90,7 @@ export const createEmptyMachineLine = (): MachineLineState => ({
     adjustmentCount: "",
     deductions: { ...initialDeduction },
     selectedDeductions: [],
+    actualQuantity: "",
     okQuantity: "",
     ngQuantity: "",
     standardOutputPerHour: 0,

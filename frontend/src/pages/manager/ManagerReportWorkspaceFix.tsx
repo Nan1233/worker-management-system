@@ -54,13 +54,7 @@ function installPendingTableFix(navigate: (to: string) => void) {
   style.id = styleId;
   style.textContent = `
     @media (min-width:801px) {
-      body.ktc-report-workspace-fix .management-sidebar { position:fixed!important; inset:72px 0 auto!important; width:100%!important; height:58px!important; min-height:58px!important; padding:0 18px!important; flex-direction:row!important; align-items:center!important; gap:14px!important; border-right:0!important; border-bottom:1px solid #dce8f5!important; box-shadow:0 3px 12px rgba(24,58,106,.05)!important; }
-      body.ktc-report-workspace-fix .management-brand { width:120px!important; flex:0 0 120px!important; height:48px!important; padding:2px 4px!important; }
-      body.ktc-report-workspace-fix .management-brand-logo { width:112px!important; max-height:42px!important; }
-      body.ktc-report-workspace-fix .management-menu { display:flex!important; flex:1 1 auto!important; min-width:0!important; margin-top:0!important; overflow-x:auto!important; overflow-y:hidden!important; gap:4px!important; padding:0!important; }
-      body.ktc-report-workspace-fix .management-menu button { width:auto!important; min-width:max-content!important; min-height:42px!important; height:42px!important; padding:0 13px!important; gap:7px!important; white-space:nowrap!important; }
-      body.ktc-report-workspace-fix .management-sidebar-footer { display:none!important; }
-      body.ktc-report-workspace-fix .management-main { margin-left:0!important; }
+      /* Keep the shared management sidebar layout; this page only styles its report workspace. */
       body.ktc-report-workspace-fix .management-content { padding-top:24px!important; }
       body.ktc-report-workspace-fix .pending-reference-page { max-width:none!important; margin-top:0!important; }
       body.ktc-report-workspace-fix .pending-reference-table { min-width:1450px!important; table-layout:fixed!important; }

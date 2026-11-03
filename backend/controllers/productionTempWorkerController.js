@@ -527,6 +527,13 @@ exports.createTempReport = async (req, res) => {
                 id:
                     result.id,
 
+                // Existing clients continue using id; newer clients can consume every per-machine report.
+                ids:
+                    Array.isArray(result.ids) ? result.ids : (result.id ? [result.id] : []),
+
+                reports:
+                    Array.isArray(result.reports) ? result.reports : [],
+
                 data:
                     result.existing_report || null
             });

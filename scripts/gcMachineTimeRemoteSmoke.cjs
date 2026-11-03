@@ -65,36 +65,47 @@ function expectedAccounting(report) {
   const seenDeductionKeys = new Set();
   let grossHours = 0;
   let deductionHours = 0;
+  let hasPhysicalEvent = false;
+  let hasMissingLinkedEvent = false;
 
   for (const [index, line] of lines.entries()) {
     const eventId = Number(line?.machine_event_id) || 0;
     const event = eventId ? eventsById.get(eventId) : null;
 
     if (event) {
+      hasPhysicalEvent = true;
       if (!seenEvents.has(eventId)) {
         seenEvents.add(eventId);
         grossHours += positive(event.machine_time_hours);
       }
+    } else if (eventId > 0) {
+      // A broken event link is not evidence of physical time. Never replace it
+      // with the worker participation time stored on the machine line.
+      hasMissingLinkedEvent = true;
     } else {
-      grossHours += positive(line?.machine_time_hours);
+      grossHours += positive(line?.excel_machine_time_hours ?? line?.machine_time_hours);
     }
 
     const deductionKey = eventId
       ? `EVENT:${eventId}`
       : `LINE:${Number(line?.id) || index}`;
-
     if (seenDeductionKeys.has(deductionKey)) continue;
     seenDeductionKeys.add(deductionKey);
-    deductionHours += positive(line?.deduction_time_hours);
-  }
 
-  // Legacy reports may still carry deduction rows outside machine lines.
-  if (deductionHours <= 0) {
-    const legacy = Array.isArray(report?.deductions) ? report.deductions : [];
-    deductionHours = legacy.reduce((sum, item) => sum + positive(item?.hours), 0);
+    const details = parseArray(line?.deductions_json);
+    const detailHours = details.reduce((sum, item) => sum + positive(item?.hours), 0);
+    deductionHours += Math.max(
+      0,
+      positive(line?.deduction_time_hours),
+      positive(line?.adjustment_minutes) / 60,
+      detailHours
+    );
   }
 
   return {
+    source: hasPhysicalEvent
+      ? (hasMissingLinkedEvent ? 'MACHINE_EVENT_PARTIAL' : 'MACHINE_EVENT')
+      : (hasMissingLinkedEvent ? 'MACHINE_EVENT_MISSING' : (lines.length ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING')),
     grossHours: Number(grossHours.toFixed(6)),
     deductionHours: Number(deductionHours.toFixed(6)),
     netHours: Number(Math.max(0, grossHours - deductionHours).toFixed(6))

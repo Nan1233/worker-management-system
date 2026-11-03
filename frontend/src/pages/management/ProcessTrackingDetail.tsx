@@ -1,0 +1,45 @@
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, PackageCheck, RefreshCw, XCircle } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import api from "../../services/api";
+import "./ProcessTracking.css";
+
+type Process={id:number;process_code?:string;process_name:string};
+const pad=(n:number)=>String(n).padStart(2,"0");
+const today=()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;};
+const monthStart=()=>today().slice(0,8)+"01";
+const currentDate=new Date();
+const currentYear=currentDate.getFullYear();
+const monthNames=["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
+const monthRange=(month:number,year:number)=>{const last=new Date(year,month,0).getDate();const from=`${year}-${pad(month)}-01`;const isCurrentMonth=year===currentYear&&month===currentDate.getMonth()+1;const to=isCurrentMonth?today():`${year}-${pad(month)}-${pad(last)}`;return{from,to};};
+const num=(v:number)=>Number(v||0).toLocaleString("vi-VN",{maximumFractionDigits:1});
+const percent=(actual:number,plan:number)=>plan>0?`${(actual/plan*100).toLocaleString("vi-VN",{maximumFractionDigits:1})}%`:"—";
+export default function ProcessTrackingDetail(){
+ const {processId}=useParams(),navigate=useNavigate();
+ const [selectedMonth,setSelectedMonth]=useState(String(currentDate.getMonth()+1)),[selectedYear,setSelectedYear]=useState(String(currentYear));
+ const initialRange=monthRange(Number(selectedMonth),Number(selectedYear));
+ const [appliedFrom,setAppliedFrom]=useState(initialRange.from),[appliedTo,setAppliedTo]=useState(initialRange.to);
+ const [processes,setProcesses]=useState<Process[]>([]),[summary,setSummary]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
+ const process=useMemo(()=>processes.find(p=>String(p.id)===String(processId)),[processes,processId]);
+ const row=summary?.process_summary?.find((p:any)=>String(p.process_id)===String(processId));
+ const plan=summary?.plan_summary?.find((p:any)=>String(p.process_id)===String(processId));
+ const load=async(start=appliedFrom,end=appliedTo)=>{setLoading(true);setError("");try{const response=await api.get("/dashboard/summary",{params:{from:start,to:end,process_id:processId}});const data=response.data?.data||{};setProcesses(Array.isArray(data.processes)?data.processes:[]);setSummary(data);if(!data.processes?.some((p:Process)=>String(p.id)===String(processId)))setError("Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.");}catch(e:any){setError(e?.response?.status===403||e?.response?.status===404?"Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.":e?.response?.data?.message||"Không thể tải dữ liệu công đoạn.");}finally{setLoading(false);}};
+ useEffect(()=>{void load();},[processId,appliedFrom,appliedTo]);
+ const apply=()=>{const range=monthRange(Number(selectedMonth),Number(selectedYear));setAppliedFrom(range.from);setAppliedTo(range.to);};
+ const ok=Number(row?.ok||0),ng=Number(row?.ng||0),actual=ok+ng,planned=Number(plan?.planned_quantity||0);
+ const machineActual=Number(summary?.machine_performance?.counted_output||0),machinePlan=(summary?.machine_plan_summary||[]).reduce((s:number,x:any)=>s+Number(x.planned_quantity||0),0);
+ const products=summary?.product_summary||[],machines=summary?.machine_summary||[],workers=summary?.worker_summary||[];
+ const qualityTotal=ok+ng;
+ return <main className="process-tracking-page">
+  <button className="process-tracking-back" type="button" onClick={()=>navigate("..")}><ArrowLeft size={16}/> Danh sách công đoạn</button>
+  <header className="process-tracking-heading"><div><span className="process-tracking-eyebrow">CHI TIẾT CÔNG ĐOẠN</span><h1>{process?.process_name||"Công đoạn"}</h1><p>{process?.process_code||"Theo dõi tình hình sản xuất"} · Dữ liệu trong phạm vi được phân công</p></div><button className="process-tracking-refresh" type="button" onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/> Làm mới</button></header>
+  <section className="process-tracking-filter tracking-period-filter"><label><span>Tháng</span><select value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)}>{monthNames.map((name,index)=><option key={index+1} value={String(index+1)}>{name}</option>)}</select></label><label><span>Năm</span><select value={selectedYear} onChange={e=>setSelectedYear(e.target.value)}>{Array.from({length:currentYear-2021+1},(_,i)=>String(currentYear-i)).map(y=><option key={y} value={y}>{y}</option>)}</select></label><button type="button" onClick={apply}><CalendarDays size={16}/> Áp dụng</button></section>
+  {loading?<div className="process-tracking-state" role="status">Đang tải dữ liệu…</div>:error?<div className="process-tracking-state error" role="alert">{error}</div>:<>
+   <div className="process-tracking-period">Dữ liệu từ {appliedFrom.split("-").reverse().join("/")} đến {appliedTo.split("-").reverse().join("/")}</div>
+   <section className="tracking-section"><header><div><span>A</span><h2>Nhân công</h2></div><small>{num(summary?.worker_performance?.worker_count||0)} công nhân thực tế</small></header><p className="tracking-note">Giờ công thực tế: {num(summary?.worker_performance?.actual_worker_hours||0)} giờ. Sản lượng được tổng hợp theo từng công nhân từ các báo cáo đã duyệt.</p><div className="tracking-table-wrap"><table><thead><tr><th>Mã công nhân</th><th>Họ và tên</th><th>Sản lượng kế hoạch</th><th>Sản lượng thực tế</th><th>Hoàn thành</th><th>Giờ công</th></tr></thead><tbody>{workers.length?workers.map((w:any)=><tr key={w.worker_id}><td>{w.worker_code}</td><td>{w.full_name}</td><td>{num(w.planned_output)}</td><td>{num(w.actual_output)}</td><td><span className="tracking-completion">{percent(w.actual_output,w.planned_output)}</span></td><td>{num(w.worker_hours)}</td></tr>):<tr><td colSpan={6} className="tracking-empty">Chưa có dữ liệu công nhân trong kỳ</td></tr>}</tbody></table></div></section>
+   <section className="tracking-section"><header><div><span>B</span><h2>Máy móc</h2></div><small>{num(summary?.machine_performance?.machine_count||0)} máy thực tế</small></header><p className="tracking-note">Giờ máy thực tế: {num(summary?.machine_performance?.total_machine_hours||0)} giờ. Giờ máy được lấy từ dữ liệu máy, không nhân theo số công nhân.</p>{machines.length>0&&<div className="tracking-table-wrap"><table><thead><tr><th>Mã máy</th><th>Sản lượng kế hoạch</th><th>Sản lượng thực tế</th><th>Hoàn thành</th><th>Giờ máy</th></tr></thead><tbody>{machines.map((m:any)=><tr key={m.machine_id}><td>{m.machine_code||`Máy ${m.machine_id}`}</td><td>{num(m.maximum_output)}</td><td>{num(m.counted_output)}</td><td><span className="tracking-completion">{percent(m.counted_output,m.maximum_output)}</span></td><td>{num(m.machine_hours)}</td></tr>)}</tbody></table></div>}</section>
+   <section className="tracking-section"><header><div><span>C</span><h2>Sản lượng theo sản phẩm</h2></div></header><div className="tracking-table-wrap"><table><thead><tr><th>Mã sản phẩm</th><th>Sản lượng kế hoạch</th><th>Sản lượng thực tế</th><th>OK</th><th>NG</th><th>Hoàn thành</th></tr></thead><tbody>{products.length?products.map((p:any)=><tr key={p.product_code}><td>{p.product_code}</td><td>{num(p.planned_quantity||0)}</td><td>{num(p.quantity)}</td><td>{num(p.ok)}</td><td>{num(p.ng)}</td><td><span className="tracking-completion">{percent(p.quantity,p.planned_quantity||0)}</span></td></tr>):<tr><td colSpan={6} className="tracking-empty">Chưa có dữ liệu sản phẩm trong kỳ</td></tr>}</tbody></table></div></section>
+  </>}
+ </main>;
+}
+function Metric({label,value,progress,tone}:{label:string;value:string;progress?:number;tone?:string}){return <article className={`tracking-metric ${tone||""}`}><small>{label}</small><strong>{value}</strong>{progress!==undefined&&<div className="tracking-progress"><i style={{width:`${Math.max(0,Math.min(100,progress))}%`}}/></div>}</article>}

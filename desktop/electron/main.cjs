@@ -907,7 +907,7 @@ function startExcelDbSyncWatcher() {
   excelDbSyncTimer = null;
 }
 
-async function performSync({ date, source }) {
+async function performSyncSingleMonth({ date, source }) {
   const startedAt = Date.now();
   await writeLog('INFO', 'SYNC_START', {
     source,
@@ -1050,7 +1050,7 @@ async function performSync({ date, source }) {
       saved: summaryWrite.saved,
       pendingPath: summaryWrite.pendingPath,
       backupPath: summaryWrite.backupPath,
-      success: true,
+      success: summaryWrite.saved === true,
       source: 'desktop-local',
       formulaReplacementCount: built.summary.formulaReplacementCount
     });
@@ -1081,7 +1081,7 @@ async function performSync({ date, source }) {
         saved: writeResult.saved,
         pendingPath: writeResult.pendingPath,
         backupPath: writeResult.backupPath,
-        success: true,
+        success: writeResult.saved === true,
         source: 'desktop-local',
         sheetResult: processBuilt.result,
         formulaReplacementCount: processBuilt.formulaReplacementCount
@@ -1156,6 +1156,82 @@ async function performSync({ date, source }) {
   });
   return result;
 }
+async function performSync({ date, source }) {
+  const startedAt = Date.now();
+  assertDate(date);
+  const [year] = date.split('-');
+  const root = getExportRoot();
+  const monthResults = [];
+  await writeLog('INFO', 'YEARLY_APPROVED_EXPORT_START', {
+    year, source, monthsRequested: 12, policy: 'ALL_APPROVED_REPORTS_BY_MONTH'
+  });
+
+  for (let month = 1; month <= 12; month += 1) {
+    const monthText = String(month).padStart(2, '0');
+    const monthDate = `${year}-${monthText}-01`;
+    try {
+      const result = await performSyncSingleMonth({ date: monthDate, source: `${source}:yearly` });
+      monthResults.push({
+        yearMonth: `${year}-${monthText}`,
+        success: result.success === true,
+        skipped: result.skipped === true,
+        code: result.code || null,
+        files: Array.isArray(result.files) ? result.files : [],
+        message: result.message || null
+      });
+    } catch (error) {
+      monthResults.push({
+        yearMonth: `${year}-${monthText}`,
+        success: false,
+        skipped: false,
+        error: error.message,
+        files: []
+      });
+      await writeLog('ERROR', 'YEARLY_APPROVED_EXPORT_MONTH_FAILED', {
+        year, yearMonth: `${year}-${monthText}`, source, ...normalizeError(error)
+      });
+    }
+  }
+
+  const exportedMonths = monthResults.filter((item) => !item.skipped && item.files.length > 0);
+  const skippedMonths = monthResults.filter((item) => item.skipped);
+  const failedMonths = monthResults.filter((item) => !item.success && !item.skipped);
+  const files = monthResults.flatMap((item) => item.files.map((file) => ({
+    ...file, yearMonth: item.yearMonth
+  })));
+  const hasExportedData = exportedMonths.length > 0;
+  const success = hasExportedData && failedMonths.length === 0 &&
+    exportedMonths.every((item) => item.success);
+  const result = {
+    success,
+    partialSuccess: hasExportedData && failedMonths.length > 0,
+    skipped: !hasExportedData && failedMonths.length === 0,
+    code: !hasExportedData && failedMonths.length === 0 ? 'NO_APPROVED_DATA_FOR_YEAR' : undefined,
+    message: success
+      ? `Đã cập nhật báo cáo approved năm ${year}: ${exportedMonths.length} tháng có dữ liệu; bỏ qua ${skippedMonths.length} tháng trống.`
+      : hasExportedData
+        ? `Đã xuất một phần báo cáo năm ${year}; có ${failedMonths.length} tháng lỗi. Kiểm tra desktop.log.`
+        : failedMonths.length
+          ? `Không thể xuất báo cáo năm ${year}; có ${failedMonths.length} tháng lỗi.`
+          : `Năm ${year} chưa có báo cáo approved để xuất.`,
+    date,
+    year,
+    files,
+    months: monthResults.map(({ files: _files, ...item }) => item),
+    rootFolder: root,
+    savedAt: new Date().toISOString(),
+    elapsedMs: Date.now() - startedAt,
+    excelEngine: 'desktop-local',
+    backendRole: 'approved-data-only'
+  };
+  await writeLog(success ? 'INFO' : 'WARN', 'YEARLY_APPROVED_EXPORT_FINISH', {
+    year, source, success, exportedMonthCount: exportedMonths.length,
+    skippedMonthCount: skippedMonths.length, failedMonthCount: failedMonths.length,
+    fileCount: files.length
+  });
+  return result;
+}
+
 async function syncAllProcessExcel({ date, source = 'manual', token: requestedToken = '' } = {}) {
   assertDate(date);
   const token = await waitForUsableRendererToken(requestedToken, 8_000);

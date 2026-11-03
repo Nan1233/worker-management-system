@@ -61,7 +61,7 @@ export default function ProcessTimeDeductionSection({ processCode = "", form, se
                         <div className="worker-time-part"><span>Giờ</span><input data-worker-time-part="actual-hours" type="number" min="0" max="12" step="1" inputMode="numeric" value={form.actualHours} onChange={(event) => handleHoursChange(event.target.value)} placeholder="0" /></div>
                         <div className="worker-time-part"><span>Phút</span><input data-worker-time-part="actual-minutes" type="number" min="0" max="59" step="1" inputMode="numeric" value={form.actualMinutes} disabled={Number(form.actualHours) >= 12 || (Number(form.actualHours) || 0) * 60 + getDeductionMinutes(deductions) >= MAX_TOTAL_WORK_MINUTES} onChange={(event) => handleMinutesChange(event.target.value)} placeholder="0" /></div>
                     </div>
-                    <small>Nhập thời gian thực tế. Thời gian trừ cộng thêm để tính tổng, tổng không quá 12 giờ.</small>
+                    
                 </div>
                 <div className="worker-time-item worker-time-computed" data-worker-time="deduction">
                     <label>{String(processCode).toUpperCase() === "K1" ? "Nhập giờ trừ" : "Thời gian trừ"}</label>
@@ -71,13 +71,13 @@ export default function ProcessTimeDeductionSection({ processCode = "", form, se
                 <div className="worker-time-item worker-time-computed" data-worker-time="total">
                     <label>Tổng thời gian</label>
                     <input data-worker-time-value="total" value={form.totalTime} readOnly aria-readonly="true" />
-                    <small>Thực tế + thời gian trừ · tối đa 12 giờ</small>
+                    
                 </div>
             </div>
             {String(processCode).toUpperCase() === "K1" && <div className="worker-field-block" data-k1-deduction-work>
                 <label className="worker-field-label" htmlFor="k1DeductionWork">Công việc trừ giờ (ghi rõ nội dung)</label>
                 <input id="k1DeductionWork" className="worker-text-input" value={form.k1DeductionWork || ""} onChange={(event) => setForm((current) => ({ ...current, k1DeductionWork: event.target.value }))} placeholder="Ví dụ: quét nhà, kéo hàng, 5S..." maxLength={500} autoComplete="off" />
-                <small>Nội dung này được lưu cùng báo cáo; nhập số phút ở mục “Nhập giờ trừ” bên dưới.</small>
+                
             </div>}
             <div className="worker-dropdown-box">
                 <button type="button" className="worker-dropdown-title" onClick={() => setShowDeduction((prev) => !prev)} aria-expanded={showDeduction} aria-controls="worker-deduction-options">

@@ -196,9 +196,30 @@ module.exports = {
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status = 'approved'");
         const where = conditions.join(" AND ");
         const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
-        const items = await query(db, `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.training_percent_snapshot,pr.training_percent_snapshot AS training_percent,w.worker_code,u.full_name,p.process_name FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.approved_at DESC, pr.id DESC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
+        const items = await query(db, `SELECT pr.*,w.worker_code,u.full_name,p.process_name,p.process_code FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.approved_at DESC, pr.id DESC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
+        const ids = items.map((item) => Number(item.id)).filter((id) => Number.isInteger(id) && id > 0);
+        let enrichedItems = items;
+        if (ids.length) {
+            const placeholders = ids.map(() => "?").join(",");
+            const machineLines = await query(db, `SELECT ml.* FROM production_report_machine_lines ml WHERE ml.report_id IN (${placeholders}) ORDER BY ml.report_id,ml.id`, ids);
+            const byReport = new Map();
+            for (const line of machineLines || []) {
+                const id = Number(line.report_id);
+                if (!byReport.has(id)) byReport.set(id, []);
+                byReport.get(id).push(line);
+            }
+            enrichedItems = items.map((item) => {
+                const lines = enrichMachineLines(byReport.get(Number(item.id)) || []);
+                return normalizeReportTimestamps({
+                    ...item,
+                    ...(lines.length ? deriveMachineKpiFields(item, lines) : {}),
+                    machine_lines: lines,
+                    training_percent: item.training_percent_snapshot ?? item.training_percent
+                });
+            });
+        }
         const processes = await getProcessOptions(managerId, isAdmin);
-        return { items, pagination: paginationMeta({page,pageSize,total:Number(countRows?.[0]?.total||0)}), processes };
+        return { items: enrichedItems, pagination: paginationMeta({page,pageSize,total:Number(countRows?.[0]?.total||0)}), processes };
     },
     async getDates(managerId = null) {
         if (managerId) return query(db, `SELECT DISTINCT DATE(pr.work_date) AS date FROM production_reports_temp pr WHERE pr.status IN ('pending','need_fix') AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id=pr.process_id AND mp.manager_id=?) ORDER BY date DESC`, [managerId]);
@@ -240,7 +261,9 @@ module.exports = {
         try { machineLines=await query(db,`SELECT ml.* FROM production_report_machine_lines ml WHERE ml.report_id=? ORDER BY ml.id`,[id]); } catch(e) { console.warn('APPROVED DETAIL MACHINE FALLBACK:',e?.message||e); }
         const detailNg = (defects || []).reduce((sum, row) => sum + Math.max(0, Math.trunc(Number(row.quantity) || 0)), 0);
         const ttNg = Math.max(0, Math.trunc(Number(approved.tt_ng) || 0));
-        return normalizeReportTimestamps({...approved,defects:mergeDefects(approved,defects,machineLines),worker_defects:workerDeclaredDefects(defects),deductions:normalizeDeductions(deductions),machine_lines:mergeMachineDefects(machineLines,[],[]),ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg,report_type:'approved'});
+        const enrichedMachineLines = mergeMachineDefects(machineLines,[],[]);
+        const kpiFields = deriveMachineKpiFields(approved, enrichedMachineLines);
+        return normalizeReportTimestamps({...approved,...(enrichedMachineLines.length ? kpiFields : {}),defects:mergeDefects(approved,defects,machineLines),worker_defects:workerDeclaredDefects(defects),deductions:normalizeDeductions(deductions),machine_lines:enrichedMachineLines,ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg,report_type:'approved'});
     },
     async canManageReport(reportId, managerId, isAdmin=false) {
         if(isAdmin) return true;

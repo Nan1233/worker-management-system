@@ -1,0 +1,274 @@
+/* KTC Management Experience — shared visual refinement for Manager, Lead, Admin Ops and Admin.
+   Presentation only: no route, permission, API, validation or production-rule changes. */
+.management-layout {
+  --mg-bg: #f5f7fa;
+  --mg-surface: #ffffff;
+  --mg-border: #e4e9f0;
+  --mg-border-strong: #d4dde8;
+  --mg-text: #1d2b3f;
+  --mg-muted: #68788d;
+  --mg-primary: #2369bd;
+  --mg-primary-soft: #edf4fd;
+  --mg-radius: 12px;
+  background: var(--mg-bg) !important;
+  color: var(--mg-text);
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+.management-layout .management-sidebar {
+  background: #fff !important;
+  border-right-color: var(--mg-border) !important;
+}
+.management-layout .management-sidebar-brand {
+  border-bottom-color: var(--mg-border) !important;
+}
+.management-layout .management-nav-group-title {
+  color: #8a97a8 !important;
+  letter-spacing: .065em !important;
+}
+.management-layout .management-menu button,
+.management-layout .management-sidebar-account button {
+  min-height: 39px !important;
+  height: 39px !important;
+  border-radius: 8px !important;
+  color: #526176 !important;
+  font-size: 12.5px !important;
+  transition: background .16s ease, color .16s ease;
+}
+.management-layout .management-menu button.active,
+.management-layout .management-sidebar-account button.active {
+  background: #edf4fd !important;
+  color: #1d62b0 !important;
+  box-shadow: inset 3px 0 #286fc3 !important;
+}
+.management-layout .management-menu button.active svg,
+.management-layout .management-sidebar-account button.active svg {
+  color: #286fc3 !important;
+}
+.management-layout .management-header {
+  background: rgba(255,255,255,.97) !important;
+  border-bottom: 1px solid var(--mg-border) !important;
+  box-shadow: 0 1px 3px rgba(20,40,70,.025) !important;
+}
+.management-layout .management-header-context strong {
+  color: #24364d !important;
+  font-size: 13px !important;
+}
+.management-layout .management-header-context span,
+.management-layout .management-user-copy small {
+  color: var(--mg-muted) !important;
+}
+.management-layout .management-date,
+.management-layout .management-notification {
+  border-color: var(--mg-border) !important;
+  border-radius: 9px !important;
+  color: #526176 !important;
+}
+.management-layout .management-content {
+  padding: 22px 26px 34px !important;
+}
+.management-layout .management-content > main,
+.management-layout .management-content > section {
+  min-width: 0;
+}
+.management-layout .management-content h1 {
+  color: #1c3554;
+  letter-spacing: -.025em;
+}
+.management-layout .management-content h2,
+.management-layout .management-content h3 {
+  letter-spacing: -.015em;
+}
+.management-layout .management-content p {
+  line-height: 1.5;
+}
+.management-layout .management-content :is(input, select, textarea) {
+  accent-color: var(--mg-primary);
+}
+.management-layout .management-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-color: var(--mg-border-strong);
+  border-radius: 8px;
+}
+.management-layout .management-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus {
+  outline: none;
+  border-color: #8bb4e3 !important;
+  box-shadow: 0 0 0 3px rgba(35,105,189,.09) !important;
+}
+.management-layout .management-content :is(button, a) {
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.management-layout .management-content :is(button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible) {
+  outline: 2px solid rgba(35,105,189,.65);
+  outline-offset: 2px;
+}
+.management-layout .management-content :is(.dashboard-panel, .statistics-card, .personnel-card, .permission-card, .master-table-wrap, .download-card, .proposal-list-card, .proposal-detail-card, .pending-list-card, .pending-detail-card, .selected-report-card) {
+  border-color: var(--mg-border) !important;
+  border-radius: var(--mg-radius) !important;
+  box-shadow: 0 1px 3px rgba(20,40,70,.035) !important;
+}
+.management-layout .management-content :is(.pending-reference-table, .personnel-table, .statistics-table-wrap table, .master-table-wrap table, .permission-table-wrap table) {
+  font-variant-numeric: tabular-nums;
+}
+.management-layout .management-content :is(.pending-reference-table th, .personnel-table th, .statistics-table-wrap th, .master-table-wrap th, .permission-table-wrap th) {
+  background: #f7f9fc !important;
+  color: #65758a !important;
+  font-weight: 650 !important;
+}
+.management-layout .management-content :is(.pending-reference-table td, .personnel-table td, .statistics-table-wrap td, .master-table-wrap td, .permission-table-wrap td) {
+  border-bottom-color: #edf0f4 !important;
+}
+.management-layout .management-content :is(.pending-reference-table tbody tr:hover td, .personnel-table tbody tr:hover td, .statistics-table-wrap tbody tr:hover td, .master-table-wrap tbody tr:hover td) {
+  background: #f8fbff;
+}
+.management-layout .management-content :is(.pending-filter-card, .personnel-toolbar, .master-toolbar, .statistics-filter-card, .manager-report-filters) {
+  border-color: var(--mg-border) !important;
+}
+.management-layout .management-content :is(.pending-page-title h1, .personnel-header h1, .master-heading h1, .proposal-page-head h1) {
+  color: #1c3554 !important;
+}
+.management-layout .management-content :is(.pending-page-title p, .personnel-header p, .master-heading p, .proposal-page-head p) {
+  color: var(--mg-muted) !important;
+}
+.management-layout .management-content .dashboard-welcome {
+  border-color: #e0e8f2 !important;
+  border-radius: 14px !important;
+  background: linear-gradient(115deg,#fff 0%,#f4f8fd 100%) !important;
+}
+.management-layout .management-content .dashboard-welcome h1 {
+  color: #1c3554 !important;
+  font-size: clamp(22px,2vw,28px) !important;
+}
+.management-layout .management-content .dashboard-welcome p,
+.management-layout .management-content .dashboard-motto {
+  color: #68788d !important;
+}
+.management-layout .management-content .manager-dashboard .dashboard-panel {
+  border-color: var(--mg-border) !important;
+  border-radius: var(--mg-radius) !important;
+  box-shadow: 0 1px 3px rgba(20,40,70,.035) !important;
+}
+.management-layout .management-content .dashboard-panel-title h2 {
+  color: #29415e !important;
+}
+.management-layout .management-content .dashboard-panel-title > div > span {
+  color: #78879a !important;
+}
+.management-layout .management-content .admin-dashboard-hero {
+  border-color: var(--mg-border) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(120deg,#fff 0%,#f7f9fc 100%) !important;
+  box-shadow: 0 1px 3px rgba(20,40,70,.035) !important;
+}
+.management-layout .management-content .admin-dashboard-hero h1 {
+  color: #1c3554 !important;
+}
+.management-layout .management-content :is(.admin-overview-card, .admin-control-card, .admin-notice) {
+  border-color: var(--mg-border) !important;
+  border-radius: var(--mg-radius) !important;
+  box-shadow: 0 1px 3px rgba(20,40,70,.03) !important;
+}
+.management-layout .management-content .admin-control-card:hover {
+  border-color: #b8cce3 !important;
+  box-shadow: 0 5px 16px rgba(20,40,70,.06) !important;
+}
+.management-layout .management-content .download-page {
+  padding: 0 !important;
+}
+.management-layout .management-content .download-card {
+  padding: 22px !important;
+  border-radius: 14px !important;
+  box-shadow: 0 1px 3px rgba(20,40,70,.035) !important;
+}
+.management-layout .management-content .export-box {
+  border-color: var(--mg-border) !important;
+  border-radius: 11px !important;
+  background: #fbfcfe !important;
+}
+.management-layout .management-content .permission-page {
+  gap: 16px !important;
+}
+.management-layout .management-content .permission-card-head {
+  padding: 16px 18px !important;
+}
+.management-layout .management-content .permission-table-wrap th {
+  position: sticky;
+  top: 0;
+}
+.management-layout .management-content .manager-report-grid {
+  background: transparent !important;
+}
+.management-layout .management-content .manager-excel-toolbar,
+.management-layout .management-content .manager-report-filters {
+  flex-wrap: wrap !important;
+}
+.management-layout .management-content .manager-report-filters {
+  align-items: center !important;
+}
+.management-layout .management-content .manager-excel-scroll {
+  border: 1px solid var(--mg-border);
+  border-radius: 10px;
+  background: #fff;
+}
+.management-layout .management-content .manager-excel-scroll th {
+  background: #f5f7fa !important;
+}
+.management-layout .management-content .manager-excel-scroll td,
+.management-layout .management-content .manager-excel-scroll th {
+  border-color: #e8edf3 !important;
+}
+.management-layout .management-content .proposal-workspace {
+  gap: 14px !important;
+}
+.management-layout .management-content .proposal-list-card,
+.management-layout .management-content .proposal-detail-card {
+  box-shadow: 0 1px 3px rgba(20,40,70,.035) !important;
+}
+.management-layout .management-content :is(.proposal-card-head, .proposal-detail-head, .proposal-actions) {
+  border-color: var(--mg-border) !important;
+}
+.management-layout .management-content .proposal-list-item.active {
+  background: #edf4fd !important;
+}
+.management-layout .management-content :is(.detail-basic-card, .report-detail-card) {
+  border-color: var(--mg-border);
+  border-radius: var(--mg-radius);
+}
+@media (max-width: 1100px) and (min-width: 801px) {
+  .management-layout .management-content { padding: 18px !important; }
+}
+@media (max-width: 800px) {
+  .management-layout .management-content { padding: 12px 10px 20px !important; }
+  .management-layout .management-content :is(.personnel-header, .master-heading, .pending-page-title, .proposal-page-head) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .management-layout .management-content :is(.personnel-header-actions, .personnel-transfer-actions) {
+    width: 100%;
+  }
+  .management-layout .management-content .personnel-toolbar {
+    flex-wrap: wrap;
+  }
+  .management-layout .management-content .personnel-search {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+  .management-layout .management-content :is(.personnel-toolbar select, .master-toolbar select) {
+    min-width: 0;
+    flex: 1 1 140px;
+  }
+  .management-layout .management-content .pending-workspace {
+    grid-template-columns: minmax(0,1fr) !important;
+  }
+  .management-layout .management-content .download-card {
+    padding: 16px !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .management-layout .management-content *,
+  .management-layout .management-sidebar * {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

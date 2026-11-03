@@ -5,15 +5,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
 
-function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false }) {
+function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false, processCode = 'EP' }) {
   const log = [];
   let nextId = 1000;
   const answer = (rawSql) => {
     const sql = String(rawSql).replace(/\s+/g, ' ');
     if (/LAST_INSERT_ID/i.test(sql)) return [{ insertId: nextId }];
-    if (/SUM\(counted_hours\)/i.test(sql)) return [{ counted_hours: dailyHours }];
+    if (/SUM\((?:group_hours|counted_hours)\)/i.test(sql)) return [{ counted_hours: dailyHours }];
     if (/training_percent FROM workers/i.test(sql)) return [{ training_percent: 100 }];
-    if (/FROM processes/i.test(sql)) return [{ process_code: 'EP' }];
+    if (/FROM processes/i.test(sql)) return [{ process_code: processCode }];
     if (existingRequest && /FROM production_reports_temp WHERE worker_id = \? AND client_request_id/i.test(sql)) return [{ id: 77, status: 'pending' }];
     if (/^\s*INSERT/i.test(sql)) { nextId += 1; return { insertId: /duplicate_locks/.test(sql) ? 0 : nextId, affectedRows: 1 }; }
     return [];
@@ -81,6 +81,17 @@ test('transaction subrequest budget stays bounded (<=24 without machine, <=30 wi
 test('12-hour daily limit is still enforced and the transaction is rolled back without inserting', async () => {
   const { Model, log } = setup({ supportsBeginIsolation: true, dailyHours: 9 });
   await assert.rejects(() => run(Model), (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED' && error.status === 422);
+  assert.equal(log.at(-1), 'ROLLBACK');
+  assert.ok(!log.some((sql) => /^INSERT INTO production_reports_temp/i.test(sql)));
+});
+
+test('GC daily cap counts machine_time_hours minus deductions when actual_time_hours is absent', async () => {
+  const { Model, log } = setup({ supportsBeginIsolation: true, dailyHours: 9, processCode: 'GC' });
+  const data = { ...baseData(), actual_time: 0, _daily_hours_machine_lines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }] };
+  await assert.rejects(
+    () => Model.createCompleteReport({ data, defects: [], deductions: [], machineLines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }], audit: { userId: 9 } }),
+    (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED' && error.status === 422
+  );
   assert.equal(log.at(-1), 'ROLLBACK');
   assert.ok(!log.some((sql) => /^INSERT INTO production_reports_temp/i.test(sql)));
 });
