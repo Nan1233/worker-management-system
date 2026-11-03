@@ -115,7 +115,8 @@ add(blockers, 'CLOUDFLARE_RUNTIME_SECRETS_UNVERIFIED', 'Chưa thể xác minh tr
 
 if (/resolveCloudflareDeploymentProfile/.test(cloudflareWorker) &&
     /validateCloudflareRuntimeSecrets\(env\)/.test(cloudflareWorker) &&
-    /if\s*\(!deploymentProfile\.masterDataBootstrapEnabled\)\s*return true/.test(cloudflareWorker) &&
+    !/ensureCloudflareSeeded|ensureGcDefectMasterData|ensureGcLong2801Lt/.test(cloudflareWorker) &&
+    backendTest.vars?.KTC_RUN_MASTER_DATA_BOOTSTRAP === 'false' &&
     backendProduction.vars?.KTC_RUN_MASTER_DATA_BOOTSTRAP === 'false') {
   checks.push({ id: 'CLOUDFLARE_RUNTIME_GUARDS', status: 'PASS' });
 } else {
