@@ -50,6 +50,7 @@ function addDeduction(target, item) {
   });
 }
 
+/** Resolve one worker's credited participation; never substitute shared event duration. */
 function resolveWorkerParticipationTimes(report = {}) {
   const lines = machineLinesOf(report);
   const hasMachine = hasMachineOf(report, lines);
@@ -76,6 +77,7 @@ function resolveWorkerParticipationTimes(report = {}) {
   };
 }
 
+/** Resolve physical machine totals, deduplicated by event ID. Not a worker-time resolver. */
 function resolveExportTimes(report = {}) {
   const lines = machineLinesOf(report);
   const hasMachine = hasMachineOf(report, lines);
