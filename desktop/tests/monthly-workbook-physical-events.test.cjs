@@ -12,9 +12,9 @@ test('Desktop GC visible report snapshot keeps worker totals, not shared physica
     total_time: 4,
     actual_time: 3.5,
     deduction_time: 0.5,
-    tt_ok: 100,
-    tt_ng: 0,
-    actual_output: 100,
+    tt_ok: 60,
+    tt_ng: 2,
+    actual_output: 62,
     standard_output: 25,
     training_percent: 100,
     machineLines: [
