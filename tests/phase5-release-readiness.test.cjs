@@ -8,7 +8,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const script = path.join(root, 'scripts/phase5ReleaseReadiness.cjs');
 
-test('Phase 5 readiness report is source-only and identifies TEST endpoints as release blockers', () => {
+test('Phase 5 readiness report is source-only and distinguishes explicit TEST endpoints from production blockers', () => {
   const result = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(result.stdout);
