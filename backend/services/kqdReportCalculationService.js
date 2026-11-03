@@ -1,15 +1,11 @@
 'use strict';
 
+// Kept as a compatibility adapter for older callers. KQD is an ordinary NG
+// defect and is always included in production output.
 const { calculateProductionOutput } = require('../../shared/kqdPolicy.cjs');
-const { normalizeKqdPolicySnapshot } = require('./kqdPolicySnapshotService');
 
-function recalculateReportOutput({ ttOk, defects, excludeKqdFromTtSnapshot }) {
-  const snapshot = normalizeKqdPolicySnapshot(excludeKqdFromTtSnapshot);
-  return calculateProductionOutput({
-    ok: ttOk,
-    defects,
-    excludeKqdFromTt: snapshot === 1
-  });
+function recalculateReportOutput({ ttOk, defects }) {
+  return calculateProductionOutput({ ok: ttOk, defects });
 }
 
 module.exports = { recalculateReportOutput };
