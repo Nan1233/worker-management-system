@@ -426,10 +426,11 @@ test('approved event with unverifiable product identity is REVIEW and excluded f
 
 test('a valid duplicate event can still be physically counted once after an earlier mismatched link', () => {
   const report = dimensionFixture();
+  report.machineLines[0].machine_id = 71;
   report.machineLines.push({
     ...report.machineLines[0],
     id: 422,
-    machine_id: 71
+    machine_id: 70
   });
 
   const audit = auditMachineHours(report);
