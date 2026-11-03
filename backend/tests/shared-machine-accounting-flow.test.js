@@ -20,7 +20,6 @@ test('physical event output is independent from worker credits and treats KQD as
       { defect_code: 'BAVIA', quantity: 6 },
       { defect_code: 'KQD', quantity: 4 },
     ],
-    excludeKqdFromTt: 1,
     machineTimeHours: 1,
     standardOutput: 1000,
   });
