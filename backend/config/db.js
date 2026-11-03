@@ -236,17 +236,53 @@ function createCloudflareConnection() {
       return promise;
     },
     async commit(callback) {
-      const promise = (async () => { if (!transaction) throw new Error("Không có transaction đang mở"); const current = transaction; transaction = null; try { await current.commit(); } catch (error) { throw wrapCloudflareError(error, "COMMIT"); } })();
+      const promise = (async () => {
+        if (!transaction) throw new Error("Không có transaction đang mở");
+        const current = transaction;
+        try {
+          await current.commit();
+          if (transaction === current) transaction = null;
+        } catch (error) {
+          // Keep the handle so the caller/release path can attempt rollback after a failed COMMIT.
+          throw wrapCloudflareError(error, "COMMIT");
+        }
+      })();
       if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
       return promise;
     },
     async rollback(callback) {
-      const promise = (async () => { if (!transaction) return; const current = transaction; transaction = null; try { await current.rollback(); } catch (error) { throw wrapCloudflareError(error, "ROLLBACK"); } })();
+      const promise = (async () => {
+        if (!transaction) return;
+        const current = transaction;
+        try {
+          await current.rollback();
+          if (transaction === current) transaction = null;
+        } catch (error) {
+          // Do not discard the only handle to an open transaction when rollback fails.
+          throw wrapCloudflareError(error, "ROLLBACK");
+        }
+      })();
       if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
       return promise;
     },
-    async release() { closed = true; transaction = null; },
-    async end() { closed = true; transaction = null; },
+    async release() {
+      if (transaction) {
+        const current = transaction;
+        try { await current.rollback(); }
+        catch (error) { console.error("[KTC][DB] rollback during connection release failed", getErrorDetail(error)); }
+        finally { if (transaction === current) transaction = null; }
+      }
+      closed = true;
+    },
+    async end() {
+      if (transaction) {
+        const current = transaction;
+        try { await current.rollback(); }
+        catch (error) { console.error("[KTC][DB] rollback during connection end failed", getErrorDetail(error)); }
+        finally { if (transaction === current) transaction = null; }
+      }
+      closed = true;
+    },
   };
   return connection;
 }
