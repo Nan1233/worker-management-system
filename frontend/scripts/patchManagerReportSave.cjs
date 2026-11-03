@@ -18,29 +18,3 @@ if (managerSource.includes(replacement)) {
   console.log("[KTC] ManagerReportGrid: toolbar Lưu now saves all drafts sequentially.");
 }
 
-// Keep the KQD exclusion registry export available to ProcessPage.
-// The test branch's processPageConfig.ts currently imports the registry but
-// no longer exports KQD_CODES, while ProcessPage still consumes it.
-const processConfigFile = path.resolve(__dirname, "../src/pages/worker/processPageConfig.ts");
-let processConfigSource = fs.readFileSync(processConfigFile, "utf8");
-const kqdExport = 'export const KQD_CODES = new Set(kqdExclusionRegistry.map((code) => String(code).trim().toUpperCase()));';
-
-if (!processConfigSource.includes("export const KQD_CODES")) {
-  processConfigSource = `${processConfigSource.trimEnd()}\n\n${kqdExport}\n`;
-  fs.writeFileSync(processConfigFile, processConfigSource, "utf8");
-  console.log("[KTC] processPageConfig: restored KQD_CODES export.");
-} else {
-  console.log("[KTC] processPageConfig: KQD_CODES export already present.");
-}
-
-// Load the manager/lead report detail + edit visual layer before Vite builds.
-const indexFile = path.resolve(__dirname, "../index.html");
-let indexSource = fs.readFileSync(indexFile, "utf8");
-const managerFormCss = '<link rel="stylesheet" href="/ManagerWorkerReportForm.css" />';
-if (!indexSource.includes("ManagerWorkerReportForm.css")) {
-  indexSource = indexSource.replace('</head>', `    ${managerFormCss}\n  </head>`);
-  fs.writeFileSync(indexFile, indexSource, "utf8");
-  console.log("[KTC] Manager report form stylesheet linked.");
-} else {
-  console.log("[KTC] Manager report form stylesheet already linked.");
-}
