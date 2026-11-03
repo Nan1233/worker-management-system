@@ -221,6 +221,10 @@ test('GC machine report with no machine detail does not export worker hours as m
 test('GC Excel row flags a linked event with missing physical time', () => {
   const rows = buildGcWorkerRows({
     ...report2Machines,
+    // This fixture has no Worker deduction credit; do not inherit the unrelated
+    // report-level legacy deduction snapshot from report2Machines.
+    deductions: [],
+    deduction_time: 0,
     machineLines: [{
       id: 99,
       machine_event_id: 900,
