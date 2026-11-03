@@ -54,7 +54,7 @@ const baseOf = (report) => ({
   shift: report.shift || ''
 });
 
-function machineLineRow(report, line, reportLevelDeductions = []) {
+function machineLineRow(report, line, reportLevelDeductions = [], allowReportTotalFallback = false) {
   const lineDeductions = normalizeDeductions(line.deductions_json);
   // Approved reports created through legacy/import flows may persist details only
   // at report level. They are safe to reuse only when this report has exactly one
@@ -62,7 +62,11 @@ function machineLineRow(report, line, reportLevelDeductions = []) {
   const deductions = lineDeductions.length ? lineDeductions : normalizeDeductions(reportLevelDeductions);
   const warnings = [];
   const itemHours = sum(deductions, 'hours');
-  const fallbackHours = Math.max(toNumber(line.deduction_time_hours), toNumber(line.adjustment_minutes) / 60);
+  const fallbackHours = Math.max(
+    toNumber(line.deduction_time_hours),
+    toNumber(line.adjustment_minutes) / 60,
+    allowReportTotalFallback ? toNumber(report.deduction_time) : 0
+  );
   // The per-type breakdown is the source of H:W. Hours that exist only as an
   // unexplained total are still deducted (F + G keeps adding up) but are reported.
   const deductionHours = deductions.length ? itemHours : fallbackHours;
@@ -145,7 +149,7 @@ function buildGcWorkerRows(report) {
       ? normalizeDeductions(report.deductions)
       : [];
     return lines.map((line, index) => {
-      const row = machineLineRow(report, line, safeReportFallback);
+      const row = machineLineRow(report, line, safeReportFallback, lines.length === 1);
       if (lines.length > 1 && !hasLineBreakdown && index === 0 && normalizeDeductions(report.deductions).length) {
         row.warnings.push('REPORT_DEDUCTIONS_NOT_ALLOCATED_TO_MULTIPLE_MACHINE_LINES');
       }
