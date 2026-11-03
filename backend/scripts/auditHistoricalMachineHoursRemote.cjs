@@ -127,11 +127,96 @@ function auditMachineDeductions(report) {
   };
 }
 
+function auditMachineHours(report) {
+  const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
+  const eventLines = Array.isArray(report.eventLines) ? report.eventLines : [];
+  const eventsById = new Map(
+    eventLines
+      .map((event) => [Number(event?.id), event])
+      .filter(([id]) => Number.isInteger(id) && id > 0)
+  );
+
+  const seenEventIds = new Set();
+  const linkedEventIds = new Set();
+  let physicalMachineHours = 0;
+  let duplicateEventLinks = 0;
+  let missingLinkedEvents = 0;
+  let linesWithoutEvent = 0;
+
+  const machineLineDetails = lines.map((line, index) => {
+    const eventId = Number(line.machine_event_id) || 0;
+    const linkedEvent = eventId > 0 ? eventsById.get(eventId) : null;
+    const lineHours = round(num(line.machine_time_hours));
+    let eventState = 'NO_EVENT_LINK';
+    let eventHours = null;
+    let countedPhysicalHours = 0;
+
+    if (eventId > 0) {
+      linkedEventIds.add(eventId);
+      if (!linkedEvent) {
+        eventState = 'LINKED_EVENT_MISSING_OR_NOT_APPROVED';
+        missingLinkedEvents += 1;
+      } else {
+        eventState = 'APPROVED_EVENT_FOUND';
+        eventHours = round(num(linkedEvent.machine_time_hours));
+        if (seenEventIds.has(eventId)) {
+          duplicateEventLinks += 1;
+        } else {
+          seenEventIds.add(eventId);
+          countedPhysicalHours = eventHours;
+          physicalMachineHours += num(linkedEvent.machine_time_hours);
+        }
+      }
+    } else {
+      linesWithoutEvent += 1;
+    }
+
+    return {
+      machine_line_id: Number(line.id) || null,
+      machine_code: String(line.machine_code || ''),
+      machine_line_hours: lineHours,
+      machine_event_id: eventId || null,
+      event_state: eventState,
+      event_status: linkedEvent ? String(linkedEvent.status || 'APPROVED_BY_API_FILTER') : null,
+      physical_event_hours: eventHours,
+      physical_hours_counted_for_this_line: round(countedPhysicalHours)
+    };
+  });
+
+  const complete = lines.length > 0
+    && missingLinkedEvents === 0
+    && linesWithoutEvent === 0
+    && machineLineDetails.every((line) =>
+      line.event_state === 'APPROVED_EVENT_FOUND'
+      && line.physical_event_hours !== null
+      && line.physical_event_hours > 0
+    );
+
+  return {
+    worker_hours: round(num(report.total_time)),
+    machine_line_hours_total: round(lines.reduce(
+      (sum, line) => sum + num(line.machine_time_hours), 0
+    )),
+    physical_machine_hours_confirmed: round(physicalMachineHours),
+    physical_machine_hours_complete: complete,
+    physical_machine_hours_source: linkedEventIds.size > 0
+      ? (missingLinkedEvents > 0 ? 'APPROVED_EVENTS_PARTIAL_OR_MISSING' : 'APPROVED_MACHINE_EVENTS')
+      : 'NO_APPROVED_MACHINE_EVENT_LINKS',
+    machine_line_count: lines.length,
+    linked_event_count: linkedEventIds.size,
+    unique_approved_event_count: seenEventIds.size,
+    duplicate_event_links: duplicateEventLinks,
+    missing_linked_event_count: missingLinkedEvents,
+    machine_lines_without_event_count: linesWithoutEvent,
+    lines: machineLineDetails
+  };
+}
+
 function classifyReport(report) {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
   const totalHours = num(report.total_time);
   const deductionHours = num(report.deduction_time);
-  const missingHours = lines.filter((line) => num(line.machine_time_hours) <= 0);
+  const machineHoursAudit = auditMachineHours(report);
   const result = {
     report_id: Number(report.id),
     work_date: String(report.work_date || '').slice(0, 10),
@@ -141,14 +226,17 @@ function classifyReport(report) {
     machine_no: String(report.machine_no || ''),
     worker_total_hours: round(totalHours),
     worker_deduction_hours: round(deductionHours),
+    machine_hours_audit: machineHoursAudit,
     machine_deduction_audit: auditMachineDeductions(report),
     machine_count: lines.length,
-    machine_lines: lines.map((line) => ({
-      id: Number(line.id),
-      machine_code: String(line.machine_code || ''),
-      machine_time_hours: round(num(line.machine_time_hours)),
-      deduction_time_hours: round(num(line.deduction_time_hours)),
-      deductions_json_present: Boolean(line.deductions_json)
+    machine_lines: machineHoursAudit.lines.map((line) => ({
+      ...line,
+      deduction_time_hours: round(num(
+        lines.find((source) => Number(source.id) === line.machine_line_id)?.deduction_time_hours
+      )),
+      deductions_json_present: Boolean(
+        lines.find((source) => Number(source.id) === line.machine_line_id)?.deductions_json
+      )
     })),
     action: 'NO_CHANGE',
     reason: ''
@@ -161,9 +249,10 @@ function classifyReport(report) {
     result.reason = indicatesMachine ? 'MACHINE_REPORT_WITHOUT_MACHINE_LINES' : 'NO_MACHINE_USE_WORKER_TIME';
     return result;
   }
-  if (lines.some((line) => num(line.machine_time_hours) > MAX_MACHINE_HOURS)) {
+  if (lines.some((line) => num(line.machine_time_hours) > MAX_MACHINE_HOURS)
+      || machineHoursAudit.lines.some((line) => num(line.physical_event_hours) > MAX_MACHINE_HOURS)) {
     result.action = 'REVIEW';
-    result.reason = 'EXISTING_MACHINE_TIME_OVER_12_HOURS';
+    result.reason = 'MACHINE_LINE_OR_PHYSICAL_EVENT_HOURS_OVER_12_HOURS';
     return result;
   }
   if (totalHours > MAX_MACHINE_HOURS || deductionHours > MAX_MACHINE_HOURS) {
@@ -181,20 +270,28 @@ function classifyReport(report) {
     result.reason = 'INVALID_WORKER_DEDUCTION';
     return result;
   }
-  if (!missingHours.length) {
-    result.reason = 'MACHINE_LINES_ALREADY_HAVE_TIME';
-    return result;
-  }
-  if (lines.length > 1) {
+  if (lines.length > 1 && machineHoursAudit.machine_lines_without_event_count > 0) {
     result.action = 'REVIEW';
     result.reason = 'MULTI_MACHINE_ALLOCATION_REQUIRES_CONFIRMATION';
     return result;
   }
-  // Worker total/actual time is not proof of physical machine time. Even a
-  // single-machine report must be reviewed unless an approved physical event
-  // or a trusted machine-time source can reconstruct the value.
-  result.action = 'REVIEW';
-  result.reason = 'MISSING_MACHINE_TIME_CANNOT_BE_INFERRED_FROM_WORKER_TIME';
+  if (machineHoursAudit.missing_linked_event_count > 0) {
+    result.action = 'REVIEW';
+    result.reason = 'LINKED_MACHINE_EVENT_MISSING_OR_NOT_APPROVED';
+    return result;
+  }
+  if (machineHoursAudit.machine_lines_without_event_count > 0) {
+    result.action = 'REVIEW';
+    result.reason = 'MACHINE_LINE_WITHOUT_PHYSICAL_EVENT';
+    return result;
+  }
+  if (!machineHoursAudit.physical_machine_hours_complete) {
+    result.action = 'REVIEW';
+    result.reason = 'PHYSICAL_MACHINE_HOURS_NOT_CONFIRMED_BY_APPROVED_EVENTS';
+    return result;
+  }
+
+  result.reason = 'APPROVED_MACHINE_EVENTS_CONFIRMED_PHYSICAL_TIME';
   return result;
 }
 
@@ -306,4 +403,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { classifyReport, monthList, auditMachineDeductions };
+module.exports = { classifyReport, monthList, auditMachineDeductions, auditMachineHours };
