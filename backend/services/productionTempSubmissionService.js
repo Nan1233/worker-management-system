@@ -13,6 +13,19 @@ const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHou
 const submissionQueues = new Map();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const rollbackOrThrow = async (connection, originalError) => {
+    const result = await rollback(connection);
+    if (result?.ok === false) {
+        const error = new Error("Không thể rollback transaction sau lỗi ghi báo cáo");
+        error.code = "TRANSACTION_ROLLBACK_FAILED";
+        error.cause = result.error;
+        error.originalError = originalError || null;
+        error.isPublic = false;
+        throw error;
+    }
+    return result;
+};
+
 const runSerialized = async (key, task) => {
     const previous = submissionQueues.get(key) || Promise.resolve();
     let release;
@@ -239,7 +252,7 @@ const createAuditAfterChildren = async ({ tempId, audit, data, requestId, logica
             [Number(audit?.userId || 0), String(tempId), "Công nhân tạo báo cáo chờ duyệt",
                 JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift, clientRequestId: requestId, logicalDuplicateKey }), audit?.ipAddress || null, audit?.userAgent || null]);
         await commit(connection);
-    } catch (error) { await rollback(connection); throw error; }
+    } catch (error) { await rollbackOrThrow(connection, error); throw error; }
     finally { connection.release(); }
 };
 
@@ -361,9 +374,9 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                 deductions = resolved.deductions;
                 validateChildTotals(data, defects, deductions);
             }
-            await rollback(validationConnection);
+            await rollbackOrThrow(validationConnection);
         } catch (error) {
-            try { await rollback(validationConnection); } catch {}
+            try { await rollbackOrThrow(validationConnection, error); } catch (rollbackError) { throw rollbackError; }
             throw error;
         } finally { validationConnection.release(); }
 
@@ -402,7 +415,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                 }
                 await commit(parentConnection);
             } catch (error) {
-                await rollback(parentConnection);
+                await rollbackOrThrow(parentConnection, error);
                 if (error?.code === "ER_DUP_ENTRY") { const existing = await findExistingClientRequest(data); if (existing) return idempotent(existing); }
                 if (is1205(error)) return recoverAfter1205(data);
                 const e = new Error(`Không thể lưu báo cáo: ${String(error?.message || error)}`);
