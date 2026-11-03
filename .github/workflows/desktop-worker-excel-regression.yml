@@ -1,0 +1,30 @@
+name: Desktop Worker Excel Regression
+
+on:
+  push:
+    branches: [test]
+    paths:
+      - 'desktop/electron/exportMachineTime.cjs'
+      - 'desktop/electron/workerReportTemplateLocal.v2.cjs'
+      - 'desktop/tests/export-machine-time.test.cjs'
+      - '.github/workflows/desktop-worker-excel-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-worker-excel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check Desktop Excel module syntax
+        run: |
+          node --check desktop/electron/exportMachineTime.cjs
+          node --check desktop/electron/workerReportTemplateLocal.v2.cjs
+      - name: Run worker Excel regression tests
+        run: node --test desktop/tests/export-machine-time.test.cjs
