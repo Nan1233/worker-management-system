@@ -1,6 +1,7 @@
 const db = require("../config/db");
 const workerController = require("./productionTempWorkerController");
 const managementController = require("./productionTempManagementController");
+const dailyHoursController = require("./productionTempDailyHoursController");
 const ProductionTemp = require("../models/productionTempModel");
 const { resolveStandard } = require("../services/standardResolutionService");
 const { explicitGcWorkType } = require("../utils/gcMachineWorkType");
@@ -205,4 +206,4 @@ const rejectSelectedReports = async (req, res) => {
     }
 };
 
-module.exports = { ...workerController, ...managementController, createTempReport, rejectSelectedReports, validateManualOutputCeiling, getDailyHours: require("./productionTempDailyHoursController").getDailyHours };
+module.exports = { ...workerController, ...managementController, createTempReport, rejectSelectedReports, validateManualOutputCeiling, getDailyHours: dailyHoursController.getDailyHours };
