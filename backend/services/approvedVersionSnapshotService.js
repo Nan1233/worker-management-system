@@ -309,7 +309,11 @@ function stableComparable(value, key = null) {
   if (Array.isArray(value)) return value.map((item) => stableComparable(item));
   if (value && typeof value === 'object') {
     const out = {};
-    for (const childKey of Object.keys(value).sort()) out[childKey] = stableComparable(value[childKey], childKey);
+    for (const childKey of Object.keys(value).sort()) {
+      // Ignore retired KQD policy fields when comparing legacy snapshots.
+      if (childKey === 'exclude_kqd_from_tt' || childKey === 'exclude_kqd_from_tt_snapshot') continue;
+      out[childKey] = stableComparable(value[childKey], childKey);
+    }
     return out;
   }
   return value;
