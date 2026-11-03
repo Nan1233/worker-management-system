@@ -20,6 +20,7 @@
     "KTC_ENVIRONMENT": "test",
     "KTC_FRONTEND_ORIGIN": "https://ktc-fe-test.nan978971.workers.dev",
     "CORS_ORIGINS": "https://ktc-fe-test.nan978971.workers.dev",
+    // Keep this origin explicit so the TEST Worker never inherits production CORS.
     "KTC_RUN_MASTER_DATA_BOOTSTRAP": "false",
     "NODE_ENV": "test"
   }
