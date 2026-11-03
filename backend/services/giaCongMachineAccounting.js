@@ -22,6 +22,10 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   const hasLineBreakdown = lines.some((line) => parseJsonArray(line.deductions_json)
     .some((item) => Math.max(0, Number(item?.hours) || 0) > 0));
   const safeReportFallback = lines.length === 1 && !hasLineBreakdown ? reportLevelDeductions : [];
+  const hasLegacySingleLineDeduction = lines.length === 1
+    && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE'
+    && Array.isArray(report.deductions)
+    && !hasLineBreakdown;
 
   lines.forEach((line, lineIndex) => {
     const eventId = Number(line.machine_event_id) || 0;
@@ -44,6 +48,7 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       Number(line.deduction_time_hours) || 0,
       (Number(line.adjustment_minutes) || 0) / 60,
       detailDeductionHours,
+      hasLegacySingleLineDeduction ? Math.max(0, Number(report.deduction_time) || 0) : 0
     );
     if (lineDeductionHours > 0 || lineDeductions.length) {
       const deductionKey = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || lineIndex);
