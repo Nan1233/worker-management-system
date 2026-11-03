@@ -117,7 +117,7 @@ const getReportMetrics = (report) => {
   const machineMetrics = report.machinePerformance;
   const actualOutput = machineMetrics?.machine_count > 0
     ? toNumber(machineMetrics.counted_output)
-    : Number(report.actual_output ?? (ok + calculateCountedNg(report.defects || [], Boolean(Number(report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt ?? 0)))));
+    : Number(report.actual_output ?? (ok + calculateCountedNg(report.defects || [])));
   const standard = machineMetrics?.machine_count > 0 ? 0 : toNumber(report.standard_output);
   const isGiaCongMachine = String(report.process_code || '').trim().toUpperCase() === 'GC'
     && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE';
