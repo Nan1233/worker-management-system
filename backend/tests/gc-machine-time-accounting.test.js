@@ -121,3 +121,40 @@ test('monthly Excel delegates GC accounting to the canonical shared implementati
   assert.match(source, /buildSharedGiaCongMachineAccounting\(\{ \.\.\.report, machineLines \}, eventMap\)/);
   assert.match(source, /deduction_type_code:\s*item\.deduction_code/);
 });
+
+test('legacy single-line GC MACHINE report may use report-level deduction total when line detail is absent', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 501,
+      machine_event_id: null,
+      machine_time_hours: 8,
+      deduction_time_hours: 0,
+      deductions_json: '[]'
+    }],
+    deduction_time: 1.25,
+    deductions: []
+  }, new Map());
+
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 1.25);
+  assert.equal(result.netHours, 6.75);
+});
+
+test('report-level worker deduction is not used as machine deduction without explicit MACHINE mode', () => {
+  const result = buildGiaCongMachineAccounting({
+    machineLines: [{
+      id: 502,
+      machine_event_id: null,
+      machine_time_hours: 8,
+      deduction_time_hours: 0,
+      deductions_json: '[]'
+    }],
+    deduction_time: 1.25,
+    deductions: []
+  }, new Map());
+
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 0);
+  assert.equal(result.netHours, 8);
+});
