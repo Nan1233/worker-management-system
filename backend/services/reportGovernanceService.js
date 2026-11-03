@@ -12,8 +12,7 @@ function normalizeDate(value) {
 
 async function createApprovedSnapshot(reportId, createdBy, executor = db.promise()) {
   const reports = await q(
-    `SELECT pr.*, w.worker_code, u.full_name, p.process_code, p.process_name,
-            pr.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt
+    `SELECT pr.*, w.worker_code, u.full_name, p.process_code, p.process_name
      FROM production_reports pr
      JOIN workers w ON w.id = pr.worker_id
      JOIN users u ON u.id = w.user_id
