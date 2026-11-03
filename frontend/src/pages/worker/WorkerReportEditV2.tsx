@@ -339,7 +339,7 @@ function WorkerReportEditV2() {
     const actualHours = n(form.actualHours) + n(form.actualMinutes) / 60;
     const deductionHours = parseFlexibleTime(form.deductionTime);
     const totalHours = actualHours + (Number.isFinite(deductionHours) ? deductionHours : 0);
-    if (totalHours * 60 > MAX_TOTAL_WORK_MINUTES + 0.001) { setError("Tổng thời gian không được vượt quá 12 giờ."); return; }
+    if (!usesMultiMachineLines && totalHours * 60 > MAX_TOTAL_WORK_MINUTES + 0.001) { setError("Tổng thời gian không được vượt quá 12 giờ."); return; }
     const normalizedLines = operationMode === "MACHINE" ? machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim()) : [];
     if (operationMode === "MACHINE" && (!normalizedLines.length || normalizedLines.some((line) => !line.machineCode.trim() || !line.productCode.trim()))) { setError("Vui lòng nhập đủ mã máy và mã sản phẩm cho từng máy."); return; }
     payload = buildProductionReportPayload({
