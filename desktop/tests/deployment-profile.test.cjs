@@ -16,9 +16,9 @@ test('Desktop defaults to TEST and has an explicit production packaging profile'
   assert.equal(productionBuilder.extraMetadata.ktcDeploymentEnvironment, 'production');
   assert.equal(productionBuilder.extends, './package.json');
   const launcher = fs.readFileSync(path.join(desktopRoot, 'electron/launcher.cjs'), 'utf8');
-  assert.match(launcher, /desktopPackage\\.ktcDeploymentEnvironment/);
+  assert.match(launcher, /desktopPackage\.ktcDeploymentEnvironment/);
   assert.match(launcher, /resolveDesktopDeploymentProfile/);
-  assert.doesNotMatch(launcher, /ktc-be-test\\.nan978971\\.workers\\.dev/);
+  assert.equal(launcher.includes('ktc-be-test.nan978971.workers.dev'), false);
 });
 
 test('Desktop TEST and production profiles map only to their matching Cloudflare endpoints', () => {
