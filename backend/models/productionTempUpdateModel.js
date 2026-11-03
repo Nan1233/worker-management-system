@@ -5,38 +5,58 @@ const { validateMachineLines } = require("../services/machineLineValidationServi
 const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback, editableFields } = require("./productionTempModelShared");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
-const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { DAILY_HOURS_LIMIT, DAILY_HOURS_EXCLUDED_PROCESS_CODES, exceedsDailyHoursLimit, isDailyHoursLimitExemptProcess } = require("../utils/dailyHoursLimit");
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
-const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isGc = false, excludeTempReportId = null }) => {
-    const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
-    if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, processCode, excludeTempReportId = null }) => {
+    const worker = Number(workerId);
+    const date = String(workDate || "").slice(0, 10);
+    if (!Number.isInteger(worker) || worker <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return null;
+    if (isDailyHoursLimitExemptProcess(processCode)) return null;
+
     const tempExcludeSql = excludeTempReportId ? "AND pr.id <> ?" : "";
-    const params = excludeTempReportId ? [worker, date, worker, date, excludeTempReportId] : [worker, date, worker, date];
+    const excludedPlaceholders = DAILY_HOURS_EXCLUDED_PROCESS_CODES.map(() => "?").join(", ");
+    const params = [
+        worker, date, ...DAILY_HOURS_EXCLUDED_PROCESS_CODES,
+        worker, date, ...DAILY_HOURS_EXCLUDED_PROCESS_CODES,
+    ];
+    if (excludeTempReportId) params.push(Number(excludeTempReportId));
+
     const rows = await query(connection, `
         SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
-                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-            FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
+            SELECT COALESCE(pr.actual_time,0) AS counted_hours
+              FROM production_reports pr
+              JOIN processes p ON p.id=pr.process_id
+             WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
+               AND p.process_code NOT IN (${excludedPlaceholders})
             UNION ALL
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
-                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
-                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-            FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? ${tempExcludeSql} AND pr.status IN ('pending','need_fix')
+            SELECT COALESCE(pr.actual_time,0) AS counted_hours
+              FROM production_reports_temp pr
+              JOIN processes p ON p.id=pr.process_id
+             WHERE pr.worker_id=? AND pr.work_date=? ${tempExcludeSql}
+               AND pr.status IN ('pending','need_fix')
+               AND p.process_code NOT IN (${excludedPlaceholders})
         ) daily_hours`, params);
+
     const existingHours = Number(rows?.[0]?.counted_hours || 0);
-    const incoming = isGc && Array.isArray(incomingMachineLines) && incomingMachineLines.length
-        ? Math.max(...incomingMachineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0)))
-        : (Number(incomingActualHours) || 0);
+    const incoming = Number(incomingActualHours) || 0;
     const projectedHours = existingHours + incoming;
     if (exceedsDailyHoursLimit(projectedHours)) {
         const remainingHours = Math.max(0, DAILY_HOURS_LIMIT - existingHours);
-        const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existingHours.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remainingHours.toFixed(2)} giờ.`);
-        error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
-        error.details = { worker_id: worker, work_date: date, existing_hours: Number(existingHours.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projectedHours.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, remaining_hours: Number(remainingHours.toFixed(4)), counted_field: "actual_time_or_gc_machine_line_actual_time", excluded_from_daily_limit: "deduction_time / support hours" };
+        const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá ${DAILY_HOURS_LIMIT} giờ. Hiện đã có ${existingHours.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remainingHours.toFixed(2)} giờ.`);
+        error.status = 422;
+        error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED";
+        error.isPublic = true;
+        error.details = {
+            worker_id: worker,
+            work_date: date,
+            existing_hours: Number(existingHours.toFixed(4)),
+            incoming_hours: Number(incoming.toFixed(4)),
+            projected_hours: Number(projectedHours.toFixed(4)),
+            limit_hours: DAILY_HOURS_LIMIT,
+            remaining_hours: Number(remainingHours.toFixed(4)),
+            excluded_process_codes: DAILY_HOURS_EXCLUDED_PROCESS_CODES,
+        };
         throw error;
     }
     return { existingHours, incomingTotalHours: incoming, projectedHours, limitHours: DAILY_HOURS_LIMIT };
@@ -196,7 +216,7 @@ module.exports = {
             const processRows = options.processCode
                 ? [{ process_code: options.processCode }]
                 : await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(current.process_id)]);
-            const isGc = String(processRows?.[0]?.process_code || "").trim().toUpperCase() === "GC";
+            const processCode = String(processRows?.[0]?.process_code || "").trim().toUpperCase();
             if (hasMachineLines) {
                 // The controller validated these exact lines moments ago in the same request (options.machineLinesValidated);
                 // repeating the master-data reads here only burns Worker subrequests. The locked capacity check below
@@ -212,14 +232,13 @@ module.exports = {
                 if (!lockedCapacity.valid) { const error = new Error("Máy đã đủ số người cho phép"); error.status = 422; error.code = "MACHINE_WORKER_LIMIT_EXCEEDED"; error.isPublic = true; error.details = lockedCapacity.errors; throw error; }
                 data.machine_lines = normalizedMachineLines;
             }
-            let dailyHoursMachineLines = normalizedMachineLines;
-            if (isGc && !Array.isArray(dailyHoursMachineLines)) {
-                const storedLines = Array.isArray(oldSnapshot?.machine_lines)
-                    ? oldSnapshot.machine_lines
-                    : await query(connection, `SELECT machine_time_hours, deduction_time_hours FROM production_temp_machine_lines WHERE temp_report_id=?`, [id]);
-                dailyHoursMachineLines = storedLines.map(line => ({ actual_time_hours: Math.max(0, Number(line.machine_time_hours || 0) - Number(line.deduction_time_hours || 0)) }));
-            }
-            await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, incomingActualHours: nextActualTime, incomingMachineLines: dailyHoursMachineLines || [], isGc, excludeTempReportId: id });
+            await checkDailyHours(connection, {
+                workerId: current.worker_id,
+                workDate: nextWorkDate,
+                incomingActualHours: nextActualTime,
+                processCode,
+                excludeTempReportId: id,
+            });
             const changes = editableFields.filter(field => Object.prototype.hasOwnProperty.call(data, field)).filter(field => String(current[field] ?? "") !== String(data[field] ?? ""));
             const detailChanged = hasDeductions || hasDefects || hasMachineLines;
             if (changes.length === 0 && !detailChanged) { await rollback(connection); return { changed: false, report: current }; }
