@@ -4,7 +4,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 
-// TEST Excel export: use the company NAS when reachable; otherwise save locally
+// Excel export: use the company NAS when reachable; otherwise save locally
 // under the current Windows user's Documents\KTC\Bao cao san xuat folder.
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const LEGACY_NETWORK_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
@@ -56,7 +56,7 @@ app.on('browser-window-created', (_event, window) => {
 
   // Load the frontend belonging to the packaged deployment profile.
   const originalWindowLoadFile = window.loadFile.bind(window);
-  window.loadFile = async function loadRemoteTestFrontend(filePath, ...args) {
+  window.loadFile = async function loadRemoteProfileFrontend(filePath, ...args) {
     const resolved = path.resolve(String(filePath || ''));
     const fileName = path.basename(resolved).toLowerCase();
     if (fileName === 'index.html') {
@@ -122,7 +122,7 @@ function readConfiguredExportRoot() {
     if (normalizedConfigured === normalizedLegacy) return DEFAULT_EXPORT_ROOT;
 
     // Older builds may have saved only the relative folder name "Linh tinh".
-    // It must mean the company NAS folder in the TEST desktop.
+    // It must mean the company NAS folder for this desktop installation.
     if (/^linh\s*tinh$/i.test(configured) || isLegacyNetworkExportRoot(configured)) {
       return DEFAULT_EXPORT_ROOT;
     }
