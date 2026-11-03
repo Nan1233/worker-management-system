@@ -136,7 +136,7 @@ async function ensureLegacyMachineLines(targets) {
         `INSERT INTO production_temp_machine_lines
          (temp_report_id,machine_event_id,machine_id,machine_code,product_standard_id,
           standard_version_id,machine_standard_id,product_code,machine_time_hours,
-          standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,
+          standard_output,standard_time_seconds,standard_source,
           ok_quantity,ng_quantity,maximum_output,counted_output,earned_standard_hours,
           defects_json,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [Number(report.id),null,Number(machine.id),machine.machine_code, resolved.productStandardId || null,
