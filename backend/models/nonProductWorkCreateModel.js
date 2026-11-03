@@ -92,7 +92,6 @@ async function createCompleteReport(payload = {}) {
     } else if (data.force_create) { const error = new Error("Không có báo cáo trùng hợp lệ để xác nhận tạo lần thứ hai"); error.status = 409; error.code = "DUPLICATE_CONFIRMATION_REQUIRED"; error.isPublic = true; throw error; }
     const trainingSnapshot = await resolveInitialTrainingSnapshot({ executor: connection, workerId, processId: PROCESS_ID, workDate: data.work_date, trainingPercent: data.training_percent });
     data.training_percent_snapshot = trainingSnapshot.training_percent;
-    data.exclude_kqd_from_tt_snapshot = null;
     const auditUserId = Number(audit?.userId || 0);
     if (!Number.isInteger(auditUserId) || auditUserId <= 0) { const error = new Error("Không xác định được người tạo báo cáo để ghi audit"); error.code = "REPORT_AUDIT_ACTOR_REQUIRED"; throw error; }
     const tempId = await createModel.create(data, connection);
