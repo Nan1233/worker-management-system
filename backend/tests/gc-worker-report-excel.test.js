@@ -235,6 +235,9 @@ test('GC Excel row flags a linked event with missing physical time', () => {
       defects: []
     }]
   });
-  assert.equal(rows[0].totalHours, 0);
+  // Worker participation remains 7 hours; missing physical event time is a warning,
+  // not a reason to erase the Worker credit or substitute physical machine time.
+  assert.equal(rows[0].totalHours, 7);
+  assert.equal(rows[0].workedHours, 7);
   assert.ok(rows[0].warnings.includes('PHYSICAL_MACHINE_EVENT_TIME_MISSING'));
 });
