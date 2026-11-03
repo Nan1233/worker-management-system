@@ -176,3 +176,10 @@ test('bulk company Excel indexes temp report IDs once for deduction and defect h
   assert.match(loader, /reportIdBySourceTempId\.get\(Number\(row\.temp_report_id\)\)/);
   assert.doesNotMatch(loader, /reports\.find\(\(item\) => Number\(item\.source_temp_id\)/);
 });
+
+test('bulk company Excel preserves worker deductions separately from physical machine deductions', () => {
+  const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
+  assert.match(loader, /const deductions = tempDeductions\.length \? tempDeductions : persistedDeductions/);
+  assert.match(loader, /machineDeductions: machineAccounting\?\.deductions \|\| \[\]/);
+  assert.doesNotMatch(loader, /deductions = machineDeductions/);
+});
