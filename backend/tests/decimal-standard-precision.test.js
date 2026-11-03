@@ -34,7 +34,7 @@ test('historical decimal boundary preserves value and version identity together'
     if (text.includes('from product_standards')) return [{ product_standard_id: 1, product_code: 'P1' }];
     if (text.includes('from product_standard_versions')) return String(params[2]) === '2026-08-10'
       ? [{ id: 21, standard_output: 617.1, version_no: 1, effective_from: '2026-01-01', effective_to: '2026-08-10' }]
-      : [{ id: 22, standard_output: 900.77, exclude_kqd_from_tt: 0, version_no: 2, effective_from: '2026-08-11', effective_to: null }];
+      : [{ id: 22, standard_output: 900.77, version_no: 2, effective_from: '2026-08-11', effective_to: null }];
     throw new Error(`Unexpected SQL ${text}`);
   };
   const resolver = createStandardResolver({ query });
@@ -49,7 +49,7 @@ test('machine historical decimals preserve 900.77 and 950.25', async () => {
     const text = String(sql).toLowerCase();
     if (text.includes('from product_aliases')) return [];
     if (text.includes('from product_standards')) return [{ product_standard_id: 1, product_code: 'P1' }];
-    if (text.includes('from product_standard_versions')) return [{ id: 21, standard_output: 617.1, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null }];
+    if (text.includes('from product_standard_versions')) return [{ id: 21, standard_output: 617.1, version_no: 1, effective_from: '2026-01-01', effective_to: null }];
     if (text.includes('from machines')) return [{ id: 9, machine_code: 'M1' }];
     if (text.includes('from product_machine_standards') && text.includes('effective_to')) return String(params[3]) === '2026-08-10'
       ? [{ id: 31, calculated_output_per_hour: 900.77, standard_output: 900.77, standard_time_seconds: 4, effective_from: '2026-01-01', effective_to: '2026-08-10' }]
@@ -80,7 +80,7 @@ test('multi-machine lines preserve distinct decimal standards independently', as
       { id: 1, machine_code: 'M1', is_automatic: 1, process_code: 'MAI' },
       { id: 2, machine_code: 'M2', is_automatic: 1, process_code: 'MAI' }
     ] : [],
-    standardResolver: { resolveStandard: async ({ machineCode }) => ({ productStandardId:1, standardVersionId:1, machineStandardId: machineCode === 'M1' ? 11 : 12, productCode:'P1', standardOutput: standards[machineCode], excludeKqdFromTt:0, source:'MACHINE' }) }
+    standardResolver: { resolveStandard: async ({ machineCode }) => ({ productStandardId:1, standardVersionId:1, machineStandardId: machineCode === 'M1' ? 11 : 12, productCode:'P1', standardOutput: standards[machineCode], source:'MACHINE' }) }
   });
   const result = await validate({ processId:1, workDate:'2026-08-10', operationMode:'MACHINE', machineLines:[
     { machine_code:'M1', product_code:'P1', machine_time_hours:1, ok_quantity:600, ng_quantity:0, defects:[] },
