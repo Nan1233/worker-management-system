@@ -18,7 +18,7 @@ const getStoredWorkType = (value) => {
 const enforceDailyHoursLocked = async (executor, data) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
-    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(workDate)) return;
+    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
 
     // Keep the lock for concurrent submissions. Multi-machine processes are
     // excluded from the combined worker/day cap until per-machine policy is agreed.
