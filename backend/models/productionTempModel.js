@@ -332,7 +332,6 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         data.training_percent_snapshot = Number(training);
         data.standard_version_id = data.standard_version_id || null;
         data.machine_standard_id = data.machine_standard_id || null;
-        data.exclude_kqd_from_tt_snapshot = data.exclude_kqd_from_tt_snapshot ?? data.exclude_kqd_from_tt ?? null;
 
         if (machineLines.length) {
             const capacity = await validateMachineWorkerCapacityLocked({ executor: db, processCode: processRows[0]?.process_code, processId: data.process_id, machineLines, workerId: data.worker_id, workDate: data.work_date, shift: data.shift });
