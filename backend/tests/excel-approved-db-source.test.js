@@ -12,6 +12,6 @@ test('monthly Excel uses approved production_reports and report_id details only'
   assert.match(service, /report\.dataSource = 'production_reports'/);
   assert.match(workbook, /tidb\.production_reports\.approved/);
   assert.match(workbook, /reportSnapshot\(report, settings\)/);
-  assert.match(workbook, /detailMap\(report\.deductions/);
-  assert.match(workbook, /detailMap\(report\.defects/);
+  assert.match(workbook, /reportDetailItems\(report, processCode, 'deduction'\)/);
+  assert.match(workbook, /reportDetailItems\(report, processCode, 'defect'\)/);
 });
