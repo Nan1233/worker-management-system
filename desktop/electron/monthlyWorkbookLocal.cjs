@@ -1176,7 +1176,7 @@ function addPhysicalMachineEventsMetadata(workbook, processData) {
   sheet.addRow([
     'event_id','work_date','shift','machine_id','machine_code','product_code',
     'physical_ok','physical_ng','physical_counted_output','physical_total_output',
-    'machine_time_hours','maximum_output','standard_output','kqd_exclude_snapshot',
+    'machine_time_hours','maximum_output','standard_output',
     'status','machine_deduction_hours','machine_deductions_json','machine_deduction_status'
   ]);
 
@@ -1202,7 +1202,7 @@ function addPhysicalMachineEventsMetadata(workbook, processData) {
       asNumber(event.physical_ok_quantity), asNumber(event.physical_ng_quantity),
       asNumber(event.physical_counted_output), asNumber(event.physical_total_output),
       asNumber(event.machine_time_hours), asNumber(event.maximum_output),
-      asNumber(event.standard_output), Number(event.exclude_kqd_from_tt_snapshot || 0),
+      asNumber(event.standard_output),
       asText(event.status), deduction.hours, deduction.detailsJson, deduction.status
     ]);
   }
