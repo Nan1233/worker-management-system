@@ -35,7 +35,6 @@ test('unconfigured KQD_TEST remains a normal physical defect', () => {
   const result = calculateEventPhysical({
     physicalOkQuantity: 990,
     defects: [{ defect_code: 'KQD_TEST', quantity: 10 }],
-    excludeKqdFromTt: 1,
     machineTimeHours: 1,
     standardOutput: 1000,
   });
