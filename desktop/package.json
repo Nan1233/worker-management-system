@@ -16,7 +16,7 @@
     "dist:portable": "npm run preflight && npm run smoke:excel && electron-builder --win portable --x64",
     "dist:portable:fast": "npm run preflight && npm run smoke:excel && electron-builder --win portable --x64 --config.compression=store --publish never",
     "dist:nsis": "npm run preflight && npm run smoke:excel && electron-builder --win nsis --x64",
-    "check": "node --check electron/launcher.cjs && node --check electron/main.cjs && node --check electron/platformPaths.cjs && node --check scripts/preflight.cjs && node --check scripts/checkPlatformPaths.cjs && node --check electron/preload.cjs && node --check electron/desktopLog.cjs && node --check electron/excelPaths.cjs && node --check electron/authToken.cjs && node --check electron/companyExcelLocal.cjs && node --check electron/productionCalculationEngine.cjs && node --check electron/excelDualLayout.cjs && node --check electron/monthlyWorkbookLocal.cjs && node --check electron/workerReportTemplateLocal.v2.cjs && node --check electron/excelExportContractPatch.v6.cjs && node --check tests/cvk-product-code.test.cjs && node --check scripts/smokeExcel.cjs && npm run check:excel-db-sync && npm run check:platform-paths && node --check scripts/fieldReadiness.cjs && node scripts/fieldReadiness.cjs && node scripts/checkPackagedSharedContract.cjs && node --check electron/autoUpdate.cjs",
+    "check": "node --check electron/launcher.cjs && node --check electron/deploymentProfile.cjs && node --check tests/deployment-profile.test.cjs && node --check electron/main.cjs && node --check electron/platformPaths.cjs && node --check scripts/preflight.cjs && node --check scripts/checkPlatformPaths.cjs && node --check electron/preload.cjs && node --check electron/desktopLog.cjs && node --check electron/excelPaths.cjs && node --check electron/authToken.cjs && node --check electron/companyExcelLocal.cjs && node --check electron/productionCalculationEngine.cjs && node --check electron/excelDualLayout.cjs && node --check electron/monthlyWorkbookLocal.cjs && node --check electron/workerReportTemplateLocal.v2.cjs && node --check electron/excelExportContractPatch.v6.cjs && node --check tests/cvk-product-code.test.cjs && node --check scripts/smokeExcel.cjs && npm run check:excel-db-sync && npm run check:platform-paths && node --check scripts/fieldReadiness.cjs && node scripts/fieldReadiness.cjs && node scripts/checkPackagedSharedContract.cjs && node --check electron/autoUpdate.cjs",
     "test:machine-time": "node --test tests/export-machine-time.test.cjs",
     "test:cvk-export": "node --test tests/cvk-product-code.test.cjs",
     "smoke:excel": "npm run test:machine-time && npm run test:cvk-export && node scripts/smokeExcel.cjs",
@@ -30,7 +30,10 @@
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "check:packaged-shared-contract": "node scripts/checkPackagedSharedContract.cjs",
     "device:smoke": "node scripts/deviceSmoke.cjs",
-    "release:signing-check": "node scripts/checkWindowsSigning.cjs"
+    "release:signing-check": "node scripts/checkWindowsSigning.cjs",
+    "dist:win:test": "npm run preflight && npm run smoke:excel && electron-builder --win portable nsis --x64 --publish never",
+    "dist:win:production": "npm run preflight && npm run smoke:excel && electron-builder --config electron-builder.production.json --win portable nsis --x64 --publish never",
+    "test:deployment-profile": "node --test tests/deployment-profile.test.cjs"
   },
   "devDependencies": {
     "electron": "37.10.3",
@@ -122,5 +125,6 @@
     "exceljs": "4.4.0",
     "jszip": "3.10.1",
     "readable-stream": "3.6.2"
-  }
+  },
+  "ktcDeploymentEnvironment": "test"
 }
