@@ -2,8 +2,7 @@
 'use strict';
 
 // Source-only Phase 5 release readiness report.
-// This script never connects to services, reads secrets, queries a database,
-// builds artifacts, publishes releases, or deploys anything.
+// Never connects to Cloudflare, TiDB, Render, reads live secrets, builds, publishes or deploys.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -16,50 +15,123 @@ const json = (file) => {
   try { return JSON.parse(read(file)); }
   catch { return {}; }
 };
-
+const envValue = (file, key) => {
+  const match = read(file).match(new RegExp('^\\s*' + key + '\\s*=\\s*(.*?)\\s*$', 'm'));
+  return match ? match[1].replace(/^["']|["']$/g, '') : '';
+};
 const blockers = [];
 const warnings = [];
 const checks = [];
 const add = (target, id, message, evidence) => target.push({ id, message, evidence });
 
-const desktopLauncher = read('desktop/electron/launcher.cjs');
-const frontendRender = read('frontend/render.yaml');
-const rootRender = read('render.yaml');
-const backendServer = read('backend/server.js');
-const backendRender = read('backend/render.yaml');
+const backendTest = json('backend/wrangler.jsonc');
+const backendProduction = json('backend/wrangler.production.jsonc');
+const frontendTest = json('frontend/wrangler.jsonc');
+const frontendProduction = json('frontend/wrangler.production.jsonc');
 const desktopPackage = json('desktop/package.json');
+const desktopProductionBuilder = json('desktop/electron-builder.production.json');
 const backendPackage = json('backend/package.json');
 const frontendPackage = json('frontend/package.json');
 const rootPackage = json('package.json');
+const desktopLauncher = read('desktop/electron/launcher.cjs');
+const cloudflareWorker = read('backend/cloudflare-worker.js');
+const frontendEnvSource = read('frontend/src/config/env.ts');
 const updater = read('desktop/electron/autoUpdate.cjs');
 
-const hasTestDesktopApi = /ktc-be-test\.nan978971\.workers\.dev\/api/i.test(desktopLauncher);
-const hasTestDesktopWeb = /ktc-fe-test\.nan978971\.workers\.dev/i.test(desktopLauncher);
+let testBackendProfile = null;
+let productionBackendProfile = null;
+let profileError = null;
+try {
+  const profile = require('../backend/config/cloudflareDeploymentProfile.cjs');
+  testBackendProfile = profile.resolveCloudflareDeploymentProfile(backendTest.vars || {});
+  productionBackendProfile = profile.resolveCloudflareDeploymentProfile(backendProduction.vars || {});
+} catch (error) {
+  profileError = error.message;
+}
+
+const expectedTestApi = 'https://ktc-be-test.nan978971.workers.dev/api';
+const expectedProductionApi = 'https://ktc-be.nan978971.workers.dev/api';
+const testFrontendApi = envValue('frontend/.env.test', 'VITE_API_URL');
+const productionFrontendApi = envValue('frontend/.env.production', 'VITE_API_URL');
+const testProfileOk = Boolean(
+  backendTest.name === 'ktc-be-test' &&
+  backendTest.vars?.KTC_ENVIRONMENT === 'test' &&
+  backendTest.vars?.KTC_FRONTEND_ORIGIN === 'https://ktc-fe-test.nan978971.workers.dev' &&
+  frontendTest.name === 'ktc-fe-test' &&
+  testFrontendApi === expectedTestApi &&
+  /ktc-be-test\\.nan978971\\.workers\\.dev/.test(desktopLauncher) &&
+  /ktc-fe-test\\.nan978971\\.workers\\.dev/.test(desktopLauncher) &&
+  testBackendProfile?.environment === 'test'
+);
+const productionProfileOk = Boolean(
+  backendProduction.name === 'ktc-be' &&
+  backendProduction.vars?.KTC_ENVIRONMENT === 'production' &&
+  backendProduction.vars?.KTC_FRONTEND_ORIGIN === 'https://ktc-frontend.nan978971.workers.dev' &&
+  backendProduction.vars?.KTC_RUN_MASTER_DATA_BOOTSTRAP === 'false' &&
+  frontendProduction.name === 'ktc-frontend' &&
+  productionFrontendApi === expectedProductionApi &&
+  desktopProductionBuilder.extraMetadata?.ktcDeploymentEnvironment === 'production' &&
+  productionBackendProfile?.environment === 'production'
+);
+
+if (!testProfileOk || !productionProfileOk || profileError) {
+  add(blockers, 'CLOUDFLARE_PROFILE_CONFIGURATION', 'Cấu hình Cloudflare TEST/production chưa đồng bộ hoặc không vượt qua kiểm tra profile tĩnh.', {
+    testProfileOk,
+    productionProfileOk,
+    profileError,
+    testFrontendApi,
+    productionFrontendApi
+  });
+} else {
+  checks.push({ id: 'CLOUDFLARE_PROFILE_CONFIGURATION', status: 'PASS' });
+}
+
+if (testProfileOk) {
+  checks.push({ id: 'TEST_ENVIRONMENT_ISOLATION', status: 'PASS' });
+} else {
+  add(blockers, 'TEST_ENVIRONMENT_ISOLATION', 'Không chứng minh được TEST FE/BE/Desktop cùng trỏ về tài nguyên TEST.', null);
+}
+if (productionProfileOk) {
+  checks.push({ id: 'PRODUCTION_ENVIRONMENT_PROFILE', status: 'PASS' });
+} else {
+  add(blockers, 'PRODUCTION_ENVIRONMENT_PROFILE', 'Thiếu profile Cloudflare production rõ ràng cho FE, BE hoặc Desktop.', null);
+}
+
+// Cloudflare secret values intentionally do not belong in Git. Their presence in the
+// Cloudflare account cannot be verified by this source-only gate.
+add(blockers, 'CLOUDFLARE_RUNTIME_SECRETS_UNVERIFIED', 'Chưa thể xác minh trong tài khoản Cloudflare rằng TIDB_DATABASE_URL (hoặc DB_*), JWT_SECRET và các secret tích hợp đã được cấu hình cho cả Worker TEST và production. Cần xác minh thủ công trước khi phát hành.', [
+  'backend/cloudflare-worker.js validates runtime TiDB connection material and JWT_SECRET',
+  'wrangler configs intentionally contain no secret values'
+]);
+
+if (/resolveCloudflareDeploymentProfile/.test(cloudflareWorker) &&
+    /validateCloudflareRuntimeSecrets\(env\)/.test(cloudflareWorker) &&
+    /if\s*\(!deploymentProfile\.masterDataBootstrapEnabled\)\s*return true/.test(cloudflareWorker) &&
+    backendProduction.vars?.KTC_RUN_MASTER_DATA_BOOTSTRAP === 'false') {
+  checks.push({ id: 'CLOUDFLARE_RUNTIME_GUARDS', status: 'PASS' });
+} else {
+  add(blockers, 'CLOUDFLARE_RUNTIME_GUARDS', 'Thiếu guard profile/CORS/secret hoặc tắt master-data bootstrap mặc định ở Cloudflare Worker.', null);
+}
+
+if (/const cloudflareFrontendOrigin\s*=|const cloudflareTestFrontendOrigin\s*=/.test(cloudflareWorker) ||
+    !/testApiOrigin/.test(frontendEnvSource) ||
+    !/isProductionBuild/.test(frontendEnvSource)) {
+  add(blockers, 'CROSS_ENVIRONMENT_ENDPOINT_GUARD', 'Frontend hoặc Worker còn endpoint hardcode dùng chung giữa TEST và production, hoặc thiếu guard build fail-closed.', null);
+} else {
+  checks.push({ id: 'CROSS_ENVIRONMENT_ENDPOINT_GUARD', status: 'PASS' });
+}
+
+const renderFiles = ['render.yaml', 'frontend/render.yaml', 'backend/render.yaml'].filter((file) => fs.existsSync(path.join(root, file)));
+if (renderFiles.length) {
+  add(warnings, 'LEGACY_RENDER_BLUEPRINTS', 'Các Render blueprint cũ vẫn còn trong repository. Chúng không thuộc kiến trúc Cloudflare đã chọn; không được dùng để tạo/cập nhật production service.', renderFiles);
+}
+
+const hasTestDesktopApi = /ktc-be-test\\.nan978971\\.workers\\.dev\\/api/i.test(desktopLauncher);
+const hasTestDesktopWeb = /ktc-fe-test\\.nan978971\\.workers\\.dev/i.test(desktopLauncher);
 if (hasTestDesktopApi || hasTestDesktopWeb) {
-  add(warnings, 'DESKTOP_TEST_ENDPOINTS', 'Desktop launcher được cấu hình rõ cho môi trường TEST. Đây là cấu hình đúng cho nhánh test, nhưng tuyệt đối không dùng artifact này như bản production.', [
-    hasTestDesktopApi ? 'desktop/electron/launcher.cjs: KTC_API_URL -> ktc-be-test.nan978971.workers.dev/api' : null,
-    hasTestDesktopWeb ? 'desktop/electron/launcher.cjs: TEST_FRONTEND_URL -> ktc-fe-test.nan978971.workers.dev' : null
-  ].filter(Boolean));
-} else checks.push({ id: 'DESKTOP_TEST_ENDPOINTS', status: 'PASS' });
-
-if (/ktc-be-test\.nan978971\.workers\.dev/i.test(frontendRender)) {
-  add(warnings, 'FRONTEND_RENDER_TEST_API', 'frontend/render.yaml đang trỏ API về Worker TEST. Giữ nguyên cho kiểm thử; không dùng manifest này để phát hành production.', 'frontend/render.yaml: VITE_API_URL');
-}
-if (/ktc-frontend/.test(rootRender) && /worker-management-system-2-5jqv\.onrender\.com\/api/.test(rootRender)
-    && /ktc-be-test\.nan978971\.workers\.dev\/api/.test(frontendRender)) {
-  add(blockers, 'DEPLOYMENT_MANIFEST_DRIFT', 'Hai Render manifest mô tả hai topology khác nhau (Render backend ở root, Worker TEST trong frontend/render.yaml). Chưa có một cấu hình production duy nhất được xác nhận.', [
-    'render.yaml: ktc-frontend + worker-management-system-2-5jqv.onrender.com/api',
-    'frontend/render.yaml: ktc-be-test.nan978971.workers.dev/api'
-  ]);
-}
-
-const renderOrigin = 'https://ktc-frontend.onrender.com';
-const serverHasOrigin = backendServer.includes(renderOrigin);
-const rootHasCors = /key:\s*CORS_ORIGINS/.test(rootRender);
-if (!serverHasOrigin && !rootHasCors) {
-  add(blockers, 'CORS_PRODUCTION_ORIGIN_UNVERIFIED', 'CORS origin cho frontend Render không được khai báo rõ trong cấu hình version-controlled. Cần xác nhận CORS_ORIGINS tại môi trường triển khai trước release.', [
-    'backend/server.js: allowlist mặc định có worker-management-system-3-dzox.onrender.com',
-    'render.yaml: không khai báo CORS_ORIGINS'
+  add(warnings, 'DESKTOP_DEFAULT_TEST_PROFILE', 'Launcher mặc định TEST theo metadata của package trên nhánh test; chỉ dùng electron-builder.production.json cho artifact production.', [
+    'desktop/package.json: ktcDeploymentEnvironment=test',
+    'desktop/electron-builder.production.json: ktcDeploymentEnvironment=production'
   ]);
 }
 
@@ -69,52 +141,49 @@ const versions = {
   backend: backendPackage.version || null,
   desktop: desktopPackage.version || null
 };
-const distinctVersions = [...new Set(Object.values(versions).filter(Boolean))];
-if (distinctVersions.length > 1) {
-  add(warnings, 'COMPONENT_VERSION_MATRIX', 'Các package có version độc lập; cần chốt version matrix và ghi rõ phiên bản FE/BE/Desktop trong release notes.', versions);
-}
-
-if (/autoDeploy:\s*true/.test(backendRender) && /preDeployCommand:.*db:schema:verify/.test(backendRender)) {
-  add(warnings, 'ALTERNATE_RENDER_BLUEPRINT', 'backend/render.yaml bật autoDeploy và chạy schema verification ở pre-deploy. Không chọn blueprint này khi chưa duyệt riêng tác động pre-deploy.', 'backend/render.yaml');
+if (new Set(Object.values(versions).filter(Boolean)).size > 1) {
+  add(warnings, 'COMPONENT_VERSION_MATRIX', 'Các package có version độc lập; release notes cần ghi rõ version FE/BE/Desktop và commit SHA.', versions);
 }
 
 const windowsSigningDisabled = desktopPackage.build?.win?.signAndEditExecutable === false;
 if (windowsSigningDisabled) {
-  add(warnings, 'WINDOWS_CODE_SIGNING', 'Windows executable hiện cấu hình signAndEditExecutable=false; cần quyết định ký số và kiểm tra chứng thư trước khi phát hành rộng.', 'desktop/package.json: build.win.signAndEditExecutable=false');
+  add(warnings, 'WINDOWS_CODE_SIGNING', 'Windows executable hiện cấu hình signAndEditExecutable=false; cần quyết định ký số trước khi phân phối rộng.', 'desktop/package.json: build.win.signAndEditExecutable=false');
 }
 const githubUpdaterConfigured = Boolean(desktopPackage.build?.publish?.some((item) => item.provider === 'github'));
-if (githubUpdaterConfigured && /autoUpdater\.checkForUpdates\(\)/.test(updater)) {
-  add(warnings, 'GITHUB_AUTO_UPDATE_RELEASE', 'Electron tự kiểm tra GitHub Releases; cần quy trình phát hành có latest.yml/blockmap, artifact đúng version và thử cập nhật trên máy test.', 'desktop/package.json build.publish + desktop/electron/autoUpdate.cjs');
+if (githubUpdaterConfigured && /autoUpdater\\.checkForUpdates\\(\\)/.test(updater)) {
+  add(warnings, 'GITHUB_AUTO_UPDATE_RELEASE', 'Electron auto-update dùng GitHub Releases; cần xác minh artifact, latest.yml/blockmap và rollback trên máy TEST trước khi bật phân phối.', 'desktop/package.json + desktop/electron/autoUpdate.cjs');
 }
 
-const releaseWorkflowDir = path.join(root, '.github', 'workflows');
-let hasReleaseWorkflow = false;
+const workflowDir = path.join(root, '.github', 'workflows');
+let hasArtifactReleaseWorkflow = false;
 try {
-  hasReleaseWorkflow = fs.readdirSync(releaseWorkflowDir).some((name) => /release|publish|deploy/i.test(name));
+  hasArtifactReleaseWorkflow = fs.readdirSync(workflowDir).some((name) =>
+    /release|publish/i.test(name) && !/phase5-release-readiness/i.test(name)
+  );
 } catch {}
-if (!hasReleaseWorkflow) {
-  add(warnings, 'RELEASE_PIPELINE', 'Chưa tìm thấy workflow chuyên biệt cho release/publish; hiện các workflow CI không tự chứng minh artifact đã được đóng gói và ký số.', '.github/workflows');
+if (!hasArtifactReleaseWorkflow) {
+  add(warnings, 'RELEASE_ARTIFACT_PIPELINE', 'Chưa có workflow chuyên biệt tạo và đính kèm artifact production cho Cloudflare/Windows Desktop; Phase 5 gate hiện chỉ kiểm tra source.', '.github/workflows');
 }
 
 const report = {
   project: 'KTC Worker Management System',
   branchIntent: 'test',
+  targetArchitecture: 'Cloudflare Workers + Cloudflare Workers Static Assets + TiDB Cloud',
   mode: 'source-only; no database/network/deploy/build/publish',
   branchStatus: 'TEST_BRANCH_SOURCE_CHECKS',
-  testProfileStatus: (hasTestDesktopApi && hasTestDesktopWeb && /ktc-be-test\.nan978971\.workers\.dev\/api/i.test(frontendRender))
-    ? 'EXPLICIT_TEST_ENDPOINTS'
-    : 'TEST_PROFILE_MIXED_OR_UNCLEAR',
+  testProfileStatus: testProfileOk ? 'EXPLICIT_TEST_ENDPOINTS' : 'TEST_PROFILE_INVALID',
+  productionProfileStatus: productionProfileOk ? 'EXPLICIT_CLOUDFLARE_PROFILES' : 'PRODUCTION_PROFILE_INVALID',
   releaseStatus: blockers.length ? 'BLOCKED' : 'READY_FOR_MANUAL_APPROVAL',
   blockers,
   warnings,
   checks,
   componentVersions: versions,
   nextActions: [
-    'Chọn một topology production duy nhất và API URL chính thức.',
-    'Tách cấu hình TEST/PRODUCTION Desktop bằng cấu hình build rõ ràng; không hardcode TEST trong launcher phát hành.',
-    'Xác nhận CORS_ORIGINS tại Render theo domain frontend thực tế.',
-    'Chốt version matrix, ký số Windows và quy trình GitHub Release/auto-update.',
-    'Chạy smoke test read-only trên staging đã được cho phép; không dùng production write-path.'
+    'Cấu hình TIDB_DATABASE_URL (hoặc DB_*), JWT_SECRET và secrets cần thiết bằng Cloudflare secret storage cho từng Worker environment; không commit secret.',
+    'Xác minh tên Worker/domain production đã được tạo trong Cloudflare trước khi build/phát hành.',
+    'Giữ Render blueprints ngoài quy trình production; chỉ dùng wrangler.production.jsonc và frontend/wrangler.production.jsonc cho production.',
+    'Chạy CI source/unit tests; staging runtime smoke test cần được cho phép riêng.',
+    'Chốt version matrix, ký số Windows và quy trình GitHub Release/auto-update.'
   ]
 };
 
