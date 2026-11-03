@@ -323,3 +323,118 @@ test('legacy machine-line fallback reconciles accounting but remains REVIEW for 
   assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 0);
   assert.equal(result.machine_hours_audit.machine_line_hours_total, 8);
 });
+
+
+test('pending linked event is not counted as physical machine time', () => {
+  const result = classifyReport({
+    id: 41,
+    total_time: 8,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 411, machine_code: 'GC01', machine_time_hours: 8,
+      machine_event_id: 9961, machine_event_status: 'pending'
+    }],
+    eventLines: [],
+    machineAccounting: {
+      source: 'MACHINE_EVENT_MISSING',
+      grossHours: 0,
+      deductionHours: 0,
+      netHours: 0
+    }
+  });
+
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'LINKED_MACHINE_EVENT_NOT_APPROVED');
+  assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 0);
+  assert.equal(result.machine_hours_audit.non_approved_linked_event_count, 1);
+});
+
+function dimensionFixture() {
+  return {
+    id: 42,
+    process_id: 7,
+    work_date: '2026-09-10',
+    shift: 'A',
+    product_name: 'SP-100',
+    total_time: 6,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 421,
+      machine_id: 70,
+      machine_code: 'GC01',
+      product_code: 'SP-100',
+      machine_time_hours: 6,
+      machine_event_id: 9971
+    }],
+    eventLines: [{
+      id: 9971,
+      process_id: 7,
+      machine_id: 70,
+      machine_code: 'GC01',
+      product_code: 'SP-100',
+      work_date: '2026-09-10',
+      shift: 'A',
+      machine_time_hours: 6,
+      status: 'approved'
+    }],
+    machineAccounting: {
+      source: 'MACHINE_EVENT',
+      grossHours: 6,
+      deductionHours: 0,
+      netHours: 6
+    }
+  };
+}
+
+for (const [dimension, mutate] of [
+  ['process', (report) => { report.eventLines[0].process_id = 8; }],
+  ['machine', (report) => { report.eventLines[0].machine_id = 71; }],
+  ['product', (report) => { report.eventLines[0].product_code = 'SP-200'; }],
+  ['work date', (report) => { report.eventLines[0].work_date = '2026-09-11'; }],
+  ['shift', (report) => { report.eventLines[0].shift = 'B'; }]
+]) {
+  test('approved event with mismatched ' + dimension + ' is REVIEW and excluded from physical hours', () => {
+    const report = dimensionFixture();
+    mutate(report);
+    const result = classifyReport(report);
+
+    assert.equal(result.action, 'REVIEW');
+    assert.equal(result.reason, 'APPROVED_MACHINE_EVENT_DIMENSION_MISMATCH');
+    assert.equal(result.machine_hours_audit.dimension_mismatch_linked_event_count, 1);
+    assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 0);
+    assert.equal(result.machine_hours_audit.physical_machine_hours_complete, false);
+    assert.equal(result.machine_hours_audit.machine_accounting_comparison.status, 'MATCH');
+    assert.equal(result.machine_hours_audit.lines[0].dimension_audit.status, 'MISMATCH');
+  });
+}
+
+test('approved event with unverifiable product identity is REVIEW and excluded from physical hours', () => {
+  const report = dimensionFixture();
+  report.product_name = '';
+  report.machineLines[0].product_code = '';
+  report.eventLines[0].product_code = '';
+
+  const result = classifyReport(report);
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'APPROVED_MACHINE_EVENT_DIMENSIONS_UNVERIFIABLE');
+  assert.equal(result.machine_hours_audit.dimension_unverifiable_linked_event_count, 1);
+  assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 0);
+  assert.equal(result.machine_hours_audit.lines[0].dimension_audit.status, 'INCOMPLETE');
+});
+
+test('a valid duplicate event can still be physically counted once after an earlier mismatched link', () => {
+  const report = dimensionFixture();
+  report.machineLines.push({
+    ...report.machineLines[0],
+    id: 422,
+    machine_id: 71
+  });
+
+  const audit = auditMachineHours(report);
+  assert.equal(audit.physical_machine_hours_confirmed, 6);
+  assert.equal(audit.duplicate_event_links, 1);
+  assert.equal(audit.dimension_mismatch_linked_event_count, 1);
+  assert.equal(audit.physical_machine_hours_complete, false);
+});
