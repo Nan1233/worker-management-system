@@ -414,7 +414,9 @@ const machineAutocompleteOptions =
 
             return next;
         });
-    }, [usesMultiMachineLines, machineLines, activeNgOptions]);useProductStandardOutput({
+    }, [usesMultiMachineLines, machineLines, activeNgOptions]);
+
+    useProductStandardOutput({
     processId: processInfo.id,
     machineNo: form.machineNo,
     productName: form.productName,
