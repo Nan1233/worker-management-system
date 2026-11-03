@@ -138,11 +138,11 @@ async function ensureLegacyMachineLines(targets) {
           standard_version_id,machine_standard_id,product_code,machine_time_hours,
           standard_output,standard_time_seconds,standard_source,
           ok_quantity,ng_quantity,maximum_output,counted_output,earned_standard_hours,
-          defects_json,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          defects_json,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [Number(report.id),null,Number(machine.id),machine.machine_code, resolved.productStandardId || null,
          resolved.standardVersionId || null,resolved.machineStandardId || null,productCode,actualTime,standardOutput,
          resolved.standardTimeSeconds || null,resolved.source || "LEGACY",
-         Number(resolved.excludeKqdFromTt || 0) === 1 ? 1 : 0,Number(report.tt_ok || 0),Number(report.tt_ng || 0),
+         Number(report.tt_ok || 0),Number(report.tt_ng || 0),
          maxOutput,actualOutput,earnedStandardHours,"[]",1]);
     } catch (cause) {
       console.error(`[KTC] Legacy machine-line backfill failed for temp #${report.id}: ${cause.message}`);
