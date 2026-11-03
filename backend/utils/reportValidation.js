@@ -164,16 +164,9 @@ const validateProductionReport = (payload = {}, options = {}) => {
     // GC machine-line reports validate output per machine/product in
     // machineLineValidationService; never apply the parent single-product formula.
     if (!isMachineReport && !isGiaCongMachineReport && options.skipActualOutputFormula !== true) {
-        const policyValue = Object.prototype.hasOwnProperty.call(payload, 'exclude_kqd_from_tt_snapshot')
-            ? payload.exclude_kqd_from_tt_snapshot
-            : payload.exclude_kqd_from_tt;
-        const expectedActualOutput = calculateActualOutput({
-            ttOk,
-            defects,
-            excludeKqdFromTt: Boolean(Number(policyValue || 0))
-        });
+        const expectedActualOutput = calculateActualOutput({ ttOk, defects });
         if (Math.abs(actualOutput - expectedActualOutput) > EPSILON) {
-            errors.actual_output = 'Sản lượng thực tế không đúng theo quy tắc tính của mã sản phẩm';
+            errors.actual_output = 'Sản lượng thực tế phải bằng TT OK cộng toàn bộ NG';
         }
     }
 
