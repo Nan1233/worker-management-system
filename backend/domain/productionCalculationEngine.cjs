@@ -40,10 +40,10 @@ function calculateNg(report = {}) {
   const details = Array.isArray(report.defects) ? report.defects : [];
   if (!details.length) {
     const total = asInteger(report.tt_ng);
-    return { allNg: total, countedNg: total, excludedKqd: 0 };
+    return { allNg: total, countedNg: total };
   }
   const allNg = details.reduce((sum, item) => sum + defectQuantity(item), 0);
-  return { allNg, countedNg: allNg, excludedKqd: 0 };
+  return { allNg, countedNg: allNg };
 }
 
 function machineLineHours(report = {}) {
@@ -153,7 +153,6 @@ function calculateProductionMetrics(report = {}, settings = {}) {
     ok,
     allNg: ng.allNg,
     countedNg: ng.countedNg,
-    excludedKqd: ng.excludedKqd,
     enteredOutput,
     adjustedOutput,
     standard,
