@@ -1157,6 +1157,7 @@ async function performSyncSingleMonth({ date, source }) {
   return result;
 }
 async function performSync({ date, source }) {
+  const startedAt = Date.now();
   assertDate(date);
   const [year] = date.split('-');
   const root = getExportRoot();
@@ -1219,7 +1220,7 @@ async function performSync({ date, source }) {
     months: monthResults.map(({ files: _files, ...item }) => item),
     rootFolder: root,
     savedAt: new Date().toISOString(),
-    elapsedMs: monthResults.reduce((sum, item) => sum, 0),
+    elapsedMs: Date.now() - startedAt,
     excelEngine: 'desktop-local',
     backendRole: 'approved-data-only'
   };
