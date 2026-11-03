@@ -137,6 +137,124 @@ function calculateAdjustedOutput({ enteredOutput, ok, countedNg, factor, setting
   return output === null ? null : Math.round(output);
 }
 
+function parseArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function positiveHours(value) {
+  return Math.max(0, asNumber(value) || 0);
+}
+
+// GC MACHINE stores Worker credit on machine lines and intentionally writes
+// zero to the parent report's time/output fields. Aggregate the line-level
+// Worker values here; never substitute shared physical event hours.
+function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor, snapshotMissing) {
+  const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
+  if (!lines.length) return null;
+
+  const reportDeductions = parseArray(report.deductions);
+  const allowReportFallback = lines.length === 1;
+  let workingTime = 0;
+  let deductionTime = 0;
+  let actualTime = 0;
+  let ok = 0;
+  let allNg = 0;
+  let countedNg = 0;
+  let excludedKqd = 0;
+  let enteredOutput = 0;
+  let adjustedOutput = 0;
+  let plannedOutput = 0;
+
+  for (const line of lines) {
+    const machineHours = positiveHours(line.machine_time_hours);
+    const lineDeductions = parseArray(line.deductions).length
+      ? parseArray(line.deductions)
+      : parseArray(line.deductions_json);
+    const reportLineDeductions = lineDeductions.length
+      ? lineDeductions
+      : (allowReportFallback ? reportDeductions : []);
+    const detailHours = reportLineDeductions.reduce((sum, item) => sum + positiveHours(item?.hours), 0);
+    const fallbackHours = Math.max(
+      positiveHours(line.deduction_time_hours),
+      positiveHours(line.adjustment_minutes) / 60,
+      allowReportFallback && !reportLineDeductions.length ? positiveHours(report.deduction_time) : 0
+    );
+    const deductionHours = detailHours > 0 ? detailHours : fallbackHours;
+    const workedHours = Math.max(0, machineHours - deductionHours);
+
+    const lineOk = Math.max(0, asInteger(line.ok_quantity) || 0);
+    const lineNg = Math.max(0, asInteger(line.ng_quantity) || 0);
+    const lineDefects = parseArray(line.defects).length
+      ? parseArray(line.defects)
+      : parseArray(line.defects_json);
+    const policyValue = line.exclude_kqd_from_tt !== undefined && line.exclude_kqd_from_tt !== null
+      ? line.exclude_kqd_from_tt
+      : (report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt);
+    const lineExcludeKqd = Number(policyValue || 0) === 1;
+    const lineExcludedKqd = lineExcludeKqd
+      ? lineDefects.reduce((sum, defect) => (
+        sum + (isKqdDefect(defect) ? positiveHours(defect?.quantity) : 0)
+      ), 0)
+      : 0;
+    const lineCountedNg = Math.max(0, lineNg - lineExcludedKqd);
+    const lineStandard = positiveHours(line.standard_output);
+    const trainingMultiplier = resolved.apply_training_percent
+      ? (factor === null ? null : factor)
+      : 1;
+
+    workingTime += machineHours;
+    deductionTime += deductionHours;
+    actualTime += workedHours;
+    ok += lineOk;
+    allNg += lineNg;
+    countedNg += lineCountedNg;
+    excludedKqd += lineExcludedKqd;
+    enteredOutput += lineOk + lineNg;
+    adjustedOutput += lineOk + lineCountedNg;
+    if (trainingMultiplier !== null) plannedOutput += lineStandard * workedHours * trainingMultiplier;
+  }
+
+  const outputPerHour = actualTime > 0 ? adjustedOutput / actualTime : null;
+  const plannedAvailable = !resolved.apply_training_percent || factor !== null;
+  const resolvedPlannedOutput = plannedAvailable ? plannedOutput : null;
+  const standard = actualTime > 0 && resolvedPlannedOutput !== null
+    ? resolvedPlannedOutput / actualTime
+    : null;
+  const achievement = resolvedPlannedOutput > 0 ? adjustedOutput / resolvedPlannedOutput : null;
+  const ngDenominator = ok + allNg;
+  const ngRate = resolved.ng_rate_formula === 'NG_DIV_ENTERED_OUTPUT'
+    ? (enteredOutput > 0 ? allNg / enteredOutput : null)
+    : (ngDenominator > 0 ? allNg / ngDenominator : null);
+
+  return {
+    trainingPercent,
+    trainingFactor: factor,
+    trainingSnapshotAvailable: !snapshotMissing,
+    workingTime,
+    deductionTime,
+    actualTime,
+    ok,
+    allNg,
+    countedNg,
+    excludedKqd,
+    enteredOutput,
+    adjustedOutput,
+    standard,
+    plannedOutput: resolvedPlannedOutput,
+    outputPerHour,
+    achievement,
+    ngRate,
+    hasMachinePerformance: false
+  };
+}
+
 function calculateProductionMetrics(report = {}, settings = {}) {
   const resolved = resolveSettings(settings);
 
@@ -159,6 +277,13 @@ function calculateProductionMetrics(report = {}, settings = {}) {
     );
   const factor = trainingPercent === null ? null : trainingPercent / 100;
   const standard = asNumber(report.standard_output);
+  const isGcMachineReport = normalizeCode(report.process_code) === 'GC'
+    && normalizeCode(report.operation_mode) === 'MACHINE';
+  if (isGcMachineReport) {
+    const gcMetrics = calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor, snapshotMissing);
+    if (gcMetrics) return gcMetrics;
+  }
+
   const machinePerformance = report.machinePerformance || report.machine_performance || null;
   const hasMachinePerformance = Number(machinePerformance?.machine_count || 0) > 0;
 
