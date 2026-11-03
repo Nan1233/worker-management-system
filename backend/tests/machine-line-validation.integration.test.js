@@ -20,7 +20,6 @@ const products = [
     default_standard_output: 100,
     machine_standard_output: 100,
     standard_time_seconds: 36,
-    exclude_kqd_from_tt: 1
   },
   {
     id: 202,
@@ -74,7 +73,6 @@ const createQueryMock = () => async (sql, params = []) => {
         default_standard_output: product.default_standard_output,
         machine_standard_output: product.machine_standard_output,
         standard_time_seconds: product.standard_time_seconds,
-        exclude_kqd_from_tt: product.exclude_kqd_from_tt
       }));
   }
 
@@ -91,13 +89,13 @@ const validate = createMachineLineValidator({
       return {
         productStandardId: product.id, standardVersionId: 301, machineStandardId: 401 + Number(machineId),
         productCode: product.product_code, machineId, machineCode, standardOutput: product.machine_standard_output,
-        standardTimeSeconds: product.standard_time_seconds, excludeKqdFromTt: product.exclude_kqd_from_tt, source: 'MACHINE'
+        standardTimeSeconds: product.standard_time_seconds, source: 'MACHINE'
       };
     }
   }
 });
 
-test('multi-machine line validates DB master data, NG detail and KQD exclusion', async () => {
+test('multi-machine line validates DB master data and counts every NG defect', async () => {
   const result = await validate({
     processId: 1,
     workDate: '2026-08-10',
@@ -123,11 +121,11 @@ test('multi-machine line validates DB master data, NG detail and KQD exclusion',
   assert.equal(result.lines.length, 1);
   assert.equal(result.lines[0].machine_id, 101);
   assert.equal(result.lines[0].standard_output, 100);
-  assert.equal(result.lines[0].counted_output, 98);
-  assert.equal(result.lines[0].earned_standard_hours, 0.98);
+  assert.equal(result.lines[0].counted_output, 100);
+  assert.equal(result.lines[0].earned_standard_hours, 1);
   assert.equal(result.totals.totalOk, 90);
   assert.equal(result.totals.totalNg, 10);
-  assert.equal(result.totals.totalCounted, 98);
+  assert.equal(result.totals.totalCounted, 100);
 });
 
 test('multi-machine line rejects duplicate machine and mismatched NG', async () => {
