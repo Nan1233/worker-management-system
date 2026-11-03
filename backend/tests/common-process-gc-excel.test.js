@@ -64,6 +64,40 @@ test('multiple workers sharing one machine remain separate credits; repeated bui
   assert.equal(first.reduce((sum, r) => sum + r.actual_output, 0), 100);
 });
 
+test('shared physical event output is not copied into Worker monthly credits', () => {
+  const sharedEventWorker = (id, workerId, workerCode, ok, ng) => report({
+    id,
+    worker_id: workerId,
+    worker_code: workerCode,
+    // Parent report values mirror the physical event and must not replace line-level Worker credit.
+    tt_ok: 500,
+    tt_ng: 5,
+    actual_output: 505,
+    machineLines: [{
+      ...line(id * 100, 'M01', 'SP01', 3, ok, ng),
+      machine_event_id: 8800,
+      excel_machine_time_hours: 6,
+      physical_ok_quantity: 500,
+      physical_ng_quantity: 5,
+      physical_counted_output: 505
+    }]
+  });
+
+  const rows = __test.expandGiaCongMachineLines([
+    sharedEventWorker(1, 10, 'CN01', 60, 2),
+    sharedEventWorker(2, 11, 'CN02', 40, 3)
+  ]);
+
+  assert.deepEqual(rows.map((row) => [row.worker_code, row.tt_ok, row.tt_ng, row.actual_output]), [
+    ['CN01', 60, 2, 62],
+    ['CN02', 40, 3, 43]
+  ]);
+  assert.equal(rows.reduce((sum, row) => sum + row.tt_ok, 0), 100);
+  assert.equal(rows.reduce((sum, row) => sum + row.tt_ng, 0), 5);
+  assert.equal(rows.reduce((sum, row) => sum + row.actual_output, 0), 105);
+  assert.notEqual(rows.reduce((sum, row) => sum + row.actual_output, 0), 505 * 2);
+});
+
 test('shared physical event time is not copied into each worker participation row', () => {
   const sharedEvent = (id, workerId, workerCode, participationHours) => report({
     id, worker_id: workerId, worker_code: workerCode,
