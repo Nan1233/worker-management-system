@@ -277,7 +277,9 @@ function expandGiaCongMachineLines(reports) {
       const detailHours = deductions.reduce((sum, item) => sum + item.hours, 0);
       const fallbackDeduction = Math.max(0, num(line.deduction_time_hours), num(line.adjustment_minutes) / 60);
       const deductionHours = Math.max(detailHours, fallbackDeduction);
-      const totalHours = Math.max(0, num(line.excel_machine_time_hours ?? line.machine_time_hours));
+      // This sheet expands worker-machine pairs: show worker participation
+      // time, not the shared physical event duration repeated on each worker.
+      const totalHours = Math.max(0, num(line.machine_time_hours));
       const actualHours = Math.max(0, totalHours - deductionHours);
       const ok = Math.max(0, num(line.ok_quantity));
       const ng = Math.max(0, num(line.ng_quantity));
