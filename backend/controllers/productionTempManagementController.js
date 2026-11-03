@@ -383,15 +383,8 @@ exports.updateTempReport = async (req, res) => {
         const totalMachineHours = Number(machineValidation.totals?.totalMachineHours || 0);
         const manualOutput = hasMachineLines ? null : calculateProductionOutput({
             ok: validation.normalized.tt_ok,
-            defects: master.authoritativeDefects,
-            excludeKqdFromTt: Boolean(Number(master.excludeKqdFromTt || 0))
+            defects: master.authoritativeDefects
         });
-        const parentKqdPolicySnapshot = hasMachineLines
-            ? (() => {
-                const policies = [...new Set(machineValidation.lines.map((line) => Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0))];
-                return policies.length === 1 ? policies[0] : null;
-            })()
-            : (Number(master.excludeKqdFromTt || 0) === 1 ? 1 : 0);
         const normalizedUpdate = {
             ...validation.normalized,
             operation_mode: (hasMachineLines || (operationMode === "MACHINE" && master.machineCode)) ? "MACHINE" : "MANUAL",
@@ -415,8 +408,6 @@ exports.updateTempReport = async (req, res) => {
             tt_ng: hasMachineLines
                 ? Number(machineValidation.totals?.totalNg || 0)
                 : validation.normalized.tt_ng,
-            exclude_kqd_from_tt: parentKqdPolicySnapshot ?? 0,
-            exclude_kqd_from_tt_snapshot: parentKqdPolicySnapshot,
             standard_version_id: hasMachineLines ? null : master.standardVersionId,
             machine_standard_id: hasMachineLines ? null : master.machineStandardId,
             machine_lines: machineValidation.lines
