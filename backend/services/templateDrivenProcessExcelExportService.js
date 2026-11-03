@@ -141,7 +141,6 @@ async function applyCurrentDbMasterData(reports) {
     if (standard) {
       report.product_name = String(standard.product_code || requestedProduct).trim(); report.product_code = String(standard.product_code || requestedProduct).trim();
       const dbStandard = Number(standard.standard_output); if (Number.isFinite(dbStandard) && dbStandard > 0) report.standard_output = dbStandard;
-      if (standard.exclude_kqd_from_tt !== null && standard.exclude_kqd_from_tt !== undefined) report.exclude_kqd_from_tt = Number(standard.exclude_kqd_from_tt) === 1 ? 1 : 0;
     }
     const requestedMachine = String(report.machine_no ?? '').trim();
     if (!requestedMachine) { report.machine_no = null; report.exportWorkType = 'LỒNG'; continue; }
