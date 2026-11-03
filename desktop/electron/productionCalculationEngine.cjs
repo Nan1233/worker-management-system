@@ -1,7 +1,5 @@
 'use strict';
 
-const { isKqdDefect } = require('../../shared/kqdPolicy.cjs');
-
 const DEFAULT_SETTINGS = Object.freeze({
   apply_training_percent: 1,
   output_formula: 'ENTERED_X_TRAINING',
@@ -34,59 +32,17 @@ function trainingFactor(value, defaultPercent = 100) {
   return normalizeTrainingPercent(value, defaultPercent) / 100;
 }
 
-function normalizeCode(value) {
-  return String(value ?? '').trim().toUpperCase();
-}
-
 function defectQuantity(item) {
   return asInteger(item?.quantity) || 0;
 }
 
-function defectCode(item) {
-  return normalizeCode(item?.defect_type_code || item?.defect_code || item?.code);
-}
-
 function calculateNg(report = {}) {
   const details = Array.isArray(report.defects) ? report.defects : [];
-  const hasKqdSnapshot = Object.prototype.hasOwnProperty.call(report, 'exclude_kqd_from_tt_snapshot');
-  const kqdPolicyValue = hasKqdSnapshot ? report.exclude_kqd_from_tt_snapshot : report.exclude_kqd_from_tt;
-  const excludeKqd = Number(kqdPolicyValue || 0) === 1;
-
-  // production_reports.tt_ng is the database snapshot used by the approved
-  // report. When details are present, keep the detail totals available for
-  // diagnostics, but do not replace the DB value during Excel export.
   const databaseNg = asInteger(report.tt_ng);
-  if (!details.length) {
-    return {
-      allNg: databaseNg,
-      countedNg: databaseNg,
-      excludedKqd: 0,
-      excludeKqd
-    };
-  }
-
-  let detailNg = 0;
-  let excludedKqd = 0;
-  for (const item of details) {
-    const quantity = defectQuantity(item);
-    detailNg += quantity;
-    if (excludeKqd && isKqdDefect({ defect_code: defectCode(item) })) excludedKqd += quantity;
-  }
-
-  // Keep the approved DB total as the displayed all-NG snapshot, while
-  // applying the historical KQD policy to the counted-NG metric. Detail
-  // rows identify the excluded quantity; they must not replace the DB total.
-  const countedNg = databaseNg === null
-    ? null
-    : Math.max(0, databaseNg - excludedKqd);
-
-  return {
-    allNg: databaseNg,
-    countedNg,
-    excludedKqd,
-    detailNg,
-    excludeKqd
-  };
+  if (!details.length) return { allNg: databaseNg, countedNg: databaseNg, excludedKqd: 0 };
+  const detailNg = details.reduce((sum, item) => sum + defectQuantity(item), 0);
+  const allNg = databaseNg === null ? detailNg : databaseNg;
+  return { allNg, countedNg: allNg, excludedKqd: 0, detailNg };
 }
 
 function machineLineHours(report = {}) {
@@ -197,16 +153,7 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     const lineDefects = parseArray(line.defects).length
       ? parseArray(line.defects)
       : parseArray(line.defects_json);
-    const policyValue = line.exclude_kqd_from_tt !== undefined && line.exclude_kqd_from_tt !== null
-      ? line.exclude_kqd_from_tt
-      : (report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt);
-    const lineExcludeKqd = Number(policyValue || 0) === 1;
-    const lineExcludedKqd = lineExcludeKqd
-      ? lineDefects.reduce((sum, defect) => (
-        sum + (isKqdDefect(defect) ? Math.max(0, asInteger(defect?.quantity) || 0) : 0)
-      ), 0)
-      : 0;
-    const lineCountedNg = Math.max(0, lineNg - lineExcludedKqd);
+    const lineCountedNg = lineNg;
     const lineStandard = positiveHours(line.standard_output);
     const trainingMultiplier = resolved.apply_training_percent
       ? (factor === null ? null : factor)
