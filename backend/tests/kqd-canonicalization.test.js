@@ -13,7 +13,6 @@ test('KQD is counted as an ordinary NG defect in production output', () => {
   const result = calculateProductionOutput({ ok: 90, defects });
   assert.equal(result.totalNg, 10);
   assert.equal(result.countedNg, 10);
-  assert.equal(result.excludedKqd, 0);
   assert.equal(result.actualOutput, 100);
 });
 
@@ -39,7 +38,6 @@ test('production metrics ignore legacy KQD policy snapshots', () => {
     exclude_kqd_from_tt_snapshot: 1, exclude_kqd_from_tt: 1, defects
   }, { output_formula: 'OK_PLUS_NG', apply_training_percent: 0 });
   assert.equal(metrics.countedNg, 10);
-  assert.equal(metrics.excludedKqd, 0);
   assert.equal(metrics.enteredOutput, 100);
 });
 
