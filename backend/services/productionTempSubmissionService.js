@@ -417,6 +417,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             // a partial report marked need_fix; a retry with the same request ID
             // then incorrectly returned that incomplete row as a successful duplicate.
             await beginReadCommittedTransaction(parentConnection);
+            await createModel.lockClientRequestId(workerId, requestId, parentConnection);
             const race = await findExistingClientRequest(data, parentConnection);
             if (race) { await commit(parentConnection); return idempotent(race); }
             try {
