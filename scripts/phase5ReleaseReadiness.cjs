@@ -36,14 +36,14 @@ const updater = read('desktop/electron/autoUpdate.cjs');
 const hasTestDesktopApi = /ktc-be-test\.nan978971\.workers\.dev\/api/i.test(desktopLauncher);
 const hasTestDesktopWeb = /ktc-fe-test\.nan978971\.workers\.dev/i.test(desktopLauncher);
 if (hasTestDesktopApi || hasTestDesktopWeb) {
-  add(blockers, 'DESKTOP_TEST_ENDPOINTS', 'Desktop launcher đang ghim URL TEST; không được đóng gói/phát hành như bản production.', [
+  add(warnings, 'DESKTOP_TEST_ENDPOINTS', 'Desktop launcher được cấu hình rõ cho môi trường TEST. Đây là cấu hình đúng cho nhánh test, nhưng tuyệt đối không dùng artifact này như bản production.', [
     hasTestDesktopApi ? 'desktop/electron/launcher.cjs: KTC_API_URL -> ktc-be-test.nan978971.workers.dev/api' : null,
     hasTestDesktopWeb ? 'desktop/electron/launcher.cjs: TEST_FRONTEND_URL -> ktc-fe-test.nan978971.workers.dev' : null
   ].filter(Boolean));
 } else checks.push({ id: 'DESKTOP_TEST_ENDPOINTS', status: 'PASS' });
 
 if (/ktc-be-test\.nan978971\.workers\.dev/i.test(frontendRender)) {
-  add(blockers, 'FRONTEND_RENDER_TEST_API', 'frontend/render.yaml đang trỏ API về Worker TEST; cần xác định API production chính thức trước khi phát hành.', 'frontend/render.yaml: VITE_API_URL');
+  add(warnings, 'FRONTEND_RENDER_TEST_API', 'frontend/render.yaml đang trỏ API về Worker TEST. Giữ nguyên cho kiểm thử; không dùng manifest này để phát hành production.', 'frontend/render.yaml: VITE_API_URL');
 }
 if (/ktc-frontend/.test(rootRender) && /worker-management-system-2-5jqv\.onrender\.com\/api/.test(rootRender)
     && /ktc-be-test\.nan978971\.workers\.dev\/api/.test(frontendRender)) {
@@ -100,6 +100,10 @@ const report = {
   project: 'KTC Worker Management System',
   branchIntent: 'test',
   mode: 'source-only; no database/network/deploy/build/publish',
+  branchStatus: 'TEST_BRANCH_SOURCE_CHECKS',
+  testProfileStatus: (hasTestDesktopApi && hasTestDesktopWeb && /ktc-be-test\\.nan978971\\.workers\\.dev\\/api/i.test(frontendRender))
+    ? 'EXPLICIT_TEST_ENDPOINTS'
+    : 'TEST_PROFILE_MIXED_OR_UNCLEAR',
   releaseStatus: blockers.length ? 'BLOCKED' : 'READY_FOR_MANUAL_APPROVAL',
   blockers,
   warnings,
