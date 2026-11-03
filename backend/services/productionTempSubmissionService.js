@@ -357,8 +357,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         return nonProductWorkModel.createCompleteReport({ data, defects: defectsInput, deductions: deductionsInput, audit });
     }
 
-    await enforceDailyWorkerHours(data, db, machineLines);
-    data._daily_hours_machine_lines = machineLines;
+    await enforceDailyWorkerHours(data, db);
     return runSerialized(queueKey(data, machineLines), async () => {
         const existingBefore = await findExistingClientRequest(data);
         if (existingBefore) return idempotent(existingBefore);
