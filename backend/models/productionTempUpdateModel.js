@@ -207,6 +207,7 @@ module.exports = {
                 if (!validation.valid) { const error = new Error("Thông tin máy hoặc thời gian máy không hợp lệ"); error.status = 422; error.code = "MACHINE_LINES_INVALID"; error.isPublic = true; error.details = validation.errors; throw error; }
                 normalizedMachineLines = validation.lines;
                 const nextShift = Object.prototype.hasOwnProperty.call(data, "shift") ? data.shift : current.shift;
+                await createModel.lockMachineCapacityKeys(current.process_id, nextWorkDate, nextShift, normalizedMachineLines, connection);
                 const lockedCapacity = await validateMachineWorkerCapacityLocked({ executor: connection, processCode: processRows[0]?.process_code, processId: current.process_id, machineLines: normalizedMachineLines, workerId: current.worker_id, workDate: nextWorkDate, shift: nextShift, excludeTempReportId: id });
                 if (!lockedCapacity.valid) { const error = new Error("Máy đã đủ số người cho phép"); error.status = 422; error.code = "MACHINE_WORKER_LIMIT_EXCEEDED"; error.isPublic = true; error.details = lockedCapacity.errors; throw error; }
                 data.machine_lines = normalizedMachineLines;
