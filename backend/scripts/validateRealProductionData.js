@@ -51,7 +51,6 @@ async function main(){
     coverage.processes.add(String(report.process_code||'')); coverage.workers.add(String(report.worker_code||'')); coverage.dates.add(String(report.work_date).slice(0,10));
     if(d.machineLines.length>1) coverage.multiMachine += 1;
     if(Number(report.training_percent)===0) coverage.zeroTraining += 1;
-    if(Number(report.exclude_kqd_from_tt)===1) coverage.kqdExcluded += 1;
     if(d.defects.length) coverage.withDefects += 1;
     if(d.deductions.length) coverage.withDeductions += 1;
     const defectSum=d.defects.reduce((s,x)=>s+num(x.quantity),0);
