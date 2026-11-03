@@ -21,8 +21,12 @@ if (explicitTiDbUrl) {
   } catch { process.env.TIDB_DATABASE_URL = explicitTiDbUrl; }
 }
 
-const { resolveCloudflareDeploymentProfile } = require("./config/cloudflareDeploymentProfile.cjs");
+const {
+  resolveCloudflareDeploymentProfile,
+  validateCloudflareRuntimeSecrets,
+} = require("./config/cloudflareDeploymentProfile.cjs");
 const deploymentProfile = resolveCloudflareDeploymentProfile(process.env);
+validateCloudflareRuntimeSecrets(env);
 const configuredCorsOrigins = [...deploymentProfile.allowedOrigins];
 process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
 process.env.PORT = process.env.PORT || "3000";
