@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { calculateProductionOutput } = require('../../shared/productionOutput.cjs');
-const { recalculateReportOutput } = require('../services/kqdReportCalculationService');
+const { recalculateReportOutput } = require('../services/productionOutputCalculationService');
 const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
 
 const defects = [
