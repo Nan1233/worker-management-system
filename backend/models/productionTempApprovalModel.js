@@ -14,9 +14,6 @@ const {
   assertStandardSnapshotConsistency,
 } = require("../services/standardResolutionService");
 const {
-  assertKqdPolicySnapshotConsistency,
-} = require("../services/kqdPolicySnapshotService");
-const {
   assertApprovedEventForTempLine,
   prepareApprovedEventContext,
 } = require("../services/machineProductionEventService");
@@ -182,8 +179,7 @@ function assertNonProductWorkSnapshot(item) {
   const output = Number(item?.standard_output || 0);
   const versionId = Number(item?.standard_version_id || 0);
   const machineStandardId = Number(item?.machine_standard_id || 0);
-  const kqdPolicy = Number(item?.exclude_kqd_from_tt_snapshot || 0);
-  if (output !== 0 || versionId !== 0 || machineStandardId !== 0 || kqdPolicy !== 0) {
+  if (output !== 0 || versionId !== 0 || machineStandardId !== 0) {
     const error = new Error("Ảnh chụp công việc khác trong công đoạn không hợp lệ; cần kiểm tra lại báo cáo");
     error.status = 422;
     error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
@@ -231,10 +227,6 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
         standardVersionId: line.standard_version_id,
         machineStandardId: line.machine_standard_id,
       });
-      assertKqdPolicySnapshotConsistency({
-        resolved,
-        snapshot: line.exclude_kqd_from_tt,
-      });
     }
     return;
   }
@@ -254,8 +246,7 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
     const savedOutput = Number(item.standard_output || 0);
     const savedVersionId = Number(item.standard_version_id || 0);
     const savedMachineStandardId = Number(item.machine_standard_id || 0);
-    const savedKqdPolicy = Number(item.exclude_kqd_from_tt_snapshot || 0);
-    if (savedOutput !== 0 || savedVersionId !== 0 || savedMachineStandardId !== 0 || savedKqdPolicy !== 0) {
+    if (savedOutput !== 0 || savedVersionId !== 0 || savedMachineStandardId !== 0) {
       const error = new Error("Ảnh chụp công việc khác không hợp lệ; cần kiểm tra lại báo cáo");
       error.status = 422;
       error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
@@ -270,10 +261,6 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
     standardOutput: item.standard_output,
     standardVersionId: item.standard_version_id,
     machineStandardId: item.machine_standard_id,
-  });
-  assertKqdPolicySnapshotConsistency({
-    resolved,
-    snapshot: item.exclude_kqd_from_tt_snapshot,
   });
 }
 
