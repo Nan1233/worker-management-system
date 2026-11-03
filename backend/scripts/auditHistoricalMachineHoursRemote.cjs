@@ -139,13 +139,17 @@ function auditMachineHours(report) {
   const seenEventIds = new Set();
   const linkedEventIds = new Set();
   let physicalMachineHours = 0;
+  let accountingGrossHoursExpected = 0;
   let duplicateEventLinks = 0;
   let missingLinkedEvents = 0;
+  let nonApprovedLinkedEvents = 0;
   let linesWithoutEvent = 0;
 
-  const machineLineDetails = lines.map((line, index) => {
+  const machineLineDetails = lines.map((line) => {
     const eventId = Number(line.machine_event_id) || 0;
-    const linkedEvent = eventId > 0 ? eventsById.get(eventId) : null;
+    const candidateEvent = eventId > 0 ? eventsById.get(eventId) : null;
+    const candidateStatus = String(candidateEvent?.status || '').trim().toLowerCase();
+    const linkedEvent = candidateEvent && candidateStatus === 'approved' ? candidateEvent : null;
     const lineHours = round(num(line.machine_time_hours));
     let eventState = 'NO_EVENT_LINK';
     let eventHours = null;
@@ -153,8 +157,11 @@ function auditMachineHours(report) {
 
     if (eventId > 0) {
       linkedEventIds.add(eventId);
-      if (!linkedEvent) {
-        eventState = 'LINKED_EVENT_MISSING_OR_NOT_APPROVED';
+      if (candidateEvent && !linkedEvent) {
+        eventState = 'LINKED_EVENT_NOT_APPROVED';
+        nonApprovedLinkedEvents += 1;
+      } else if (!linkedEvent) {
+        eventState = 'LINKED_EVENT_MISSING_FROM_APPROVED_EVENT_LINES';
         missingLinkedEvents += 1;
       } else {
         eventState = 'APPROVED_EVENT_FOUND';
@@ -165,10 +172,17 @@ function auditMachineHours(report) {
           seenEventIds.add(eventId);
           countedPhysicalHours = eventHours;
           physicalMachineHours += num(linkedEvent.machine_time_hours);
+          accountingGrossHoursExpected += num(linkedEvent.machine_time_hours);
         }
       }
     } else {
       linesWithoutEvent += 1;
+      // This is the legacy line fallback used by buildGiaCongMachineAccounting.
+      // It is accounting input, not proof of physical event time.
+      accountingGrossHoursExpected += Math.max(
+        0,
+        num(line.excel_machine_time_hours ?? line.machine_time_hours)
+      );
     }
 
     return {
@@ -177,7 +191,7 @@ function auditMachineHours(report) {
       machine_line_hours: lineHours,
       machine_event_id: eventId || null,
       event_state: eventState,
-      event_status: linkedEvent ? String(linkedEvent.status || 'APPROVED_BY_API_FILTER') : null,
+      event_status: candidateEvent ? String(candidateEvent.status || '') : null,
       physical_event_hours: eventHours,
       physical_hours_counted_for_this_line: round(countedPhysicalHours)
     };
@@ -185,12 +199,36 @@ function auditMachineHours(report) {
 
   const complete = lines.length > 0
     && missingLinkedEvents === 0
+    && nonApprovedLinkedEvents === 0
     && linesWithoutEvent === 0
     && machineLineDetails.every((line) =>
       line.event_state === 'APPROVED_EVENT_FOUND'
       && line.physical_event_hours !== null
       && line.physical_event_hours > 0
     );
+
+  const hasApprovedEvent = seenEventIds.size > 0;
+  const expectedSource = hasApprovedEvent
+    ? ((missingLinkedEvents + nonApprovedLinkedEvents) > 0 ? 'MACHINE_EVENT_PARTIAL' : 'MACHINE_EVENT')
+    : ((missingLinkedEvents + nonApprovedLinkedEvents) > 0
+      ? 'MACHINE_EVENT_MISSING'
+      : (lines.length ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING'));
+
+  const actualAccounting = report.machineAccounting && typeof report.machineAccounting === 'object'
+    ? report.machineAccounting
+    : null;
+  const actualGrossHours = actualAccounting ? round(num(actualAccounting.grossHours)) : null;
+  const actualSource = actualAccounting ? String(actualAccounting.source || '') : null;
+  const accountingComparison = actualAccounting
+    ? {
+        status: Math.abs(actualGrossHours - round(accountingGrossHoursExpected)) <= 0.0001
+          && actualSource === expectedSource ? 'MATCH' : 'MISMATCH',
+        expected_gross_hours: round(accountingGrossHoursExpected),
+        actual_gross_hours: actualGrossHours,
+        expected_source: expectedSource,
+        actual_source: actualSource
+      }
+    : { status: 'NOT_PROVIDED', expected_gross_hours: round(accountingGrossHoursExpected) };
 
   return {
     worker_hours: round(num(report.total_time)),
@@ -199,14 +237,14 @@ function auditMachineHours(report) {
     )),
     physical_machine_hours_confirmed: round(physicalMachineHours),
     physical_machine_hours_complete: complete,
-    physical_machine_hours_source: linkedEventIds.size > 0
-      ? (missingLinkedEvents > 0 ? 'APPROVED_EVENTS_PARTIAL_OR_MISSING' : 'APPROVED_MACHINE_EVENTS')
-      : 'NO_APPROVED_MACHINE_EVENT_LINKS',
+    physical_machine_hours_source: expectedSource,
+    machine_accounting_comparison: accountingComparison,
     machine_line_count: lines.length,
     linked_event_count: linkedEventIds.size,
     unique_approved_event_count: seenEventIds.size,
     duplicate_event_links: duplicateEventLinks,
     missing_linked_event_count: missingLinkedEvents,
+    non_approved_linked_event_count: nonApprovedLinkedEvents,
     machine_lines_without_event_count: linesWithoutEvent,
     lines: machineLineDetails
   };
@@ -275,6 +313,16 @@ function classifyReport(report) {
     result.reason = 'MULTI_MACHINE_ALLOCATION_REQUIRES_CONFIRMATION';
     return result;
   }
+  if (machineHoursAudit.machine_accounting_comparison.status === 'MISMATCH') {
+    result.action = 'REVIEW';
+    result.reason = 'MACHINE_ACCOUNTING_DOES_NOT_MATCH_EVENT_AND_LINE_SOURCES';
+    return result;
+  }
+  if (machineHoursAudit.non_approved_linked_event_count > 0) {
+    result.action = 'REVIEW';
+    result.reason = 'LINKED_MACHINE_EVENT_NOT_APPROVED';
+    return result;
+  }
   if (machineHoursAudit.missing_linked_event_count > 0) {
     result.action = 'REVIEW';
     result.reason = 'LINKED_MACHINE_EVENT_MISSING_OR_NOT_APPROVED';
@@ -283,6 +331,12 @@ function classifyReport(report) {
   if (machineHoursAudit.machine_lines_without_event_count > 0) {
     result.action = 'REVIEW';
     result.reason = 'MACHINE_LINE_WITHOUT_PHYSICAL_EVENT';
+    return result;
+  }
+  if (String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE'
+      && machineHoursAudit.machine_accounting_comparison.status === 'NOT_PROVIDED') {
+    result.action = 'REVIEW';
+    result.reason = 'MACHINE_ACCOUNTING_PAYLOAD_MISSING';
     return result;
   }
   if (!machineHoursAudit.physical_machine_hours_complete) {
