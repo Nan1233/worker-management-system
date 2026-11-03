@@ -6,7 +6,7 @@ const sharedSource = path.resolve(__dirname, '../../shared/excelSyncContract.cjs
 if (!fs.existsSync(sharedSource)) {
   throw new Error(`[KTC] Thiếu shared Excel sync contract: ${sharedSource}`);
 }
-const outputCalculationSource = path.resolve(__dirname, '../../shared/kqdPolicy.cjs');
+const outputCalculationSource = path.resolve(__dirname, '../../shared/productionOutput.cjs');
 if (!fs.existsSync(outputCalculationSource)) {
   throw new Error('[KTC] Thiếu shared production output calculation contract.');
 }
