@@ -34,17 +34,7 @@ const productionTempValidation = validate({ process_id:{required:true,type:"posi
 router.post("/", authMiddleware, workerReportLimiter, checkRole("worker"), permission("WORKER_ENTRY"), productionTempValidation, controller.createTempReport);
 router.post("/check-similar", authMiddleware, checkRole("worker"), permission("WORKER_ENTRY"), productionTempValidation, controller.checkSimilarReport);
 router.get("/my", authMiddleware, checkRole("worker"), permission("WORKER_HISTORY"), controller.getMyTempReports);
-router.get("/daily-hours", authMiddleware, checkRole("worker"), permission("WORKER_ENTRY"), async (req, res) => {
-    try {
-        const workerId = Number(req.user?.worker_id);
-        const workDate = String(req.query?.date || "").trim();
-        if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return res.status(400).json({ success: false, message: "Ngày làm việc không hợp lệ" });
-        const [approvedRows] = await db.promise().query(`SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports WHERE worker_id = ? AND work_date = ? AND status = 'approved'`, [workerId, workDate]);
-        const [tempRows] = await db.promise().query(`SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports_temp WHERE worker_id = ? AND work_date = ? AND status IN ('pending', 'need_fix')`, [workerId, workDate]);
-        const countedHours = Number(approvedRows?.[0]?.counted_hours || 0) + Number(tempRows?.[0]?.counted_hours || 0);
-        return res.json({ success: true, data: { work_date: workDate, counted_hours: Number(countedHours.toFixed(4)), limit_hours: 12 } });
-    } catch (error) { console.error("GET DAILY WORKING HOURS ERROR:", error); return res.status(error.status || 500).json({ success: false, message: error.message || "Không thể lấy tổng giờ làm hôm nay" }); }
-});
+router.get("/daily-hours", authMiddleware, checkRole("worker"), permission("WORKER_ENTRY"), controller.getDailyHours);
 router.get("/pending", authMiddleware, checkRole("admin", "admin_ops", "manager", "lead"), permission("REPORT_PENDING_VIEW"), controller.getPendingReports);
 router.get("/approved", authMiddleware, checkRole("admin", "admin_ops", "manager", "lead"), permission("REPORT_APPROVED_VIEW"), controller.getApprovedReports);
 router.get("/dates", authMiddleware, checkRole("admin", "admin_ops", "manager", "lead"), permission("REPORT_PENDING_VIEW"), controller.getTempDates);
