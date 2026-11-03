@@ -3,8 +3,8 @@
 // Pure row model for the Gia công "Báo cáo công nhân" sheet (04_CAT_LONG layout).
 //
 // One Excel row per machine line; reports without machine lines (manual work)
-// produce one row. Nothing here reads report-level totals to fill machine rows:
-// time, deductions, output and defects always come from that line itself.
+// produce one row. Report-level deduction details/totals are used only as a safe
+// fallback when there is exactly one machine line, never copied across machines.
 
 const { trainingFactor } = require('../utils/trainingPercent');
 
@@ -30,7 +30,7 @@ const parseArray = (value) => {
 const normalizeDeductions = (items) => parseArray(items)
   .map((item) => ({
     deduction_type_id: Number(item?.deduction_type_id ?? item?.id) || undefined,
-    deduction_code: String(item?.deduction_code ?? item?.code ?? '').trim(),
+    deduction_code: String(item?.deduction_code ?? item?.deduction_type_code ?? item?.code ?? '').trim(),
     deduction_name: String(item?.deduction_name ?? item?.name ?? '').trim(),
     hours: Math.max(0, toNumber(item?.hours))
   }))
@@ -54,11 +54,19 @@ const baseOf = (report) => ({
   shift: report.shift || ''
 });
 
-function machineLineRow(report, line) {
-  const deductions = normalizeDeductions(line.deductions_json);
+function machineLineRow(report, line, reportLevelDeductions = [], allowReportTotalFallback = false) {
+  const lineDeductions = normalizeDeductions(line.deductions_json);
+  // Approved reports created through legacy/import flows may persist details only
+  // at report level. They are safe to reuse only when this report has exactly one
+  // machine line; copying them to multiple lines would duplicate worker deductions.
+  const deductions = lineDeductions.length ? lineDeductions : normalizeDeductions(reportLevelDeductions);
   const warnings = [];
   const itemHours = sum(deductions, 'hours');
-  const fallbackHours = Math.max(toNumber(line.deduction_time_hours), toNumber(line.adjustment_minutes) / 60);
+  const fallbackHours = Math.max(
+    toNumber(line.deduction_time_hours),
+    toNumber(line.adjustment_minutes) / 60,
+    allowReportTotalFallback ? toNumber(report.deduction_time) : 0
+  );
   // The per-type breakdown is the source of H:W. Hours that exist only as an
   // unexplained total are still deducted (F + G keeps adding up) but are reported.
   const deductionHours = deductions.length ? itemHours : fallbackHours;
@@ -135,7 +143,20 @@ function missingMachineRow(report) {
 /** All Excel rows of one approved GC report, in line order. */
 function buildGcWorkerRows(report) {
   const lines = (Array.isArray(report.machineLines) ? report.machineLines : []).slice().sort(lineOrder);
-  if (lines.length) return lines.map((line) => machineLineRow(report, line));
+  if (lines.length) {
+    const hasLineBreakdown = lines.some((line) => normalizeDeductions(line.deductions_json).length > 0);
+    const safeReportFallback = lines.length === 1 && !hasLineBreakdown
+      ? normalizeDeductions(report.deductions)
+      : [];
+    return lines.map((line, index) => {
+      const row = machineLineRow(report, line, safeReportFallback, lines.length === 1);
+      if (lines.length > 1 && !hasLineBreakdown && index === 0
+        && (normalizeDeductions(report.deductions).length || toNumber(report.deduction_time) > 0)) {
+        row.warnings.push('REPORT_DEDUCTIONS_NOT_ALLOCATED_TO_MULTIPLE_MACHINE_LINES');
+      }
+      return row;
+    });
+  }
   const mode = String(report.operation_mode || '').trim().toUpperCase();
   const hasMachine = mode === 'MACHINE'
     || (!mode && [report.machine_no, report.machine_code, report.machine]

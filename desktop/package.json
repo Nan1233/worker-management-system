@@ -1,6 +1,6 @@
 {
   "name": "ktc-production-control-desktop",
-  "version": "1.9.16",
+  "version": "1.9.17",
   "description": "KTC Production Control Desktop - remote FE + shared BE, native Excel/desktop functions",
   "main": "electron/launcher.cjs",
   "author": "KTC",
@@ -44,6 +44,7 @@
       "output": "release"
     },
     "files": [
+      "electron/monthlyWorkbookLocal.cjs",
       "electron/**/*",
       "package.json"
     ],

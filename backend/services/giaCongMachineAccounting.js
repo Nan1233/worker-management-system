@@ -18,6 +18,10 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   let deductionHours = 0;
   const deductions = [];
   const seenDeductionKeys = new Set();
+  const reportLevelDeductions = parseJsonArray(report.deductions);
+  const hasLineBreakdown = lines.some((line) => parseJsonArray(line.deductions_json)
+    .some((item) => Math.max(0, Number(item?.hours) || 0) > 0));
+  const safeReportFallback = lines.length === 1 && !hasLineBreakdown ? reportLevelDeductions : [];
 
   lines.forEach((line, lineIndex) => {
     const eventId = Number(line.machine_event_id) || 0;
@@ -32,13 +36,15 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
     }
 
-    const lineDeductions = parseJsonArray(line.deductions_json);
+    const storedLineDeductions = parseJsonArray(line.deductions_json);
+    const lineDeductions = storedLineDeductions.length ? storedLineDeductions : safeReportFallback;
     const detailDeductionHours = lineDeductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
     const lineDeductionHours = Math.max(
       0,
       Number(line.deduction_time_hours) || 0,
       (Number(line.adjustment_minutes) || 0) / 60,
-      detailDeductionHours
+      detailDeductionHours,
+      lines.length === 1 ? Math.max(0, Number(report.deduction_time) || 0) : 0
     );
     if (lineDeductionHours > 0 || lineDeductions.length) {
       const deductionKey = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || lineIndex);
@@ -46,14 +52,14 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
         seenDeductionKeys.add(deductionKey);
         deductionHours += lineDeductionHours;
         for (const item of lineDeductions) {
-          const key = Number(item?.deduction_type_id) || String(item?.deduction_code || item?.deduction_name || '');
+          const key = Number(item?.deduction_type_id) || String(item?.deduction_code || item?.deduction_type_code || item?.deduction_name || '');
           const existing = deductions.find((entry) => String(entry.deduction_type_id || entry.deduction_code || entry.deduction_name) === String(key));
           const hours = Math.max(0, Number(item?.hours) || 0);
           if (!hours) continue;
           if (existing) existing.hours += hours;
           else deductions.push({
             deduction_type_id: Number(item?.deduction_type_id) || undefined,
-            deduction_code: String(item?.deduction_code || '').trim(),
+            deduction_code: String(item?.deduction_code || item?.deduction_type_code || '').trim(),
             deduction_name: String(item?.deduction_name || '').trim(),
             hours
           });
