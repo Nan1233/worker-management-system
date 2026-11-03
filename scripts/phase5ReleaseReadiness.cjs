@@ -34,6 +34,7 @@ const backendPackage = json('backend/package.json');
 const frontendPackage = json('frontend/package.json');
 const rootPackage = json('package.json');
 const desktopLauncher = read('desktop/electron/launcher.cjs');
+const desktopProfileSource = read('desktop/electron/deploymentProfile.cjs');
 const cloudflareWorker = read('backend/cloudflare-worker.js');
 const frontendEnvSource = read('frontend/src/config/env.ts');
 const updater = read('desktop/electron/autoUpdate.cjs');
@@ -59,8 +60,9 @@ const testProfileOk = Boolean(
   backendTest.vars?.KTC_FRONTEND_ORIGIN === 'https://ktc-fe-test.nan978971.workers.dev' &&
   frontendTest.name === 'ktc-fe-test' &&
   testFrontendApi === expectedTestApi &&
-  /ktc-be-test\\.nan978971\\.workers\\.dev/.test(desktopLauncher) &&
-  /ktc-fe-test\\.nan978971\\.workers\\.dev/.test(desktopLauncher) &&
+  desktopPackage.ktcDeploymentEnvironment === 'test' &&
+  /ktc-be-test\\.nan978971\\.workers\\.dev/.test(desktopProfileSource) &&
+  /ktc-fe-test\\.nan978971\\.workers\\.dev/.test(desktopProfileSource) &&
   testBackendProfile?.environment === 'test'
 );
 const productionProfileOk = Boolean(
@@ -71,6 +73,8 @@ const productionProfileOk = Boolean(
   frontendProduction.name === 'ktc-frontend' &&
   productionFrontendApi === expectedProductionApi &&
   desktopProductionBuilder.extraMetadata?.ktcDeploymentEnvironment === 'production' &&
+  /ktc-be\\.nan978971\\.workers\\.dev/.test(desktopProfileSource) &&
+  /ktc-frontend\\.nan978971\\.workers\\.dev/.test(desktopProfileSource) &&
   productionBackendProfile?.environment === 'production'
 );
 
@@ -126,8 +130,8 @@ if (renderFiles.length) {
   add(warnings, 'LEGACY_RENDER_BLUEPRINTS', 'Các Render blueprint cũ vẫn còn trong repository. Chúng không thuộc kiến trúc Cloudflare đã chọn; không được dùng để tạo/cập nhật production service.', renderFiles);
 }
 
-const hasTestDesktopApi = /ktc-be-test\\.nan978971\\.workers\\.dev\\/api/i.test(desktopLauncher);
-const hasTestDesktopWeb = /ktc-fe-test\\.nan978971\\.workers\\.dev/i.test(desktopLauncher);
+const hasTestDesktopApi = desktopPackage.ktcDeploymentEnvironment === 'test' && /ktc-be-test/.test(desktopProfileSource);
+const hasTestDesktopWeb = desktopPackage.ktcDeploymentEnvironment === 'test' && /ktc-fe-test/.test(desktopProfileSource);
 if (hasTestDesktopApi || hasTestDesktopWeb) {
   add(warnings, 'DESKTOP_DEFAULT_TEST_PROFILE', 'Launcher mặc định TEST theo metadata của package trên nhánh test; chỉ dùng electron-builder.production.json cho artifact production.', [
     'desktop/package.json: ktcDeploymentEnvironment=test',
@@ -150,7 +154,7 @@ if (windowsSigningDisabled) {
   add(warnings, 'WINDOWS_CODE_SIGNING', 'Windows executable hiện cấu hình signAndEditExecutable=false; cần quyết định ký số trước khi phân phối rộng.', 'desktop/package.json: build.win.signAndEditExecutable=false');
 }
 const githubUpdaterConfigured = Boolean(desktopPackage.build?.publish?.some((item) => item.provider === 'github'));
-if (githubUpdaterConfigured && /autoUpdater\\.checkForUpdates\\(\\)/.test(updater)) {
+if (githubUpdaterConfigured && /autoUpdater\.checkForUpdates\(\)/.test(updater)) {
   add(warnings, 'GITHUB_AUTO_UPDATE_RELEASE', 'Electron auto-update dùng GitHub Releases; cần xác minh artifact, latest.yml/blockmap và rollback trên máy TEST trước khi bật phân phối.', 'desktop/package.json + desktop/electron/autoUpdate.cjs');
 }
 
