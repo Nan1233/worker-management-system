@@ -5,7 +5,7 @@ const db = require("../config/db");
 const { query } = require("./productionTempModelShared");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 
-const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { DAILY_HOURS_LIMIT, DAILY_HOURS_EXCLUDED_PROCESS_CODES, exceedsDailyHoursLimit, isDailyHoursLimitExemptProcess } = require("../utils/dailyHoursLimit");
 const { storedStandardSource } = require('../utils/standardSourceCode');
 const getStoredWorkType = (value) => {
     if (value && typeof value === "object") return String(value.work_type || "").trim();
@@ -18,51 +18,55 @@ const getStoredWorkType = (value) => {
 const enforceDailyHoursLocked = async (executor, data) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
-    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
+    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(workDate)) return;
+
+    // Keep the lock for concurrent submissions. Multi-machine processes are
+    // excluded from the combined worker/day cap until per-machine policy is agreed.
     await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
-    // The facade may validate a complete multi-machine GC submission once, then persist its child reports atomically. Keep the worker lock but avoid counting the same group repeatedly.
     if (data?._skip_daily_hours_enforcement === true) return;
-    // createCompleteReport already read processes.process_code inside this transaction; reuse it.
+
     const processRows = data?._resolved_process_code !== undefined
         ? [{ process_code: data._resolved_process_code }]
         : await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
-    const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
-    const machineLines = Array.isArray(data?._daily_hours_machine_lines) ? data._daily_hours_machine_lines : [];
-const incoming = isGc && machineLines.length
-        ? Math.max(...machineLines.map((line) => {
-            const machineHours = Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0;
-            const deductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
-            return Math.max(0, machineHours - deductionHours);
-        }))
-        : (Number(data?.actual_time) || 0);
-    const rows = await query(executor, `SELECT COALESCE(SUM(group_hours),0) AS counted_hours FROM (
-            SELECT group_key, MAX(counted_hours) AS group_hours FROM (
-                SELECT CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')) IS NOT NULL
-                    THEN CONCAT('GC_GROUP:', JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')))
-                    ELSE CONCAT('APPROVED:', pr.id) END AS group_key,
-                    CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                        THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
-                        ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-                FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-                WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
-                UNION ALL
-                SELECT CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')) IS NOT NULL
-                    THEN CONCAT('GC_GROUP:', JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')))
-                    ELSE CONCAT('TEMP:', pr.id) END AS group_key,
-                    CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
-                        THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
-                        ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-                FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
-                WHERE pr.worker_id=? AND pr.work_date=? AND pr.status IN ('pending','need_fix')
-            ) daily_rows GROUP BY group_key
-        ) daily_groups`, [workerId, workDate, workerId, workDate]);
+    const processCode = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
+    if (isDailyHoursLimitExemptProcess(processCode)) return;
+
+    const excludedPlaceholders = DAILY_HOURS_EXCLUDED_PROCESS_CODES.map(() => "?").join(", ");
+    const rows = await query(executor, `SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
+            SELECT COALESCE(pr.actual_time,0) AS counted_hours
+              FROM production_reports pr
+              JOIN processes p ON p.id=pr.process_id
+             WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
+               AND p.process_code NOT IN (${excludedPlaceholders})
+            UNION ALL
+            SELECT COALESCE(pr.actual_time,0) AS counted_hours
+              FROM production_reports_temp pr
+              JOIN processes p ON p.id=pr.process_id
+             WHERE pr.worker_id=? AND pr.work_date=? AND pr.status IN ('pending','need_fix')
+               AND p.process_code NOT IN (${excludedPlaceholders})
+        ) daily_hours`,
+        [workerId, workDate, ...DAILY_HOURS_EXCLUDED_PROCESS_CODES,
+            workerId, workDate, ...DAILY_HOURS_EXCLUDED_PROCESS_CODES]);
+
     const existing = Number(rows?.[0]?.counted_hours || 0);
+    const incoming = Number(data?.actual_time) || 0;
     const projected = existing + incoming;
     if (exceedsDailyHoursLimit(projected)) {
         const remaining = Math.max(0, DAILY_HOURS_LIMIT - existing);
-        const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remaining.toFixed(2)} giờ.`);
-        error.status = 422; error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED"; error.isPublic = true;
-        error.details = { worker_id: workerId, work_date: workDate, existing_hours: Number(existing.toFixed(4)), incoming_hours: Number(incoming.toFixed(4)), projected_hours: Number(projected.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, remaining_hours: Number(remaining.toFixed(4)), counted_field: "actual_time_or_gc_machine_line_actual_time", excluded_from_daily_limit: "deduction_time / support hours" };
+        const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá ${DAILY_HOURS_LIMIT} giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remaining.toFixed(2)} giờ.`);
+        error.status = 422;
+        error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED";
+        error.isPublic = true;
+        error.details = {
+            worker_id: workerId,
+            work_date: workDate,
+            existing_hours: Number(existing.toFixed(4)),
+            incoming_hours: Number(incoming.toFixed(4)),
+            projected_hours: Number(projected.toFixed(4)),
+            limit_hours: DAILY_HOURS_LIMIT,
+            remaining_hours: Number(remaining.toFixed(4)),
+            excluded_process_codes: DAILY_HOURS_EXCLUDED_PROCESS_CODES,
+        };
         throw error;
     }
 };
