@@ -1,5 +1,4 @@
 const createModel = require("./productionTempCreateModel");
-const nonProductWorkModel = require("./nonProductWorkCreateModel");
 const readModel = require("./productionTempReadModel");
 const reviewModel = require("./productionTempReviewModel");
 const historyModel = require("./productionTempHistoryModel");
@@ -14,5 +13,4 @@ module.exports = {
     ...reviewModel,
     ...historyModel,
     ...updateModel,
-    ...nonProductWorkModel,
 };
