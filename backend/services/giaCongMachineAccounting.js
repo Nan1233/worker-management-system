@@ -19,11 +19,17 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   const deductions = [];
   const seenDeductionKeys = new Set();
   const reportLevelDeductions = parseJsonArray(report.deductions);
+  const isLegacySingleMachineReport = lines.length === 1
+    && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE';
   const hasLineBreakdown = lines.some((line) => parseJsonArray(line.deductions_json)
     .some((item) => Math.max(0, Number(item?.hours) || 0) > 0));
-  const safeReportFallback = lines.length === 1 && !hasLineBreakdown ? reportLevelDeductions : [];
-  const hasLegacySingleLineDeduction = lines.length === 1
-    && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE'
+  // Report-level deduction rows are a legacy fallback only for a single
+  // MACHINE-mode line. Other modes can carry worker-level deductions and must
+  // never project those values onto physical machine time.
+  const safeReportFallback = isLegacySingleMachineReport && !hasLineBreakdown
+    ? reportLevelDeductions
+    : [];
+  const hasLegacySingleLineDeduction = isLegacySingleMachineReport
     && Array.isArray(report.deductions)
     && !hasLineBreakdown;
 
