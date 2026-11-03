@@ -22,7 +22,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
         skipWorkerProcessAssignment ? Promise.resolve([{ assigned: 1 }]) : query(`SELECT 1 FROM worker_processes WHERE worker_id = ? AND process_id = ? LIMIT 1`, [workerId, processId]),
         normalizedMachineNo && !reuseValidatedMachine ? queryWithOptionalGcWorkType(query, (withType) => `SELECT id, machine_code${withType ? ', gc_work_type' : ''}, COALESCE(is_automatic, 0) AS is_automatic FROM machines WHERE process_id = ? AND status = 'active' AND machine_code = ? LIMIT 1`, [processId, normalizedMachineNo]) : Promise.resolve([]),
         normalizedProductName && !reuseValidatedMachine ? query(
-            `SELECT ps.id, ps.product_code, ps.encoding_code, ps.standard_output, COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
+            `SELECT ps.id, ps.product_code, ps.encoding_code, ps.standard_output,
                     p.process_code,
                     EXISTS(SELECT 1 FROM product_machine_standards pms WHERE pms.process_id=ps.process_id AND pms.product_code=ps.product_code AND pms.is_active=1) AS has_machine_specific_standard
                FROM product_standards ps
@@ -74,7 +74,6 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     let machineCode = reuseValidatedMachine ? reuseValidatedMachine.machineCode : null;
     let productCode = reuseValidatedMachine ? reuseValidatedMachine.productCode : null;
     let standardOutput = null;
-    let excludeKqdFromTt = 0;
     let standardVersionId = null;
     let machineStandardId = null;
     let productStandardId = null;
@@ -100,7 +99,6 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
 
         if (isGcLongManualZeroStandard) {
             standardOutput = 0;
-            excludeKqdFromTt = Number(products[0].exclude_kqd_from_tt || 0) === 1 ? 1 : 0;
             standardVersionId = null;
             machineStandardId = null;
             productStandardId = Number(products[0].id) || null;
@@ -124,7 +122,6 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
                 workType: normalizedGcWorkType
             });
             standardOutput = Number(resolvedStandard.standardOutput);
-            excludeKqdFromTt = Number(resolvedStandard.excludeKqdFromTt || 0) === 1 ? 1 : 0;
             standardVersionId = resolvedStandard.standardVersionId;
             machineStandardId = resolvedStandard.machineStandardId;
             productStandardId = resolvedStandard.productStandardId;
@@ -135,8 +132,8 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
 
         if (ttOk !== undefined && actualOutput !== undefined && !isGcLongManualZeroStandard && !skipActualOutputValidation) {
             const { calculateActualOutput } = require("../utils/outputCalculation");
-            const expected = calculateActualOutput({ ttOk, defects: authoritativeDefects, excludeKqdFromTt: Boolean(excludeKqdFromTt) });
-            if (Math.abs(Number(actualOutput) - expected) > 0.02) errors.actual_output = "Sản lượng thực tế không đúng theo quy tắc tính của mã sản phẩm";
+            const expected = calculateActualOutput({ ttOk, defects: authoritativeDefects });
+            if (Math.abs(Number(actualOutput) - expected) > 0.02) errors.actual_output = "Sản lượng thực tế phải bằng TT OK cộng toàn bộ NG";
         }
     }
     }
@@ -144,7 +141,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     if (defectIds.length && validDefectRows.length !== defectIds.length) errors.defects = "Có loại lỗi không tồn tại hoặc không thuộc công đoạn đã chọn";
     if (deductionIds.length && validDeductionRows.length !== deductionIds.length) errors.deductions = "Có loại thời gian trừ không tồn tại hoặc không thuộc công đoạn đã chọn";
 
-    return { valid: Object.keys(errors).length === 0, errors, machineCode, productCode, standardOutput, excludeKqdFromTt, standardVersionId, machineStandardId, productStandardId, authoritativeDefects, isNonProductWork };
+    return { valid: Object.keys(errors).length === 0, errors, machineCode, productCode, standardOutput, standardVersionId, machineStandardId, productStandardId, authoritativeDefects, isNonProductWork };
 };
 
 module.exports = { validateMasterData };
