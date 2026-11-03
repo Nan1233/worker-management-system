@@ -151,6 +151,8 @@ function auditMachineHours(report) {
     const eventId = Number(line.machine_event_id) || 0;
     const candidateEvent = eventId > 0 ? eventsById.get(eventId) : null;
     const candidateStatus = String(candidateEvent?.status || '').trim().toLowerCase();
+    const lineEventStatus = String(line.machine_event_status || '').trim().toLowerCase();
+    const effectiveEventStatus = candidateEvent ? candidateStatus : lineEventStatus;
     const linkedEvent = candidateEvent && candidateStatus === 'approved' ? candidateEvent : null;
     const lineHours = round(num(line.machine_time_hours));
     let eventState = 'NO_EVENT_LINK';
@@ -159,7 +161,8 @@ function auditMachineHours(report) {
 
     if (eventId > 0) {
       linkedEventIds.add(eventId);
-      if (candidateEvent && !linkedEvent) {
+      if ((candidateEvent && !linkedEvent)
+          || (!candidateEvent && lineEventStatus && lineEventStatus !== 'approved')) {
         eventState = 'LINKED_EVENT_NOT_APPROVED';
         nonApprovedLinkedEvents += 1;
       } else if (!linkedEvent) {
@@ -193,7 +196,7 @@ function auditMachineHours(report) {
       machine_line_hours: lineHours,
       machine_event_id: eventId || null,
       event_state: eventState,
-      event_status: candidateEvent ? String(candidateEvent.status || '') : null,
+      event_status: effectiveEventStatus || null,
       physical_event_hours: eventHours,
       physical_hours_counted_for_this_line: round(countedPhysicalHours)
     };
