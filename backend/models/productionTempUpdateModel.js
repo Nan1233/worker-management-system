@@ -18,9 +18,10 @@ const checkDailyHours = async (connection, { workerId, workDate, incomingActualH
     const excludedPlaceholders = DAILY_HOURS_EXCLUDED_PROCESS_CODES.map(() => "?").join(", ");
     const params = [
         worker, date, ...DAILY_HOURS_EXCLUDED_PROCESS_CODES,
-        worker, date, ...DAILY_HOURS_EXCLUDED_PROCESS_CODES,
+        worker, date,
     ];
     if (excludeTempReportId) params.push(Number(excludeTempReportId));
+    params.push(...DAILY_HOURS_EXCLUDED_PROCESS_CODES);
 
     const rows = await query(connection, `
         SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
