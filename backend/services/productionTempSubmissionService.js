@@ -69,6 +69,40 @@ const findExistingClientRequest = async (data, executor = db) => {
 };
 
 const idempotent = (row) => ({ id: Number(row.id), ids: Array.isArray(row.gc_group_ids) ? row.gc_group_ids : [Number(row.id)], duplicate: true, duplicate_reason: "request_id", existing_report: row });
+
+const assertNoLogicalDuplicate = async (data, executor = db) => {
+    const input = {
+        workerId: data.worker_id,
+        processId: data.process_id,
+        workDate: data.work_date,
+        shift: data.shift,
+        machineNo: data.machine_no,
+        productName: data.product_name,
+        logicalDuplicateKey: data.logical_duplicate_key
+    };
+    const tempDuplicate = await createModel.findSimilarTempReport(input, executor);
+    const approvedDuplicate = tempDuplicate ? null : await createModel.findSimilarApprovedReport(input, executor);
+    const existing = tempDuplicate || approvedDuplicate;
+    if (existing && !data.force_create) {
+        const error = new Error("Báo cáo trùng với báo cáo đã tồn tại trong cùng ngày/ca");
+        error.status = 409; error.code = "DUPLICATE_CONFIRMATION_REQUIRED"; error.isPublic = true;
+        error.existing_report = existing; error.details = existing; throw error;
+    }
+    if (existing && data.force_create) {
+        const confirmation = verifyDuplicateConfirmation(data.duplicate_confirmation_token, {
+            workerId: data.worker_id, logicalDuplicateKey: data.logical_duplicate_key,
+            existingReportId: existing.id, existingReportType: existing.report_type || "temp"
+        });
+        if (!confirmation.valid) {
+            const error = new Error("Xác nhận tạo báo cáo trùng không hợp lệ hoặc đã hết hạn");
+            error.status = 409; error.code = "DUPLICATE_CONFIRMATION_REQUIRED"; error.isPublic = true;
+            error.existing_report = existing; error.details = { reason: confirmation.reason, existing }; throw error;
+        }
+    } else if (!existing && data.force_create) {
+        const error = new Error("Không có báo cáo trùng hợp lệ để xác nhận tạo lần thứ hai");
+        error.status = 409; error.code = "DUPLICATE_CONFIRMATION_REQUIRED"; error.isPublic = true; throw error;
+    }
+};
 const is1205 = (error) => Number(error?.errno) === 1205 || /lock wait timeout exceeded|error 1205/i.test(String(error?.message || ""));
 
 const recoverAfter1205 = async (data) => {
