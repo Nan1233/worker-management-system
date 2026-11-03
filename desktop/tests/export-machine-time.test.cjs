@@ -143,3 +143,11 @@ test('worker report falls back to summed participation lines when report total i
   assert.equal(result.totalHours, 3.5);
   assert.equal(result.actualHours, 3);
 });
+
+test('Desktop worker report template uses worker participation resolver', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const template = fs.readFileSync(path.join(__dirname, '../electron/workerReportTemplateLocal.v2.cjs'), 'utf8');
+  assert.match(template, /resolveWorkerParticipationTimes/);
+  assert.doesNotMatch(template, /resolveExportTimes/);
+});
