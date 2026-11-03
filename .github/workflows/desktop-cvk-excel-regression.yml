@@ -33,6 +33,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node --check electron/workerReportTemplateLocal.v2.cjs
       - run: node --check electron/monthlyWorkbookLocal.cjs
+      - run: node --check electron/companyExcelLocal.cjs
       - run: node --check electron/excelExportContractPatch.v6.cjs
       - run: npm run test:machine-time
       - run: node --test tests/monthly-workbook-physical-events.test.cjs
