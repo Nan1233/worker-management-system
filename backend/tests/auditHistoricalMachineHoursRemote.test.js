@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { classifyReport, monthList } = require('../scripts/auditHistoricalMachineHoursRemote.cjs');
+const { classifyReport, monthList, auditMachineHours } = require('../scripts/auditHistoricalMachineHoursRemote.cjs');
 
 test('monthList includes the cutoff month and spans year boundaries', () => {
   assert.deepEqual(monthList('2025-11', '2026-10-08'), [
@@ -28,7 +28,7 @@ test('single machine line with missing hours and valid worker time still require
   // Current policy (see classifyReport): worker time is not proof of physical machine time,
   // so even a single machine line with missing hours is never auto-qualified.
   assert.equal(result.action, 'REVIEW');
-  assert.equal(result.reason, 'MISSING_MACHINE_TIME_CANNOT_BE_INFERRED_FROM_WORKER_TIME');
+  assert.equal(result.reason, 'MACHINE_LINE_WITHOUT_PHYSICAL_EVENT');
 });
 
 test('multi-machine allocation is flagged for review, not auto-split', () => {
@@ -55,5 +55,60 @@ test('machine hours over 12 are preserved and flagged for review', () => {
     operation_mode: 'MACHINE', machineLines: [{ id: 23, machine_code: 'GC01', machine_time_hours: 13 }]
   });
   assert.equal(result.action, 'REVIEW');
-  assert.equal(result.reason, 'EXISTING_MACHINE_TIME_OVER_12_HOURS');
+  assert.equal(result.reason, 'MACHINE_LINE_OR_PHYSICAL_EVENT_HOURS_OVER_12_HOURS');
+});
+
+
+test('worker hours, machine-line hours and approved physical event hours remain separate', () => {
+  const report = {
+    id: 30,
+    total_time: 7.5,
+    machineLines: [
+      { id: 301, machine_code: 'GC01', machine_time_hours: 4, machine_event_id: 9001 },
+      { id: 302, machine_code: 'GC01', machine_time_hours: 3.5, machine_event_id: 9001 }
+    ],
+    eventLines: [{ id: 9001, machine_time_hours: 6, status: 'approved' }]
+  };
+
+  const audit = auditMachineHours(report);
+  assert.equal(audit.worker_hours, 7.5);
+  assert.equal(audit.machine_line_hours_total, 7.5);
+  assert.equal(audit.physical_machine_hours_confirmed, 6);
+  assert.equal(audit.physical_machine_hours_complete, true);
+  assert.equal(audit.unique_approved_event_count, 1);
+  assert.equal(audit.duplicate_event_links, 1);
+  assert.equal(audit.lines[1].physical_hours_counted_for_this_line, 0);
+});
+
+test('linked event missing from approved eventLines is REVIEW and never falls back to line hours', () => {
+  const result = classifyReport({
+    id: 31,
+    total_time: 8,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [
+      { id: 311, machine_code: 'GC01', machine_time_hours: 8, machine_event_id: 9901 }
+    ],
+    eventLines: []
+  });
+
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'LINKED_MACHINE_EVENT_MISSING_OR_NOT_APPROVED');
+  assert.equal(result.machine_hours_audit.machine_line_hours_total, 8);
+  assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 0);
+  assert.equal(result.machine_hours_audit.physical_machine_hours_complete, false);
+});
+
+test('line hours without event link are not reported as physical machine hours', () => {
+  const audit = auditMachineHours({
+    total_time: 5,
+    machineLines: [{ id: 321, machine_time_hours: 5 }],
+    eventLines: []
+  });
+
+  assert.equal(audit.worker_hours, 5);
+  assert.equal(audit.machine_line_hours_total, 5);
+  assert.equal(audit.physical_machine_hours_confirmed, 0);
+  assert.equal(audit.physical_machine_hours_source, 'NO_APPROVED_MACHINE_EVENT_LINKS');
+  assert.equal(audit.machine_lines_without_event_count, 1);
 });
