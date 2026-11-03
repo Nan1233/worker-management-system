@@ -1,7 +1,5 @@
 'use strict';
 
-const { isKqdDefect } = require('../../shared/kqdPolicy.cjs');
-
 const DEFAULT_SETTINGS = Object.freeze({
   apply_training_percent: 1,
   output_formula: 'ENTERED_X_TRAINING',
@@ -34,47 +32,18 @@ function trainingFactor(value, defaultPercent = 100) {
   return normalizeTrainingPercent(value, defaultPercent) / 100;
 }
 
-function normalizeCode(value) {
-  return String(value ?? '').trim().toUpperCase();
-}
-
 function defectQuantity(item) {
   return asInteger(item?.quantity) || 0;
 }
 
-function defectCode(item) {
-  // F04: only an explicitly configured defect CODE can carry KQD semantics.
-  // Human-readable names are never business authority.
-  return normalizeCode(item?.defect_type_code || item?.defect_code || item?.code);
-}
-
 function calculateNg(report = {}) {
   const details = Array.isArray(report.defects) ? report.defects : [];
-  const hasKqdSnapshot = Object.prototype.hasOwnProperty.call(report, 'exclude_kqd_from_tt_snapshot');
-  const kqdPolicyValue = hasKqdSnapshot ? report.exclude_kqd_from_tt_snapshot : report.exclude_kqd_from_tt;
-  const excludeKqd = Number(kqdPolicyValue || 0) === 1;
-
   if (!details.length) {
     const total = asInteger(report.tt_ng);
-    return {
-      allNg: total,
-      countedNg: total,
-      excludedKqd: 0,
-      excludeKqd
-    };
+    return { allNg: total, countedNg: total, excludedKqd: 0 };
   }
-
-  let allNg = 0;
-  let countedNg = 0;
-  let excludedKqd = 0;
-  for (const item of details) {
-    const quantity = defectQuantity(item);
-    allNg += quantity;
-    if (excludeKqd && isKqdDefect({ defect_code: defectCode(item) })) excludedKqd += quantity;
-    else countedNg += quantity;
-  }
-
-  return { allNg, countedNg, excludedKqd, excludeKqd };
+  const allNg = details.reduce((sum, item) => sum + defectQuantity(item), 0);
+  return { allNg, countedNg: allNg, excludedKqd: 0 };
 }
 
 function machineLineHours(report = {}) {
