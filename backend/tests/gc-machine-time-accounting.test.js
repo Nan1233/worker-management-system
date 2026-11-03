@@ -254,7 +254,9 @@ test('zero-only machine deduction detail allows the guarded legacy report breakd
       ])
     }],
     deduction_time: 1.25,
-    deductions: [
+    // Explicit machine-level legacy snapshot; Worker deductions are not a machine fallback.
+    machineDeductionTime: 1.25,
+    machineDeductions: [
       { deduction_type_id: 13, deduction_code: 'CHO_HANG', deduction_name: 'Chờ hàng', hours: 1.25 }
     ]
   }, new Map());
