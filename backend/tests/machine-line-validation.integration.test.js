@@ -30,7 +30,6 @@ const products = [
     default_standard_output: 100,
     machine_standard_output: 100,
     standard_time_seconds: 36,
-    exclude_kqd_from_tt: 1
   }
 ];
 
