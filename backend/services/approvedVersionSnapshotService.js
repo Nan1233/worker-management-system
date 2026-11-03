@@ -6,7 +6,6 @@ const REPORT_FIELDS = [
   'machine_no','product_name',
   'total_time','actual_time','deduction_time',
   'standard_output','standard_version_id','machine_standard_id',
-  'training_percent_snapshot','exclude_kqd_from_tt_snapshot',
   'actual_output','tt_ok','tt_ng',
   // Legacy approved aggregate columns remain business state until a later cleanup wave removes them.
   'kqd_dap_lai','kqd_tuot','vo_do_long','xuoc_do_long','cong_gay','xoay','khong_dut',
@@ -18,7 +17,6 @@ const MACHINE_LINE_FIELDS = [
   'machine_event_id','machine_id','machine_code',
   'product_standard_id','standard_version_id','machine_standard_id','product_code',
   'machine_time_hours','standard_output','standard_time_seconds','standard_source',
-  'exclude_kqd_from_tt','ok_quantity','ng_quantity','maximum_output',
   'deduction_time_hours','deductions_json','counted_output','earned_standard_hours',
   'defects_json','sort_order'
 ];
@@ -189,7 +187,6 @@ function validateApprovedVersionSnapshot(value) {
   } else if (!finiteNonNegative(report.training_percent_snapshot) || Number(report.training_percent_snapshot) > 100) {
     pushIssue(issues, 'ROLLBACK_SNAPSHOT_INVALID', 'report.training_percent_snapshot', 'Snapshot % học việc không hợp lệ');
   }
-  if (report.exclude_kqd_from_tt_snapshot === null || report.exclude_kqd_from_tt_snapshot === undefined || report.exclude_kqd_from_tt_snapshot === '' || ![0,1].includes(Number(report.exclude_kqd_from_tt_snapshot))) {
     pushIssue(issues, 'ROLLBACK_MISSING_KQD_POLICY', 'report.exclude_kqd_from_tt_snapshot', 'Thiếu/không hợp lệ snapshot chính sách KQD');
   }
 
@@ -225,7 +222,6 @@ function validateApprovedVersionSnapshot(value) {
       pushIssue(issues, 'ROLLBACK_MISSING_STANDARD_SNAPSHOT', `machineLines[${index}].line.standard_version_id`, 'Machine line thiếu historical standard version');
     }
     if (!positiveIntegerOrNull(line.machine_standard_id)) pushIssue(issues, 'ROLLBACK_MISSING_STANDARD_SNAPSHOT', `machineLines[${index}].line.machine_standard_id`, 'machine_standard_id machine line không hợp lệ');
-    if (line.exclude_kqd_from_tt === null || line.exclude_kqd_from_tt === undefined || line.exclude_kqd_from_tt === '' || ![0,1].includes(Number(line.exclude_kqd_from_tt))) pushIssue(issues, 'ROLLBACK_MISSING_KQD_POLICY', `machineLines[${index}].line.exclude_kqd_from_tt`, 'Machine line thiếu KQD policy snapshot');
     entry.defects.forEach((defect, defectIndex) => {
       if (!defect || !String(defect.defect_code || '').trim() || !finiteNonNegative(defect.quantity)) {
         pushIssue(issues, 'ROLLBACK_SNAPSHOT_INVALID', `machineLines[${index}].defects[${defectIndex}]`, 'Machine defect snapshot không hợp lệ');
@@ -259,8 +255,6 @@ function classifyApprovedVersionSnapshot(value) {
     if (legacyReport.training_percent_snapshot === null || legacyReport.training_percent_snapshot === undefined) {
       reasons.push('ROLLBACK_MISSING_TRAINING_SNAPSHOT'); missing.push('training_percent_snapshot');
     }
-    if (legacyReport.exclude_kqd_from_tt_snapshot === null || legacyReport.exclude_kqd_from_tt_snapshot === undefined) {
-      reasons.push('ROLLBACK_MISSING_KQD_POLICY'); missing.push('exclude_kqd_from_tt_snapshot');
     }
     if (!Object.prototype.hasOwnProperty.call(snapshot, 'machineLines')) {
       reasons.push('ROLLBACK_EVENT_LINK_UNKNOWN'); missing.push('machine_event_id');
@@ -292,14 +286,12 @@ const SNAPSHOT_NUMERIC_COMPARE_FIELDS = new Set([
   'id','source_temp_id','worker_id','process_id',
   'total_time','actual_time','deduction_time',
   'standard_output','standard_version_id','machine_standard_id',
-  'training_percent_snapshot','exclude_kqd_from_tt_snapshot',
   'actual_output','tt_ok','tt_ng',
   'kqd_dap_lai','kqd_tuot','vo_do_long','xuoc_do_long','cong_gay','xoay','khong_dut',
   'bavia_hut','ppcm','loi_cao_su','ng_kich_thuoc','cat_lem',
   // Child identities/quantities and machine-line accounting fields.
   'defect_type_id','deduction_type_id','quantity','hours',
   'machine_event_id','machine_id','product_standard_id',
-  'machine_time_hours','standard_time_seconds','exclude_kqd_from_tt',
   'ok_quantity','ng_quantity','maximum_output','deduction_time_hours',
   'counted_output','earned_standard_hours','sort_order'
 ]);
