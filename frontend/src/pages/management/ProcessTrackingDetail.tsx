@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, PackageCheck, RefreshCw, XCircle } from "lucide-react";
+import { ArrowLeft, CalendarDays, RefreshCw } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
 import "./ProcessTracking.css";
@@ -7,7 +7,6 @@ import "./ProcessTracking.css";
 type Process={id:number;process_code?:string;process_name:string};
 const pad=(n:number)=>String(n).padStart(2,"0");
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;};
-const monthStart=()=>today().slice(0,8)+"01";
 const currentDate=new Date();
 const currentYear=currentDate.getFullYear();
 const monthNames=["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
@@ -21,15 +20,10 @@ export default function ProcessTrackingDetail(){
  const [appliedFrom,setAppliedFrom]=useState(initialRange.from),[appliedTo,setAppliedTo]=useState(initialRange.to);
  const [processes,setProcesses]=useState<Process[]>([]),[summary,setSummary]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const process=useMemo(()=>processes.find(p=>String(p.id)===String(processId)),[processes,processId]);
- const row=summary?.process_summary?.find((p:any)=>String(p.process_id)===String(processId));
- const plan=summary?.plan_summary?.find((p:any)=>String(p.process_id)===String(processId));
  const load=async(start=appliedFrom,end=appliedTo)=>{setLoading(true);setError("");try{const response=await api.get("/dashboard/summary",{params:{from:start,to:end,process_id:processId}});const data=response.data?.data||{};setProcesses(Array.isArray(data.processes)?data.processes:[]);setSummary(data);if(!data.processes?.some((p:Process)=>String(p.id)===String(processId)))setError("Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.");}catch(e:any){setError(e?.response?.status===403||e?.response?.status===404?"Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.":e?.response?.data?.message||"Không thể tải dữ liệu công đoạn.");}finally{setLoading(false);}};
  useEffect(()=>{void load();},[processId,appliedFrom,appliedTo]);
  const apply=()=>{const range=monthRange(Number(selectedMonth),Number(selectedYear));setAppliedFrom(range.from);setAppliedTo(range.to);};
- const ok=Number(row?.ok||0),ng=Number(row?.ng||0),actual=ok+ng,planned=Number(plan?.planned_quantity||0);
- const machineActual=Number(summary?.machine_performance?.counted_output||0),machinePlan=(summary?.machine_plan_summary||[]).reduce((s:number,x:any)=>s+Number(x.planned_quantity||0),0);
  const products=summary?.product_summary||[],machines=summary?.machine_summary||[],workers=summary?.worker_summary||[];
- const qualityTotal=ok+ng;
  return <main className="process-tracking-page">
   <button className="process-tracking-back" type="button" onClick={()=>navigate("..")}><ArrowLeft size={16}/> Danh sách công đoạn</button>
   <header className="process-tracking-heading"><div><span className="process-tracking-eyebrow">CHI TIẾT CÔNG ĐOẠN</span><h1>{process?.process_name||"Công đoạn"}</h1><p>{process?.process_code||"Theo dõi tình hình sản xuất"} · Dữ liệu trong phạm vi được phân công</p></div><button className="process-tracking-refresh" type="button" onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/> Làm mới</button></header>
@@ -42,4 +36,3 @@ export default function ProcessTrackingDetail(){
   </>}
  </main>;
 }
-function Metric({label,value,progress,tone}:{label:string;value:string;progress?:number;tone?:string}){return <article className={`tracking-metric ${tone||""}`}><small>{label}</small><strong>{value}</strong>{progress!==undefined&&<div className="tracking-progress"><i style={{width:`${Math.max(0,Math.min(100,progress))}%`}}/></div>}</article>}
