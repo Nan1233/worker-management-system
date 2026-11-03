@@ -257,7 +257,7 @@ module.exports = {
         const date = String(workDate || "").slice(0, 10);
         const shiftKey = String(shift || "").trim().toUpperCase();
         const process = Number(processId);
-        if (!Number.isInteger(process) || process <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !shiftKey || !machines.length) return;
+        if (!Number.isInteger(process) || process <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !shiftKey || !machines.length) return;
 
         // Serialize capacity checks per physical machine/day/shift across Worker isolates.
         // Sorted acquisition order prevents deadlocks for submissions sharing multiple machines.
