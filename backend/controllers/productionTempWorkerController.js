@@ -374,15 +374,8 @@ exports.createTempReport = async (req, res) => {
             ? null
             : calculateProductionOutput({
                 ok: validation.normalized.tt_ok,
-                defects: masterValidation.authoritativeDefects,
-                excludeKqdFromTt: Boolean(Number(masterValidation.excludeKqdFromTt || 0))
+                defects: masterValidation.authoritativeDefects
             });
-        const parentKqdPolicySnapshot = machineValidation.lines.length
-            ? (() => {
-                const policies = [...new Set(machineValidation.lines.map((line) => Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0))];
-                return policies.length === 1 ? policies[0] : null;
-            })()
-            : (Number(masterValidation.excludeKqdFromTt || 0) === 1 ? 1 : 0);
 
         data = {
             ...validation.normalized,
@@ -432,7 +425,7 @@ exports.createTempReport = async (req, res) => {
             standard_version_id: machineValidation.lines.length ? null : masterValidation.standardVersionId,
             machine_standard_id: machineValidation.lines.length ? null : masterValidation.machineStandardId,
 
-            // Với báo cáo máy, actual_output là sản lượng được tính năng suất sau quy tắc KQD.
+            // Với báo cáo máy, actual_output là sản lượng OK cộng toàn bộ NG.
             actual_output:
                 machineValidation.lines.length
                     ? Number(machineValidation.totals?.totalCounted || 0)
@@ -445,10 +438,6 @@ exports.createTempReport = async (req, res) => {
                 machineValidation.lines.length
                     ? Number(machineValidation.totals?.totalNg || 0)
                     : validation.normalized.tt_ng,
-
-            // Legacy alias retained for compatibility; immutable authority is the snapshot field.
-            exclude_kqd_from_tt: parentKqdPolicySnapshot ?? 0,
-            exclude_kqd_from_tt_snapshot: parentKqdPolicySnapshot,
 
             defects:
                 undefined,
