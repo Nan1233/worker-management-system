@@ -1,6 +1,6 @@
 const AuditService = require("../services/auditService");
 const createModel = require("./productionTempCreateModel");
-const { recalculateReportOutput } = require("../services/kqdReportCalculationService");
+const { recalculateReportOutput } = require("../services/productionOutputCalculationService");
 const { validateMachineLines } = require("../services/machineLineValidationService");
 const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback, editableFields } = require("./productionTempModelShared");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
