@@ -171,7 +171,7 @@ test('Desktop GC MACHINE monthly snapshot derives Worker credit from machine lin
   assert.equal(snapshot.countedNg, 6, 'KQD is excluded only from counted NG');
   assert.equal(snapshot.enteredOutput, 230);
   assert.equal(snapshot.output, 226);
-  assert.equal(snapshot.plannedOutput, 210, 'line standards are weighted by Worker worked time and training snapshot');
+  assert.equal(snapshot.standard, 210 / 4.5, 'line standards are weighted by Worker worked time and training snapshot');
   assert.equal(snapshot.outputPerHour, 226 / 4.5);
   assert.equal(snapshot.achievement, 226 / 210);
   assert.notEqual(snapshot.workingTime, 9, 'shared physical event hours must not replace Worker participation hours');
