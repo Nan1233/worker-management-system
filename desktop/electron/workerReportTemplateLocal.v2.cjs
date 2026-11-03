@@ -1,7 +1,7 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
-const { resolveExportTimes } = require('./exportMachineTime.cjs');
+const { resolveWorkerParticipationTimes } = require('./exportMachineTime.cjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
@@ -582,7 +582,7 @@ function plannedOutputFor(report) {
   let trainingPercent = 100;
   if (has(report.training_percent_snapshot)) trainingPercent = number(report.training_percent_snapshot);
   else if (has(report.training_percent)) trainingPercent = number(report.training_percent);
-  const exportTimes = resolveExportTimes(report);
+  const exportTimes = resolveWorkerParticipationTimes(report);
   const effectiveTime = exportTimes.hasMachine
     ? exportTimes.actualHours
     : (has(report.actual_time)
@@ -597,7 +597,7 @@ function plannedOutputFor(report) {
 
 function applyReportRow(row, report, contract, processData, index) {
   const set = (column, value) => writeValue(row, column, value);
-  const exportTimes = resolveExportTimes(report);
+  const exportTimes = resolveWorkerParticipationTimes(report);
   const reportForDetails = exportTimes.hasMachine
     ? { ...report, deductions: exportTimes.deductions }
     : report;
@@ -804,7 +804,7 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
-      const exportTimes = resolveExportTimes(report);
+      const exportTimes = resolveWorkerParticipationTimes(report);
       const totalMinutes = exportTimes.hasMachine
         ? exportTimes.totalHours * 60
         : (
