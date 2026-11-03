@@ -41,20 +41,20 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
   let master = await validateMasterData({workerId,processId,machineNo,productName,defects,deductions,allowEmptyMachine:operationMode==='MANUAL',operationType,workDate:data.work_date});
   if(!master.valid) throw httpError(422,'MASTER_DATA_INVALID','Dữ liệu danh mục không hợp lệ',master.errors);
   let standardOutput=Number(master.standardOutput||0);
-  let parentKqdPolicySnapshot=Number(master.excludeKqdFromTt||0)===1?1:0;
-  let actualOutput=calculateProductionOutput({ok:ttOk,defects:master.authoritativeDefects,excludeKqdFromTt:Boolean(parentKqdPolicySnapshot)}).actualOutput;
+  let parentKqdPolicySnapshot=0;
+  let actualOutput=calculateProductionOutput({ok:ttOk,defects:master.authoritativeDefects}).actualOutput;
   let machineLine=null;
   if(operationMode==='MACHINE') {
     if(!machineNo) throw httpError(422,'MACHINE_REQUIRED','Chế độ Máy phải nhập máy');
     const mv=await validateMachineLines({processId,machineLines:[{machine_code:machineNo,product_code:productName,machine_time_hours:actualTime,ok_quantity:ttOk,ng_quantity:ttNg,defects}],operationType,operationMode:'MACHINE',maxMachines:1,workDate:data.work_date});
     if(!mv.valid) throw httpError(422,'MACHINE_DATA_INVALID','Thông tin máy không hợp lệ',mv.errors);
-    machineLine=mv.lines[0]; standardOutput=Number(machineLine.standard_output||standardOutput); actualOutput=Number(machineLine.counted_output||actualOutput); parentKqdPolicySnapshot=Number(machineLine.exclude_kqd_from_tt||0)===1?1:0;
+    machineLine=mv.lines[0]; standardOutput=Number(machineLine.standard_output||standardOutput); actualOutput=Number(machineLine.counted_output||actualOutput)
     const fr=await validateFactoryMachineRules({processCode,processId,machineLines:[machineLine]});
     if(!fr.valid) throw httpError(422,'FACTORY_MACHINE_RULE_INVALID','Cách sử dụng máy không đúng quy tắc xưởng',fr.errors);
     const cap=await validateMachineWorkerCapacity({processCode,processId,machineLines:[machineLine],workerId,workDate:data.work_date,shift:data.shift});
     if(!cap.valid) throw httpError(422,'MACHINE_CAPACITY_EXCEEDED','Máy đã đủ số người cho phép trong ngày/ca',cap.errors);
   }
-  const candidate={...data,worker_id:workerId,process_id:processId,operation_type:operationType,operation_mode:operationMode,machine_no:operationMode==='MANUAL'?null:machineNo,product_name:master.productCode||productName,deduction_time:deductionTime,total_time:actualTime+deductionTime,standard_output:standardOutput,standard_version_id:operationMode==='MACHINE'?null:master.standardVersionId,machine_standard_id:operationMode==='MACHINE'?null:master.machineStandardId,actual_output:actualOutput,tt_ng:ttNg,defects,deductions,exclude_kqd_from_tt:parentKqdPolicySnapshot,exclude_kqd_from_tt_snapshot:parentKqdPolicySnapshot};
+  const candidate={...data,worker_id:workerId,process_id:processId,operation_type:operationType,operation_mode:operationMode,machine_no:operationMode==='MANUAL'?null:machineNo,product_name:master.productCode||productName,deduction_time:deductionTime,total_time:actualTime+deductionTime,standard_output:standardOutput,standard_version_id:operationMode==='MACHINE'?null:master.standardVersionId,machine_standard_id:operationMode==='MACHINE'?null:master.machineStandardId,actual_output:actualOutput,tt_ng:ttNg,defects,deductions};
   const validation=validateProductionReport(candidate,{enforceBackDate:false});
   if(!validation.valid) throw httpError(422,'REPORT_VALIDATION_FAILED','Dữ liệu báo cáo không hợp lệ',validation.errors);
 
@@ -84,7 +84,7 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
       await conn.query(`INSERT INTO production_report_deductions(report_id,deduction_type_id,hours) VALUES ${placeholders}`, values);
     }
     if(machineLine){
-      const [ml] = await conn.query(`INSERT INTO production_report_machine_lines(report_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,machine_time_hours,standard_time_seconds,standard_output,standard_source,exclude_kqd_from_tt,ok_quantity,ng_quantity,maximum_output,counted_output,earned_standard_hours,defects_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,machineLine.machine_id||null,machineLine.machine_code,machineLine.product_standard_id||null,machineLine.standard_version_id||null,machineLine.machine_standard_id||null,machineLine.product_code,machineLine.machine_time_hours,machineLine.standard_time_seconds||null,machineLine.standard_output,machineLine.standard_source||'PRODUCT',Number(machineLine.exclude_kqd_from_tt||0),machineLine.ok_quantity,machineLine.ng_quantity,machineLine.maximum_output,machineLine.counted_output||0,machineLine.earned_standard_hours||0,JSON.stringify(machineLine.defects||[])]);
+      const [ml] = await conn.query(`INSERT INTO production_report_machine_lines(report_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,machine_time_hours,standard_time_seconds,standard_output,standard_source,ok_quantity,ng_quantity,maximum_output,counted_output,earned_standard_hours,defects_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,machineLine.machine_id||null,machineLine.machine_code,machineLine.product_standard_id||null,machineLine.standard_version_id||null,machineLine.machine_standard_id||null,machineLine.product_code,machineLine.machine_time_hours,machineLine.standard_time_seconds||null,machineLine.standard_output,machineLine.standard_source||'PRODUCT',machineLine.ok_quantity,machineLine.ng_quantity,machineLine.maximum_output,machineLine.counted_output||0,machineLine.earned_standard_hours||0,JSON.stringify(machineLine.defects||[])]);
       const machineDefects = machineLine.defects || [];
       if (machineDefects.length) {
         const machineLineId = Number(ml.insertId);
