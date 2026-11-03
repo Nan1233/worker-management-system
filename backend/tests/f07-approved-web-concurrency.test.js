@@ -72,7 +72,7 @@ test('F07 stale expected_updated_at rejects with zero write/version/audit side e
     '../utils/reportValidation': { validateProductionReport: () => ({ valid: true, normalized: {} }) },
     './reportBusinessValidationService': { validateMasterData: async () => ({ valid: true }) },
     './reportGovernanceService': { isPeriodLocked: async () => false },
-    './kqdReportCalculationService': { recalculateReportOutput: () => ({}) },
+    './productionOutputCalculationService': { recalculateReportOutput: () => ({}) },
     './processAuthorizationService': { assertProcessScope: async () => true },
     './approvedVersionSnapshotService': {
       createApprovedReportVersion: async () => { writes.push('VERSION_APPEND'); },
@@ -169,7 +169,7 @@ test('F07 matching expected_updated_at succeeds and returns a fresh updated_at b
     '../utils/reportValidation': { validateProductionReport: (payload) => ({ valid: true, normalized: { ...payload } }) },
     './reportBusinessValidationService': { validateMasterData: async () => ({ valid: true, standardOutput: 617.1, standardVersionId: 11, machineStandardId: null, excludeKqdFromTt: 0, authoritativeDefects: [] }) },
     './reportGovernanceService': { isPeriodLocked: async () => false },
-    './kqdReportCalculationService': { recalculateReportOutput: ({ ttOk }) => ({ ttOk, totalNg: 0, actualOutput: ttOk }) },
+    './productionOutputCalculationService': { recalculateReportOutput: ({ ttOk }) => ({ ttOk, totalNg: 0, actualOutput: ttOk }) },
     './processAuthorizationService': { assertProcessScope: async () => true },
     './approvedVersionSnapshotService': {
       createApprovedReportVersion: async () => ++versionCount,
