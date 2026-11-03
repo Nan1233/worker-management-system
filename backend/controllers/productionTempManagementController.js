@@ -27,7 +27,7 @@ const { validateMasterData } = require("../services/reportBusinessValidationServ
 const { gcWorkTypeFromOperationType, gcWorkTypeLabel } = require("../utils/gcMachineWorkType");
 const { assertWorkerOwnership } = require("../services/processAuthorizationService");
 const { validateProductionReport } = require("../utils/reportValidation");
-const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
+const { calculateProductionOutput } = require("../../shared/productionOutput.cjs");
 const {
     normalizePagination,
     normalizeSearch,
