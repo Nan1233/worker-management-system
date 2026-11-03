@@ -370,11 +370,6 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         data.standard_version_id = data.standard_version_id || null;
         data.machine_standard_id = data.machine_standard_id || null;
 
-        if (machineLines.length) {
-            const capacity = await validateMachineWorkerCapacityLocked({ executor: db, processCode: processRows[0]?.process_code, processId: data.process_id, machineLines, workerId: data.worker_id, workDate: data.work_date, shift: data.shift });
-            if (!capacity.valid) { const e = new Error("Số công nhân trên máy vượt giới hạn trong cùng ngày/ca"); e.status = 422; e.code = "MACHINE_WORKER_LIMIT_EXCEEDED"; e.isPublic = true; e.details = capacity.errors; throw e; }
-        }
-
         const auditUserId = Number(audit?.userId || 0);
         if (!Number.isInteger(auditUserId) || auditUserId <= 0) { const e = new Error("Không xác định được người tạo báo cáo để ghi audit"); e.status = 422; e.code = "REPORT_AUDIT_ACTOR_REQUIRED"; e.isPublic = true; throw e; }
 
@@ -421,6 +416,26 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             if (race) { await commit(parentConnection); return idempotent(race); }
             await createModel.lockLogicalDuplicateKey(data.logical_duplicate_key, parentConnection);
             await assertNoLogicalDuplicate(data, parentConnection);
+            if (machineLines.length) {
+                await createModel.lockMachineCapacityKeys(data.process_id, data.work_date, data.shift, machineLines, parentConnection);
+                const capacity = await validateMachineWorkerCapacityLocked({
+                    executor: parentConnection,
+                    processCode: processRows[0]?.process_code,
+                    processId: data.process_id,
+                    machineLines,
+                    workerId: data.worker_id,
+                    workDate: data.work_date,
+                    shift: data.shift
+                });
+                if (!capacity.valid) {
+                    const error = new Error("Số công nhân trên máy vượt giới hạn trong cùng ngày/ca");
+                    error.status = 422;
+                    error.code = "MACHINE_WORKER_LIMIT_EXCEEDED";
+                    error.isPublic = true;
+                    error.details = capacity.errors;
+                    throw error;
+                }
+            }
             try {
                 if (splitGc) {
                     // All machine-specific parent reports and child rows are committed together.
