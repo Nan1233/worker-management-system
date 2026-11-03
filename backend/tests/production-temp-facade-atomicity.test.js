@@ -37,6 +37,8 @@ function loadFacadeHarness() {
   const createModel = {
     findSimilarTempReport: async () => null,
     findSimilarApprovedReport: async () => null,
+    lockClientRequestId: async () => {},
+    lockLogicalDuplicateKey: async () => {},
     create: async (data, connection) => {
       const id = nextId++;
       connection.pendingReport = {
