@@ -134,7 +134,6 @@ test('F07 matching expected_updated_at succeeds and returns a fresh updated_at b
     standard_output: 617.1,
     standard_version_id: 11,
     machine_standard_id: null,
-    exclude_kqd_from_tt_snapshot: 0,
     actual_output: 100,
     tt_ok: 100,
     tt_ng: 0,
