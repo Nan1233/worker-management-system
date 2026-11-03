@@ -206,3 +206,26 @@ test('Desktop GC MACHINE monthly workbook reads Worker deduction details from ea
   const types = _private.processDetailTypes('GC', { reports: [report] }, 'deductionTypes', 'deductions', 'deduction');
   assert.ok(types.some((item) => item.aliases.includes('id:88')));
 });
+
+test('Desktop GC MACHINE detail fallback is safe for one line and never copied across multiple lines', () => {
+  const legacySingle = {
+    process_code: 'GC',
+    operation_mode: 'MACHINE',
+    deductions: [{ deduction_type_id: 91, deduction_code: 'BREAK', deduction_name: 'Nghỉ giải lao', hours: 0.5 }],
+    defects: [{ defect_type_id: 92, defect_code: 'BAVIA', defect_name: 'Bavia', quantity: 3 }],
+    machineLines: [{ id: 901, deductions_json: '[]', defects_json: '[]' }]
+  };
+  assert.equal(_private.reportDetailItems(legacySingle, 'GC', 'deduction').length, 1);
+  assert.equal(_private.reportDetailItems(legacySingle, 'GC', 'defect').length, 1);
+
+  const multiLine = {
+    ...legacySingle,
+    machineLines: [
+      { id: 902, deductions_json: '[]', defects_json: '[]' },
+      { id: 903, deductions_json: '[]', defects_json: '[]' }
+    ]
+  };
+  assert.equal(_private.reportDetailItems(multiLine, 'GC', 'deduction').length, 0);
+  assert.equal(_private.reportDetailItems(multiLine, 'GC', 'defect').length, 1,
+    'report-level defect snapshot remains the authoritative approved NG detail');
+});
