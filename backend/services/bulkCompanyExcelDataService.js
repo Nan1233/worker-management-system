@@ -247,11 +247,17 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     defect_name: row.defect_name,
     quantity: Number(row.quantity) || 0
   }));
+  // Resolve temp -> approved report IDs once. Repeated Array.find() inside both
+  // detail loops made this O(reports × detail rows) for larger monthly exports.
+  const reportIdBySourceTempId = new Map(
+    reports
+      .filter((report) => Number(report.source_temp_id) > 0)
+      .map((report) => [Number(report.source_temp_id), Number(report.id)])
+  );
   const tempDeductionByReport = new Map();
   for (const row of tempDeductionRows) {
-    const report = reports.find((item) => Number(item.source_temp_id) === Number(row.temp_report_id));
-    if (!report) continue;
-    const id = Number(report.id);
+    const id = reportIdBySourceTempId.get(Number(row.temp_report_id));
+    if (!id) continue;
     if (!tempDeductionByReport.has(id)) tempDeductionByReport.set(id, []);
     tempDeductionByReport.get(id).push({
       deduction_type_id: Number(row.deduction_type_id),
@@ -262,9 +268,8 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   }
   const tempDefectByReport = new Map();
   for (const row of tempDefectRows) {
-    const report = reports.find((item) => Number(item.source_temp_id) === Number(row.temp_report_id));
-    if (!report) continue;
-    const id = Number(report.id);
+    const id = reportIdBySourceTempId.get(Number(row.temp_report_id));
+    if (!id) continue;
     if (!tempDefectByReport.has(id)) tempDefectByReport.set(id, []);
     tempDefectByReport.get(id).push({
       defect_type_id: Number(row.defect_type_id),
