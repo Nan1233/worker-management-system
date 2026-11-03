@@ -187,7 +187,6 @@ function validateApprovedVersionSnapshot(value) {
   } else if (!finiteNonNegative(report.training_percent_snapshot) || Number(report.training_percent_snapshot) > 100) {
     pushIssue(issues, 'ROLLBACK_SNAPSHOT_INVALID', 'report.training_percent_snapshot', 'Snapshot % học việc không hợp lệ');
   }
-  }
 
   snapshot.defects.forEach((item, index) => {
     if (!item || !Number.isInteger(Number(item.defect_type_id)) || Number(item.defect_type_id) <= 0 || !finiteNonNegative(item.quantity)) {
