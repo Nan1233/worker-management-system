@@ -112,3 +112,111 @@ test('line hours without event link are not reported as physical machine hours',
   assert.equal(audit.physical_machine_hours_source, 'NO_APPROVED_MACHINE_EVENT_LINKS');
   assert.equal(audit.machine_lines_without_event_count, 1);
 });
+
+
+test('rejected linked event is not treated as physical machine time', () => {
+  const result = classifyReport({
+    id: 32,
+    total_time: 8,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [{ id: 321, machine_code: 'GC01', machine_time_hours: 8, machine_event_id: 9902 }],
+    eventLines: [{ id: 9902, machine_time_hours: 8, status: 'rejected' }],
+    machineAccounting: {
+      source: 'MACHINE_EVENT_MISSING',
+      grossHours: 0,
+      deductionHours: 0,
+      netHours: 0
+    }
+  });
+
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'LINKED_MACHINE_EVENT_NOT_APPROVED');
+  assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 0);
+  assert.equal(result.machine_hours_audit.non_approved_linked_event_count, 1);
+});
+
+test('approved event can confirm physical hours even when machine-line hours are zero', () => {
+  const result = classifyReport({
+    id: 33,
+    total_time: 8,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [{ id: 331, machine_code: 'GC01', machine_time_hours: 0, machine_event_id: 9903 }],
+    eventLines: [{ id: 9903, machine_time_hours: 8, status: 'approved' }],
+    machineAccounting: {
+      source: 'MACHINE_EVENT',
+      grossHours: 8,
+      deductionHours: 0,
+      netHours: 8
+    }
+  });
+
+  assert.equal(result.action, 'NO_CHANGE');
+  assert.equal(result.reason, 'APPROVED_MACHINE_EVENTS_CONFIRMED_PHYSICAL_TIME');
+  assert.equal(result.machine_hours_audit.machine_line_hours_total, 0);
+  assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 8);
+  assert.equal(result.machine_hours_audit.machine_accounting_comparison.status, 'MATCH');
+});
+
+test('multiple machine lines with distinct approved events reconcile to machineAccounting', () => {
+  const result = classifyReport({
+    id: 34,
+    total_time: 8,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [
+      { id: 341, machine_code: 'GC01', machine_time_hours: 4, machine_event_id: 9911 },
+      { id: 342, machine_code: 'GC02', machine_time_hours: 4, machine_event_id: 9912 }
+    ],
+    eventLines: [
+      { id: 9911, machine_time_hours: 4, status: 'approved' },
+      { id: 9912, machine_time_hours: 4, status: 'approved' }
+    ],
+    machineAccounting: {
+      source: 'MACHINE_EVENT',
+      grossHours: 8,
+      deductionHours: 0,
+      netHours: 8
+    }
+  });
+
+  assert.equal(result.action, 'NO_CHANGE');
+  assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 8);
+  assert.equal(result.machine_hours_audit.machine_accounting_comparison.status, 'MATCH');
+});
+
+test('machineAccounting mismatch is REVIEW even when event links are approved', () => {
+  const result = classifyReport({
+    id: 35,
+    total_time: 8,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [{ id: 351, machine_code: 'GC01', machine_time_hours: 8, machine_event_id: 9921 }],
+    eventLines: [{ id: 9921, machine_time_hours: 8, status: 'approved' }],
+    machineAccounting: {
+      source: 'MACHINE_EVENT',
+      grossHours: 7,
+      deductionHours: 0,
+      netHours: 7
+    }
+  });
+
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'MACHINE_ACCOUNTING_DOES_NOT_MATCH_EVENT_AND_LINE_SOURCES');
+  assert.equal(result.machine_hours_audit.machine_accounting_comparison.status, 'MISMATCH');
+});
+
+test('non-machine report with no machine lines remains NO_CHANGE', () => {
+  const result = classifyReport({
+    id: 36,
+    total_time: 7,
+    deduction_time: 0,
+    operation_mode: 'MANUAL',
+    machine_no: '',
+    machineLines: []
+  });
+
+  assert.equal(result.action, 'NO_CHANGE');
+  assert.equal(result.reason, 'NO_MACHINE_USE_WORKER_TIME');
+});
