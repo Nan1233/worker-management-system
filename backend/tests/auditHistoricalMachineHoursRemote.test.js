@@ -109,7 +109,7 @@ test('line hours without event link are not reported as physical machine hours',
   assert.equal(audit.worker_hours, 5);
   assert.equal(audit.machine_line_hours_total, 5);
   assert.equal(audit.physical_machine_hours_confirmed, 0);
-  assert.equal(audit.physical_machine_hours_source, 'NO_APPROVED_MACHINE_EVENT_LINKS');
+  assert.equal(audit.physical_machine_hours_source, 'NO_APPROVED_MACHINE_EVENTS');
   assert.equal(audit.machine_lines_without_event_count, 1);
 });
 
@@ -219,4 +219,46 @@ test('non-machine report with no machine lines remains NO_CHANGE', () => {
 
   assert.equal(result.action, 'NO_CHANGE');
   assert.equal(result.reason, 'NO_MACHINE_USE_WORKER_TIME');
+});
+
+
+test('shared approved event is counted once and does not force the main action to REVIEW', () => {
+  const result = classifyReport({
+    id: 37,
+    total_time: 8,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [
+      { id: 371, machine_code: 'GC01', machine_time_hours: 4, machine_event_id: 9931 },
+      { id: 372, machine_code: 'GC01', machine_time_hours: 4, machine_event_id: 9931 }
+    ],
+    eventLines: [{ id: 9931, machine_time_hours: 6, status: 'approved' }],
+    machineAccounting: {
+      source: 'MACHINE_EVENT',
+      grossHours: 6,
+      deductionHours: 0,
+      netHours: 6
+    }
+  });
+
+  assert.equal(result.action, 'NO_CHANGE');
+  assert.equal(result.machine_hours_audit.physical_machine_hours_confirmed, 6);
+  assert.equal(result.machine_hours_audit.duplicate_event_links, 1);
+  assert.equal(result.machine_hours_audit.machine_accounting_comparison.status, 'MATCH');
+  // Deduction reconciliation is a separate axis and can remain REVIEW.
+  assert.equal(result.machine_deduction_audit.status, 'REVIEW');
+});
+
+test('MACHINE report without machineAccounting payload remains REVIEW', () => {
+  const result = classifyReport({
+    id: 38,
+    total_time: 8,
+    deduction_time: 0,
+    operation_mode: 'MACHINE',
+    machineLines: [{ id: 381, machine_code: 'GC01', machine_time_hours: 0, machine_event_id: 9941 }],
+    eventLines: [{ id: 9941, machine_time_hours: 8, status: 'approved' }]
+  });
+
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'MACHINE_ACCOUNTING_PAYLOAD_MISSING');
 });
