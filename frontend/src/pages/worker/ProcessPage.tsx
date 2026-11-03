@@ -133,6 +133,7 @@ import {
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { buildProductionReportPayload } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
+import { useProductKqdPolicy } from "./useProductKqdPolicy";
 
 import type {
     DeductionKey,
@@ -438,27 +439,13 @@ const machineAutocompleteOptions =
 
             return next;
         });
-    }, [usesMultiMachineLines, machineLines, activeNgOptions]);const [resolvedReportKqdPolicy, setResolvedReportKqdPolicy] = useState<boolean | null>(null);
-
-useEffect(() => {
-    let active = true;
-    if (!form.productName.trim() || !form.workDate) {
-        setResolvedReportKqdPolicy(null);
-        return () => { active = false; };
-    }
-    void resolveProductStandard(
-        processInfo.id,
-        form.machineNo.trim(),
-        form.productName.trim(),
-        form.workDate
-    ).then((resolved) => {
-        if (!active) return;
-        setResolvedReportKqdPolicy(Number(resolved.exclude_kqd_from_tt || 0) === 1);
-        const resolvedOutput = Number(resolved.resolved_output_per_hour || 0);
-        if (resolvedOutput > 0) setForm((current) => ({ ...current, standardOutput: String(resolvedOutput) }));
-    }).catch(() => { if (active) setResolvedReportKqdPolicy(null); });
-    return () => { active = false; };
-}, [processInfo.id, form.machineNo, form.productName, form.workDate]);
+    }, [usesMultiMachineLines, machineLines, activeNgOptions]);const { resolvedReportKqdPolicy } = useProductKqdPolicy({
+    processId: processInfo.id,
+    machineNo: form.machineNo,
+    productName: form.productName,
+    workDate: form.workDate,
+    setForm,
+});
 
 const productExcludesKqd = (): boolean => resolvedReportKqdPolicy === true;
 
