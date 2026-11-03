@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const ExcelJS = require('exceljs');
 const { __test, buildCommonProcessMonthlyWorkbook } = require('../services/commonProcessMonthlyExcelService');
+const { resolveReportDefects } = require('../services/bulkCompanyExcelDataService');
 
 const line = (id, machine, product, hours, ok, ng, deductions = [], defects = []) => ({
   id, sort_order: id, machine_code: machine, product_code: product, machine_time_hours: hours,
@@ -169,4 +170,47 @@ test('real monthly workbook serializes distinct GC rows with correct per-line me
   const repeatedSheet = repeated.getWorksheet('Cắt lồng');
   assert.deepEqual([repeatedSheet.getCell('D3').value, repeatedSheet.getCell('D4').value, repeatedSheet.getCell('D5').value], ['M01', 'M02', 'M03']);
   assert.equal(repeatedSheet.getCell('B6').value, null);
+});
+
+test('Desktop GC MACHINE export resolves worker NG details from machine lines without importing physical event defects', () => {
+  const persistedByLine = new Map([
+    [101, [{ defect_type_id: 1, defect_type_code: 'KQD', defect_name: 'KQD', quantity: 2 }]]
+  ]);
+  const lines = [
+    { id: 101, machine_event_id: 8800 },
+    { id: 102, machine_event_id: 8800, defects_json: JSON.stringify([
+      { defect_type_id: 2, defect_type_code: 'BAVIA', defect_name: 'Bavia', quantity: 3 }
+    ]) },
+    // No worker line defect snapshot: physical event fallback must not become worker credit.
+    { id: 103, machine_event_id: 8800 }
+  ];
+  const result = resolveReportDefects({
+    processCode: 'GC',
+    operationMode: 'MACHINE',
+    reportDefects: [],
+    machineLines: lines,
+    machineDefectsByLine: persistedByLine
+  });
+
+  assert.deepEqual(result.map((item) => [item.defect_type_code, item.quantity]), [
+    ['KQD', 2],
+    ['BAVIA', 3]
+  ]);
+  assert.equal(result.reduce((sum, item) => sum + item.quantity, 0), 5);
+});
+
+test('Desktop GC MACHINE export prefers report-level defect snapshot and never expands other modes', () => {
+  const reportDefects = [{ defect_type_code: 'REPORT', quantity: 4 }];
+  const machineLines = [{ id: 101, defects_json: JSON.stringify([{ defect_type_code: 'LINE', quantity: 9 }]) }];
+  const machineDefectsByLine = new Map();
+
+  assert.strictEqual(resolveReportDefects({
+    processCode: 'GC', operationMode: 'MACHINE', reportDefects, machineLines, machineDefectsByLine
+  }), reportDefects);
+  assert.deepEqual(resolveReportDefects({
+    processCode: 'GC', operationMode: 'WORKER', reportDefects: [], machineLines, machineDefectsByLine
+  }), []);
+  assert.deepEqual(resolveReportDefects({
+    processCode: 'MAI', operationMode: 'MACHINE', reportDefects: [], machineLines, machineDefectsByLine
+  }), []);
 });
