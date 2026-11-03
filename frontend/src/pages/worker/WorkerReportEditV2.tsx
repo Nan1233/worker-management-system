@@ -346,7 +346,6 @@ function WorkerReportEditV2() {
       clientRequestId: null, processId: report.process_id, form: { ...form, actualTime: `${form.actualHours}:${form.actualMinutes}`, deductionTime: form.deductionTime, totalTime: `${Math.floor(totalHours)}:${String(Math.round((totalHours % 1) * 60)).padStart(2, "0")}` },
       extraData, operationType, isCutLongProcess: capabilities.isCutLongProcess, processCode: capabilities.processCode, isCvkMode, usesAnyMachine: operationMode === "MACHINE", usesMultiMachineLines, usesSingleMachine,
       machineLines: normalizedLines, machineOptions: editMachineOptions, productOptions: editProductOptions, activeNgOptions: editNgOptions, deductions, activeDeductionOptions: editDeductionOptions,
-      excludeKqdFromTt: Number(report.exclude_kqd_from_tt ?? report.exclude_kqd_from_tt_snapshot ?? 0) === 1,
     });
     }
     if (!approvedMachineNoteOnly) { payload.updated_at = report.updated_at; payload.expected_updated_at = report.updated_at; }
