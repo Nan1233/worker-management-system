@@ -65,6 +65,34 @@ function hydrateMachineLineDefects(machineLines, machineDefectsByLine, eventDefe
   });
 }
 
+function workerMachineLineDefects(line, machineDefectsByLine) {
+  const persisted = machineDefectsByLine.get(Number(line?.id)) || [];
+  if (persisted.length) return persisted;
+
+  // defects_json belongs to the worker's machine line. Do not read the
+  // hydrated line here: hydration may have added physical event defects.
+  const raw = line?.defects_json;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function resolveReportDefects({ processCode, operationMode, reportDefects, machineLines, machineDefectsByLine }) {
+  const reportRows = Array.isArray(reportDefects) ? reportDefects : [];
+  if (reportRows.length || String(processCode || '').toUpperCase() !== 'GC'
+      || String(operationMode || '').toUpperCase() !== 'MACHINE') {
+    return reportRows;
+  }
+
+  return (Array.isArray(machineLines) ? machineLines : [])
+    .flatMap((line) => workerMachineLineDefects(line, machineDefectsByLine));
+}
+
 async function loadBulkCompanyReports(yearMonth, actor) {
   const { start, next } = monthRange(yearMonth);
   const placeholders = PROCESS_CODES.map(() => '?').join(',');
@@ -345,7 +373,8 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     data.reports = (reportsByProcess.get(code) || [])
       .map((report) => {
         const reportId = Number(report.id);
-        const machineLines = hydrateMachineLineDefects(machineLinesByReport.get(reportId) || [], machineDefectsByLine, eventDefectsByEvent)
+        const rawMachineLines = machineLinesByReport.get(reportId) || [];
+        const machineLines = hydrateMachineLineDefects(rawMachineLines, machineDefectsByLine, eventDefectsByEvent)
           .map((line) => {
             const event = eventMap.get(Number(line.machine_event_id));
             return {
@@ -364,6 +393,14 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         // Keep report-level deductions as Worker credit. Physical machine
         // deductions stay under machineAccounting and must not overwrite them.
         const deductions = tempDeductions.length ? tempDeductions : persistedDeductions;
+        const reportDefects = tempDefects.length ? tempDefects : persistedDefects;
+        const defects = resolveReportDefects({
+          processCode: code,
+          operationMode: report.operation_mode,
+          reportDefects,
+          machineLines: rawMachineLines,
+          machineDefectsByLine
+        });
         let machineAccounting = null;
         if (code === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE') {
           machineAccounting = buildGiaCongMachineAccounting(
@@ -381,7 +418,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
           ...report,
           deductions,
           machineDeductions: machineAccounting?.deductions || [],
-          defects: tempDefects.length ? tempDefects : persistedDefects,
+          defects,
           machineLines,
           eventLines,
           machineAccounting
@@ -396,4 +433,4 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   return { processData, processIds, scope };
 }
 
-module.exports = { loadBulkCompanyReports, PROCESS_CODES };
+module.exports = { loadBulkCompanyReports, PROCESS_CODES, resolveReportDefects };
