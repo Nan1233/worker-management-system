@@ -32,7 +32,6 @@ test("machine line validation resolves many defects with bulk master queries", a
             productCode: "C502",
             standardOutput: 1560,
             standardTimeSeconds: null,
-            excludeKqdFromTt: 0,
             source: "PRODUCT_VERSION"
         })
     };
