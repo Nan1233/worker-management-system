@@ -151,4 +151,4 @@ const calculateReportPerformance = ({ report = {}, machineLines = [] } = {}) => 
   };
 };
 
-module.exports = { parseDefects, isKqdDefect, calculateMachineLinePerformance, calculateManualPerformance, calculateReportPerformance };
+module.exports = { parseDefects, calculateMachineLinePerformance, calculateManualPerformance, calculateReportPerformance };
