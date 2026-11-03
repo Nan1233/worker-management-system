@@ -362,14 +362,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
         data.logical_duplicate_key = buildLogicalDuplicateKey({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, operationMode: data.operation_mode ?? data.operationMode, machineNo: data.machine_no, productName: data.product_name, workType: data.work_type || data.extra_data?.work_type, machineLines });
 
-        const tempDuplicate = await createModel.findSimilarTempReport({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, machineNo: data.machine_no, productName: data.product_name, logicalDuplicateKey: data.logical_duplicate_key });
-        const approvedDuplicate = tempDuplicate ? null : await createModel.findSimilarApprovedReport({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, logicalDuplicateKey: data.logical_duplicate_key });
-        const existingDuplicate = tempDuplicate || approvedDuplicate;
-        if (existingDuplicate) {
-            if (!data.force_create) { const e = new Error("Báo cáo trùng với báo cáo đã tồn tại trong cùng ngày/ca"); e.status = 409; e.code = "DUPLICATE_CONFIRMATION_REQUIRED"; e.isPublic = true; e.existing_report = existingDuplicate; e.details = existingDuplicate; throw e; }
-            const confirmation = verifyDuplicateConfirmation(data.duplicate_confirmation_token, { workerId: data.worker_id, logicalDuplicateKey: data.logical_duplicate_key, existingReportId: existingDuplicate.id, existingReportType: existingDuplicate.report_type || "temp" });
-            if (!confirmation.valid) { const e = new Error("Xác nhận tạo báo cáo trùng không hợp lệ hoặc đã hết hạn"); e.status = 409; e.code = "DUPLICATE_CONFIRMATION_REQUIRED"; e.isPublic = true; e.existing_report = existingDuplicate; throw e; }
-        } else if (data.force_create) { const e = new Error("Không có báo cáo trùng hợp lệ để xác nhận tạo lần thứ hai"); e.status = 409; e.code = "DUPLICATE_CONFIRMATION_REQUIRED"; e.isPublic = true; throw e; }
+        await assertNoLogicalDuplicate(data);
 
         const processRows = await query(db, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
         data.process_code = processRows[0]?.process_code || data.process_code || null;
