@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const ExcelJS = require('exceljs');
 const { __test, buildCommonProcessMonthlyWorkbook } = require('../services/commonProcessMonthlyExcelService');
-const { resolveReportDefects } = require('../services/bulkCompanyExcelDataService');
+const { resolveReportDefects } = require('../domain/gcWorkerDefectResolver.cjs');
 
 const line = (id, machine, product, hours, ok, ng, deductions = [], defects = []) => ({
   id, sort_order: id, machine_code: machine, product_code: product, machine_time_hours: hours,
