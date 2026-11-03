@@ -420,6 +420,8 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             await createModel.lockClientRequestId(workerId, requestId, parentConnection);
             const race = await findExistingClientRequest(data, parentConnection);
             if (race) { await commit(parentConnection); return idempotent(race); }
+            await createModel.lockLogicalDuplicateKey(data.logical_duplicate_key, parentConnection);
+            await assertNoLogicalDuplicate(data, parentConnection);
             try {
                 if (splitGc) {
                     // All machine-specific parent reports and child rows are committed together.
