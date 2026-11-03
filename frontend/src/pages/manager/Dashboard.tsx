@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowUpRight, BarChart3, CheckCircle2, ClipboardCheck, Clock3, Layers3, PackageCheck, RefreshCw, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, BarChart3, CheckCircle2, ClipboardCheck, Clock3, Layers3, PackageCheck, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { getApiError } from "../../utils/apiError";
@@ -19,7 +19,6 @@ const fmt=(n:number)=>Number(n||0).toLocaleString("vi-VN",{maximumFractionDigits
 function localDate(d:Date){const o=d.getTimezoneOffset();return new Date(d.getTime()-o*60000).toISOString().slice(0,10)}
 function rangeFor(p:PeriodKey){const now=new Date(),s=new Date(now),e=new Date(now);if(p==="yesterday"){s.setDate(s.getDate()-1);e.setDate(e.getDate()-1)}else if(p==="last7")s.setDate(s.getDate()-6);else if(p==="thisMonth")s.setDate(1);else if(p==="lastMonth"){s.setMonth(s.getMonth()-1,1);e.setDate(0)}return{from:localDate(s),to:localDate(e)}}
 function dateText(v?:string){if(!v)return"—";const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString("vi-VN",{day:"2-digit",month:"2-digit"})}
-function timeText(hours:number){if(!hours)return"—";return `${Math.floor(hours).toString().padStart(2,"0")}:${Math.round((hours%1)*60).toString().padStart(2,"0")}`}
 
 export default function Dashboard(){
  const navigate=useNavigate(),user=useMemo(()=>getStoredUser(),[]);
