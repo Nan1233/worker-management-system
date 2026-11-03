@@ -62,7 +62,6 @@ import type {
 
 
 import {
-    KQD_CODES,
     clampWorkerWorkDate,
     createEmptyMachineLine,
     getCurrentLocalDate,
@@ -131,7 +130,7 @@ import {
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { buildProductionReportPayload } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
-import { useProductKqdPolicy } from "./useProductKqdPolicy";
+import { useProductStandardOutput } from "./useProductStandardOutput";
 
 import type {
     DeductionKey,
@@ -415,7 +414,7 @@ const machineAutocompleteOptions =
 
             return next;
         });
-    }, [usesMultiMachineLines, machineLines, activeNgOptions]);const { resolvedReportKqdPolicy } = useProductKqdPolicy({
+    }, [usesMultiMachineLines, machineLines, activeNgOptions]);useProductStandardOutput({
     processId: processInfo.id,
     machineNo: form.machineNo,
     productName: form.productName,
@@ -423,10 +422,8 @@ const machineAutocompleteOptions =
     setForm,
 });
 
-const productExcludesKqd = (): boolean => resolvedReportKqdPolicy === true;
-
 const calculateActualOutput = (values: FormState): number =>
-    calculateActualOutputValue(values, activeNgOptions, productExcludesKqd(), KQD_CODES);
+    calculateActualOutputValue(values, activeNgOptions);
 
 
 
@@ -529,7 +526,6 @@ const calculateActualOutput = (values: FormState): number =>
         deductions,
         selectedDeduction,
         selectedNg,
-        resolvedReportKqdPolicy,
     }), [
         processInfo.id,
         process,
@@ -544,7 +540,6 @@ const calculateActualOutput = (values: FormState): number =>
         deductions,
         selectedDeduction,
         selectedNg,
-        resolvedReportKqdPolicy,
     ]);
 
     const finishDuplicateAction = useCallback(() => {
@@ -1388,9 +1383,7 @@ const updateDeductionValue = (
         // machine/product line. The parent form's aggregate must not be checked
         // against the single-product formula used by manual reports.
         if (!usesMachineLineAccounting && Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
-            return productExcludesKqd()
-                ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã sản phẩm này)"
-                : "Thực tế phải bằng TT OK cộng TT NG";
+            return "Thực tế phải bằng TT OK cộng TT NG";
         }
 
         const missingExtraField = currentExtraFields.find(
@@ -1470,7 +1463,6 @@ const updateDeductionValue = (
                     activeNgOptions,
                     deductions,
                     activeDeductionOptions,
-                    excludeKqdFromTt: resolvedReportKqdPolicy === true,
                 });
 
                 let response;
