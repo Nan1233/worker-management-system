@@ -212,11 +212,11 @@ async function createEvent({ actor, data, req = null }) {
     const [insert] = await connection.query(`INSERT INTO machine_production_events
       (process_id,machine_id,machine_code,product_code,work_date,shift,physical_ok_quantity,physical_ng_quantity,
        physical_counted_output,physical_total_output,machine_time_hours,maximum_output,standard_output,standard_version_id,
-       machine_standard_id,standard_source,exclude_kqd_from_tt_snapshot,status,created_by,updated_by)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?,?)`, [
+       machine_standard_id,standard_source,status,created_by,updated_by)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?,?)`, [
       ctx.process.id,ctx.machine.id,ctx.machine.machine_code,ctx.resolved.productCode,workDate,shift,
       calc.physicalOkQuantity,calc.physicalNgQuantity,calc.physicalCountedOutput,calc.physicalTotalOutput,calc.machineTimeHours,calc.maximumOutput,
-      ctx.resolved.standardOutput,ctx.resolved.standardVersionId,ctx.resolved.machineStandardId,storedStandardSource(ctx.resolved.source),ctx.resolved.excludeKqdFromTt,
+      ctx.resolved.standardOutput,ctx.resolved.standardVersionId,ctx.resolved.machineStandardId,storedStandardSource(ctx.resolved.source),
       Number(actor.id),Number(actor.id)
     ]);
     const event = await loadEvent(connection, insert.insertId, { lock:true });
@@ -257,10 +257,10 @@ async function updateEvent({ id, actor, patch, req = null }) {
     if(linked.length){const participantIds=new Set(linked.map((r)=>Number(r.worker_id)));for(const d of defects)if(!participantIds.has(Number(d.responsible_worker_id)))throw eventError(422,'DEFECT_WORKER_NOT_PARTICIPANT','Công nhân chịu trách nhiệm NG phải tham gia event');}
     await connection.query(`UPDATE machine_production_events SET process_id=?,machine_id=?,machine_code=?,product_code=?,work_date=?,shift=?,
       physical_ok_quantity=?,physical_ng_quantity=?,physical_counted_output=?,physical_total_output=?,machine_time_hours=?,maximum_output=?,
-      standard_output=?,standard_version_id=?,machine_standard_id=?,standard_source=?,exclude_kqd_from_tt_snapshot=?,updated_by=?,updated_at=NOW() WHERE id=?`,[
+      standard_output=?,standard_version_id=?,machine_standard_id=?,standard_source=?,updated_by=?,updated_at=NOW() WHERE id=?`,[
       ctx.process.id,ctx.machine.id,ctx.machine.machine_code,ctx.resolved.productCode,isoDate(resulting.work_date),normalizeShift(resulting.shift),calc.physicalOkQuantity,calc.physicalNgQuantity,
       calc.physicalCountedOutput,calc.physicalTotalOutput,calc.machineTimeHours,calc.maximumOutput,ctx.resolved.standardOutput,ctx.resolved.standardVersionId,
-      ctx.resolved.machineStandardId,storedStandardSource(ctx.resolved.source),ctx.resolved.excludeKqdFromTt,Number(actor.id),before.id]);
+      ctx.resolved.machineStandardId,storedStandardSource(ctx.resolved.source),Number(actor.id),before.id]);
     if(Object.prototype.hasOwnProperty.call(patch||{},'defects')){
       await connection.query('DELETE FROM machine_production_event_defects WHERE machine_event_id=?',[before.id]);
       for(const d of defects) await connection.query(`INSERT INTO machine_production_event_defects(machine_event_id,defect_type_id,defect_code,defect_name,quantity,responsible_worker_id) VALUES(?,?,?,?,?,?)`,[before.id,d.defect_type_id,d.defect_code,d.defect_name,d.quantity,d.responsible_worker_id]);
