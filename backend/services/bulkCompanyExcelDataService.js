@@ -4,6 +4,7 @@ const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
 const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
+const { resolveReportDefects } = require('../domain/gcWorkerDefectResolver.cjs');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3','CVK'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -63,34 +64,6 @@ function hydrateMachineLineDefects(machineLines, machineDefectsByLine, eventDefe
     if (eventDetails.length) return { ...line, defects: eventDetails, defects_json: JSON.stringify(eventDetails) };
     return { ...line, defects: [] };
   });
-}
-
-function workerMachineLineDefects(line, machineDefectsByLine) {
-  const persisted = machineDefectsByLine.get(Number(line?.id)) || [];
-  if (persisted.length) return persisted;
-
-  // defects_json belongs to the worker's machine line. Do not read the
-  // hydrated line here: hydration may have added physical event defects.
-  const raw = line?.defects_json;
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw !== 'string' || !raw.trim()) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-function resolveReportDefects({ processCode, operationMode, reportDefects, machineLines, machineDefectsByLine }) {
-  const reportRows = Array.isArray(reportDefects) ? reportDefects : [];
-  if (reportRows.length || String(processCode || '').toUpperCase() !== 'GC'
-      || String(operationMode || '').toUpperCase() !== 'MACHINE') {
-    return reportRows;
-  }
-
-  return (Array.isArray(machineLines) ? machineLines : [])
-    .flatMap((line) => workerMachineLineDefects(line, machineDefectsByLine));
 }
 
 async function loadBulkCompanyReports(yearMonth, actor) {
