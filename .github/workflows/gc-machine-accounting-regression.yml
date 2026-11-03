@@ -8,8 +8,12 @@ on:
       - 'backend/services/bulkCompanyExcelDataService.js'
       - 'backend/services/processExcelExportService.js'
       - 'backend/services/monthlyExcelService.js'
+      - 'backend/services/gcWorkerReportRows.js'
+      - 'backend/services/commonProcessMonthlyExcelService.js'
       - 'backend/tests/gc-machine-time-accounting.test.js'
       - 'backend/tests/shared-machine-accounting-flow.test.js'
+      - 'backend/tests/gc-worker-report-excel.test.js'
+      - 'backend/tests/common-process-gc-excel.test.js'
       - '.github/workflows/gc-machine-accounting-regression.yml'
   workflow_dispatch:
 
@@ -39,5 +43,7 @@ jobs:
           node --check services/bulkCompanyExcelDataService.js
           node --check services/processExcelExportService.js
           node --check services/monthlyExcelService.js
+          node --check services/gcWorkerReportRows.js
+          node --check services/commonProcessMonthlyExcelService.js
       - name: Run GC machine accounting regression tests
-        run: node --test tests/gc-machine-time-accounting.test.js tests/shared-machine-accounting-flow.test.js
+        run: node --test tests/gc-machine-time-accounting.test.js tests/shared-machine-accounting-flow.test.js tests/gc-worker-report-excel.test.js tests/common-process-gc-excel.test.js
