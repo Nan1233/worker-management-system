@@ -2,7 +2,7 @@ const db = require('../config/db');
 const AuditService = require('./auditService');
 const { validateProductionReport } = require('../utils/reportValidation');
 const { validateMasterData } = require('./reportBusinessValidationService');
-const { recalculateReportOutput } = require('./kqdReportCalculationService');
+const { recalculateReportOutput } = require('./productionOutputCalculationService');
 const { assertProcessScope } = require('./processAuthorizationService');
 const { hasPermission } = require('./permissionService');
 const {
