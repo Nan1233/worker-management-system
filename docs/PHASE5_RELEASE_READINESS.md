@@ -17,14 +17,17 @@ GitHub release, installer distribution, or auto-update publication.
 
 ## Release blockers found in the repository
 
-1. **Desktop is explicitly TEST-wired.** `desktop/electron/launcher.cjs` overwrites
+1. **Desktop is explicitly TEST-wired (expected on branch test).** `desktop/electron/launcher.cjs` overwrites
    `KTC_API_URL` with `https://ktc-be-test.nan978971.workers.dev/api` and loads
    `https://ktc-fe-test.nan978971.workers.dev`. An installer built from this branch
-     must be treated as a TEST build, not a production installer.
-2. **Frontend Render manifest points to TEST API.** `frontend/render.yaml` sets
+     must be treated as a TEST build, not a production installer. This is a warning for
+     branch `test`, not a defect in the TEST environment itself.
+2. **Frontend alternate Render manifest points to TEST API (expected for TEST).** `frontend/render.yaml` sets
    `VITE_API_URL` to the TEST Worker endpoint.
 3. **Deployment topology is not singular.** Root `render.yaml` describes a Render
-   frontend/backend pair, while `frontend/render.yaml` points to a Worker TEST backend.
+   frontend/backend pair, while `frontend/render.yaml` points to a Worker TEST backend. The
+   two files may be intended for different environments, but that intent is not encoded or
+   enforced in the repository.
    The repository does not establish which one is the approved production topology.
 4. **CORS production origin is not verifiable from tracked config.** Backend's built-in
    allowlist contains an older Render frontend hostname; root `render.yaml` does not
@@ -67,12 +70,24 @@ commands. The source-only Phase 5 gate does not execute these commands.
 - Obtain explicit approval for any staging runtime checks. Production smoke checks are
   read-only, but must still be separately authorized.
 
+## Distinguish TEST-branch health from production release readiness
+
+The source-only gate now reports `branchStatus: TEST_BRANCH_SOURCE_CHECKS` and
+`testProfileStatus: EXPLICIT_TEST_ENDPOINTS` when the Desktop and alternate frontend
+manifest are consistently wired to TEST. Those TEST endpoints are warnings, not blockers
+for working on branch `test`. Production release remains independently blocked by the
+unresolved deployment-manifest/topology and CORS-origin decisions. This prevents a
+correctly configured TEST branch from being mislabeled as a broken environment while
+still preventing a TEST artifact from being treated as production.
+
 ## Automated gate added
 
 - `node scripts/phase5ReleaseReadiness.cjs`: prints a source-only readiness report.
 - `node scripts/phase5ReleaseReadiness.cjs --strict`: exits non-zero while blockers remain.
-- `node --test tests/phase5-release-readiness.test.cjs`: verifies the gate detects the
-  current TEST/production configuration conflict and fails closed.
+- `node --test tests/phase5-release-readiness.test.cjs`: verifies explicit TEST profile
+  detection, package scripts, and fail-closed production readiness.
+- The workflow also watches root `package.json` and this document so changes to the
+  readiness entry points and release policy rerun the gate.
 - GitHub Actions workflow `Phase 5 Release Readiness (Source Only)` runs these checks
   on branch `test`; it has read-only repository permissions and no deployment steps.
 
