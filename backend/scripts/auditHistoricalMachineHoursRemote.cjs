@@ -78,6 +78,8 @@ function auditMachineDeductions(report) {
     return {
       machine_line_id: Number(line.id) || null,
       machine_code: String(line.machine_code || ''),
+      machine_event_id: eventId || null,
+      duplicate_event_link: duplicateEvent,
       machine_time_hours: round(num(line.machine_time_hours)),
       deduction_time_hours: round(Math.max(0, num(line.deduction_time_hours), num(line.adjustment_minutes) / 60)),
       deduction_detail_hours: round(detail),
