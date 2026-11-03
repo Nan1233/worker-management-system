@@ -41,7 +41,6 @@ const calculateMachineLinePerformance = (line = {}) => {
   // Defect detail is a breakdown and must never rewrite the saved NG total.
   const defects = parseDefects(line.defects ?? line.defects_json);
   const ng = Math.max(0, safeNumber(line.ng_quantity));
-  const excludedKqd = 0;
   const countedNg = ng;
   const physicalOutput = ok + ng;
   const countedOutput = ok + countedNg;
@@ -55,7 +54,6 @@ const calculateMachineLinePerformance = (line = {}) => {
     defects,
     ok_quantity: ok,
     ng_quantity: ng,
-    excluded_kqd_quantity: excludedKqd,
     counted_ng_quantity: countedNg,
     physical_output: physicalOutput,
     counted_output: countedOutput,
