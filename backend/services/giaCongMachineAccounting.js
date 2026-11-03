@@ -19,7 +19,8 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   const deductions = [];
   const seenDeductionKeys = new Set();
   const reportLevelDeductions = parseJsonArray(report.deductions);
-  const hasLineBreakdown = lines.some((line) => parseJsonArray(line.deductions_json).length > 0);
+  const hasLineBreakdown = lines.some((line) => parseJsonArray(line.deductions_json)
+    .some((item) => Math.max(0, Number(item?.hours) || 0) > 0));
   const safeReportFallback = lines.length === 1 && !hasLineBreakdown ? reportLevelDeductions : [];
 
   lines.forEach((line, lineIndex) => {
