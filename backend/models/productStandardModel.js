@@ -57,7 +57,6 @@ const GC_ALIAS_SELECT = `
         pa.alias_code,
         ps.encoding_code,
         ps.standard_output,
-        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
         EXISTS(
             SELECT 1 FROM product_machine_standards pms
             WHERE pms.process_id = ps.process_id
@@ -100,7 +99,6 @@ const GC_ALIAS_SELECT = `
         NULL AS alias_code,
         ps.encoding_code,
         ps.standard_output,
-        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
         EXISTS(
             SELECT 1 FROM product_machine_standards pms
             WHERE pms.process_id = ps.process_id
@@ -221,6 +219,5 @@ exports.resolveByMachineAndProduct = async (processId, machineCode, productCode,
         default_standard_output: resolved.machineStandardId ? null : resolved.standardOutput,
         resolved_output_per_hour: resolved.standardOutput,
         standard_source: resolved.machineStandardId ? resolved.source : 'DEFAULT',
-        exclude_kqd_from_tt: resolved.excludeKqdFromTt
     };
 };
