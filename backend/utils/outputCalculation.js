@@ -1,4 +1,4 @@
-const { calculateProductionOutput } = require('../../shared/kqdPolicy.cjs');
+const { calculateProductionOutput } = require('../../shared/productionOutput.cjs');
 
 const calculateCountedNg = (defects = []) =>
   calculateProductionOutput({ ok: 0, defects }).countedNg;
