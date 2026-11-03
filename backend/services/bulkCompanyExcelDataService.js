@@ -370,7 +370,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
             {
               operation_mode: report.operation_mode,
               machineLines,
-              deductions,
               total_time: report.total_time,
               actual_time: report.actual_time,
               deduction_time: report.deduction_time
