@@ -359,6 +359,24 @@ async function main() {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
+  const machineHoursCounts = findings.reduce((acc, item) => {
+    const audit = item.machine_hours_audit;
+    if (!audit) return acc;
+    acc[audit.physical_machine_hours_source] = (acc[audit.physical_machine_hours_source] || 0) + 1;
+    if (audit.physical_machine_hours_complete) acc.complete += 1;
+    else acc.incomplete += 1;
+    acc.missing_linked_events += audit.missing_linked_event_count || 0;
+    acc.lines_without_event += audit.machine_lines_without_event_count || 0;
+    acc.duplicate_event_links += audit.duplicate_event_links || 0;
+    return acc;
+  }, {
+    complete: 0,
+    incomplete: 0,
+    missing_linked_events: 0,
+    lines_without_event: 0,
+    duplicate_event_links: 0
+  });
+
   const deductionCounts = findings.reduce((acc, item) => {
     const audit = item.machine_deduction_audit;
     if (!audit) return acc;
@@ -386,6 +404,7 @@ async function main() {
     max_machine_hours: MAX_MACHINE_HOURS,
     report_count: findings.length,
     counts,
+    machine_hours_counts: machineHoursCounts,
     machine_deduction_counts: deductionCounts,
     findings
   }, null, 2) + '\n');
