@@ -1,13 +1,13 @@
 // Coordinates production-report submission. Data access remains in the focused model modules.
 const db = require("../config/db");
-const createModel = require("./productionTempCreateModel");
-const nonProductWorkModel = require("./nonProductWorkCreateModel");
-const AuditService = require("../services/auditService");
-const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback } = require("./productionTempModelShared");
-const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
-const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
-const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
-const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
+const createModel = require("../models/productionTempCreateModel");
+const nonProductWorkModel = require("../models/nonProductWorkCreateModel");
+const AuditService = require("./auditService");
+const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback } = require("../models/productionTempModelShared");
+const { resolveInitialTrainingSnapshot } = require("./trainingSnapshotService");
+const { validateMachineWorkerCapacityLocked } = require("./factoryMachineRuleService");
+const { buildLogicalDuplicateKey } = require("./logicalDuplicateReportService");
+const { verifyDuplicateConfirmation } = require("./duplicateConfirmationService");
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 
 const submissionQueues = new Map();
