@@ -129,6 +129,81 @@ function auditMachineDeductions(report) {
   };
 }
 
+function normalizeAuditCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+}
+
+function auditEventDimensions(report, line, event) {
+  const checks = [];
+  const add = (name, expected, actual, normalize = (value) => String(value ?? '').trim()) => {
+    const expectedValue = normalize(expected);
+    const actualValue = normalize(actual);
+    if (!expectedValue || !actualValue) {
+      checks.push({ dimension: name, status: 'INCOMPLETE', expected: expected ?? null, actual: actual ?? null });
+    } else {
+      checks.push({
+        dimension: name,
+        status: expectedValue === actualValue ? 'MATCH' : 'MISMATCH',
+        expected: expected ?? null,
+        actual: actual ?? null
+      });
+    }
+  };
+
+  // The production export always supplies report date, process and shift. The
+  // strict gate is activated when any report identity dimension is available;
+  // sparse legacy unit fixtures remain useful for testing event-hour arithmetic.
+  const hasReportIdentity = report?.process_id !== undefined || report?.work_date
+    || report?.shift || report?.product_name || report?.product_code;
+  if (!hasReportIdentity) {
+    return { status: 'NOT_CHECKED_LEGACY_FIXTURE', checks: [] };
+  }
+
+  add('process_id', report.process_id, event.process_id, (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? String(number) : '';
+  });
+
+  const expectedMachineId = Number(line.machine_id) || 0;
+  const actualMachineId = Number(event.machine_id) || 0;
+  if (expectedMachineId > 0 && actualMachineId > 0) {
+    add('machine_id', expectedMachineId, actualMachineId, (value) => String(Number(value) || ''));
+  } else {
+    add('machine_code', line.machine_code, event.machine_code, normalizeAuditCode);
+  }
+
+  const productCandidates = [
+    line.product_code, line.product_name, report.product_code, report.product_name
+  ].map(normalizeAuditCode).filter(Boolean);
+  const eventProduct = normalizeAuditCode(event.product_code);
+  if (!productCandidates.length || !eventProduct) {
+    checks.push({
+      dimension: 'product_code',
+      status: 'INCOMPLETE',
+      expected: productCandidates,
+      actual: event.product_code ?? null
+    });
+  } else {
+    checks.push({
+      dimension: 'product_code',
+      status: productCandidates.includes(eventProduct) ? 'MATCH' : 'MISMATCH',
+      expected: productCandidates,
+      actual: event.product_code ?? null
+    });
+  }
+
+  add('work_date', String(report.work_date || '').slice(0, 10),
+    String(event.work_date || '').slice(0, 10));
+  add('shift', report.shift, event.shift, (value) => String(value ?? '').trim().toUpperCase());
+
+  const mismatch = checks.some((check) => check.status === 'MISMATCH');
+  const incomplete = checks.some((check) => check.status === 'INCOMPLETE');
+  return {
+    status: mismatch ? 'MISMATCH' : incomplete ? 'INCOMPLETE' : 'MATCH',
+    checks
+  };
+}
+
 function auditMachineHours(report) {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
   const eventLines = Array.isArray(report.eventLines) ? report.eventLines : [];
@@ -138,7 +213,8 @@ function auditMachineHours(report) {
       .filter(([id]) => Number.isInteger(id) && id > 0)
   );
 
-  const seenEventIds = new Set();
+  const seenAccountingEventIds = new Set();
+  const countedPhysicalEventIds = new Set();
   const linkedEventIds = new Set();
   let physicalMachineHours = 0;
   let accountingGrossHoursExpected = 0;
@@ -146,6 +222,8 @@ function auditMachineHours(report) {
   let missingLinkedEvents = 0;
   let nonApprovedLinkedEvents = 0;
   let linesWithoutEvent = 0;
+  let dimensionMismatchLinkedEvents = 0;
+  let dimensionUnverifiableLinkedEvents = 0;
 
   const machineLineDetails = lines.map((line) => {
     const eventId = Number(line.machine_event_id) || 0;
@@ -158,6 +236,7 @@ function auditMachineHours(report) {
     let eventState = 'NO_EVENT_LINK';
     let eventHours = null;
     let countedPhysicalHours = 0;
+    let dimensionAudit = null;
 
     if (eventId > 0) {
       linkedEventIds.add(eventId);
@@ -169,21 +248,36 @@ function auditMachineHours(report) {
         eventState = 'LINKED_EVENT_MISSING_FROM_APPROVED_EVENT_LINES';
         missingLinkedEvents += 1;
       } else {
-        eventState = 'APPROVED_EVENT_FOUND';
         eventHours = round(num(linkedEvent.machine_time_hours));
-        if (seenEventIds.has(eventId)) {
+        if (seenAccountingEventIds.has(eventId)) {
           duplicateEventLinks += 1;
         } else {
-          seenEventIds.add(eventId);
-          countedPhysicalHours = eventHours;
-          physicalMachineHours += num(linkedEvent.machine_time_hours);
+          seenAccountingEventIds.add(eventId);
+          // Preserve the existing accounting reconciliation: an approved
+          // linked event remains the accounting source, independently of
+          // whether its dimensions prove that it belongs to this report line.
           accountingGrossHoursExpected += num(linkedEvent.machine_time_hours);
+        }
+
+        dimensionAudit = auditEventDimensions(report, line, linkedEvent);
+        if (dimensionAudit.status === 'MISMATCH') {
+          eventState = 'APPROVED_EVENT_DIMENSION_MISMATCH';
+          dimensionMismatchLinkedEvents += 1;
+        } else if (dimensionAudit.status === 'INCOMPLETE') {
+          eventState = 'APPROVED_EVENT_DIMENSIONS_UNVERIFIABLE';
+          dimensionUnverifiableLinkedEvents += 1;
+        } else {
+          eventState = 'APPROVED_EVENT_FOUND';
+          if (!countedPhysicalEventIds.has(eventId)) {
+            countedPhysicalEventIds.add(eventId);
+            countedPhysicalHours = eventHours;
+            physicalMachineHours += num(linkedEvent.machine_time_hours);
+          }
         }
       }
     } else {
       linesWithoutEvent += 1;
-      // This is the legacy line fallback used by buildGiaCongMachineAccounting.
-      // It is accounting input, not proof of physical event time.
+      // Legacy line fallback is accounting input, not proof of physical time.
       accountingGrossHoursExpected += Math.max(
         0,
         num(line.excel_machine_time_hours ?? line.machine_time_hours)
@@ -198,7 +292,8 @@ function auditMachineHours(report) {
       event_state: eventState,
       event_status: effectiveEventStatus || null,
       physical_event_hours: eventHours,
-      physical_hours_counted_for_this_line: round(countedPhysicalHours)
+      physical_hours_counted_for_this_line: round(countedPhysicalHours),
+      dimension_audit: dimensionAudit
     };
   });
 
@@ -206,13 +301,15 @@ function auditMachineHours(report) {
     && missingLinkedEvents === 0
     && nonApprovedLinkedEvents === 0
     && linesWithoutEvent === 0
+    && dimensionMismatchLinkedEvents === 0
+    && dimensionUnverifiableLinkedEvents === 0
     && machineLineDetails.every((line) =>
       line.event_state === 'APPROVED_EVENT_FOUND'
       && line.physical_event_hours !== null
       && line.physical_event_hours > 0
     );
 
-  const hasApprovedEvent = seenEventIds.size > 0;
+  const hasApprovedEvent = seenAccountingEventIds.size > 0;
   const expectedSource = hasApprovedEvent
     ? ((missingLinkedEvents + nonApprovedLinkedEvents) > 0 ? 'MACHINE_EVENT_PARTIAL' : 'MACHINE_EVENT')
     : ((missingLinkedEvents + nonApprovedLinkedEvents) > 0
@@ -257,20 +354,21 @@ function auditMachineHours(report) {
     )),
     physical_machine_hours_confirmed: round(physicalMachineHours),
     physical_machine_hours_complete: complete,
-    physical_machine_hours_source: hasApprovedEvent ? 'APPROVED_MACHINE_EVENTS' : 'NO_APPROVED_MACHINE_EVENTS',
+    physical_machine_hours_source: countedPhysicalEventIds.size > 0 ? 'APPROVED_MACHINE_EVENTS' : 'NO_APPROVED_MACHINE_EVENTS',
     machine_accounting_source_expected: expectedSource,
     machine_accounting_comparison: accountingComparison,
     machine_line_count: lines.length,
     linked_event_count: linkedEventIds.size,
-    unique_approved_event_count: seenEventIds.size,
+    unique_approved_event_count: seenAccountingEventIds.size,
     duplicate_event_links: duplicateEventLinks,
     missing_linked_event_count: missingLinkedEvents,
     non_approved_linked_event_count: nonApprovedLinkedEvents,
+    dimension_mismatch_linked_event_count: dimensionMismatchLinkedEvents,
+    dimension_unverifiable_linked_event_count: dimensionUnverifiableLinkedEvents,
     machine_lines_without_event_count: linesWithoutEvent,
     lines: machineLineDetails
   };
 }
-
 function classifyReport(report) {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
   const totalHours = num(report.total_time);
@@ -347,6 +445,16 @@ function classifyReport(report) {
   if (machineHoursAudit.missing_linked_event_count > 0) {
     result.action = 'REVIEW';
     result.reason = 'LINKED_MACHINE_EVENT_MISSING_OR_NOT_APPROVED';
+    return result;
+  }
+  if (machineHoursAudit.dimension_mismatch_linked_event_count > 0) {
+    result.action = 'REVIEW';
+    result.reason = 'APPROVED_MACHINE_EVENT_DIMENSION_MISMATCH';
+    return result;
+  }
+  if (machineHoursAudit.dimension_unverifiable_linked_event_count > 0) {
+    result.action = 'REVIEW';
+    result.reason = 'APPROVED_MACHINE_EVENT_DIMENSIONS_UNVERIFIABLE';
     return result;
   }
   if (machineHoursAudit.machine_lines_without_event_count > 0) {
@@ -447,13 +555,17 @@ async function main() {
     acc.missing_linked_events += audit.missing_linked_event_count || 0;
     acc.lines_without_event += audit.machine_lines_without_event_count || 0;
     acc.duplicate_event_links += audit.duplicate_event_links || 0;
+    acc.dimension_mismatch_linked_events += audit.dimension_mismatch_linked_event_count || 0;
+    acc.dimension_unverifiable_linked_events += audit.dimension_unverifiable_linked_event_count || 0;
     return acc;
   }, {
     complete: 0,
     incomplete: 0,
     missing_linked_events: 0,
     lines_without_event: 0,
-    duplicate_event_links: 0
+    duplicate_event_links: 0,
+    dimension_mismatch_linked_events: 0,
+    dimension_unverifiable_linked_events: 0
   });
 
   const deductionCounts = findings.reduce((acc, item) => {
