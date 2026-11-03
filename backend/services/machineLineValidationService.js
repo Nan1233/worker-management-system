@@ -17,7 +17,7 @@ const normalizeDefectName = (value) => String(value || "")
 const { validateEncodedGcMachineProduct } = require("../utils/productMachineEligibility");
 const { queryWithOptionalGcWorkType } = require("../utils/gcMachineWorkType");
 const { createStandardResolver } = require("./standardResolutionService");
-const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
+const { calculateProductionOutput } = require("../../shared/productionOutput.cjs");
 
 const createMachineLineValidator = ({ query = defaultQuery, standardResolver: injectedStandardResolver = null } = {}) => {
     const standardResolver = injectedStandardResolver || createStandardResolver({ query });
