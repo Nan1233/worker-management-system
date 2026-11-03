@@ -168,8 +168,15 @@ const beginReadCommittedTransaction = async (connection) => {
     return beginTransaction(connection);
 };
 
-const commit = (connection) =>
-    new Promise((resolve, reject) => {
+const flushTransactionQueries = async (connection) => {
+    const pending = transactionQueues.get(connection);
+    if (pending) await pending;
+};
+
+const commit = async (connection) => {
+    // Never send COMMIT while a transaction-bound SQL statement is still queued.
+    await flushTransactionQueries(connection);
+    return new Promise((resolve, reject) => {
         connection.commit((error) => {
             if (error) return reject(error);
             connection.__ktcTransactionActive = false;
@@ -177,16 +184,22 @@ const commit = (connection) =>
             resolve();
         });
     });
+};
 
-// Resolves (never rejects) with { ok, error }: callers that ignore the value behave as before, callers that care
-// (e.g. the pending-report edit) can see that the ROLLBACK statement itself failed - which on Cloudflare Workers
-// happens once the subrequest limit is exhausted - instead of assuming it succeeded.
-const rollback = (connection) =>
-    new Promise((resolve) => connection.rollback((error) => {
+// Resolves (never rejects) with { ok, error } for compatibility. Wait for queued SQL before
+// ROLLBACK so a pending statement cannot execute after the transaction has been closed.
+const rollback = async (connection) => {
+    try {
+        await flushTransactionQueries(connection);
+    } catch (error) {
+        // The original SQL error is already observed by its caller; rollback must still be attempted.
+    }
+    return new Promise((resolve) => connection.rollback((error) => {
         connection.__ktcTransactionActive = false;
         transactionQueues.delete(connection);
         resolve(error ? { ok: false, error } : { ok: true });
     }));
+};
 
 const normalizeIds = (ids) => [
     ...new Set(
