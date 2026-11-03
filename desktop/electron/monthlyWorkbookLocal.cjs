@@ -1297,6 +1297,7 @@ module.exports = {
     countedNg,
     reportTimeKey,
     applyAllBorders,
+    addPhysicalMachineEventsMetadata,
     COLORS
   }
 };
