@@ -21,10 +21,9 @@ if (explicitTiDbUrl) {
   } catch { process.env.TIDB_DATABASE_URL = explicitTiDbUrl; }
 }
 
-const cloudflareFrontendOrigin = "https://ktc-frontend.nan978971.workers.dev";
-const cloudflareTestFrontendOrigin = "https://ktc-fe-test.nan978971.workers.dev";
-const configuredCorsOrigins = String(process.env.CORS_ORIGINS || "").split(",").map((value) => value.trim()).filter(Boolean);
-for (const origin of [cloudflareFrontendOrigin, cloudflareTestFrontendOrigin]) if (!configuredCorsOrigins.includes(origin)) configuredCorsOrigins.push(origin);
+const { resolveCloudflareDeploymentProfile } = require("./config/cloudflareDeploymentProfile.cjs");
+const deploymentProfile = resolveCloudflareDeploymentProfile(process.env);
+const configuredCorsOrigins = [...deploymentProfile.allowedOrigins];
 process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
 process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
@@ -85,6 +84,9 @@ productionTempCreateModel.createCompleteReport = async (payload) => { if (payloa
 
 let cloudflareSeedReady = false; let cloudflareSeedPromise = null;
 async function ensureCloudflareSeeded() {
+  // Runtime master-data writes are disabled by default in both TEST and production.
+  // Enable only through an explicit, separately reviewed environment change.
+  if (!deploymentProfile.masterDataBootstrapEnabled) return true;
   if (cloudflareSeedReady) return true;
   if (cloudflareSeedPromise) return cloudflareSeedPromise;
   cloudflareSeedPromise = Promise.all([ensureGcDefectMasterData(), ensureGcLong2801Lt()]).then(async () => {
@@ -104,7 +106,7 @@ async function ensureCloudflareSeeded() {
 app.listen(Number(process.env.PORT || 3000));
 const httpHandler = httpServerHandler({ port: Number(process.env.PORT || 3000) });
 
-function getAllowedOrigin(request) { const origin = request.headers.get("Origin"); if (!origin) return null; const allowed = new Set([cloudflareFrontendOrigin, cloudflareTestFrontendOrigin, "https://worker-management-system-3-dzox.onrender.com", "http://localhost:5173", "https://localhost", "capacitor://localhost", ...configuredCorsOrigins]); return allowed.has(origin) ? origin : null; }
+function getAllowedOrigin(request) { const origin = request.headers.get("Origin"); if (!origin) return null; const allowed = new Set([...configuredCorsOrigins, "https://localhost", "capacitor://localhost"]); return allowed.has(origin) ? origin : null; }
 function handleCorsPreflight(request) { if (request.method !== "OPTIONS") return null; const origin = getAllowedOrigin(request); if (!origin) return new Response(JSON.stringify({ success: false, code: "CORS_ORIGIN_DENIED", message: "Nguồn truy cập không được phép bởi CORS" }), { status: 403, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } }); const requestedHeaders = request.headers.get("Access-Control-Request-Headers"); const allowHeaders = requestedHeaders || ["Content-Type", "Authorization", "Idempotency-Key", "X-Cron-Secret", "X-Request-Id", "X-Frontend-Version"].join(", "); return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": allowHeaders, "Access-Control-Max-Age": "86400", "Vary": "Origin, Access-Control-Request-Headers", "Cache-Control": "no-store" } }); }
 const BOOTSTRAP_EXEMPT_PATHS = new Set(["/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/health", "/api/health/live", "/api/health/ready"]);
 function shouldBootstrapBeforeRequest(request) { return !BOOTSTRAP_EXEMPT_PATHS.has(new URL(request.url).pathname); }
