@@ -88,8 +88,8 @@ test('Cloudflare runtime requires TiDB connection material and a strong JWT secr
 test('Cloudflare Worker CORS does not include the opposite environment or legacy Render frontend by default', () => {
   const worker = read('cloudflare-worker.js');
   const server = read('server.js');
-  assert.doesNotMatch(worker, /worker-management-system-3-dzox\\.onrender\\.com/);
+  assert.equal(worker.includes('worker-management-system-3-dzox.onrender.com'), false);
   assert.doesNotMatch(worker, /cloudflareTestFrontendOrigin|cloudflareFrontendOrigin/);
-  assert.doesNotMatch(server, /worker-management-system-3-dzox\\.onrender\\.com/);
+  assert.equal(server.includes('worker-management-system-3-dzox.onrender.com'), false);
   assert.match(server, /const defaults = isProduction/);
 });
