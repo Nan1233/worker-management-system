@@ -298,11 +298,16 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     eventRows = await query(
       `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status,machine_time_hours,maximum_output,standard_output
          FROM machine_production_events
-        WHERE status='approved' AND id IN (${p})`,
+        WHERE id IN (${p})`,
       eventIds
     );
   }
-  const eventMap = new Map(eventRows.map((row) => [Number(row.id), row]));
+  // Keep all linked event statuses for audit visibility, but only approved events
+  // may contribute physical hours or canonical machine accounting.
+  const linkedEventMap = new Map(eventRows.map((row) => [Number(row.id), row]));
+  const eventMap = new Map(eventRows
+    .filter((row) => String(row.status || '').trim().toLowerCase() === 'approved')
+    .map((row) => [Number(row.id), row]));
 
   // Group once instead of scanning every report/event/type list for each process.
   // This keeps bulk export work close to O(rows + processes), even for large months.
@@ -342,11 +347,15 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         const reportId = Number(report.id);
         const machineLines = hydrateMachineLineDefects(machineLinesByReport.get(reportId) || [], machineDefectsByLine, eventDefectsByEvent)
           .map((line) => {
-            const event = eventMap.get(Number(line.machine_event_id));
+            const eventId = Number(line.machine_event_id) || 0;
+            const event = eventId ? eventMap.get(eventId) : null;
+            const linkedEvent = eventId ? linkedEventMap.get(eventId) : null;
             return {
               ...line,
+              // Audit metadata exposes pending/rejected links without treating them as physical truth.
+              machine_event_status: linkedEvent ? String(linkedEvent.status || '') : null,
               // Export-only physical time; do not overwrite the worker participation field.
-              excel_machine_time_hours: Number(line.machine_event_id)
+              excel_machine_time_hours: eventId
                 ? (event ? Math.max(0, Number(event.machine_time_hours) || 0) : 0)
                 : Math.max(0, Number(line.machine_time_hours) || 0)
             };
