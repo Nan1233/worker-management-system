@@ -164,3 +164,8 @@ test('repository introduces no equal-split allocation in F05 production files', 
     assert.doesNotMatch(source, /equalShare|splitEqually/i);
   }
 });
+
+test('company Excel passes GC machine mode into canonical accounting for legacy deduction fallback', () => {
+  const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
+  assert.match(loader, /buildGiaCongMachineAccounting\([\s\S]*?operation_mode:\s*report\.operation_mode/);
+});
