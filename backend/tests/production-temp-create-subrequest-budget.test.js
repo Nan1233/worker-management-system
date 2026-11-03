@@ -30,7 +30,7 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
   const fakeDb = { getConnection(cb) { setImmediate(() => cb(null, conn)); }, query(sql, p, cb) { record(sql); (typeof p === 'function' ? p : cb)(null, answer(sql), []); } };
   const target = require.resolve('../models/productionTempCreateModel');
   // These modules capture config/db at require time, so each scenario needs a fresh copy.
-  for (const name of ['../models/productionTempCreateModel', '../models/productionTempModelShared', '../services/factoryMachineRuleService', '../services/trainingSnapshotService', '../services/auditService']) {
+  for (const name of ['../models/productionTempCreateModel', '../services/productionTempSubmissionService', '../models/productionTempModelShared', '../services/factoryMachineRuleService', '../services/trainingSnapshotService', '../services/auditService']) {
     try { delete require.cache[require.resolve(name)]; } catch { /* optional module */ }
   }
   const original = Module._load;
@@ -39,7 +39,7 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
     return original.call(this, request, parent, ...rest);
   };
   let Model;
-  try { Model = require(target); } finally { Module._load = original; }
+  try { Model = require(target); require('../services/productionTempSubmissionService'); } finally { Module._load = original; }
   return { Model, log };
 }
 
