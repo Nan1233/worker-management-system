@@ -42,7 +42,8 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       0,
       Number(line.deduction_time_hours) || 0,
       (Number(line.adjustment_minutes) || 0) / 60,
-      detailDeductionHours
+      detailDeductionHours,
+      lines.length === 1 ? Math.max(0, Number(report.deduction_time) || 0) : 0
     );
     if (lineDeductionHours > 0 || lineDeductions.length) {
       const deductionKey = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || lineIndex);
