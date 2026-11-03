@@ -47,7 +47,10 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
     }
 
     const storedLineDeductions = parseJsonArray(line.deductions_json);
-    const lineDeductions = storedLineDeductions.length ? storedLineDeductions : safeReportFallback;
+    const hasPositiveStoredDeduction = storedLineDeductions.some(
+      (item) => Math.max(0, Number(item?.hours) || 0) > 0
+    );
+    const lineDeductions = hasPositiveStoredDeduction ? storedLineDeductions : safeReportFallback;
     const detailDeductionHours = lineDeductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
     const lineDeductionHours = Math.max(
       0,
