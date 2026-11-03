@@ -136,18 +136,12 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
     validation.normalized.standard_output = authorityChanged ? Number(master.standardOutput) : Number(before.standard_output);
     validation.normalized.standard_version_id = authorityChanged ? master.standardVersionId : (before.standard_version_id || null);
     validation.normalized.machine_standard_id = authorityChanged ? master.machineStandardId : (before.machine_standard_id || null);
-      ? (Number(master.excludeKqdFromTt || 0) === 1 ? 1 : 0)
-      : before.exclude_kqd_from_tt_snapshot;
-    const needsKqdRecalculation = !isMachineReport && (
+    const needsOutputRecalculation = !isMachineReport && (
       Array.isArray(normalizedPatch.defects)
       || Object.prototype.hasOwnProperty.call(normalizedPatch, 'tt_ok')
       || authorityChanged
     );
-    if (needsKqdRecalculation && (policySnapshot === null || policySnapshot === undefined || String(policySnapshot).trim() === '')) {
-    }
-      ? null
-      : (Number(policySnapshot) === 1 ? 1 : 0);
-    if (needsKqdRecalculation) {
+    if (needsOutputRecalculation) {
       const output = recalculateReportOutput({
         ttOk: validation.normalized.tt_ok,
         defects: master.authoritativeDefects,
