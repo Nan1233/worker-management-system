@@ -223,13 +223,6 @@ test('formula PROCESS write resolves canonical process and rejects outside scope
   assert.match(src, /FORMULA_RESET/);
 });
 
-test('formula product rule by known ID resolves resource process before UPDATE', () => {
-  const src = read('controllers/formulaSettingsController.js');
-  const select = src.indexOf('SELECT id,process_id FROM product_standards');
-  const scope = src.indexOf("assertProcessScope(req.user, rows[0].process_id");
-  const update = src.indexOf('UPDATE product_standards SET exclude_kqd_from_tt');
-  assert.ok(select >= 0 && scope > select && update > scope);
-});
 
 test('formula management API is intentionally removed from public application routes', () => {
   const routes = read('routes/formulaSettingsRoutes.js');

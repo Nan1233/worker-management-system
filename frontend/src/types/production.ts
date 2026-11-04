@@ -64,7 +64,6 @@ export interface ProductionReport {
         standard_time_seconds?: number | null;
         standard_output?: number;
         standard_source?: "MACHINE" | "DEFAULT";
-        exclude_kqd_from_tt?: number;
         maximum_output?: number;
         counted_output?: number;
         earned_standard_hours?: number;
@@ -91,7 +90,6 @@ export interface ProductionReport {
         earned_standard_hours: number;
         efficiency_percent: number;
     };
-    exclude_kqd_from_tt?: number;
     training_percent?: number;
 
     product_name: string;

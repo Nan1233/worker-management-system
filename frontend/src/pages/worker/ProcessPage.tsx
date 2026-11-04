@@ -62,7 +62,6 @@ import type {
 
 
 import {
-    KQD_CODES,
     clampWorkerWorkDate,
     createEmptyMachineLine,
     getCurrentLocalDate,
@@ -440,12 +439,9 @@ const machineAutocompleteOptions =
         });
     }, [usesMultiMachineLines, machineLines, activeNgOptions]);
 
-    const [resolvedReportKqdPolicy, setResolvedReportKqdPolicy] = useState<boolean | null>(null);
-
     useEffect(() => {
         let active = true;
         if (!form.productName.trim() || !form.workDate) {
-            setResolvedReportKqdPolicy(null);
             return () => { active = false; };
         }
         void resolveProductStandard(
@@ -455,21 +451,19 @@ const machineAutocompleteOptions =
             form.workDate
         ).then((resolved) => {
             if (!active) return;
-            setResolvedReportKqdPolicy(Number(resolved.exclude_kqd_from_tt || 0) === 1);
             const resolvedOutput = Number(resolved.resolved_output_per_hour || 0);
             if (resolvedOutput > 0) {
                 setForm((current) => ({ ...current, standardOutput: String(resolvedOutput) }));
             }
         }).catch(() => {
-            if (active) setResolvedReportKqdPolicy(null);
+            // Standard lookup failure keeps the manually entered standard; KQD is always ordinary NG.
         });
         return () => { active = false; };
     }, [processInfo.id, form.machineNo, form.productName, form.workDate]);
 
-    const productExcludesKqd = (): boolean => resolvedReportKqdPolicy === true;
-
+    // KQD is an ordinary NG defect: actual output is always TT OK + every NG.
     const calculateActualOutput = (values: FormState): number =>
-        calculateActualOutputValue(values, activeNgOptions, productExcludesKqd(), KQD_CODES);
+        calculateActualOutputValue(values, activeNgOptions);
 
 // CHI TIẾT TRỪ GIỜ
     // =================================================
@@ -567,7 +561,6 @@ const machineAutocompleteOptions =
         deductions,
         selectedDeduction,
         selectedNg,
-        resolvedReportKqdPolicy,
     }), [
         processInfo.id,
         process,
@@ -582,7 +575,6 @@ const machineAutocompleteOptions =
         deductions,
         selectedDeduction,
         selectedNg,
-        resolvedReportKqdPolicy,
     ]);
 
     const finishDuplicateAction = useCallback(() => {
@@ -1426,9 +1418,7 @@ const updateDeductionValue = (
         // machine/product line. The parent form's aggregate must not be checked
         // against the single-product formula used by manual reports.
         if (!usesMachineLineAccounting && Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
-            return productExcludesKqd()
-                ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã sản phẩm này)"
-                : "Thực tế phải bằng TT OK cộng TT NG";
+            return "Thực tế phải bằng TT OK cộng TT NG";
         }
 
         const missingExtraField = currentExtraFields.find(
@@ -1508,7 +1498,6 @@ const updateDeductionValue = (
                     activeNgOptions,
                     deductions,
                     activeDeductionOptions,
-                    excludeKqdFromTt: resolvedReportKqdPolicy === true,
                 });
 
                 let response;

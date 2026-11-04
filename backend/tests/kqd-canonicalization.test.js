@@ -46,3 +46,23 @@ test('KQD remains a named defect category, not an output policy', () => {
   assert.ok(kqd);
   assert.equal(kqd.quantity, 4);
 });
+
+test('backend validator, shared output rule, Desktop engine and Excel loader agree: KQD is never excluded', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { calculateActualOutput, calculateCountedNg } = require('../utils/outputCalculation');
+  const desktop = require('../../desktop/electron/productionCalculationEngine.cjs');
+  const kqdDefects = [{ defect_code: 'KQD', quantity: 3 }, { defect_code: 'BAVIA', quantity: 2 }];
+  // Backend validator formula (reportValidation / reportBusinessValidationService use calculateActualOutput).
+  assert.equal(calculateCountedNg(kqdDefects), 5);
+  assert.equal(calculateActualOutput({ ttOk: 100, defects: kqdDefects }), 105);
+  // Desktop Excel engine counts the same NG, with or without legacy flags.
+  const report = { process_code: 'CAN', operation_mode: 'MANUAL', tt_ok: 100, tt_ng: 5, actual_output: 105, defects: kqdDefects };
+  assert.equal(desktop.calculateNg(report).countedNg, 5);
+  assert.equal(desktop.calculateNg({ ...report, exclude_kqd_from_tt_snapshot: 1 }).countedNg, 5);
+  // Server-side Excel/company-data code paths carry no KQD exclusion branch.
+  for (const rel of ['services/consolidatedExcelExportService.js', 'services/bulkCompanyExcelDataService.js', 'services/monthlyExcelService.js', 'services/companyExcelExportService.js', 'utils/reportValidation.js', 'services/reportBusinessValidationService.js']) {
+    const source = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+    assert.doesNotMatch(source, /exclude_kqd_from_tt|excludeKqd|kqdExclusion/, rel);
+  }
+});
