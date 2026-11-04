@@ -1,4 +1,4 @@
-const { listEditProposals, createEditProposal, updateEditProposal, deleteEditProposal } = require("../services/productionTempEditProposalService");
+const { listEditProposals, createEditProposal, updateEditProposal, deleteEditProposal, createLegacyEditProposal } = require("../services/productionTempEditProposalService");
 
 exports.getEditProposals = async (req, res) => {
     try {
@@ -52,6 +52,33 @@ exports.deleteEditProposal = async (req, res) => {
         return res.status(error.status || 500).json({
             success: false,
             message: error.message || "Không thể xóa đề xuất sửa"
+        });
+    }
+};
+
+exports.requestEditProposal = async (req, res) => {
+    try {
+        const reportId = Number(req.params.id);
+        if (!Number.isInteger(reportId) || reportId <= 0) {
+            return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
+        }
+        const reason = String(req.body?.reason || "").trim();
+        const proposedData = req.body?.proposed_data || req.body?.payload || null;
+        const data = await createLegacyEditProposal({
+            user: req.user,
+            reportId,
+            reason,
+            proposedData
+        });
+        return res.status(201).json({
+            success: true,
+            message: "Đã tạo đề xuất sửa, báo cáo chưa bị thay đổi",
+            data
+        });
+    } catch (error) {
+        return res.status(error.status || 500).json({
+            success: false,
+            message: error.message || "Không thể tạo đề xuất sửa"
         });
     }
 };
