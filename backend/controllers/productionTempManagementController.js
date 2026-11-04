@@ -323,3 +323,5 @@ exports.getReportActionLogs = async (req, res) => {
         return res.status(500).json({ success: false, message: publicMessage(error, "Không thể lấy lịch sử thao tác") });
     }
 };
+
+exports.invalidateManagerReportLists = invalidateManagerReportLists;
