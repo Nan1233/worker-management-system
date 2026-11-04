@@ -104,7 +104,7 @@ exports.getApprovedReports = async (req, res) => {
                 WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
                  AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
                 THEN COALESCE(NULLIF(pr.actual_time,0),(
-                  SELECT SUM(GREATEST(0,ml.machine_time_hours))
+                  SELECT SUM(GREATEST(0,COALESCE(ml.machine_time_hours,0)-COALESCE(ml.deduction_time_hours,0)))
                     FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
                 ),0)
                 ELSE pr.actual_time
@@ -112,8 +112,20 @@ exports.getApprovedReports = async (req, res) => {
               CASE
                 WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
                  AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
+                THEN COALESCE(NULLIF(pr.deduction_time,0),(
+                  SELECT SUM(GREATEST(0,COALESCE(ml.deduction_time_hours,0)))
+                    FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
+                ),0)
+                ELSE pr.deduction_time
+              END AS deduction_time,
+              CASE
+                WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
+                 AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
                 THEN COALESCE(NULLIF(pr.tt_dinh_muc,0),(
-                  SELECT SUM(GREATEST(0,ml.machine_time_hours) * GREATEST(0,ml.standard_output))
+                  SELECT SUM(
+                    GREATEST(0,COALESCE(ml.machine_time_hours,0)-COALESCE(ml.deduction_time_hours,0))
+                    * GREATEST(0,COALESCE(ml.standard_output,0))
+                  )
                     FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
                 ),0)
                 ELSE pr.tt_dinh_muc
@@ -123,8 +135,11 @@ exports.getApprovedReports = async (req, res) => {
                  AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
                  AND COALESCE(pr.standard_output,0)=0
                 THEN COALESCE((
-                  SELECT SUM(GREATEST(0,ml.machine_time_hours) * GREATEST(0,ml.standard_output))
-                         / NULLIF(SUM(GREATEST(0,ml.machine_time_hours)),0)
+                  SELECT SUM(
+                           GREATEST(0,COALESCE(ml.machine_time_hours,0)-COALESCE(ml.deduction_time_hours,0))
+                           * GREATEST(0,COALESCE(ml.standard_output,0))
+                         )
+                         / NULLIF(SUM(GREATEST(0,COALESCE(ml.machine_time_hours,0)-COALESCE(ml.deduction_time_hours,0))),0)
                     FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
                 ),0)
                 ELSE pr.standard_output
