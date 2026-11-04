@@ -384,7 +384,7 @@ exports.updateTempReport = async (req, res) => {
             deductions: validation.normalized.deductions,
             ttOk: operationMode === "MANUAL" ? validation.normalized.tt_ok : undefined,
             actualOutput: operationMode === "MANUAL" ? validation.normalized.actual_output : undefined,
-            allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
+            allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY" || (machinePolicy.code === "MAI" && rawMachineLines.length === 0 && !normalizedMachineNo),
             operationType: validation.normalized.operation_type ?? payload.operation_type,
             workDate: payload.work_date,
             reuseValidatedMachine,
