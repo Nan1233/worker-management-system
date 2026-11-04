@@ -14,10 +14,10 @@ const FAST_MASTER_TTL_MS = 60 * 1000;
 // v14: invalidate stale empty machine lists after machine master data was populated in DB.
 // v15: invalidate stale process-scoped NG/Tru H snapshots after correcting DO process ID mapping and DB catalogues.
 // v18: invalidate cached K2 master lists after applying the approved K2-only UI filters.
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v18";
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v19";
 // p2: invalidate browser/session and offline product snapshots after adding GC product C0575 (Cắt, 1460) and KCT work_type fix.
 const PRODUCT_MASTER_VERSION = "p2";
-const DEDUCTION_MASTER_VERSION = "v12";
+const DEDUCTION_MASTER_VERSION = "v13";
 const DEFECT_MASTER_VERSION = "v11";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
