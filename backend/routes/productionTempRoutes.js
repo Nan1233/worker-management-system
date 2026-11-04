@@ -8,7 +8,6 @@ const notifyWorkerOnTempEdit = require("../middleware/notifyWorkerOnTempEdit");
 const controller = require("../controllers/productionTempController");
 const validate = require("../middleware/validateRequest");
 const { workerReportLimiter } = require("../middleware/rateLimiters");
-const db = require("../config/db");
 const AuditService = require("../services/auditService");
 const ProductionTemp = require("../models/productionTempModel");
 
@@ -19,15 +18,6 @@ function invalidateManagerReportLists() {
     managerListCache.deleteByPrefix("manager:pending:");
     managerListCache.deleteByPrefix("manager:approved:");
 }
-
-const proposalDetail = async (id) => {
-    const [rows] = await db.promise().query(`SELECT p.*, u.full_name AS proposer_name, u.username AS proposer_username FROM report_edit_proposals p LEFT JOIN users u ON u.id = p.proposer_user_id WHERE p.id = ? LIMIT 1`, [id]);
-    if (!rows?.[0]) return null;
-    const row = rows[0];
-    if (typeof row.proposed_data === "string") { try { row.proposed_data = JSON.parse(row.proposed_data); } catch { row.proposed_data = {}; } }
-    return row;
-};
-const assertProposalAccess = async (req, reportId) => req.user?.role === "admin" ? true : ProductionTemp.canManageReport(Number(reportId), req.user.id, false);
 
 const productionTempValidation = validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:false,maxLength:100}, product_name:{required:false,maxLength:150} });
 
