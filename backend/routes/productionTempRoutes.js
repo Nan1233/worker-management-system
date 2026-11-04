@@ -42,18 +42,7 @@ router.get("/by-date", authMiddleware, checkRole("admin", "admin_ops", "manager"
 
 router.get("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), controller.getEditProposals);
 
-router.post("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{
-    try{
-        const reportId=Number(req.body?.report_id), reason=String(req.body?.reason||"").trim(), proposedData=req.body?.proposed_data;
-        if(!Number.isInteger(reportId)||reportId<=0)return res.status(400).json({success:false,message:"ID báo cáo không hợp lệ"});
-        if(reason.length<2||reason.length>1000)return res.status(400).json({success:false,message:"Nội dung đề xuất sửa phải từ 2 đến 1000 ký tự"});
-        if(!proposedData||typeof proposedData!=="object")return res.status(400).json({success:false,message:"Thiếu nội dung thay đổi đề xuất"});
-        const report=await ProductionTemp.getDetail(reportId); if(!report)return res.status(404).json({success:false,message:"Không tìm thấy báo cáo"});
-        if(!(await assertProposalAccess(req,reportId)))return res.status(403).json({success:false,message:"Báo cáo ngoài phạm vi phụ trách"});
-        const [result]=await db.promise().query(`INSERT INTO report_edit_proposals (report_id, proposer_user_id, proposer_role, reason, proposed_data, status) VALUES (?, ?, ?, ?, ?, 'pending')`,[reportId,Number(req.user.id),String(req.user.role||"").toLowerCase(),reason,JSON.stringify(proposedData)]);
-        return res.status(201).json({success:true,message:"Đã tạo đề xuất sửa",data:await proposalDetail(Number(result.insertId))});
-    } catch(error){console.error("CREATE EDIT PROPOSAL ERROR:",error);return res.status(error.status||500).json({success:false,message:error.message||"Không thể tạo đề xuất sửa"});}
-});
+router.post("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), editProposalController.createEditProposal);
 
 router.put("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{
     try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});const reason=String(req.body?.reason??current.reason).trim(),proposedData=req.body?.proposed_data??current.proposed_data;if(reason.length<2||reason.length>1000)return res.status(400).json({success:false,message:"Nội dung đề xuất sửa phải từ 2 đến 1000 ký tự"});await db.promise().query(`UPDATE report_edit_proposals SET reason=?, proposed_data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,[reason,JSON.stringify(proposedData||{}),id]);return res.json({success:true,message:"Đã cập nhật đề xuất sửa",data:await proposalDetail(id)});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể cập nhật đề xuất sửa"});}
