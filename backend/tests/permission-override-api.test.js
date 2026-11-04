@@ -101,7 +101,7 @@ test('role override: grant, revoke and default (null deletes the row); every cha
 
 test('user override: grant/revoke/default with target role resolved from DB and audited', async (t) => {
   const fake = createFakeDb();
-  const { controller, service } = load(fake);
+  const { controller, service, cleanup } = load(fake); t.after(cleanup);
   await callController(controller.setUser, { params: { userId: '8', code: 'STATISTICS_VIEW' }, body: { allowed: false } });
   assert.equal(fake.state.user.get('8:STATISTICS_VIEW'), 0);
   assert.equal((await service.getEffectivePermissions({ id: 8, role: 'worker' })).has('STATISTICS_VIEW'), false);
@@ -153,7 +153,7 @@ test('admin_ops ceiling still caps effective permissions even with an existing g
 
 test('an audit failure rolls the permission change back (no unaudited change)', async (t) => {
   const fake = createFakeDb({ failAudit: true });
-  const { controller } = load(fake);
+  const { controller, cleanup } = load(fake); t.after(cleanup);
   await assert.rejects(() => callController(controller.setRole, { params: { role: 'lead', code: 'REPORT_EXPORT' }, body: { allowed: false } }), /audit down/);
   assert.equal(fake.state.role.size, 0);
   assert.ok(fake.state.log.includes('ROLLBACK'));
