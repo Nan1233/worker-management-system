@@ -36,7 +36,7 @@ export const normalizeGcAlias = (value: unknown): string => {
     return suffix === "GYX" ? "CGYX" : `C${suffix}`;
 };
 
-export const getProductDisplayAlias = (product: ProductStandardOption): string => normalizeGcAlias(product.alias_code || product.product_code);
+export const getProductDisplayAlias = (product: ProductStandardOption): string => normalize(product.product_code);
 
 export const getFullProductCode = (alias: string, products: ProductStandardOption[]): string => {
     const normalizedAlias = normalizeGcAlias(alias);
@@ -95,73 +95,38 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
     if (useEncodedMachineSuffix) {
-        const canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
-        const productWorkTypes = new Set(products.map((product) => normalizeWorkType(product.work_type)).filter(Boolean));
-        // Apply the C13/C7236 compatibility option before branching on work_type:
-        // merged product APIs can return mixed CUT/LONG rows, so the CUT-only
-        // branch below is not guaranteed to run even when the selected form is CUT.
-        if (selectedRawMachine === "C13" && mode === "MACHINE" && !canonicalProducts.some(({ alias }) => alias === "C7236")) {
-            const template = canonicalProducts.find(({ alias }) => alias === "C7630")?.product
-                || canonicalProducts.find(({ alias }) => alias.startsWith("C"))?.product
-                || canonicalProducts[0]?.product;
-            if (template) {
-                canonicalProducts.push({
-                    alias: "C7236",
-                    product: {
-                        ...template,
-                        product_code: "R7236",
-                        alias_code: "C7236",
-                        encoding_code: "R7236",
-                        standard_output: 690,
-                        work_type: "CUT",
-                    },
-                });
-            }
-        }
-        const workerSelectionProducts = (rows: Array<{ product: ProductStandardOption; alias: string }>): ProductStandardOption[] => rows.map(({ product, alias }) => ({ ...product, product_code: alias }));
+        // GC uses canonical product_code only. The selected machine master determines
+        // CUT/LONG; aliases and encoding codes are not product identifiers.
+        const canonicalProducts = products
+            .filter((product) => {
+                const type = normalizeWorkType(product.work_type);
+                return type === "CUT" || type === "LONG";
+            })
+            .map((product) => ({ product, alias: normalize(product.product_code) }))
+            .filter(({ alias }) => Boolean(alias));
+        const workerSelectionProducts = (rows: Array<{ product: ProductStandardOption; alias: string }>): ProductStandardOption[] =>
+            rows.map(({ product }) => ({ ...product, product_code: normalize(product.product_code), alias_code: null, encoding_code: null }));
 
-        if (productWorkTypes.size === 1 && productWorkTypes.has("LONG")) {
-            if (mode === "MANUAL") {
-                const specialProducts: Array<{ product: ProductStandardOption; alias: string }> = NO_STANDARD_LONG_WORK_CODES.map((code) => ({
-                    alias: code,
-                    product: {
-                        ...(canonicalProducts[0]?.product || {} as ProductStandardOption),
-                        product_code: code,
-                        alias_code: code,
-                        work_type: "LONG",
-                        // Positive UI placeholder only so the existing client-side
-                        // required-standard validation can accept this selectable
-                        // work. Submission converts these codes back to standard=0.
-                        standard_output: 1,
-                    } as ProductStandardOption,
-                }));
-                const existingAliases = new Set(canonicalProducts.map(({ alias }) => alias));
-                return workerSelectionProducts([
-                    ...canonicalProducts,
-                    ...specialProducts.filter(({ alias }) => !existingAliases.has(alias)),
-                ]);
-            }
-            if (!selectedMachine || !isGcLongMachine(selectedRawMachine, machineOptions)) return [];
-            return workerSelectionProducts(canonicalProducts);
+        if (mode === "MANUAL") {
+            const longProducts = canonicalProducts.filter(({ product }) => normalizeWorkType(product.work_type) === "LONG");
+            const specialProducts: Array<{ product: ProductStandardOption; alias: string }> = NO_STANDARD_LONG_WORK_CODES.map((code) => ({
+                alias: code,
+                product: {
+                    ...(canonicalProducts[0]?.product || {} as ProductStandardOption),
+                    product_code: code,
+                    alias_code: null,
+                    encoding_code: null,
+                    work_type: "LONG",
+                    standard_output: 1,
+                } as ProductStandardOption,
+            }));
+            const existing = new Set(longProducts.map(({ alias }) => alias));
+            return workerSelectionProducts([...longProducts, ...specialProducts.filter(({ alias }) => !existing.has(alias))]);
         }
-        if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
-            if (!selectedMachine) return [];
-            if (isGcAutomaticMachine(selectedRawMachine)) {
-                const automaticProducts = canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias));
-                const presentAliases = new Set(automaticProducts.map(({ alias }) => alias));
-                const template = automaticProducts[0]?.product || canonicalProducts[0]?.product;
-                if (template) {
-                    for (const alias of GC_AUTOMATIC_ALIAS_CODES) {
-                        if (presentAliases.has(alias)) continue;
-                        automaticProducts.push({ product: { ...template, product_code: alias, alias_code: alias }, alias });
-                    }
-                }
-                return workerSelectionProducts(automaticProducts);
-            }
-            return workerSelectionProducts(canonicalProducts);
-        }
-        if (!selectedMachine && mode === "MACHINE") return [];
-        return workerSelectionProducts(canonicalProducts);
+
+        if (!selectedMachine) return [];
+        const selectedType = isGcLongMachine(selectedRawMachine, machineOptions) ? "LONG" : "CUT";
+        return workerSelectionProducts(canonicalProducts.filter(({ product }) => normalizeWorkType(product.work_type) === selectedType));
     }
 
     if (mode === "MANUAL") return products;
