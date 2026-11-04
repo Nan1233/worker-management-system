@@ -70,11 +70,12 @@ function callController(handler, { params, body, user = { id: 1, role: 'admin' }
 }
 
 test('controller and service share one contract (the methods the controller calls exist)', () => {
-  const { service } = load(createFakeDb());
+  const { service, cleanup } = load(createFakeDb());
   assert.equal(typeof service.setRolePermission, 'function');
   assert.equal(typeof service.setUserPermission, 'function');
   const source = require('node:fs').readFileSync(path.join(BACKEND, 'controllers/permissionController.js'), 'utf8');
   assert.doesNotMatch(source, /setRoleOverride|setUserOverride/);
+  cleanup();
 });
 
 test('role override: grant, revoke and default (null deletes the row); every change audited', async (t) => {
