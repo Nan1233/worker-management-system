@@ -123,13 +123,16 @@ async function assertUserManagementScope(actor, target, options = {}) {
   const role = normalizeRole(actor);
   if (!['admin','admin_ops','manager','lead'].includes(role)) throw scopeError('Tài khoản không có quyền quản lý người dùng');
   const targetRole = normalizeRole(target);
-  const allowed = role === 'admin'
-    ? ['manager','lead','worker']
-    : role === 'manager'
-      ? ['lead','worker']
-      : role === 'admin_ops'
+  // Only a DB-authenticated Super Admin may manage Admin / Super Admin accounts.
+  const allowed = role === 'admin' && actor?.is_super_admin === true
+    ? ['manager','lead','worker','admin','super_admin']
+    : role === 'admin'
+      ? ['manager','lead','worker']
+      : role === 'manager'
         ? ['lead','worker']
-        : ['worker'];
+        : role === 'admin_ops'
+          ? ['lead','worker']
+          : ['worker'];
   if (!allowed.includes(targetRole)) throw scopeError('Vai trò tài khoản nằm ngoài phạm vi quản lý');
   if (role === 'admin') return true;
 
