@@ -24,7 +24,7 @@ test('P0 worker submission keeps idempotency and duplicate challenge controls', 
   assert.match(controller, /DUPLICATE_CONFIRMATION_REQUIRED/);
   assert.match(controller, /duplicate_confirmation_token/);
   assert.match(controller, /client_request_id/);
-  assert.match(submissionService, /lockClientRequestId/);
+  assert.match(submissionService, /lockSubmissionKeys/);
   assert.match(submissionService, /findExistingClientRequest/);
   assert.match(submissionService, /verifyDuplicateConfirmation/);
   assert.match(submissionService, /duplicate_reason: "request_id"/);
