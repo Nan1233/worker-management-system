@@ -104,5 +104,5 @@ test('re-submitting the same client_request_id returns the existing report and w
   assert.equal(result.duplicate, true);
   assert.equal(result.id, 77);
   assert.ok(!log.some((sql) => /^INSERT INTO production_reports_temp/i.test(sql)));
-  assert.ok(!log.some((sql) => /^BEGIN(?:\\s|$)/i.test(sql)), 'idempotent retry should return before opening a transaction');
+  assert.ok(!log.some((sql) => sql.startsWith('BEGIN')), 'idempotent retry should return before opening a transaction');
 });
