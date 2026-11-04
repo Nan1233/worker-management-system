@@ -395,10 +395,9 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             // a partial report marked need_fix; a retry with the same request ID
             // then incorrectly returned that incomplete row as a successful duplicate.
             await beginReadCommittedTransaction(parentConnection);
-            await createModel.lockClientRequestId(workerId, requestId, parentConnection);
+            await createModel.lockSubmissionKeys(workerId, requestId, data.logical_duplicate_key, parentConnection);
             const race = await findExistingClientRequest(data, parentConnection);
             if (race) { await commit(parentConnection); return idempotent(race); }
-            await createModel.lockLogicalDuplicateKey(data.logical_duplicate_key, parentConnection);
             await assertNoLogicalDuplicate(data, parentConnection);
             if (machineLines.length) {
                 await createModel.lockMachineCapacityKeys(data.process_id, data.work_date, data.shift, machineLines, parentConnection);
