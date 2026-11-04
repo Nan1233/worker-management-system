@@ -2,6 +2,7 @@ const ProductionTemp = require("../models/productionTempModel");
 const { publicMessage } = require("../utils/httpError");
 const { validateMachineLines } = require("../services/machineLineValidationService");
 const { getProcessMachinePolicy } = require("../services/processMachinePolicy");
+const { validateProcessExtraData } = require("../services/processExtraDataValidationService");
 const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require("../services/factoryMachineRuleService");
 const {
     toPositiveInteger,
@@ -115,8 +116,8 @@ exports.createTempReport = async (req, res) => {
                 req.body?.process_id
             );
 
-        const extraDataInput = req.body?.extra_data && typeof req.body.extra_data === "object" && !Array.isArray(req.body.extra_data)
-            ? req.body.extra_data
+        let extraDataInput = req.body?.extra_data && typeof req.body.extra_data === "object" && !Array.isArray(req.body.extra_data)
+            ? { ...req.body.extra_data }
             : {};
         const isNonProductWorkWithinProcess = extraDataInput.non_product_work === true
             && processId !== 30002 && processId !== 60006;
@@ -233,6 +234,15 @@ exports.createTempReport = async (req, res) => {
         }));
 
         const machinePolicy = getProcessMachinePolicy(processId);
+        const extraDataValidation = await validateProcessExtraData({ processCode: machinePolicy.code, extraData: extraDataInput });
+        if (!extraDataValidation.valid) {
+            return res.status(422).json({
+                success: false,
+                message: "Thông tin riêng công đoạn không hợp lệ",
+                errors: extraDataValidation.errors
+            });
+        }
+        extraDataInput = extraDataValidation.extraData;
         const normalizedMachineNo = String(validation.normalized.machine_no || req.body?.machine_no || "").trim();
         const requestedMachineMode = operationMode === "MACHINE" || rawMachineLines.length > 0 || Boolean(normalizedMachineNo);
 
@@ -382,9 +392,7 @@ exports.createTempReport = async (req, res) => {
 
             // work_date là ngày công nhân chọn; entry_date là ngày thực tế nhập báo cáo.
             entry_date: String(req.body?.entry_date || new Date().toISOString().slice(0, 10)).slice(0, 10),
-            extra_data: (req.body?.extra_data && typeof req.body.extra_data === "object" && !Array.isArray(req.body.extra_data))
-                ? req.body.extra_data
-                : {},
+            extra_data: extraDataInput,
 
             worker_id:
                 workerId,
