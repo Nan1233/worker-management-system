@@ -57,8 +57,11 @@ function createStandardResolver({query=defaultQuery}={}) {
     }
     const exactCodeRows=await query(`${fields} AND BINARY TRIM(product_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,product]);
     if(exactCodeRows.length)return exactCodeRows;
-    const encodingRows=await query(`${fields} AND BINARY TRIM(encoding_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,product]);
-    if(encodingRows.length)return encodingRows;
+    // GC accepts only its canonical product_code; encoding_code is not an alternate identifier.
+    if(pid!==1){
+      const encodingRows=await query(`${fields} AND BINARY TRIM(encoding_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,product]);
+      if(encodingRows.length)return encodingRows;
+    }
     // Resolve aliases only after exact product_code and encoding_code misses.
     // Multiple active canonical targets are a data conflict, never a tie-break.
     if (pid === 1) return []; // GC product_code is canonical; never resolve GC aliases.
@@ -76,7 +79,9 @@ function createStandardResolver({query=defaultQuery}={}) {
     const pid=Number(processId), product=String(productCode||'').trim(), date=normalizeWorkDate(workDate), normalizedWorkType=normalizeWorkType(workType);
     if((pid===60006||pid===30002)&&!product)return{processId:pid,productCode:null,productStandardId:null,standardVersionId:null,machineStandardId:null,standardOutput:0,standardTimeSeconds:null,excludeKqdFromTt:0,effectiveFrom:null,effectiveTo:null,source:'NON_PRODUCT_WORK',workDate:date,historicalVersionAvailable:false,nonProductWork:true};
     if(!Number.isInteger(pid)||pid<=0||!product)throw businessError('INVALID_STANDARD_LOOKUP','Thiếu công đoạn hoặc sản phẩm để tra định mức');
-    const requestedVersionId=Number(standardVersionId)||null, cacheKey=`${pid}|${product}|${date}|${requestedVersionId||''}|auto=${allowAutoAlias?1:0}|work=${normalizedWorkType||''}`;
+    const requestedVersionId=Number(standardVersionId)||null;
+    const allowAutomaticResolution=allowAutoAlias && pid!==1;
+    const cacheKey=`${pid}|${product}|${date}|${requestedVersionId||''}|auto=${allowAutomaticResolution?1:0}|work=${normalizedWorkType||''}`;
     if(productCache.has(cacheKey))return productCache.get(cacheKey);
     const historicalSnapshotLookup=Boolean(requestedVersionId);
     // An explicitly saved version is authoritative for an existing report. Permit
@@ -89,7 +94,7 @@ function createStandardResolver({query=defaultQuery}={}) {
     // Looking up the base code first can incorrectly select a different standard
     // (e.g. C2556=875) even when C2556-AUTO=5000 exists and is the intended rule.
     // Existing reports with a saved version keep their historical snapshot path.
-    if(allowAutoAlias && !requestedVersionId && !/-AUTO$/i.test(product)){
+    if(allowAutomaticResolution && !requestedVersionId && !/-AUTO$/i.test(product)){
       const autoProduct=`${product}-AUTO`;
       selectedProduct=await selectProductRow(pid,autoProduct,date,{allowAutoAlias:false,workType:normalizedWorkType,includeInactive:false});
       if(!selectedProduct && normalizedWorkType && pid!==1){
@@ -99,9 +104,9 @@ function createStandardResolver({query=defaultQuery}={}) {
     }
 
     if(!selectedProduct){
-      selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutoAlias&&!requestedVersionId,workType:normalizedWorkType,includeInactive:historicalSnapshotLookup});
+      selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutomaticResolution&&!requestedVersionId,workType:normalizedWorkType,includeInactive:historicalSnapshotLookup});
       if(!selectedProduct && normalizedWorkType && pid!==1){
-        selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutoAlias&&!requestedVersionId,workType:null,includeInactive:historicalSnapshotLookup});
+        selectedProduct=await selectProductRow(pid,product,date,{allowAutoAlias:allowAutomaticResolution&&!requestedVersionId,workType:null,includeInactive:historicalSnapshotLookup});
         fallbackToProcessProduct=Boolean(selectedProduct);
       }
     }
