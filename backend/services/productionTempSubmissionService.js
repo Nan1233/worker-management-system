@@ -290,6 +290,31 @@ const createAuditAfterChildren = async ({ tempId, audit, data, requestId, logica
     finally { connection.release(); }
 };
 
+
+const deriveMachineParentFields = (lines = []) => {
+    const safeLines = Array.isArray(lines) ? lines : [];
+    const totals = safeLines.reduce((sum, line) => {
+        const machineHours = Math.max(0, Number(line?.machine_time_hours) || 0);
+        const deductionHours = Math.min(machineHours, Math.max(0, Number(line?.deduction_time_hours) || 0));
+        const actualHours = Math.max(0, machineHours - deductionHours);
+        const standard = Math.max(0, Number(line?.standard_output) || 0);
+        sum.actualTime += actualHours;
+        sum.deductionTime += deductionHours;
+        sum.totalTime += machineHours;
+        sum.standardTime += actualHours * standard;
+        return sum;
+    }, { actualTime: 0, deductionTime: 0, totalTime: 0, standardTime: 0 });
+    return {
+        actual_time: Number(totals.actualTime.toFixed(4)),
+        deduction_time: Number(totals.deductionTime.toFixed(4)),
+        total_time: Number(totals.totalTime.toFixed(4)),
+        // Parent generated KPI fields use standard_output * actual_time.
+        // Store the actual-time-weighted rate so it equals the sum of each machine's
+        // own (actual hours * standard) denominator.
+        standard_output: totals.actualTime > 0 ? Number((totals.standardTime / totals.actualTime).toFixed(6)) : 0
+    };
+};
+
 const isGiaCongProcess = (data) => String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
 
 // Stable child request IDs allow the API to retry one machine report without
@@ -309,7 +334,7 @@ const splitGcLinePayload = (data, line, requestId, index) => {
         machine_no: line.machine_code || data.machine_no || null,
         product_name: line.product_code || data.product_name || null,
         total_time: Number(line.machine_time_hours) || 0,
-        actual_time: 0,
+        actual_time: Math.max(0, (Number(line.machine_time_hours) || 0) - (Number(line.deduction_time_hours) || 0)),
         deduction_time: Number(line.deduction_time_hours) || 0,
         standard_output: Number(line.standard_output) || 0,
         standard_version_id: line.standard_version_id || null,
@@ -402,6 +427,11 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         } finally { validationConnection.release(); }
 
         const splitGc = isGiaCongProcess(data) && machineLines.length > 1;
+        // MACHINE parent times must be rolled up from authoritative machine lines.
+        // machine_time_hours is gross (actual run time + deduction); actual_time is net.
+        if (!splitGc && String(data.operation_mode ?? data.operationMode ?? "").toUpperCase() === "MACHINE" && machineLines.length) {
+            Object.assign(data, deriveMachineParentFields(machineLines));
+        }
         let tempId;
         const createdIds = [];
         const parentConnection = await getConnection();
