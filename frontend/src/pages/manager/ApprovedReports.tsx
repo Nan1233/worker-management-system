@@ -25,18 +25,27 @@ const kpi = (r: ProductionReport) => {
     const ok = num(x.tt_ok); const ng = num(x.tt_ng);
     const actual = num(x.actual_output) || ok + ng;
     const machineLines = Array.isArray(x.machine_lines) ? x.machine_lines as Record<string, unknown>[] : [];
-    const machineTime = machineLines.reduce((sum, line) => sum + Math.max(0, num(line.machine_time_hours)), 0);
-    const machineStandardTime = machineLines.reduce((sum, line) =>
-        sum + Math.max(0, num(line.machine_time_hours)) * Math.max(0, num(line.standard_output)), 0);
+    const machineGrossTime = machineLines.reduce((sum, line) => sum + Math.max(0, num(line.machine_time_hours)), 0);
+    const machineNetTime = machineLines.reduce((sum, line) => {
+        const gross = Math.max(0, num(line.machine_time_hours));
+        const deduction = Math.max(0, num(line.deduction_time_hours));
+        return sum + Math.max(0, gross - deduction);
+    }, 0);
+    const machineStandardTime = machineLines.reduce((sum, line) => {
+        const netHours = Math.max(0, num(line.machine_time_hours) - num(line.deduction_time_hours));
+        return sum + (netHours > 0 ? netHours * Math.max(0, num(line.standard_output)) : 0);
+    }, 0);
     const standard = num(x.standard_output) || num(x.target_output);
-    const actualTime = num(x.actual_time) || machineTime;
+    // KPI uses net productive hours; the visible "Thời gian" field uses gross machine time.
+    const actualTime = num(x.actual_time) || machineNetTime;
+    const totalTime = num(x.total_time) || machineGrossTime;
     const ttDinhMuc = num(x.tt_dinh_muc) || machineStandardTime || (standard > 0 && actualTime > 0 ? standard * actualTime : 0);
     const nangSuat = num(x.nang_suat_percent) || (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0);
     const dat = actual > 0 ? ok / actual * 100 : 0;
     const pp = num(x.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
     const hv = x.training_percent ?? x.hv_percent ?? x.learning_percent ?? x.hoc_viec_percent ?? 0;
     const ngTypeCount = Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count));
-    return { ok, ng, actual, actualTime, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount };
+    return { ok, ng, actual, actualTime, totalTime, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount };
 };
 
 const metricStyle = (type: "productivity" | "pp", value: number, ngTypeCount = 0): CSSProperties => {
@@ -215,7 +224,7 @@ export default function ApprovedReports() {
                         <thead><tr><th className="management-checkbox-column">Xem</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian</th><th>% HV</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% đạt</th><th>% PP</th><th>Trạng thái</th></tr></thead>
                         <tbody>{loading ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={14} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}>{error}</td></tr> : reports.length === 0 ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo đã duyệt.</td></tr> : reports.map((r, i) => { const x = kpi(r); return <tr key={r.id ?? i} onClick={() => void openDetail(r)} style={{ cursor: "pointer" }}>
                             <td style={{ textAlign: "center" }}><button type="button" className="pending-detail-edit" aria-label={`Xem báo cáo ${r.id}`} onClick={e => { e.stopPropagation(); void openDetail(r); }}>⌕</button></td>
-                            <td>{`PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`}</td><td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td><td>{text(r.process_name)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(kpi(r).actualTime || r.total_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
+                            <td>{`PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`}</td><td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td><td>{text(r.process_name)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(x.totalTime || x.actualTime)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
                             <td style={metricStyle("productivity", x.nangSuat, x.ngTypeCount)}>{pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td style={metricStyle("pp", x.pp, x.ngTypeCount)}>{pct(x.pp)}{x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}</td><td><span className="pending-detail-status">Đã duyệt</span></td>
                         </tr>; })}</tbody>
                     </table></div>
@@ -224,7 +233,7 @@ export default function ApprovedReports() {
                 {detail && <aside className="pending-detail-card">
                     <div className="pending-detail-head"><div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status">Đã duyệt</span><span className="pending-detail-code">#{detail.id}</span></div><button type="button" className="pending-detail-close" onClick={() => setDetail(null)} aria-label="Đóng">×</button></div>
                     {detailLoading ? <div className="pending-detail-loading">Đang tải chi tiết...</div> : detailKpi && <div className="pending-detail-body">
-                        <section className="pending-detail-section"><h3>Thông tin chung</h3><div className="pending-detail-grid">{[["Công nhân", `${text(detail.full_name || detail.worker_name)} (${text(detail.worker_code)})`], ["Ngày báo cáo", dateText(detail.work_date)], ["Công đoạn", text(detail.process_name)], ["Ca làm việc", text(detail.shift)], ["Máy móc", text(detail.machine_no)], ["Sản phẩm", text(detail.product_name)], ["Thời gian", `${fmt(detailKpi.actualTime || detail.total_time)} giờ`], ["Học việc", pct(detailKpi.hv)]].map(([label, value]) => <div className="pending-detail-field" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}</div></section>
+                        <section className="pending-detail-section"><h3>Thông tin chung</h3><div className="pending-detail-grid">{[["Công nhân", `${text(detail.full_name || detail.worker_name)} (${text(detail.worker_code)})`], ["Ngày báo cáo", dateText(detail.work_date)], ["Công đoạn", text(detail.process_name)], ["Ca làm việc", text(detail.shift)], ["Máy móc", text(detail.machine_no)], ["Sản phẩm", text(detail.product_name)], ["Thời gian", `${fmt(detailKpi.totalTime || detailKpi.actualTime || detail.total_time)} giờ`], ["Học việc", pct(detailKpi.hv)]].map(([label, value]) => <div className="pending-detail-field" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}</div></section>
                         <section className="pending-detail-section"><h3>Kết quả sản xuất</h3><div className="pending-result-grid"><div className="pending-result-item"><span>Sản lượng OK</span><strong>{fmt(detailKpi.ok)}</strong></div><div className="pending-result-item ng"><span>Sản lượng NG</span><strong>{fmt(detailKpi.ng)}</strong></div><div className="pending-result-item total"><span>Tổng sản lượng</span><strong>{fmt(detailKpi.actual)}</strong></div><div className="pending-result-item rate"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div></div></section>
                         <section className="pending-detail-section"><h3>Chỉ số KPI</h3><div className="pending-detail-info-grid"><div className="pending-detail-field"><span>TT định mức</span><strong>{fmt(detailKpi.ttDinhMuc)}</strong></div><div className="pending-detail-field" style={metricStyle("productivity", detailKpi.nangSuat, detailKpi.ngTypeCount)}><span>% năng suất</span><strong>{pct(detailKpi.nangSuat)}</strong></div><div className="pending-detail-field"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div><div className="pending-detail-field" style={metricStyle("pp", detailKpi.pp, detailKpi.ngTypeCount)}><span>% PP (NG)</span><strong>{pct(detailKpi.pp)}{detailKpi.pp === 0 || detailKpi.ngTypeCount === 1 ? " ⚠" : ""}</strong></div></div></section>
                         <section className="pending-detail-section"><h3>Chi tiết thời gian trừ</h3>{detailDeductions.length ? <div className="pending-defect-list">{detailDeductions.map((x: any, i: number) => <span className="pending-defect" key={i}>{text(x.deduction_name, x.deduction_code)}: {fmt(num(x.hours) * 60)} phút</span>)}</div> : <div className="pending-history-empty">Không có thời gian trừ.</div>}</section>
