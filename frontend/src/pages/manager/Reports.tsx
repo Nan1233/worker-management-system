@@ -46,6 +46,17 @@ const kpi = (r: ProductionReport) => {
         || num(x.standardOutput)
         || num(extra.standard_output)
         || num(extra.target_output);
+    const machineLines = Array.isArray(x.machine_lines) ? x.machine_lines as Array<Record<string, unknown>> : [];
+    const machineNetHours = machineLines.reduce((sum, line) => {
+        const gross = Math.max(0, num(line.machine_time_hours));
+        const deduction = Math.max(0, num(line.deduction_time_hours));
+        return sum + Math.max(0, gross - deduction);
+    }, 0);
+    const machineStandardTime = machineLines.reduce((sum, line) => {
+        const netHours = Math.max(0, num(line.machine_time_hours) - num(line.deduction_time_hours));
+        const lineStandard = Math.max(0, num(line.standard_output));
+        return sum + (netHours > 0 && lineStandard > 0 ? netHours * lineStandard : 0);
+    }, 0);
     const actualTime = num(x.actual_time)
         || num(x.actual_hours)
         || num(x.working_hours)
@@ -53,17 +64,20 @@ const kpi = (r: ProductionReport) => {
         || num(x.tt_gio)
         || num(extra.actual_time)
         || num(extra.actual_hours)
-        || num(extra.working_hours);
+        || num(extra.working_hours)
+        || machineNetHours;
     // Prefer the persisted KPI snapshot when present; otherwise calculate only
     // when both inputs are available. Do not silently turn missing fields into
     // a fabricated zero when the pending detail uses legacy field names.
     const storedTtDinhMuc = x.tt_dinh_muc ?? x.tt_dinh_muc_snapshot ?? x.standard_time_total ?? x.standardTimeTotal;
-    const ttDinhMuc = storedTtDinhMuc !== null && storedTtDinhMuc !== undefined && storedTtDinhMuc !== ""
-        ? num(storedTtDinhMuc)
-        : (standard > 0 && actualTime > 0 ? standard * actualTime : 0);
+    const storedTtDinhMucValue = storedTtDinhMuc !== null && storedTtDinhMuc !== undefined && storedTtDinhMuc !== "" ? num(storedTtDinhMuc) : 0;
+    const ttDinhMuc = storedTtDinhMucValue > 0
+        ? storedTtDinhMucValue
+        : (machineStandardTime > 0 ? machineStandardTime : (standard > 0 && actualTime > 0 ? standard * actualTime : 0));
     const storedNangSuat = x.nang_suat_percent ?? x.nang_suat_percent_snapshot ?? x.productivity_percent;
-    const nangSuat = storedNangSuat !== null && storedNangSuat !== undefined && storedNangSuat !== ""
-        ? num(storedNangSuat)
+    const storedNangSuatValue = storedNangSuat !== null && storedNangSuat !== undefined && storedNangSuat !== "" ? num(storedNangSuat) : 0;
+    const nangSuat = storedNangSuatValue > 0
+        ? storedNangSuatValue
         : (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0);
     const dat = actual > 0 ? ok / actual * 100 : 0;
     const pp = num(x.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
