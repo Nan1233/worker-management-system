@@ -44,93 +44,30 @@ const PRODUCT_STANDARD_SELECT = `
      AND pa.status = 'active'
 `;
 
-const GC_ALIAS_SELECT = `
+const GC_CANONICAL_SELECT = `
     SELECT
-        ps.id,
-        pa.process_id,
-        p.process_code,
-        CASE WHEN UPPER(TRIM(pa.alias_code)) LIKE 'C%' THEN 'CUT' ELSE 'LONG' END AS work_type,
-        ps.product_code,
-        pa.alias_code,
-        ps.encoding_code,
-        ps.standard_output,
-        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
-        EXISTS(
-            SELECT 1 FROM product_machine_standards pms
-            WHERE pms.process_id = ps.process_id
-              AND pms.product_code = ps.product_code
-              AND pms.is_active = 1
-        ) AS has_machine_specific_standard,
-        COALESCE((
-            SELECT GROUP_CONCAT(DISTINCT m.machine_code ORDER BY m.machine_code SEPARATOR ',')
-            FROM product_machine_standards pms2
-            JOIN machines m
-              ON m.id = pms2.machine_id
-             AND m.process_id = pms2.process_id
-             AND m.status = 'active'
-            WHERE pms2.process_id = ps.process_id
-              AND pms2.product_code = ps.product_code
-              AND pms2.is_active = 1
-        ), '') AS eligible_machine_codes
-    FROM product_aliases pa
-    JOIN processes p ON p.id = pa.process_id
-    JOIN product_standards ps
-      ON ps.process_id = pa.process_id
-     AND UPPER(TRIM(ps.product_code)) = UPPER(TRIM(pa.product_code))
-     AND ps.status = 'active'
-     AND (
-         ps.standard_output > 0
-         OR UPPER(TRIM(ps.product_code)) IN ('XUATNHAP', 'KTCD', 'TAIPP')
-     )
-    WHERE pa.status = 'active'
-      AND p.status = 'active'
-      AND UPPER(TRIM(p.process_code)) = 'GC'
-
-    UNION ALL
-
-    SELECT
-        ps.id,
-        ps.process_id,
-        p.process_code,
-        ps.work_type,
-        ps.product_code,
+        ps.id, ps.process_id, p.process_code,
+        CASE
+          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('LỒNG','LONG','LNG') THEN 'LONG'
+          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('CẮT','CUT','CAT') THEN 'CUT'
+          WHEN UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP') THEN 'LONG'
+          ELSE NULL
+        END AS work_type,
+        UPPER(TRIM(ps.product_code)) AS product_code,
         NULL AS alias_code,
-        ps.encoding_code,
-        ps.standard_output,
+        ps.encoding_code, ps.standard_output,
         COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
-        EXISTS(
-            SELECT 1 FROM product_machine_standards pms
-            WHERE pms.process_id = ps.process_id
-              AND pms.product_code = ps.product_code
-              AND pms.is_active = 1
-        ) AS has_machine_specific_standard,
-        COALESCE((
-            SELECT GROUP_CONCAT(DISTINCT m.machine_code ORDER BY m.machine_code SEPARATOR ',')
-            FROM product_machine_standards pms2
-            JOIN machines m
-              ON m.id = pms2.machine_id
-             AND m.process_id = pms2.process_id
-             AND m.status = 'active'
-            WHERE pms2.process_id = ps.process_id
-              AND pms2.product_code = ps.product_code
-              AND pms2.is_active = 1
-        ), '') AS eligible_machine_codes
+        EXISTS(SELECT 1 FROM product_machine_standards pms
+          WHERE pms.process_id=ps.process_id AND UPPER(TRIM(pms.product_code))=UPPER(TRIM(ps.product_code)) AND pms.is_active=1) AS has_machine_specific_standard,
+        COALESCE((SELECT GROUP_CONCAT(DISTINCT m.machine_code ORDER BY m.machine_code SEPARATOR ',')
+          FROM product_machine_standards pms2 JOIN machines m ON m.id=pms2.machine_id AND m.process_id=pms2.process_id AND m.status='active'
+          WHERE pms2.process_id=ps.process_id AND UPPER(TRIM(pms2.product_code))=UPPER(TRIM(ps.product_code)) AND pms2.is_active=1), '') AS eligible_machine_codes
     FROM product_standards ps
-    JOIN processes p ON p.id = ps.process_id
-    WHERE ps.status = 'active'
-      AND (
-          ps.standard_output > 0
-          OR UPPER(TRIM(ps.product_code)) IN ('XUATNHAP', 'KTCD', 'TAIPP')
-      )
-      AND p.status = 'active'
-      AND UPPER(TRIM(p.process_code)) = 'GC'
-      AND NOT EXISTS (
-          SELECT 1
-          FROM product_aliases pa2
-          WHERE pa2.process_id = ps.process_id
-            AND UPPER(TRIM(pa2.product_code)) = UPPER(TRIM(ps.product_code))
-            AND pa2.status = 'active'
-      )
+    JOIN processes p ON p.id=ps.process_id
+    WHERE ps.status='active'
+      AND (ps.standard_output>0 OR UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP'))
+      AND p.status='active'
+      AND UPPER(TRIM(p.process_code))='GC'
 `;
 
 exports.findByProcess = async (processId) => {
@@ -141,7 +78,7 @@ exports.findByProcess = async (processId) => {
     const processCode = String(processRows[0]?.process_code || '').trim().toUpperCase();
 
     if (processCode === 'GC') {
-        return query(`${GC_ALIAS_SELECT} ORDER BY product_code ASC, alias_code ASC`, []);
+        return query(`${GC_CANONICAL_SELECT} ORDER BY product_code ASC`, []);
     }
 
     return query(`${PRODUCT_STANDARD_SELECT}
@@ -156,7 +93,7 @@ exports.findByProcess = async (processId) => {
 exports.findByProcessCode = async (processCode) => {
     const normalized = String(processCode || '').trim().toUpperCase();
     if (normalized === 'GC') {
-        return query(`${GC_ALIAS_SELECT} ORDER BY product_code ASC, alias_code ASC`, []);
+        return query(`${GC_CANONICAL_SELECT} ORDER BY product_code ASC`, []);
     }
 
     return query(`${PRODUCT_STANDARD_SELECT}
@@ -171,6 +108,8 @@ exports.findByProcessCode = async (processCode) => {
 const resolveAliasToProductCode = async (processId, productCode) => {
     const input = String(productCode || '').trim();
     if (!input) return input;
+    // GC product_code is canonical. Never translate it through product_aliases.
+    if (Number(processId) === 1) return input.toUpperCase();
 
     const rows = await query(`
         SELECT DISTINCT product_code

@@ -28,22 +28,10 @@ const LEGACY_DEFECT_BINDINGS: Array<[keyof FormState, string, string]> = [
   ["ppcm", "PPCM", "PPCM"], ["loiCaoSu", "LCS", "Lỗi cao su"], ["ngKichThuoc", "KT_LON", "KT kích thước"], ["catLem", "CAT_LEM", "Cắt lẹm"],
 ];
 
-const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, "");
-const GC_AUTOMATIC_MACHINES = new Set(["C5", "C6", "C7", "C11", "5", "6", "7", "11"]);
-
 const resolveSubmittedProductCode = (
-  alias: string,
-  machineCode: string,
-  operationType: OperationType,
+  productCode: string,
   products: ProductStandardOption[],
-): string => {
-  const resolved = String(getFullProductCode(alias, products) || alias || "").trim();
-  if (operationType !== "CUT" || !GC_AUTOMATIC_MACHINES.has(normalizeCode(machineCode))) return resolved;
-  if (!resolved) return resolved;
-  const normalized = normalizeCode(resolved);
-  if (normalized.endsWith("-AUTO")) return resolved;
-  return `${resolved}-AUTO`;
-};
+): string => String(getFullProductCode(productCode, products) || productCode || "").trim().toUpperCase();
 
 export function buildProductionReportPayload(args: {
   clientRequestId: string|null; processId: number; form: FormState; extraData: Record<string,string>; operationType: OperationType;
@@ -95,7 +83,7 @@ export function buildProductionReportPayload(args: {
     }).filter(x=>x.quantity>0);
     const lineDeductions = args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(l.deductions?.[String(o.key||"")])/60 })).filter(x=>x.hours>0);
     const lineDeductionHours = lineDeductions.reduce((sum,item)=>sum+num(item.hours),0);
-    const fullProductCode = resolveSubmittedProductCode(l.productCode, l.machineCode, args.operationType, args.productOptions);
+    const fullProductCode = resolveSubmittedProductCode(l.productCode, args.productOptions);
     // Worker chỉ nhập thời gian chạy thực tế (actual_time_hours); "Tổng thời gian"
     // (machine_time_hours, giữ nguyên ý nghĩa "gross" cho kế toán giờ máy phía sau)
     // luôn được tự tính = thực tế + trừ giờ, không nhận input tổng trực tiếp từ Worker.
@@ -129,7 +117,7 @@ export function buildProductionReportPayload(args: {
     })) : defects.map((item) => ({
       defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     }));
-    const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions);
+    const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.productOptions);
     // For machine reports, the selected machine line is the source of truth.
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, actual_time_hours:parseHours(args.form.actualTime), machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
