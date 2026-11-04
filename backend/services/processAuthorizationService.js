@@ -123,7 +123,10 @@ async function assertUserManagementScope(actor, target, options = {}) {
   const role = normalizeRole(actor);
   if (!['admin','admin_ops','manager','lead'].includes(role)) throw scopeError('Tài khoản không có quyền quản lý người dùng');
   const targetRole = normalizeRole(target);
-  const allowed = role === 'admin'
+  // Only a super admin may manage admin / super_admin accounts (and its own account).
+  const allowed = role === 'admin' && actor?.is_super_admin === true
+    ? ['manager','lead','worker','admin','super_admin']
+    : role === 'admin'
     ? ['manager','lead','worker']
     : role === 'manager'
       ? ['lead','worker']

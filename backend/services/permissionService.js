@@ -105,7 +105,9 @@ function applyPermissionOverride(target, role, code, allowed) {
 let schemaAvailable;
 let cache = new Map();
 const CACHE_TTL_MS = 60_000;
-function normalizeRole(value) { return String(value || '').trim().toLowerCase(); }
+// super_admin carries every admin permission (effective role admin); privileged super-admin-only
+// operations check req.user.is_super_admin separately.
+function normalizeRole(value) { const role = String(value || '').trim().toLowerCase(); return role === 'super_admin' ? 'admin' : role; }
 function normalizeCode(value) { return String(value || '').trim().toUpperCase(); }
 function defaultSet(role) { return new Set(DEFAULTS[normalizeRole(role)] || []); }
 function applyMandatoryRolePermissions(role, permissions) {

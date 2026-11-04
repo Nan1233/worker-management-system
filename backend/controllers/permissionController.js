@@ -25,7 +25,7 @@ const permissionAudit = (req, entityType) => async ({ before, after, executor, r
     entityType,
     entityId: entityType === 'user_permission' ? `${userId}:${code}` : `${role}:${code}`,
     description: `${action} ${entityType === 'user_permission' ? `user ${userId} (${role})` : `role ${role}`} ${code}`,
-    metadata: { role, user_id: userId ?? null, permission_code: code, before, after, actor_role: req.user?.role || null, request_id: req.requestId || null },
+    metadata: { role, user_id: userId ?? null, permission_code: code, before, after, actor_role: req.user?.role || null, actor_is_super_admin: req.user?.is_super_admin === true, request_id: req.requestId || null },
     req,
   }, executor);
 };

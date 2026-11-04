@@ -117,7 +117,7 @@ test('user list is paginated server-side, filters are validated and parameterize
   const listSql = sqls.find((x) => /COUNT\(\*\) OVER\(\)/.test(x.sql));
   assert.match(listSql.sql, /LIMIT 100 OFFSET 100/);
   assert.deepEqual(listSql.params, ['%ng\\%uy%', '%ng\\%uy%', '%ng\\%uy%', 'lead', 'active']);
-  r = await request(app, 'GET', '/api/admin/control/users?role=super_admin');
+  r = await request(app, 'GET', '/api/admin/control/users?role=root');
   assert.equal(r.status, 400);
   assert.equal(r.body.code, 'CONTROL_ROLE_INVALID');
 });

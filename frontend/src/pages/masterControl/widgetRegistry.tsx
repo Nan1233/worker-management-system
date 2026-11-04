@@ -40,7 +40,7 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
     { id: "kpi.leads", title: "Total Leads", kind: "kpi", dataSource: "counts.users.leads", description: "Tài khoản vai trò Tổ trưởng.",
         render: (d) => kpi("Leads", <UserCog size={14} />, d.counts?.users.leads, undefined, `${controlPath("users")}?role=lead`) },
     { id: "kpi.admins", title: "Total Admins", kind: "kpi", dataSource: "counts.users.admins / adminOps", description: "Admin và Admin vận hành.",
-        render: (d) => kpi("Admins", <ShieldCheck size={14} />, d.counts?.users.admins, d.counts ? `+ ${formatNumber(d.counts.users.adminOps)} Admin vận hành` : undefined, `${controlPath("users")}?role=admin`) },
+        render: (d) => kpi("Admins", <ShieldCheck size={14} />, d.counts?.users.admins, d.counts ? `${formatNumber(d.counts.users.superAdmins)} Super Admin · ${formatNumber(d.counts.users.adminOps)} Admin vận hành` : undefined, `${controlPath("users")}?role=admin`) },
     { id: "kpi.processes", title: "Total Processes", kind: "kpi", dataSource: "counts.processes", description: "Công đoạn (đang dùng / tổng).",
         render: (d) => kpi("Processes", <Factory size={14} />, d.counts?.processes.total, d.counts ? `${formatNumber(d.counts.processes.active)} đang dùng` : undefined, "/admin/master/processes") },
     { id: "kpi.machines", title: "Total Machines", kind: "kpi", dataSource: "counts.machines", description: "Máy (đang dùng / tổng).",

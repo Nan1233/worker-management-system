@@ -15,6 +15,7 @@ const db = require('../config/db');
 const AuditService = require('../services/auditService');
 const control = require('../services/masterControlService');
 const updateUserController = require('../controllers/userUpdateController');
+const { guardPrivilegedTarget } = require('../middleware/privilegedTargetGuard');
 
 router.use(auth, role('admin'));
 
@@ -30,7 +31,7 @@ const handle = (fn) => async (req, res, next) => {
 
 const readiness = (req) => req.app?.locals?.runtimeReadiness || null;
 
-router.get('/session', handle(async (req) => ({ id: req.user.id, username: req.user.username, role: req.user.role, access: 'master-control' })));
+router.get('/session', handle(async (req) => ({ id: req.user.id, username: req.user.username, role: req.user.role, isSuperAdmin: req.user.is_super_admin === true, access: 'master-control' })));
 router.get('/overview', permission('DASHBOARD_VIEW'), handle((req) => control.getOverview({ readiness: readiness(req) })));
 router.get('/users', permission('USER_VIEW'), handle((req) => control.listUsers(req.query)));
 router.get('/users/:id', permission('USER_VIEW'), handle((req) => control.getUserDetail(req.params.id)));
@@ -45,7 +46,7 @@ router.get('/backup', permission('SYSTEM_HEALTH_VIEW'), handle(() => control.get
 // Reversible account lock/unlock. Unlike PUT /api/users/:id (where status=inactive on a Lead is routed to
 // permanent deletion), this endpoint only flips users.status through the existing update controller, which
 // keeps its scope checks and revokes refresh sessions on deactivation. No row is deleted.
-router.patch('/users/:id/status', permission('USER_EDIT'), async (req, res, next) => {
+router.patch('/users/:id/status', permission('USER_EDIT'), guardPrivilegedTarget(), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const status = String(req.body?.status || '').trim().toLowerCase();
@@ -77,7 +78,7 @@ router.patch('/users/:id/status', permission('USER_EDIT'), async (req, res, next
         entityType: 'user',
         entityId: id,
         description: `${status === 'inactive' ? 'Khóa' : 'Mở khóa'} tài khoản #${id} (${before.role}) từ Master Control`,
-        metadata: { before: { status: before.status }, after: { status }, target_role: before.role, reason, request_id: req.requestId || null, reversible: true },
+        metadata: { before: { status: before.status }, after: { status }, target_role: before.role, reason, actor_is_super_admin: req.user?.is_super_admin === true, request_id: req.requestId || null, reversible: true },
         req,
       });
     } catch (auditError) {

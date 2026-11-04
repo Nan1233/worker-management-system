@@ -9,7 +9,7 @@ const runtimeMetrics = require('./runtimeMetrics');
 const version = require('../config/version');
 const { getEffectivePermissions, getAdminMatrix } = require('./permissionService');
 
-const ROLES = ['admin', 'admin_ops', 'manager', 'lead', 'worker'];
+const ROLES = ['super_admin', 'admin', 'admin_ops', 'manager', 'lead', 'worker'];
 const STATUSES = ['active', 'inactive'];
 const MAX_PAGE_SIZE = 100;
 
@@ -42,6 +42,7 @@ async function getOverviewCounts(executor = db) {
       (SELECT COUNT(*) FROM users WHERE role='manager') AS managers,
       (SELECT COUNT(*) FROM users WHERE role='lead') AS leads,
       (SELECT COUNT(*) FROM users WHERE role='admin') AS admins,
+      (SELECT COUNT(*) FROM users WHERE role='super_admin') AS super_admins,
       (SELECT COUNT(*) FROM users WHERE role='admin_ops') AS admin_ops,
       (SELECT COUNT(*) FROM processes) AS processes_total,
       (SELECT COUNT(*) FROM processes WHERE status='active') AS processes_active,
@@ -52,7 +53,7 @@ async function getOverviewCounts(executor = db) {
   const latencyMs = Date.now() - started;
   return {
     latencyMs,
-    users: { total: toInt(row?.users_total), active: toInt(row?.users_active), workers: toInt(row?.workers), managers: toInt(row?.managers), leads: toInt(row?.leads), admins: toInt(row?.admins), adminOps: toInt(row?.admin_ops) },
+    users: { total: toInt(row?.users_total), active: toInt(row?.users_active), workers: toInt(row?.workers), managers: toInt(row?.managers), leads: toInt(row?.leads), admins: toInt(row?.admins), superAdmins: toInt(row?.super_admins), adminOps: toInt(row?.admin_ops) },
     processes: { total: toInt(row?.processes_total), active: toInt(row?.processes_active) },
     machines: { total: toInt(row?.machines_total), active: toInt(row?.machines_active) },
     productionReports: toInt(row?.production_reports),
@@ -64,7 +65,7 @@ async function listRecentAdminActivity(limit = 10, executor = db) {
   const bounded = Math.min(50, Math.max(1, Math.trunc(Number(limit) || 10)));
   return rows(`SELECT a.id, a.action, a.entity_type, a.entity_id, a.description, a.created_at, u.id AS user_id, u.username, u.full_name, u.role
       FROM activity_logs a JOIN users u ON u.id = a.user_id
-     WHERE u.role IN ('admin','admin_ops')
+     WHERE u.role IN ('super_admin','admin','admin_ops')
      ORDER BY a.id DESC LIMIT ${bounded}`, [], executor);
 }
 
@@ -161,7 +162,7 @@ async function listUsers(query = {}) {
         COUNT(*) OVER() AS total_count
       FROM users u LEFT JOIN workers w ON w.user_id = u.id
       ${filters.sql}
-      ORDER BY FIELD(u.role,'admin','admin_ops','manager','lead','worker'), u.full_name, u.id
+      ORDER BY FIELD(u.role,'super_admin','admin','admin_ops','manager','lead','worker'), u.full_name, u.id
       LIMIT ${pageSize} OFFSET ${offset}`, filters.params);
   const total = items.length ? toInt(items[0].total_count) : 0;
   return {

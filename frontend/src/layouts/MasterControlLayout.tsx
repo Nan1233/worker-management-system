@@ -91,7 +91,7 @@ export default function MasterControlLayout() {
                 {can("NOTIFICATION_VIEW") ? <Link to="/admin/notifications" className="mcc-icon-btn mcc-bell" aria-label="Thông báo">
                     <Bell size={17} />{unreadCount > 0 ? <b>{unreadCount > 9 ? "9+" : unreadCount}</b> : null}
                 </Link> : null}
-                <Link to="/admin/profile" className="mcc-profile"><span className="mcc-avatar" aria-hidden="true">{displayName.trim().charAt(0).toUpperCase() || "A"}</span><span className="mcc-profile-text"><strong>{displayName}</strong><small>Admin</small></span></Link>
+                <Link to="/admin/profile" className="mcc-profile"><span className="mcc-avatar" aria-hidden="true">{displayName.trim().charAt(0).toUpperCase() || "A"}</span><span className="mcc-profile-text"><strong>{displayName}</strong><small>{user?.is_super_admin ? "Super Admin" : "Admin"}</small></span></Link>
             </header>
             <main className="mcc-content">
                 {access.status === "checking" ? <ControlLoading label="Đang xác thực quyền Master Control..." /> : null}

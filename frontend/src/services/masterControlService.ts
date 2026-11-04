@@ -3,13 +3,13 @@ import api from "./api";
 // Client for the admin-only Master Control API (/api/admin/control). The backend enforces
 // auth + role('admin') + permissions; the UI only mirrors that state.
 
-export type ControlRole = "admin" | "admin_ops" | "manager" | "lead" | "worker";
+export type ControlRole = "super_admin" | "admin" | "admin_ops" | "manager" | "lead" | "worker";
 
 export interface Pagination { page: number; pageSize: number; total: number; totalPages: number }
 
 export interface OverviewCounts {
     latencyMs: number;
-    users: { total: number; active: number; workers: number; managers: number; leads: number; admins: number; adminOps: number };
+    users: { total: number; active: number; workers: number; managers: number; leads: number; admins: number; superAdmins: number; adminOps: number };
     processes: { total: number; active: number };
     machines: { total: number; active: number };
     productionReports: number;
@@ -125,6 +125,7 @@ export const masterControlApi = {
 };
 
 export const ROLE_LABELS: Record<string, string> = {
+    super_admin: "Super Admin",
     admin: "Admin",
     admin_ops: "Admin vận hành",
     manager: "Quản lý",

@@ -11,6 +11,7 @@ const verifyToken = require('../middleware/authMiddleware');
 const checkRole = require('../middleware/roleMiddleware');
 const permission = require('../middleware/permissionMiddleware');
 const processAssignmentCapacity = require('../middleware/processAssignmentCapacityMiddleware');
+const { guardPrivilegedTarget } = require('../middleware/privilegedTargetGuard');
 
 router.use(verifyToken, checkRole('admin','admin_ops','manager','lead'));
 const runUserHandler = (name) => (req, res, next) => {
@@ -38,8 +39,8 @@ const ensureWorkerTechnicalPassword = (req, _res, next) => {
 // for every role, including Lead. Permanent Lead deletion is only the explicit DELETE /:id/permanent
 // endpoint; PUT /:id must never delete an account (decision 2026-11-04).
 router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, processAssignmentCapacity, createUserController.createUser);
-router.post('/:id/promote-lead', (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được nâng cấp vai trò tài khoản'}) : next(), permission('USER_EDIT'), promotionController.promoteWorkerToLead);
-router.post('/:id/promote-manager', (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được nâng cấp vai trò tài khoản'}) : next(), permission('USER_EDIT'), promotionController.promoteWorkerToManager);
-router.delete('/:id/permanent', (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được xóa vĩnh viễn tài khoản'}) : next(), permission('USER_EDIT'), permanentDeletionController.deleteLeadPermanently);
-router.put('/:id', permission('USER_EDIT'), processAssignmentCapacity, updateUserController.updateUser);
+router.post('/:id/promote-lead', guardPrivilegedTarget(), (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được nâng cấp vai trò tài khoản'}) : next(), permission('USER_EDIT'), promotionController.promoteWorkerToLead);
+router.post('/:id/promote-manager', guardPrivilegedTarget(), (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được nâng cấp vai trò tài khoản'}) : next(), permission('USER_EDIT'), promotionController.promoteWorkerToManager);
+router.delete('/:id/permanent', guardPrivilegedTarget(), (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được xóa vĩnh viễn tài khoản'}) : next(), permission('USER_EDIT'), permanentDeletionController.deleteLeadPermanently);
+router.put('/:id', permission('USER_EDIT'), guardPrivilegedTarget(), processAssignmentCapacity, updateUserController.updateUser);
 module.exports = router;

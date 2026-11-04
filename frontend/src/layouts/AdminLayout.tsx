@@ -25,13 +25,14 @@ const items:AdminMenuItem[]=[
  {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW"},
  {label:"Master Control Center",path:"master-control",icon:CircleGauge,permission:"DASHBOARD_VIEW"},
 ];
-const roleLabel="Quản trị viên";
+const ADMIN_LABEL="Quản trị viên";
 
 export default function AdminLayout(){
  const navigate=useNavigate(),location=useLocation();
  const {can}=usePermissions();
  const {unreadCount}=useNotificationBadge(can("NOTIFICATION_VIEW"));
  const user=getStoredUser();
+ const roleLabel=user?.is_super_admin?"Super Admin":ADMIN_LABEL;
  const [mobileMoreOpen,setMobileMoreOpen]=useState(false),[mobileSidebarOpen,setMobileSidebarOpen]=useState(false);
  const visible=items.filter(item=>can(item.permission));
  const active=(path:string)=>path===""?location.pathname==="/admin":location.pathname===`/admin/${path}`||location.pathname.startsWith(`/admin/${path}/`);

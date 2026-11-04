@@ -1,4 +1,5 @@
 const bcrypt = require("bcrypt");
+const { publicRoleFields } = require("../utils/roles");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
@@ -178,7 +179,8 @@ function generateAccessToken(user) {
             worker_id: user.worker_id || null,
             worker_code: user.worker_code || null,
             username: user.username,
-            role: user.role
+            // super_admin is presented as admin + is_super_admin; authorization re-reads the DB row anyway.
+            ...publicRoleFields(user.role)
         },
         process.env.JWT_SECRET,
         {
@@ -257,7 +259,7 @@ async function issueLoginSession(req, res, user) {
             worker_code: user.worker_code || null,
             username: user.username,
             full_name: user.full_name,
-            role: user.role
+            ...publicRoleFields(user.role)
         }
     };
 
@@ -382,7 +384,7 @@ exports.login = async (req, res) => {
 
         if (accessType === "management") {
             if (
-                !["admin", "admin_ops", "manager", "lead"].includes(
+                !["super_admin", "admin", "admin_ops", "manager", "lead"].includes(
                     user.role
                 )
             ) {
@@ -485,7 +487,7 @@ exports.refresh = async (req, res) => {
                 worker_code: session.worker_code || null,
                 username: session.username,
                 full_name: session.full_name,
-                role: session.role
+                ...publicRoleFields(session.role)
             }
         });
     } catch (error) {

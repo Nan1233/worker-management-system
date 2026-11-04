@@ -11,7 +11,7 @@ const read = (rel) => fs.readFileSync(path.join(BACKEND, rel), 'utf8');
 test('PUT /api/users/:id no longer routes a Lead status change to permanent deletion', () => {
   const routes = read('routes/userRoutes.js');
   assert.doesNotMatch(routes, /permanentDeleteLeadFromLegacyRemove/);
-  assert.match(routes, /router\.put\('\/:id', permission\('USER_EDIT'\), processAssignmentCapacity, updateUserController\.updateUser\);/);
+  assert.match(routes, /router\.put\('\/:id', permission\('USER_EDIT'\), guardPrivilegedTarget\(\), processAssignmentCapacity, updateUserController\.updateUser\);/);
   // Permanent deletion stays an explicit, separate endpoint.
   assert.match(routes, /router\.delete\('\/:id\/permanent'/);
 });
