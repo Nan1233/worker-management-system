@@ -24,6 +24,7 @@ export interface ProductStandardOption {
     has_machine_specific_standard?: number;
     eligible_machine_codes?: string;
     standard_output: number;
+    exclude_kqd_from_tt?: number;
 }
 
 export const getMachinesByProcess = async (processId: number): Promise<MachineOption[]> => {
@@ -95,6 +96,7 @@ export interface ResolvedProductStandard {
     default_standard_output: number;
     resolved_output_per_hour: number;
     standard_source: "MACHINE" | "DEFAULT";
+    exclude_kqd_from_tt?: number;
 }
 
 const processProductCache = new Map<number, { expiresAt: number; codes: Set<string> }>();
@@ -183,6 +185,10 @@ const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, 
     return {
         product_standard_id: Number(row.id), process_id: Number(row.process_id || processId), product_code: requestedProductCode || String(row.product_code), alias_code: row.alias_code || requestedProductCode || null,
         machine_id: null, machine_code: machineCode, standard_time_seconds: null, machine_standard_output: null,
+        default_standard_output: output,
+        resolved_output_per_hour: output,
+        standard_source: "DEFAULT",
+        exclude_kqd_from_tt: Number(row.exclude_kqd_from_tt || 0),
     };
 };
 
@@ -206,6 +212,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
             default_standard_output: 0,
             resolved_output_per_hour: 1,
             standard_source: "DEFAULT",
+            exclude_kqd_from_tt: 1,
         };
     }
 
