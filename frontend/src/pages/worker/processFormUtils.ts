@@ -41,8 +41,8 @@ export function parseIntegerDisplay(value: string): string {
 export function calculateCountedNg(
     values: FormState,
     activeNgOptions: Array<{ key: string; code?: string | null }>,
-    excludeKqd: boolean,
-    kqdCodes: ReadonlySet<string>,
+    excludeKqd = false,
+    kqdCodes: ReadonlySet<string> = new Set<string>(),
 ): number {
     return activeNgOptions.reduce((sum, item) => {
         const code = String(item.code || "").trim().toUpperCase();
