@@ -105,7 +105,8 @@ function applyPermissionOverride(target, role, code, allowed) {
 let schemaAvailable;
 let cache = new Map();
 const CACHE_TTL_MS = 60_000;
-function normalizeRole(value) { return String(value || '').trim().toLowerCase(); }
+// super_admin inherits the complete admin permission set; privileged-target checks remain separate.
+function normalizeRole(value) { const role = String(value || '').trim().toLowerCase(); return role === 'super_admin' ? 'admin' : role; }
 function normalizeCode(value) { return String(value || '').trim().toUpperCase(); }
 function defaultSet(role) { return new Set(DEFAULTS[normalizeRole(role)] || []); }
 function applyMandatoryRolePermissions(role, permissions) {
