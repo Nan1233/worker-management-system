@@ -20,6 +20,9 @@ export interface User {
 
     role: UserRole;
 
+    // Set by the backend for super_admin accounts (role is presented as "admin" for authorization).
+    is_super_admin?: boolean;
+
 }
 
 export interface LoginResponse {
