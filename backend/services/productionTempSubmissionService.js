@@ -365,31 +365,25 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
         // Preflight the exact master rows before the parent INSERT. This makes
         // it impossible to create a report that only has tt_ng/deduction_time.
-        const validationConnection = await getConnection();
+        // Master-data validation is read-only. Run it directly against the DB pool instead of
+        // opening a throwaway transaction (BEGIN + ROLLBACK) before the persistence transaction.
+        // The parent transaction still owns every write and all duplicate/capacity locks.
         let defects;
         let deductions;
-        try {
-            await beginTransaction(validationConnection);
-            if (isGiaCongProcess(data) && machineLines.length > 1) {
-                // Validate each machine's NG and deduction details against its own parent report.
-                for (const [index, line] of machineLines.entries()) {
-                    const childData = splitGcLinePayload(data, line, requestId, index);
-                    const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, validationConnection);
-                    validateChildTotals(childData, resolved.defects, resolved.deductions);
-                }
-                defects = [];
-                deductions = [];
-            } else {
-                const resolved = await resolveMasterDetails(data.process_id, defectsInput, deductionsInput, validationConnection);
-                defects = resolved.defects;
-                deductions = resolved.deductions;
-                validateChildTotals(data, defects, deductions);
+        if (isGiaCongProcess(data) && machineLines.length > 1) {
+            for (const [index, line] of machineLines.entries()) {
+                const childData = splitGcLinePayload(data, line, requestId, index);
+                const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, db);
+                validateChildTotals(childData, resolved.defects, resolved.deductions);
             }
-            await rollbackOrThrow(validationConnection);
-        } catch (error) {
-            try { await rollbackOrThrow(validationConnection, error); } catch (rollbackError) { throw rollbackError; }
-            throw error;
-        } finally { validationConnection.release(); }
+            defects = [];
+            deductions = [];
+        } else {
+            const resolved = await resolveMasterDetails(data.process_id, defectsInput, deductionsInput, db);
+            defects = resolved.defects;
+            deductions = resolved.deductions;
+            validateChildTotals(data, defects, deductions);
+        }
 
         const splitGc = isGiaCongProcess(data) && machineLines.length > 1;
         let tempId;
