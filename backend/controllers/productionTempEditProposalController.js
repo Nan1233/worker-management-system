@@ -128,31 +128,15 @@ exports.reviewEditProposal = async (req, res) => {
         const proposed = current.proposed_data && typeof current.proposed_data === "object"
             ? current.proposed_data
             : {};
-        let resultPayload = null;
-        let resultStatus = 200;
-        const fakeRes = {
-            status(code) {
-                resultStatus = code;
-                return this;
-            },
-            json(body) {
-                resultPayload = body;
-                return this;
-            }
-        };
+        const updateResult = await managementController.updateTempReportUseCase({
+            reportId: current.report_id,
+            body: { ...proposed, reason: `Duyệt đề xuất sửa #${id}` },
+            user: req.user
+        });
 
-        await managementController.updateTempReport(
-            {
-                params: { id: current.report_id },
-                body: { ...proposed, reason: `Duyệt đề xuất sửa #${id}` },
-                user: req.user
-            },
-            fakeRes
-        );
-
-        if (resultStatus >= 400 || resultPayload?.success === false) {
-            return res.status(resultStatus || 400).json(
-                resultPayload || { success: false, message: "Không thể cập nhật báo cáo theo đề xuất" }
+        if (updateResult.status >= 400 || updateResult.body?.success === false) {
+            return res.status(updateResult.status || 400).json(
+                updateResult.body || { success: false, message: "Không thể cập nhật báo cáo theo đề xuất" }
             );
         }
 
