@@ -24,7 +24,6 @@ export const normalizeWorkType = (value: unknown): string => {
 };
 
 const eligibleMachineCodes = (product: ProductStandardOption): string[] => String(product.eligible_machine_codes || "").split(",").map(normalizeMachineKey).filter(Boolean);
-const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11", "C5", "C6", "C7", "C11"]);
 export const getProductDisplayAlias = (product: ProductStandardOption): string => normalize(product.product_code);
 
 /** GC gửi đúng mã sản phẩm chuẩn; không đổi qua alias, encoding_code hoặc hậu tố tự sinh. */
