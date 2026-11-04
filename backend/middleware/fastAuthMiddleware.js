@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { effectiveRole, isSuperAdminRole } = require("../utils/roles");
 const db = require("../config/db");
 const { getOrLoadAuthUser } = require("../utils/authUserCache");
 
@@ -46,7 +47,7 @@ module.exports = async (req, res, next) => {
       return res.status(401).json({ code: "TOKEN_USER_NOT_FOUND", message: "Phiên đăng nhập cần được làm mới" });
     }
 
-    const role = normalize(currentUser.role);
+    const role = effectiveRole(currentUser.role);
     const userStatus = normalize(currentUser.status);
     const workerStatus = normalize(currentUser.worker_status);
     if (userStatus !== "active" || (role === "worker" && (!currentUser.worker_id || workerStatus !== "active"))) {
@@ -61,6 +62,7 @@ module.exports = async (req, res, next) => {
       id: Number(currentUser.id),
       username: currentUser.username,
       role,
+      is_super_admin: isSuperAdminRole(currentUser.role),
       worker_id: currentUser.worker_id ? Number(currentUser.worker_id) : null,
     };
 
