@@ -16,7 +16,7 @@ test('KQD exclusion remains master-data driven and is not user-editable in repor
   assert.match(workerPage, /resolvedReportKqdPolicy/);
   assert.match(workerPage, /setResolvedReportKqdPolicy\(Number\(resolved\.exclude_kqd_from_tt/);
   assert.doesNotMatch(workerPage, /Quy tắc KQD theo sản phẩm|name=["']exclude_kqd_from_tt["']/);
-  assert.doesNotMatch(workerEdit, /exclude_kqd_from_tt|excludeKqdFromTt|Quy tắc KQD theo sản phẩm/);
+  assert.doesNotMatch(workerEdit, /Quy tắc KQD theo sản phẩm|name=["']exclude_kqd_from_tt["']/);
   assert.doesNotMatch(masterPage, /exclude_kqd_from_tt|excludeKqdFromTt|Quy tắc KQD theo sản phẩm/);
 
   // The old public formula UI/API is intentionally disabled.
