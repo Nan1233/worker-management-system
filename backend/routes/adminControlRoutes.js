@@ -19,6 +19,25 @@ const { guardPrivilegedTarget } = require('../middleware/privilegedTargetGuard')
 
 router.use(auth, role('admin'));
 
+// The whole Master Control Center is Super Admin only (decision 2026-11-04). is_super_admin is set by
+// the auth middleware from users.role in the database; a forged JWT/request cannot set it. Regular
+// admins keep the existing /admin console. Denied attempts are audited.
+router.use(async (req, res, next) => {
+  if (req.user?.is_super_admin === true) return next();
+  try {
+    await AuditService.logActivity({
+      userId: req.user?.id,
+      action: 'SECURITY_MASTER_CONTROL_DENIED',
+      entityType: 'master_control',
+      entityId: null,
+      description: `Từ chối ${req.method} ${String(req.originalUrl || '').split('?')[0]} (không phải Super Admin)`,
+      metadata: { actor_role: req.user?.role || null, request_id: req.requestId || null },
+      req,
+    });
+  } catch (error) { console.error('[KTC] MASTER_CONTROL_DENY_AUDIT_FAILED', { message: error?.message }); }
+  return res.status(403).json({ success: false, code: 'SUPER_ADMIN_REQUIRED', message: 'Master Control Center chỉ dành cho Super Admin' });
+});
+
 const handle = (fn) => async (req, res, next) => {
   try {
     const data = await fn(req, res);

@@ -95,3 +95,9 @@ test('super admin is shown as Super Admin, routed like admin, and never offered 
   // Routing stays role-based on "admin": the backend presents super_admin as admin + is_super_admin.
   assert.match(read('frontend/src/routes/AppRouter.tsx'), /<Route path="\/admin\/master-control" element=\{<PrivateRoute allowedRoles=\{\["admin"\]\}>/);
 });
+
+test('Master Control entry points are shown to Super Admin only (backend enforces SUPER_ADMIN_REQUIRED)', () => {
+  assert.match(read('frontend/src/layouts/AdminLayout.tsx'), /item\.path!=="master-control"\|\|user\?\.is_super_admin===true/);
+  assert.match(read('frontend/src/pages/admin/Dashboard.tsx'), /card\.path!=="\/admin\/master-control"\|\|isSuperAdmin/);
+  assert.match(read('backend/routes/adminControlRoutes.js'), /if \(req\.user\?\.is_super_admin === true\) return next\(\);[\s\S]*SUPER_ADMIN_REQUIRED/);
+});

@@ -34,7 +34,8 @@ export default function AdminLayout(){
  const user=getStoredUser();
  const roleLabel=user?.is_super_admin?"Super Admin":ADMIN_LABEL;
  const [mobileMoreOpen,setMobileMoreOpen]=useState(false),[mobileSidebarOpen,setMobileSidebarOpen]=useState(false);
- const visible=items.filter(item=>can(item.permission));
+ // Master Control Center is Super Admin only; the backend enforces it, the menu only mirrors it.
+ const visible=items.filter(item=>can(item.permission)&&(item.path!=="master-control"||user?.is_super_admin===true));
  const active=(path:string)=>path===""?location.pathname==="/admin":location.pathname===`/admin/${path}`||location.pathname.startsWith(`/admin/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel;
  const avatarText=displayName.trim().charAt(0).toUpperCase()||"A";
@@ -48,7 +49,7 @@ export default function AdminLayout(){
     {visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label}</span></button>;})}
    </nav>
    <div className="admin-sidebar-footer">
-    <button type="button" className="admin-security-status" onClick={()=>go("master-control/health")}><span className="admin-status-dot"/><span><strong>Trạng thái hệ thống</strong><small>Xem đo thực tế trong Master Control</small></span></button>
+    {user?.is_super_admin===true?<button type="button" className="admin-security-status" onClick={()=>go("master-control/health")}><span className="admin-status-dot"/><span><strong>Trạng thái hệ thống</strong><small>Xem đo thực tế trong Master Control</small></span></button>:null}
     <button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button>
    </div>
   </aside>

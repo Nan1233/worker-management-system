@@ -95,7 +95,7 @@ export default function MasterControlLayout() {
             </header>
             <main className="mcc-content">
                 {access.status === "checking" ? <ControlLoading label="Đang xác thực quyền Master Control..." /> : null}
-                {access.status === "denied" ? <ControlDenied message="Master Control Center chỉ dành cho tài khoản Admin." /> : null}
+                {access.status === "denied" ? <ControlDenied message="Master Control Center chỉ dành cho tài khoản Super Admin. Tài khoản Admin vẫn dùng Admin Console như trước." /> : null}
                 {access.status === "error" ? <ControlError message={access.message} onRetry={() => setAttempt((value) => value + 1)} /> : null}
                 {access.status === "granted" ? <Outlet /> : null}
             </main>

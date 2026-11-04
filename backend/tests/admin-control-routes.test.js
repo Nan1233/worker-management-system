@@ -7,7 +7,7 @@ const express = require('express');
 
 const BACKEND = path.join(__dirname, '..');
 
-function setup({ role = 'admin', userId = 1, users = { 1: { role: 'admin', status: 'active' }, 7: { role: 'lead', status: 'active' }, 8: { role: 'worker', status: 'inactive' } } } = {}) {
+function setup({ role = 'admin', isSuperAdmin = true, userId = 1, users = { 1: { role: 'admin', status: 'active' }, 7: { role: 'lead', status: 'active' }, 8: { role: 'worker', status: 'inactive' } } } = {}) {
   const sqls = [];
   const audits = [];
   const updateCalls = [];
@@ -26,7 +26,7 @@ function setup({ role = 'admin', userId = 1, users = { 1: { role: 'admin', statu
     return [[], []];
   };
   const fakeDb = { promise: () => ({ query: exec }) };
-  const fakeAuth = (req, _res, next) => { req.user = { id: userId, username: 'u', role }; req.requestId = 'r1'; next(); };
+  const fakeAuth = (req, _res, next) => { req.user = { id: userId, username: 'u', role, is_super_admin: role === 'admin' && isSuperAdmin }; req.requestId = 'r1'; next(); };
   const fakeUpdate = { updateUser: async (req, res) => { updateCalls.push({ id: req.params.id, body: req.body, actor: req.user.role }); res.json({ success: true }); } };
   const original = Module._load;
   Module._load = function (request, parent, ...rest) {
@@ -172,4 +172,23 @@ test('Master Control routes are mounted under /api/admin/control without touchin
   assert.match(routes, /router\.use\(auth, role\('admin'\)\)/);
   const master = fs.readFileSync(path.join(BACKEND, 'routes/adminMasterRoutes.js'), 'utf8');
   assert.match(master, /MANAGEMENT_ROLES=\['admin','admin_ops','manager','lead'\]/, 'existing master-data access is unchanged');
+});
+
+test('regular admin (not Super Admin) is refused on every Master Control endpoint and the attempt is audited', async () => {
+  const { app, audits, updateCalls } = setup({ role: 'admin', isSuperAdmin: false, userId: 60002 });
+  for (const [method, url, body] of [['GET', '/api/admin/control/session'], ['GET', '/api/admin/control/overview'], ['GET', '/api/admin/control/users'], ['GET', '/api/admin/control/database/tables'], ['PATCH', '/api/admin/control/users/7/status', { status: 'inactive', reason: 'thử' }]]) {
+    const r = await request(app, method, url, body);
+    assert.equal(r.status, 403, `${method} ${url}`);
+    assert.equal(r.body.code, 'SUPER_ADMIN_REQUIRED');
+  }
+  assert.equal(updateCalls.length, 0);
+  assert.equal(audits.length, 5);
+  assert.ok(audits.every((a) => a.action === 'SECURITY_MASTER_CONTROL_DENIED'));
+});
+
+test('Super Admin gets the session marker', async () => {
+  const { app } = setup();
+  const r = await request(app, 'GET', '/api/admin/control/session');
+  assert.equal(r.status, 200);
+  assert.equal(r.body.data.isSuperAdmin, true);
 });
