@@ -15,6 +15,7 @@ const { assertProcessesScope } = require("../services/processAuthorizationServic
 const { validateMachineLines } = require("../services/machineLineValidationService");
 const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require("../services/factoryMachineRuleService");
 const { getProcessMachinePolicy } = require("../services/processMachinePolicy");
+const { validateProcessExtraData } = require("../services/processExtraDataValidationService");
 const { envEnabled } = require("../utils/featureFlags");
 const {
     toPositiveInteger,
@@ -285,6 +286,21 @@ exports.updateTempReport = async (req, res) => {
         }
 
         const payload = { ...current, ...(req.body || {}), defects: req.body?.defects ?? current.defects, deductions: req.body?.deductions ?? current.deductions };
+        const hasExtraDataUpdate = Object.prototype.hasOwnProperty.call(req.body || {}, "extra_data");
+        if (hasExtraDataUpdate) {
+            const extraDataValidation = await validateProcessExtraData({
+                processCode: current.process_code || getProcessMachinePolicy(current.process_id).code,
+                extraData: payload.extra_data
+            });
+            if (!extraDataValidation.valid) {
+                return res.status(422).json({
+                    success: false,
+                    message: "Thông tin riêng công đoạn không hợp lệ",
+                    errors: extraDataValidation.errors
+                });
+            }
+            payload.extra_data = extraDataValidation.extraData;
+        }
 
         if (req.user?.role === "worker") {
             const workDateError = validateWorkerWorkDate(payload.work_date);
@@ -410,7 +426,8 @@ exports.updateTempReport = async (req, res) => {
                 : validation.normalized.tt_ng,
             standard_version_id: hasMachineLines ? null : master.standardVersionId,
             machine_standard_id: hasMachineLines ? null : master.machineStandardId,
-            machine_lines: machineValidation.lines
+            machine_lines: machineValidation.lines,
+            ...(hasExtraDataUpdate ? { extra_data: payload.extra_data } : {})
         };
 
         const result = await ProductionTemp.updateReport(

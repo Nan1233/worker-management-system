@@ -133,6 +133,7 @@ import {
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { buildProductionReportPayload } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
+import { getCachedMachines } from "../../services/masterDataCache";
 
 import type {
     DeductionKey,
@@ -214,6 +215,40 @@ function ProcessPage() {
         activeDeductionOptions,
         loadingMasterData,
     } = useProcessMasterData(processInfo.id, processCode);
+
+    const [relatedMaiMachines, setRelatedMaiMachines] = useState<MachineOption[]>([]);
+    const [loadingRelatedMaiMachines, setLoadingRelatedMaiMachines] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        if (processCode !== "DO") {
+            setRelatedMaiMachines([]);
+            setLoadingRelatedMaiMachines(false);
+            return () => { active = false; };
+        }
+        setLoadingRelatedMaiMachines(true);
+        void getCachedMachines(2)
+            .then((machines) => {
+                if (!active) return;
+                setRelatedMaiMachines(machines.filter((machine) => String(machine.machine_code || "").trim()));
+            })
+            .catch(() => {
+                if (active) setRelatedMaiMachines([]);
+            })
+            .finally(() => {
+                if (active) setLoadingRelatedMaiMachines(false);
+            });
+        return () => { active = false; };
+    }, [processCode]);
+
+    const extraFieldOptions = useMemo(() => ({
+        grinding_machine_no: relatedMaiMachines.map((machine) => ({
+            value: machine.machine_code,
+            label: machine.machine_name
+                ? `${machine.machine_code} — ${machine.machine_name}`
+                : machine.machine_code,
+        })),
+    }), [relatedMaiMachines]);
 
     useEffect(() => {
         masterDataRequestSeqRef.current += 1;
@@ -1438,6 +1473,14 @@ const updateDeductionValue = (
             return `Vui lòng nhập ${missingExtraField.label}`;
         }
 
+        const relatedGrindingMachine = String(extraData.grinding_machine_no || "").trim();
+        if (processCode === "DO" && relatedGrindingMachine) {
+            if (loadingRelatedMaiMachines) return "Đang tải danh mục máy Mài, vui lòng chờ";
+            if (!relatedMaiMachines.some((machine) => machine.machine_code.trim().toUpperCase() === relatedGrindingMachine.toUpperCase())) {
+                return "Máy Mài liên quan không còn trong danh mục hoạt động. Vui lòng chọn lại";
+            }
+        }
+
         return "";
 
     };
@@ -1774,6 +1817,8 @@ window.setTimeout(() => {
                     fields={currentExtraFields}
                     extraData={extraData}
                     setExtraData={setExtraData}
+                    fieldOptions={extraFieldOptions}
+                    loadingFieldOptions={loadingRelatedMaiMachines}
                 />
 
                 {!usesMachineLineAccounting && (

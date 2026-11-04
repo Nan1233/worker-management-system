@@ -106,7 +106,9 @@ export function buildProductionReportPayload(args: {
       machine_code:l.machineCode.trim(), product_code:fullProductCode,
       actual_time_hours:lineActualTimeHours, machine_time_hours:lineActualTimeHours+lineDeductionHours, adjustment_minutes:lineDeductionHours*60, adjustment_count:num(l.adjustmentCount),
       deduction_time_hours:lineDeductionHours, deductions:lineDeductions,
-      ok_quantity:num(l.okQuantity), ng_quantity:num(l.ngQuantity), standard_output:resolvePositiveStandardOutput(l.productCode, l.standardOutputPerHour),
+      ok_quantity:num(l.okQuantity), ng_quantity:num(l.ngQuantity),
+      ...(String(args.processCode || "").trim().toUpperCase() === "MAI" ? { actual_quantity: num(l.actualQuantity) } : {}),
+      standard_output:resolvePositiveStandardOutput(l.productCode, l.standardOutputPerHour),
       standard_time_seconds:l.standardTimeSeconds, standard_source:l.standardSource, defects:lineDefects
     };
   });

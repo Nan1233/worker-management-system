@@ -305,6 +305,18 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                 continue;
             }
 
+            // Mài form displays KQSX explicitly and requires KQSX = OK + NG.
+            // Enforce the same relationship at the API boundary whenever the
+            // updated client sends the field; legacy/edit payloads remain compatible.
+            if (String(machine.process_code || "").trim().toUpperCase() === "MAI"
+                && line.actual_quantity !== undefined && line.actual_quantity !== null && line.actual_quantity !== "") {
+                const actualQuantity = Number(line.actual_quantity);
+                if (!Number.isInteger(actualQuantity) || actualQuantity < 0 || actualQuantity !== okQuantity + ngQuantity) {
+                    errors[`machine_lines.${index}.actual_quantity`] = `KQSX máy ${index + 1} phải là số nguyên không âm và bằng OK + NG (${okQuantity + ngQuantity})`;
+                    continue;
+                }
+            }
+
             let resolvedStandard;
             try {
                 resolvedStandard = await standardResolver.resolveStandard({
