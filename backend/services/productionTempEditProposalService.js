@@ -39,4 +39,62 @@ const listEditProposals = async (user) => {
     return accessible;
 };
 
-module.exports = { listEditProposals };
+
+const createEditProposal = async ({ user, body }) => {
+    const reportId = Number(body?.report_id);
+    const reason = String(body?.reason || "").trim();
+    const proposedData = body?.proposed_data;
+
+    if (!Number.isInteger(reportId) || reportId <= 0) {
+        const error = new Error("ID báo cáo không hợp lệ");
+        error.status = 400;
+        throw error;
+    }
+    if (reason.length < 2 || reason.length > 1000) {
+        const error = new Error("Nội dung đề xuất sửa phải từ 2 đến 1000 ký tự");
+        error.status = 400;
+        throw error;
+    }
+    if (!proposedData || typeof proposedData !== "object") {
+        const error = new Error("Thiếu nội dung thay đổi đề xuất");
+        error.status = 400;
+        throw error;
+    }
+
+    const report = await ProductionTemp.getDetail(reportId);
+    if (!report) {
+        const error = new Error("Không tìm thấy báo cáo");
+        error.status = 404;
+        throw error;
+    }
+    if (!(await canAccessProposalReport(user, reportId))) {
+        const error = new Error("Báo cáo ngoài phạm vi phụ trách");
+        error.status = 403;
+        throw error;
+    }
+
+    const [result] = await db.promise().query(
+        `INSERT INTO report_edit_proposals
+            (report_id, proposer_user_id, proposer_role, reason, proposed_data, status)
+         VALUES (?, ?, ?, ?, ?, 'pending')`,
+        [reportId, Number(user.id), String(user.role || "").toLowerCase(), reason, JSON.stringify(proposedData)]
+    );
+
+    return getProposalDetail(Number(result.insertId));
+};
+
+const getProposalDetail = async (id) => {
+    const [rows] = await db.promise().query(
+        `SELECT p.*, u.full_name AS proposer_name, u.username AS proposer_username
+           FROM report_edit_proposals p
+           LEFT JOIN users u ON u.id = p.proposer_user_id
+          WHERE p.id = ?
+          LIMIT 1`,
+        [id]
+    );
+    if (!rows?.[0]) return null;
+    return parseProposedData(rows[0]);
+};
+
+module.exports = { listEditProposals, createEditProposal, getProposalDetail };
+
