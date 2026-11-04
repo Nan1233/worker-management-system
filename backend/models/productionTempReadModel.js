@@ -124,20 +124,41 @@ function enrichMachineLines(lines) {
 // and năng suất = 0% while the detail shows real figures.
 function deriveMachineKpiFields(row, machineLines) {
     const lines = Array.isArray(machineLines) ? machineLines : [];
-    const hoursOf = (line) => Math.max(0, Number(line.machine_time_hours) || 0);
+    const machineHoursOf = (line) => Math.max(0, Number(line.machine_time_hours) || 0);
+    const deductionHoursOf = (line) => Math.max(0, Number(line.deduction_time_hours) || 0);
+    const actualHoursOf = (line) => Math.max(0, machineHoursOf(line) - deductionHoursOf(line));
     const outputOf = (line) => Math.max(0, Number(line.standard_output) || 0);
-    const machineLineTime = lines.reduce((sum, line) => sum + hoursOf(line), 0);
-    const machineLineStandardTime = lines.reduce((sum, line) => sum + (hoursOf(line) > 0 && outputOf(line) > 0 ? hoursOf(line) * outputOf(line) : 0), 0);
+    // Machine time is gross time; actual time excludes each line's recorded deductions.
+    // Productivity standards must use net productive hours, matching worker history and daily-hour accounting.
+    const machineLineTime = lines.reduce((sum, line) => sum + machineHoursOf(line), 0);
+    const machineLineDeductionTime = lines.reduce((sum, line) => sum + deductionHoursOf(line), 0);
+    const machineLineActualTime = lines.reduce((sum, line) => sum + actualHoursOf(line), 0);
+    const machineLineStandardTime = lines.reduce((sum, line) => {
+        const actualHours = actualHoursOf(line);
+        const standard = outputOf(line);
+        return sum + (actualHours > 0 && standard > 0 ? actualHours * standard : 0);
+    }, 0);
     const parentActualTime = Math.max(0, Number(row.actual_time) || 0);
+    const parentTotalTime = Math.max(0, Number(row.total_time) || 0);
+    const parentDeductionTime = Math.max(0, Number(row.deduction_time) || 0);
     const parentStandardOutput = Math.max(0, Number(row.standard_output) || 0);
-    const actualTime = parentActualTime > 0 ? parentActualTime : (machineLineTime > 0 ? machineLineTime : parentActualTime);
+    const actualTime = parentActualTime > 0 ? parentActualTime : (machineLineActualTime > 0 ? machineLineActualTime : parentActualTime);
+    const totalTime = parentTotalTime > 0 ? parentTotalTime : (machineLineTime > 0 ? machineLineTime : parentTotalTime);
+    const deductionTime = parentDeductionTime > 0 ? parentDeductionTime : machineLineDeductionTime;
     const ttDinhMuc = Number(row.tt_dinh_muc) > 0
         ? Number(row.tt_dinh_muc)
         : (machineLineStandardTime > 0 ? machineLineStandardTime : (parentStandardOutput > 0 && actualTime > 0 ? parentStandardOutput * actualTime : 0));
-    const standardOutput = parentStandardOutput > 0 ? parentStandardOutput : (machineLineTime > 0 ? machineLineStandardTime / machineLineTime : 0);
+    const standardOutput = parentStandardOutput > 0 ? parentStandardOutput : (machineLineActualTime > 0 ? machineLineStandardTime / machineLineActualTime : 0);
     // Lines that ran but have no usable standard: the UI must say "thiếu định mức" instead of a misleading 0%.
-    const linesMissingStandard = lines.filter((line) => hoursOf(line) > 0 && outputOf(line) <= 0).length;
-    return { actual_time: actualTime, tt_dinh_muc: ttDinhMuc, standard_output: standardOutput, standard_missing_lines: linesMissingStandard };
+    const linesMissingStandard = lines.filter((line) => actualHoursOf(line) > 0 && outputOf(line) <= 0).length;
+    return {
+        actual_time: actualTime,
+        total_time: totalTime,
+        deduction_time: deductionTime,
+        tt_dinh_muc: ttDinhMuc,
+        standard_output: standardOutput,
+        standard_missing_lines: linesMissingStandard
+    };
 }
 
 async function attachPendingChildren(items) {
