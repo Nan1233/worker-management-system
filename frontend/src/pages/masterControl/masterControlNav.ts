@@ -46,7 +46,7 @@ export const MASTER_CONTROL_MODULES = MASTER_CONTROL_GROUPS.flatMap((group) => g
 export const STATUS_LABEL: Record<ModuleStatus, string> = { live: "", read_only: "Chỉ xem", coming_soon: "Sắp có" };
 
 export function moduleForPath(pathname: string): MasterControlModule | undefined {
-    const rest = pathname.startsWith(MASTER_CONTROL_BASE) ? pathname.slice(MASTER_CONTROL_BASE.length).replace(/^\\/+/, "") : "";
+    const rest = pathname.startsWith(MASTER_CONTROL_BASE) ? pathname.slice(MASTER_CONTROL_BASE.length).replace(/^\/+/, "") : "";
     const first = rest.split("/")[0] || "";
     return MASTER_CONTROL_MODULES.find((item) => item.path === first);
 }
