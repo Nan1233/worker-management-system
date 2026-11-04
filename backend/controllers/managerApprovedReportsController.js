@@ -91,6 +91,44 @@ exports.getApprovedReports = async (req, res) => {
     const [dataRows] = await db.promise().query(
       `SELECT pr.*, p.process_name, w.worker_code, u.full_name,
               COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent,
+              CASE
+                WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
+                 AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
+                THEN COALESCE(NULLIF(pr.total_time,0),(
+                  SELECT SUM(GREATEST(0,ml.machine_time_hours))
+                    FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
+                ),0)
+                ELSE pr.total_time
+              END AS total_time,
+              CASE
+                WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
+                 AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
+                THEN COALESCE(NULLIF(pr.actual_time,0),(
+                  SELECT SUM(GREATEST(0,ml.machine_time_hours))
+                    FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
+                ),0)
+                ELSE pr.actual_time
+              END AS actual_time,
+              CASE
+                WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
+                 AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
+                THEN COALESCE(NULLIF(pr.tt_dinh_muc,0),(
+                  SELECT SUM(GREATEST(0,ml.machine_time_hours) * GREATEST(0,ml.standard_output))
+                    FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
+                ),0)
+                ELSE pr.tt_dinh_muc
+              END AS tt_dinh_muc,
+              CASE
+                WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
+                 AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
+                 AND COALESCE(pr.standard_output,0)=0
+                THEN COALESCE((
+                  SELECT SUM(GREATEST(0,ml.machine_time_hours) * GREATEST(0,ml.standard_output))
+                         / NULLIF(SUM(GREATEST(0,ml.machine_time_hours)),0)
+                    FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
+                ),0)
+                ELSE pr.standard_output
+              END AS standard_output,
               COALESCE((SELECT COUNT(DISTINCT d.defect_type_id)
                           FROM production_report_defects d
                          WHERE d.report_id=pr.id AND d.quantity>0), 0) AS worker_ng_type_count,
