@@ -8,7 +8,6 @@ const notifyWorkerOnTempEdit = require("../middleware/notifyWorkerOnTempEdit");
 const controller = require("../controllers/productionTempController");
 const validate = require("../middleware/validateRequest");
 const { workerReportLimiter } = require("../middleware/rateLimiters");
-const AuditService = require("../services/auditService");
 const ProductionTemp = require("../models/productionTempModel");
 
 const { TtlCache } = require("../utils/cache");
@@ -53,7 +52,7 @@ const denyAdminOpsPendingEdit = (req,res,next) => String(req.user?.role||"").toL
 
 router.put("/:id",authMiddleware,checkRole("admin","admin_ops","manager","lead","worker"),denyAdminOpsPendingEdit,validate({id:{in:"params",required:true,type:"positiveInt"}}),permission("REPORT_PENDING_EDIT","REPORT_APPROVE","WORKER_ENTRY"),async(req,res,next)=>{if(String(req.user?.role||"").toLowerCase()!=="lead")return next();try{const reportId=Number(req.params.id),report=await ProductionTemp.getDetail(reportId);if(!report)return res.status(404).json({success:false,message:"Không tìm thấy báo cáo"});if(Number(report.proposer_user_id)!==Number(req.user.id))return res.status(403).json({success:false,message:"Lead chỉ được sửa đề xuất của chính mình"});return next();}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể kiểm tra quyền sửa báo cáo"});}},notifyWorkerOnTempEdit,controller.updateTempReport);
 
-router.delete("/:id",authMiddleware,checkRole("admin","manager","lead"),permission("REPORT_DELETE"),async(req,res)=>{try{const reportId=Number(req.params.id);if(!Number.isInteger(reportId)||reportId<=0)return res.status(400).json({success:false,message:"ID báo cáo không hợp lệ"});const reason=String(req.body?.reason||"").trim();if(!reason)return res.status(400).json({success:false,message:"Vui lòng nhập lý do xóa báo cáo"});const result=await ProductionTemp.deleteTempReport(reportId,Number(req.user.id),req.user.role==="admin",reason,requestMeta(req));invalidateManagerReportLists();return res.json({success:true,message:"Đã xóa báo cáo",data:result});}catch(error){console.error("DELETE TEMP REPORT ERROR:",error);return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa báo cáo"});}});
+router.delete("/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_DELETE"), controller.deleteTempReport);
 
 router.invalidateManagerReportLists = invalidateManagerReportLists;
 module.exports = router;
