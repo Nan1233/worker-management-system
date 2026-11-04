@@ -285,13 +285,16 @@ const SNAPSHOT_NUMERIC_COMPARE_FIELDS = new Set([
   'id','source_temp_id','worker_id','process_id',
   'total_time','actual_time','deduction_time',
   'standard_output','standard_version_id','machine_standard_id',
-  'actual_output','tt_ok','tt_ng',
+  'actual_output','tt_ok','tt_ng','training_percent_snapshot',
   'kqd_dap_lai','kqd_tuot','vo_do_long','xuoc_do_long','cong_gay','xoay','khong_dut',
   'bavia_hut','ppcm','loi_cao_su','ng_kich_thuoc','cat_lem',
   // Child identities/quantities and machine-line accounting fields.
   'defect_type_id','deduction_type_id','quantity','hours',
   'machine_event_id','machine_id','product_standard_id',
   'ok_quantity','ng_quantity','maximum_output','deduction_time_hours',
+  // DECIMAL machine-line columns: TiDB returns '8.0000' / '12.500000' strings, the target snapshot
+  // holds numbers, so these must be compared numerically (fixes false post-restore mismatches).
+  'machine_time_hours','standard_time_seconds',
   'counted_output','earned_standard_hours','sort_order'
 ]);
 

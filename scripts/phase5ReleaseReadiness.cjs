@@ -11,8 +11,10 @@ const read = (file) => {
   try { return fs.readFileSync(path.join(root, file), 'utf8'); }
   catch { return ''; }
 };
+const { parseJsonc } = require('./lib/jsonc.cjs');
+// wrangler*.jsonc files may contain comments; parse them as JSONC, not strict JSON.
 const json = (file) => {
-  try { return JSON.parse(read(file)); }
+  try { return parseJsonc(read(file)); }
   catch { return {}; }
 };
 const envValue = (file, key) => {

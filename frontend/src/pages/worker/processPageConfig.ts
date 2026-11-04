@@ -1,4 +1,3 @@
-import kqdExclusionRegistry from "../../../../shared/kqdExclusionRegistry.json";
 import { PROCESS_FORM_SCHEMAS } from "./processFormSchemas";
 import { getCanonicalProcessId } from "../../utils/processAccess";
 
@@ -151,9 +150,6 @@ export const allNgOptions: Array<{ key: NgKey; id?: number; code: string; label:
     { key: "long08", code: "8", label: "8 — Khác" },
 ];
 
-export const KQD_CODES = new Set(
-    kqdExclusionRegistry.map((code) => String(code).trim().toUpperCase())
-);
 
 export const getCurrentLocalDate = (): string => {
     const now = new Date();

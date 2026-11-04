@@ -38,29 +38,18 @@ export function parseIntegerDisplay(value: string): string {
     return value.replace(/\D/g, '');
 }
 
+// Every NG defect, KQD included, counts toward NG and actual output. There is
+// no product- or report-level KQD exclusion (business decision 2026-11-04).
 export function calculateCountedNg(
     values: FormState,
     activeNgOptions: Array<{ key: string; code?: string | null }>,
-    excludeKqd = false,
-    kqdCodes: ReadonlySet<string> = new Set<string>(),
 ): number {
-    return activeNgOptions.reduce((sum, item) => {
-        const code = String(item.code || "").trim().toUpperCase();
-        if (excludeKqd && kqdCodes.has(code)) return sum;
-        return sum + Number(values[item.key] || 0);
-    }, 0);
+    return activeNgOptions.reduce((sum, item) => sum + Number(values[item.key] || 0), 0);
 }
 
 export function calculateActualOutput(
     values: FormState,
     activeNgOptions: Array<{ key: string; code?: string | null }>,
-    excludeKqd: boolean,
-    kqdCodes: ReadonlySet<string>,
 ): number {
-    return Number(values.ttOk || 0) + calculateCountedNg(
-        values,
-        activeNgOptions,
-        excludeKqd,
-        kqdCodes,
-    );
+    return Number(values.ttOk || 0) + calculateCountedNg(values, activeNgOptions);
 }

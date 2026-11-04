@@ -8,6 +8,7 @@ const notifyWorkerOnTempEdit = require("../middleware/notifyWorkerOnTempEdit");
 const controller = require("../controllers/productionTempController");
 const validate = require("../middleware/validateRequest");
 const { workerReportLimiter } = require("../middleware/rateLimiters");
+const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const db = require("../config/db");
 const AuditService = require("../services/auditService");
 const ProductionTemp = require("../models/productionTempModel");
@@ -39,9 +40,13 @@ router.get("/daily-hours", authMiddleware, checkRole("worker"), permission("WORK
         const workerId = Number(req.user?.worker_id);
         const workDate = String(req.query?.date || "").trim();
         if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return res.status(400).json({ success: false, message: "Ngày làm việc không hợp lệ" });
-        const [approvedRows] = await db.promise().query(`SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports WHERE worker_id = ? AND work_date = ? AND status = 'approved'`, [workerId, workDate]);
-        const [tempRows] = await db.promise().query(`SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports_temp WHERE worker_id = ? AND work_date = ? AND status IN ('pending', 'need_fix')`, [workerId, workDate]);
-        const countedHours = Number(approvedRows?.[0]?.counted_hours || 0) + Number(tempRows?.[0]?.counted_hours || 0);
+        const excludeRaw = req.query?.exclude_report_id;
+        const excludeTempReportId = excludeRaw === undefined || excludeRaw === "" ? null : Number(excludeRaw);
+        if (excludeTempReportId !== null && (!Number.isInteger(excludeTempReportId) || excludeTempReportId <= 0)) return res.status(400).json({ success: false, message: "Mã báo cáo đang sửa không hợp lệ" });
+        // Same query as every 12-hour write guard (utils/dailyCountedHours.js): GC machine reports count
+        // MAX(machine - deduction) of their lines and split GC groups count once. The worker filter means
+        // excluding a report id can only drop this worker's own report being edited.
+        const countedHours = await queryCountedDailyHours((sql, params) => db.promise().query(sql, params).then(([rows]) => rows), { workerId, workDate, excludeTempReportId });
         return res.json({ success: true, data: { work_date: workDate, counted_hours: Number(countedHours.toFixed(4)), limit_hours: 12 } });
     } catch (error) { console.error("GET DAILY WORKING HOURS ERROR:", error); return res.status(error.status || 500).json({ success: false, message: error.message || "Không thể lấy tổng giờ làm hôm nay" }); }
 });

@@ -117,9 +117,10 @@ test('duplicate confirmation signature covers the full worker form snapshot, inc
   for (const field of [
     'form,', 'extraData,', 'operationType,', 'isCvkMode,', 'cutExecutionMode,',
     'operationMode,', 'machineLines,', 'machineCount,', 'deductions,',
-    'selectedDeduction,', 'selectedNg,', 'resolvedReportKqdPolicy,',
+    'selectedDeduction,', 'selectedNg,',
   ]) {
     assert.ok(signature.includes(field), `duplicate signature must include ${field}`);
   }
-  assert.match(signature, /\[\s*processInfo\.id[\s\S]*resolvedReportKqdPolicy[\s\S]*\]/);
+  assert.match(signature, /\[\s*processInfo\.id[\s\S]*selectedNg[\s\S]*\]/);
+  assert.doesNotMatch(signature, /resolvedReportKqdPolicy/);
 });

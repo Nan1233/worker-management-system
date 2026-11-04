@@ -11,13 +11,17 @@ test('worker and manager/admin UI no longer exposes KQD exclusion policy', () =>
     'frontend/src/pages/worker/ProcessPage.tsx',
     'frontend/src/pages/worker/WorkerReportEditV2.tsx',
     'frontend/src/pages/admin/MasterData.tsx',
-    'frontend/src/pages/admin/FormulaSettings.tsx',
     'frontend/src/services/masterDataService.ts',
-    'frontend/src/types/production.ts'
+    'frontend/src/types/production.ts',
+    'frontend/src/pages/worker/processFormUtils.ts',
+    'frontend/src/pages/worker/processReportSubmission.ts'
   ]) {
     const source = read(relative);
-    assert.doesNotMatch(source, /exclude_kqd_from_tt|excludeKqdFromTt|Quy tắc KQD theo sản phẩm/);
+    assert.doesNotMatch(source, /exclude_kqd_from_tt|excludeKqdFromTt|kqdExclusionRegistry|Quy tắc KQD theo sản phẩm/);
   }
+  // The formula settings screen (former KQD toggle host) was removed in edb385c0 and must stay removed.
+  assert.equal(fs.existsSync(path.join(root, 'frontend/src/pages/admin/FormulaSettings.tsx')), false);
+  assert.equal(fs.existsSync(path.join(root, 'shared/kqdExclusionRegistry.json')), false);
 });
 
 test('build patch script does not restore removed KQD UI exports', () => {

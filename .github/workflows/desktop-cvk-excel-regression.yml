@@ -37,6 +37,7 @@ jobs:
       - run: node --check electron/excelExportContractPatch.v6.cjs
       - run: npm run test:machine-time
       - run: node --test tests/monthly-workbook-physical-events.test.cjs
+      - run: node --test tests/production-calculation-engine.test.cjs
       - run: node --test tests/company-excel-shared-machine.test.cjs
       - run: npm run test:cvk-export
       - run: node scripts/smokeExcel.cjs

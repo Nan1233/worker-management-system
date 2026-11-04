@@ -185,10 +185,12 @@ test('machine lines are copied with one multi-row INSERT carrying every line in 
   const inserts = calls.filter((c) => /^INSERT INTO production_report_machine_lines/.test(c.sql));
   assert.equal(inserts.length, 1);
   const params = inserts[0].params;
-  assert.equal(params.length, 4 * 22);
-  const codes = [0, 1, 2, 3].map((i) => params[i * 22 + 3]);
+  // 21 columns per approved machine line (legacy exclude_kqd_from_tt is no longer copied).
+  assert.doesNotMatch(inserts[0].sql, /exclude_kqd/);
+  assert.equal(params.length, 4 * 21);
+  const codes = [0, 1, 2, 3].map((i) => params[i * 21 + 3]);
   assert.deepEqual(codes, ['M05', 'M06', 'M07', 'M11']);
-  assert.deepEqual([0, 1, 2, 3].map((i) => params[i * 22 + 7]), ['CGYX-AUTO', 'C5770-AUTO', 'CGYX-AUTO', 'C5770-AUTO']);
+  assert.deepEqual([0, 1, 2, 3].map((i) => params[i * 21 + 7]), ['CGYX-AUTO', 'C5770-AUTO', 'CGYX-AUTO', 'C5770-AUTO']);
 });
 
 test('machine defects are attached to the approved line that matches their temp line', async () => {

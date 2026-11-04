@@ -13,7 +13,8 @@ const {
 
 const backendRoot = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(backendRoot, file), 'utf8');
-const parseJsonc = (file) => JSON.parse(read(file));
+const { parseJsonc: parseJsoncText } = require('../../scripts/lib/jsonc.cjs');
+const parseJsonc = (file) => parseJsoncText(read(file));
 
 test('Cloudflare TEST profile is explicitly isolated to TEST frontend origin', () => {
   const config = parseJsonc('wrangler.jsonc');

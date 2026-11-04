@@ -6,28 +6,13 @@ const { query, getConnection, beginTransaction, beginReadCommittedTransaction, c
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
 const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isGc = false, excludeTempReportId = null }) => {
     const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-    const tempExcludeSql = excludeTempReportId ? "AND pr.id <> ?" : "";
-    const params = excludeTempReportId ? [worker, date, worker, date, excludeTempReportId] : [worker, date, worker, date];
-    const rows = await query(connection, `
-        SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
-                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-            FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
-            UNION ALL
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
-                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
-                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-            FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? ${tempExcludeSql} AND pr.status IN ('pending','need_fix')
-        ) daily_hours`, params);
-    const existingHours = Number(rows?.[0]?.counted_hours || 0);
+    const existingHours = await queryCountedDailyHours((sql, params) => query(connection, sql, params), { workerId: worker, workDate: date, excludeTempReportId });
     const incoming = isGc && Array.isArray(incomingMachineLines) && incomingMachineLines.length
         ? Math.max(...incomingMachineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0)))
         : (Number(incomingActualHours) || 0);

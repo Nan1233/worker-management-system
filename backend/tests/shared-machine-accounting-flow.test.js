@@ -136,7 +136,7 @@ test('shared-machine scanner is read-only and never creates events automatically
 });
 
 test('split GC reports re-check the 12-hour cap under the worker lock only once per group', () => {
-  const source = fs.readFileSync(path.join(root, 'models/productionTempModel.js'), 'utf8');
+  const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   assert.match(source, /data\._daily_hours_machine_lines = machineLines/);
   assert.match(source, /childData\._skip_daily_hours_enforcement = index > 0/);
   const guardSource = fs.readFileSync(path.join(root, 'models/productionTempCreateModel.js'), 'utf8');
@@ -144,9 +144,9 @@ test('split GC reports re-check the 12-hour cap under the worker lock only once 
 });
 
 test('GC process code is resolved from the database when the client sends only process_id', () => {
-  const source = fs.readFileSync(path.join(root, 'models/productionTempModel.js'), 'utf8');
+  const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   assert.match(source, /const resolvedProcessCode = String\(processRows\?\.\[0\]\?\.process_code/);
-  assert.match(source, /if \(resolvedProcessCode\) data\.process_code = resolvedProcessCode/);
+  assert.match(source, /if \(resolvedProcessCode\) \{\s*data\.process_code = resolvedProcessCode;/);
   assert.match(source, /const splitGc = isGiaCongProcess\(data\) && machineLines\.length > 1/);
 });
 

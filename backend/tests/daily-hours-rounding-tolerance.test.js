@@ -14,9 +14,20 @@ test('daily 12h limit tolerates 4-decimal rounding but still rejects real overru
 });
 
 test('all three daily-hours checks use the shared whole-minute boundary helper', () => {
-  for (const file of ['models/productionTempModel.js', 'models/productionTempCreateModel.js', 'models/productionTempUpdateModel.js']) {
+  // Submission orchestration moved from models/productionTempModel.js (now a facade) into
+  // services/productionTempSubmissionService.js; the guard set is unchanged.
+  for (const file of ['services/productionTempSubmissionService.js', 'models/productionTempCreateModel.js', 'models/productionTempUpdateModel.js']) {
     const source = read(file);
     assert.match(source, /exceedsDailyHoursLimit\(/, file);
     assert.doesNotMatch(source, /DAILY_HOURS_LIMIT \+ 0\.000001/, file);
+  }
+  assert.match(read('models/productionTempModel.js'), /\.\.\.submissionService/, 'facade re-exports the submission service');
+});
+
+test('the read endpoint and every 12-hour guard count existing hours with the same shared query', () => {
+  for (const file of ['routes/productionTempRoutes.js', 'services/productionTempSubmissionService.js', 'models/productionTempCreateModel.js', 'models/productionTempUpdateModel.js']) {
+    const source = read(file);
+    assert.match(source, /queryCountedDailyHours\(/, `${file} must use utils/dailyCountedHours`);
+    assert.doesNotMatch(source, /AS counted_hours FROM/, `${file} must not carry its own counted-hours SQL`);
   }
 });
