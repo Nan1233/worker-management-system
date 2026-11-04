@@ -42,9 +42,9 @@ router.get("/by-date", authMiddleware, checkRole("admin", "admin_ops", "manager"
 
 router.get("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), controller.getEditProposals);
 
-router.post("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), editProposalController.createEditProposal);
+router.post("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), controller.createEditProposal);
 
-router.put("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), editProposalController.updateEditProposal);
+router.put("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), controller.updateEditProposal);
 
 router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","admin","lead"), permission("REPORT_APPROVE"), async (req,res)=>{
     try{
@@ -70,7 +70,7 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
     }catch(error){console.error("REVIEW EDIT PROPOSAL ERROR:",error);return res.status(error.status||500).json({success:false,message:error.message||"Không thể xử lý đề xuất sửa"});}
 });
 
-router.delete("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), editProposalController.deleteEditProposal);
+router.delete("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), controller.deleteEditProposal);
 
 router.post("/approve-selected",authMiddleware,checkRole("admin","admin_ops","manager","lead"),validate({ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true}}),permission("REPORT_APPROVE"),controller.approveSelectedReports);
 router.post("/reject-selected",authMiddleware,checkRole("admin","admin_ops","manager","lead"),validate({ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true},reason:{required:true,type:"string",minLength:2,maxLength:500}}),permission("REPORT_APPROVE"),controller.rejectSelectedReports);
