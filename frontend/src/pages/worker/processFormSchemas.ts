@@ -86,7 +86,7 @@ export const PROCESS_FORM_SCHEMAS: Record<string, ProcessFormSchema> = {
     machineLabel: "Số máy mài",
     fields: [
       ...COMMON_FIELDS,
-      { key: "machine_lines", label: "Danh sách máy mài", kind: "machine-list", required: true },
+      { key: "machine_lines", label: "Danh sách máy mài (không bắt buộc)", kind: "machine-list" },
       { key: "product_code", label: "Mã sản phẩm", kind: "product", required: true },
       { key: "total_time", label: "Thời gian làm việc", kind: "number", required: true, unit: "giờ" },
       { key: "actual_time", label: "Thời gian làm thực tế", kind: "number", required: true, unit: "giờ" },
