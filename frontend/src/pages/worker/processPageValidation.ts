@@ -31,7 +31,7 @@ export function validateMachineLines(args: {
       || hasDeductionInput
     );
   });
-  if (!lines.length) return String(args.processCode || "").trim().toUpperCase() === "MAI" ? null : "Vui lòng nhập ít nhất một máy";
+  if (!lines.length) return String(args.processCode || "").trim().toUpperCase() === "MAI" ? "Vui lòng chọn mã sản phẩm và nhập sản lượng trước khi nộp báo cáo" : "Vui lòng nhập ít nhất một máy";
   if (lines.length > (args.maxMachines || 4)) return `Tối đa ${args.maxMachines || 4} máy`;
   for (const [lineIndex, line] of lines.entries()) {
     const machineCode = line.machineCode.trim();
