@@ -45,7 +45,7 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
   return { Model, log };
 }
 
-const baseData = () => ({ worker_id: 7, process_id: 3, work_date: '2026-10-23', shift: 'DAY', client_request_id: 'req-1', actual_time: 4, total_time: 4, tt_ok: 10, tt_ng: 1, operation_mode: 'MANUAL', product_name: 'P1', extra_data: {} });
+const baseData = () => ({ worker_id: 7, process_id: 3, work_date: '2026-10-23', shift: 'DAY', client_request_id: 'req-1', actual_time: 4, total_time: 4, deduction_time: 0.5, tt_ok: 10, tt_ng: 1, operation_mode: 'MANUAL', product_name: 'P1', extra_data: {} });
 const machineLine = (i) => ({ machine_code: `M${i}`, product_code: 'P1', machine_time_hours: 1, ok_quantity: 5, ng_quantity: 1, defects: [{ defect_type_id: 1, defect_code: 'a', defect_name: 'a', quantity: 1 }], deductions: [] });
 const run = (Model, extra = {}) => Model.createCompleteReport({ data: baseData(), defects: [{ defect_type_id: 1, quantity: 1 }], deductions: [{ deduction_type_id: 1, hours: 0.5 }], machineLines: [], audit: { userId: 9 }, ...extra });
 
@@ -89,7 +89,7 @@ test('12-hour daily limit is still enforced and the transaction is rolled back w
 
 test('GC daily cap counts machine_time_hours minus deductions when actual_time_hours is absent', async () => {
   const { Model, log } = setup({ supportsBeginIsolation: true, dailyHours: 9, processCode: 'GC' });
-  const data = { ...baseData(), actual_time: 0, _daily_hours_machine_lines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }] };
+  const data = { ...baseData(), actual_time: 0, deduction_time: 0, tt_ng: 0, _daily_hours_machine_lines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }] };
   await assert.rejects(
     () => Model.createCompleteReport({ data, defects: [], deductions: [], machineLines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }], audit: { userId: 9 } }),
     (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED' && error.status === 422
