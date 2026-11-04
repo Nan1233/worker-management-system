@@ -87,7 +87,7 @@ const executeQuery = async (executor, sql, params = []) => {
     // statement is a subrequest (limit 50), so the extra SELECT LAST_INSERT_ID() per INSERT is pure waste.
     // production_temp_machine_lines is written with one multi-row INSERT and defects are mapped by sort_order, so its
     // ids are not read either. Tables whose id IS consumed (production_reports_temp, ...) are not listed.
-    const idNeverReadTable = /^\s*INSERT\s+INTO\s+`?(?:production_temp_machine_lines|production_temp_machine_defects|production_temp_defects|production_temp_deductions|report_edit_logs|report_action_logs|activity_logs|report_versions)\b/i.test(String(sql || ""));
+    const idNeverReadTable = /^\s*INSERT\s+INTO\s+`?(?:production_report_duplicate_locks|production_temp_machine_lines|production_temp_machine_defects|production_temp_defects|production_temp_deductions|report_edit_logs|report_action_logs|activity_logs|report_versions)\b/i.test(String(sql || ""));
 
     if (!isInsert || currentInsertId > 0 || hasNoAutoIncrementId || idNeverReadTable) {
         return result;
