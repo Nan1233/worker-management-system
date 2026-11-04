@@ -38,6 +38,7 @@ function loadFacadeHarness() {
     findSimilarTempReport: async () => null,
     findSimilarApprovedReport: async () => null,
     lockClientRequestId: async () => {},
+    lockSubmissionKeys: async () => {},
     lockLogicalDuplicateKey: async () => {},
     lockMachineCapacityKeys: async () => {},
     create: async (data, connection) => {

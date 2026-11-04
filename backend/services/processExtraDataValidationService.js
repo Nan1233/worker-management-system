@@ -1,6 +1,7 @@
-const db = require("../config/db");
-
 const defaultQuery = (sql, params = []) => new Promise((resolve, reject) => {
+    // Load the database pool only when the default validator actually queries it.
+    // Injected-query unit tests must not create idle MySQL pools or open handles.
+    const db = require("../config/db");
     db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows || []));
 });
 

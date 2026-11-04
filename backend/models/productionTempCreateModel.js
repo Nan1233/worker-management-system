@@ -204,13 +204,24 @@ module.exports = {
              ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
             [logicalLockKey]
         );
-        await query(
-            executor,
-            `SELECT logical_key
-             FROM production_report_duplicate_locks
-             WHERE logical_key = ?
-             FOR UPDATE`,
-            [logicalLockKey]
+        // The INSERT ... ON DUPLICATE KEY UPDATE already acquires an exclusive InnoDB row lock held until transaction end.
+        // A follow-up SELECT ... FOR UPDATE is redundant and costs another TiDB HTTP subrequest.
+    },
+
+    async lockSubmissionKeys(workerId, clientRequestId, logicalDuplicateKey, executor = db) {
+        const worker = Number(workerId);
+        const requestId = String(clientRequestId || "").trim();
+        if (!Number.isInteger(worker) || worker <= 0 || !requestId || !logicalDuplicateKey) return;
+        const clientKey = crypto.createHash("sha256")
+            .update(`client-request:${worker}:${requestId}`, "utf8").digest("hex");
+        // A single multi-row upsert obtains exclusive locks for both idempotency
+        // and logical-duplicate keys; the unique-key update itself holds each lock
+        // until the surrounding transaction commits.
+        await query(executor,
+            `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
+             VALUES (?, NOW()), (?, NOW())
+             ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
+            [clientKey, logicalDuplicateKey]
         );
     },
 
@@ -223,11 +234,7 @@ module.exports = {
              ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
             [logicalDuplicateKey]
         );
-        await query(
-            executor,
-            `SELECT logical_key FROM production_report_duplicate_locks WHERE logical_key = ? FOR UPDATE`,
-            [logicalDuplicateKey]
-        );
+        // The upsert itself owns the duplicate-key row lock until commit.
     },
 
     async lockMachineCapacityKeys(processId, workDate, shift, machineLines, executor = db) {

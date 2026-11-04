@@ -49,10 +49,17 @@ function load(fake) {
     if (/config\/db$/.test(request)) return fake.db;
     return original.call(this, request, parent, ...rest);
   };
-  try {
+  for (const rel of ['services/permissionService', 'services/auditService', 'controllers/permissionController']) delete require.cache[require.resolve(path.join(BACKEND, rel))];
+  const service = require(path.join(BACKEND, 'services/permissionService'));
+  const controller = require(path.join(BACKEND, 'controllers/permissionController'));
+  let restored = false;
+  const cleanup = () => {
+    if (restored) return;
+    restored = true;
+    Module._load = original;
     for (const rel of ['services/permissionService', 'services/auditService', 'controllers/permissionController']) delete require.cache[require.resolve(path.join(BACKEND, rel))];
-    return { service: require(path.join(BACKEND, 'services/permissionService')), controller: require(path.join(BACKEND, 'controllers/permissionController')) };
-  } finally { Module._load = original; }
+  };
+  return { service, controller, cleanup };
 }
 
 function callController(handler, { params, body, user = { id: 1, role: 'admin' } }) {
@@ -63,16 +70,17 @@ function callController(handler, { params, body, user = { id: 1, role: 'admin' }
 }
 
 test('controller and service share one contract (the methods the controller calls exist)', () => {
-  const { service } = load(createFakeDb());
+  const { service, cleanup } = load(createFakeDb());
   assert.equal(typeof service.setRolePermission, 'function');
   assert.equal(typeof service.setUserPermission, 'function');
   const source = require('node:fs').readFileSync(path.join(BACKEND, 'controllers/permissionController.js'), 'utf8');
   assert.doesNotMatch(source, /setRoleOverride|setUserOverride/);
+  cleanup();
 });
 
-test('role override: grant, revoke and default (null deletes the row); every change audited', async () => {
+test('role override: grant, revoke and default (null deletes the row); every change audited', async (t) => {
   const fake = createFakeDb();
-  const { controller, service } = load(fake);
+  const { controller, service, cleanup } = load(fake); t.after(cleanup);
   let r = await callController(controller.setRole, { params: { role: 'lead', code: 'REPORT_EXPORT' }, body: { allowed: false } });
   assert.equal(r.status, 200);
   assert.equal(fake.state.role.get('lead:REPORT_EXPORT'), 0);
@@ -91,9 +99,9 @@ test('role override: grant, revoke and default (null deletes the row); every cha
   assert.ok(fake.state.activity.every((a) => a.userId === 1 && a.entityType === 'role_permission' && a.entityId === 'lead:REPORT_EXPORT'));
 });
 
-test('user override: grant/revoke/default with target role resolved from DB and audited', async () => {
+test('user override: grant/revoke/default with target role resolved from DB and audited', async (t) => {
   const fake = createFakeDb();
-  const { controller, service } = load(fake);
+  const { controller, service, cleanup } = load(fake); t.after(cleanup);
   await callController(controller.setUser, { params: { userId: '8', code: 'STATISTICS_VIEW' }, body: { allowed: false } });
   assert.equal(fake.state.user.get('8:STATISTICS_VIEW'), 0);
   assert.equal((await service.getEffectivePermissions({ id: 8, role: 'worker' })).has('STATISTICS_VIEW'), false);
@@ -106,9 +114,9 @@ test('user override: grant/revoke/default with target role resolved from DB and 
   ]);
 });
 
-test('ceilings and invariants are enforced server-side (nothing is written)', async () => {
+test('ceilings and invariants are enforced server-side (nothing is written)', async (t) => {
   const fake = createFakeDb();
-  const { controller } = load(fake);
+  const { controller, cleanup } = load(fake); t.after(cleanup);
   const cases = [
     [controller.setRole, { role: 'lead', code: 'PERMISSION_MANAGE' }, true, 'PERMISSION_ABOVE_ROLE_CEILING'],
     [controller.setRole, { role: 'admin_ops', code: 'PERMISSION_MANAGE' }, true, 'PERMISSION_ABOVE_ROLE_CEILING'],
@@ -134,18 +142,18 @@ test('ceilings and invariants are enforced server-side (nothing is written)', as
   assert.equal(fake.state.activity.length, 0);
 });
 
-test('admin_ops ceiling still caps effective permissions even with an existing grant row', async () => {
+test('admin_ops ceiling still caps effective permissions even with an existing grant row', async (t) => {
   const fake = createFakeDb();
   fake.state.role.set('admin_ops:MASTER_EDIT', 1);
-  const { service } = load(fake);
+  const { service, cleanup } = load(fake); t.after(cleanup);
   const effective = await service.getEffectivePermissions({ id: 10, role: 'admin_ops' });
   assert.equal(effective.has('MASTER_EDIT'), false);
   assert.equal(await service.hasPermission({ id: 10, role: 'admin_ops' }, 'PERMISSION_MANAGE'), false);
 });
 
-test('an audit failure rolls the permission change back (no unaudited change)', async () => {
+test('an audit failure rolls the permission change back (no unaudited change)', async (t) => {
   const fake = createFakeDb({ failAudit: true });
-  const { controller } = load(fake);
+  const { controller, cleanup } = load(fake); t.after(cleanup);
   await assert.rejects(() => callController(controller.setRole, { params: { role: 'lead', code: 'REPORT_EXPORT' }, body: { allowed: false } }), /audit down/);
   assert.equal(fake.state.role.size, 0);
   assert.ok(fake.state.log.includes('ROLLBACK'));
