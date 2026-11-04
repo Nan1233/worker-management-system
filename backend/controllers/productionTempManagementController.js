@@ -269,6 +269,36 @@ exports.updateTempReport = async (req, res) => {
     return res.status(result.status).json(result.body);
 };
 
+exports.deleteTempReport = async (req, res) => {
+    try {
+        const reportId = Number(req.params.id);
+        if (!Number.isInteger(reportId) || reportId <= 0) {
+            return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
+        }
+
+        const reason = String(req.body?.reason || "").trim();
+        if (!reason) {
+            return res.status(400).json({ success: false, message: "Vui lòng nhập lý do xóa báo cáo" });
+        }
+
+        const result = await ProductionTemp.deleteTempReport(
+            reportId,
+            Number(req.user.id),
+            req.user.role === "admin",
+            reason,
+            requestMeta(req)
+        );
+        invalidateManagerReportLists();
+        return res.json({ success: true, message: "Đã xóa báo cáo", data: result });
+    } catch (error) {
+        console.error("DELETE TEMP REPORT ERROR:", error);
+        return res.status(error.status || 500).json({
+            success: false,
+            message: error.message || "Không thể xóa báo cáo"
+        });
+    }
+};
+
 exports.getReportActionLogs = async (req, res) => {
     try {
         const reportId = toPositiveInteger(req.params.id);
