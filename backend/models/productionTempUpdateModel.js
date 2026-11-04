@@ -212,6 +212,32 @@ module.exports = {
                 if (!lockedCapacity.valid) { const error = new Error("Máy đã đủ số người cho phép"); error.status = 422; error.code = "MACHINE_WORKER_LIMIT_EXCEEDED"; error.isPublic = true; error.details = lockedCapacity.errors; throw error; }
                 data.machine_lines = normalizedMachineLines;
             }
+            // Keep parent-generated KPI columns consistent with the saved machine lines
+            // on both create-like edits and edits that only change another field.
+            if (String(current.operation_mode || "").toUpperCase() === "MACHINE") {
+                const machineLinesForParent = Array.isArray(normalizedMachineLines)
+                    ? normalizedMachineLines
+                    : (Array.isArray(oldSnapshot?.machine_lines) ? oldSnapshot.machine_lines : []);
+                if (machineLinesForParent.length) {
+                    const totals = machineLinesForParent.reduce((sum, line) => {
+                        const machineHours = Math.max(0, Number(line?.machine_time_hours) || 0);
+                        const deductionHours = Math.min(machineHours, Math.max(0, Number(line?.deduction_time_hours) || 0));
+                        const actualHours = Math.max(0, machineHours - deductionHours);
+                        const standard = Math.max(0, Number(line?.standard_output) || 0);
+                        sum.actualTime += actualHours;
+                        sum.deductionTime += deductionHours;
+                        sum.totalTime += machineHours;
+                        sum.standardTime += actualHours * standard;
+                        return sum;
+                    }, { actualTime: 0, deductionTime: 0, totalTime: 0, standardTime: 0 });
+                    data.actual_time = Number(totals.actualTime.toFixed(4));
+                    data.deduction_time = Number(totals.deductionTime.toFixed(4));
+                    data.total_time = Number(totals.totalTime.toFixed(4));
+                    data.standard_output = totals.actualTime > 0
+                        ? Number((totals.standardTime / totals.actualTime).toFixed(6))
+                        : 0;
+                }
+            }
             let dailyHoursMachineLines = normalizedMachineLines;
             if (isGc && !Array.isArray(dailyHoursMachineLines)) {
                 const storedLines = Array.isArray(oldSnapshot?.machine_lines)
