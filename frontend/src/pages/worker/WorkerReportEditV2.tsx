@@ -10,7 +10,7 @@ import { getWorkerDeclaredDefects } from "../../utils/workerDeclaredDefects";
 import { detectIncompleteMachineData } from "../../utils/machineLinesIntegrity";
 import { buildApprovedMachineNotePatch, isApprovedMachineReport } from "../../utils/approvedMachineEditPatch";
 import { useProcessMasterData } from "./useProcessMasterData";
-import { createEmptyMachineLine, getWorkerAllowedWorkDates, initialDeduction, initialForm, type DeductionState, type FormState, type MachineLineState, type NgKey } from "./processPageConfig";
+import { KQD_CODES, createEmptyMachineLine, getWorkerAllowedWorkDates, initialDeduction, initialForm, type DeductionState, type FormState, type MachineLineState, type NgKey } from "./processPageConfig";
 import { buildProductionReportPayload } from "./processReportSubmission";
 import { filterProductsForSelection, toProductAutocompleteOptions } from "./productSuggestionRules";
 import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
@@ -308,9 +308,15 @@ function WorkerReportEditV2() {
   const normalizeDeduction = (key: string) => updateDeduction(key, String(Math.min(720, Math.max(0, Number(deductions[key] || 0)))));
   const warning = (message: string) => setError(message);
 
+  const excludesKqdFromTt = Number(report?.exclude_kqd_from_tt ?? report?.exclude_kqd_from_tt_snapshot ?? 0) === 1;
   const recalcQuality = (next: FormState) => {
-    const ng = editNgOptions.reduce((sum: number, item: any) => sum + Math.max(0, Math.trunc(n(next[item.key]))), 0);
-    return { ...next, ttNg: String(ng), actualOutput: String(Math.max(0, Math.trunc(n(next.ttOk))) + ng) };
+    const countedNg = editNgOptions.reduce((sum: number, item: any) => {
+      const code = s(item.code).trim().toUpperCase();
+      if (excludesKqdFromTt && KQD_CODES.has(code)) return sum;
+      return sum + Math.max(0, Math.trunc(n(next[item.key])));
+    }, 0);
+    const totalNg = editNgOptions.reduce((sum: number, item: any) => sum + Math.max(0, Math.trunc(n(next[item.key]))), 0);
+    return { ...next, ttNg: String(totalNg), actualOutput: String(Math.max(0, Math.trunc(n(next.ttOk))) + countedNg) };
   };
   const toggleNg = (key: NgKey, checked: boolean) => setSelectedNg((current) => checked ? Array.from(new Set([...current, key])) : current.filter((item) => item !== key));
   const updateNg = (key: NgKey, value: string) => setForm((current) => recalcQuality({ ...current, [key]: value.replace(/\D/g, "") }));
@@ -346,6 +352,7 @@ function WorkerReportEditV2() {
       clientRequestId: null, processId: report.process_id, form: { ...form, actualTime: `${form.actualHours}:${form.actualMinutes}`, deductionTime: form.deductionTime, totalTime: `${Math.floor(totalHours)}:${String(Math.round((totalHours % 1) * 60)).padStart(2, "0")}` },
       extraData, operationType, isCutLongProcess: capabilities.isCutLongProcess, processCode: capabilities.processCode, isCvkMode, usesAnyMachine: operationMode === "MACHINE", usesMultiMachineLines, usesSingleMachine,
       machineLines: normalizedLines, machineOptions: editMachineOptions, productOptions: editProductOptions, activeNgOptions: editNgOptions, deductions, activeDeductionOptions: editDeductionOptions,
+      excludeKqdFromTt: excludesKqdFromTt,
     });
     }
     if (!approvedMachineNoteOnly) { payload.updated_at = report.updated_at; payload.expected_updated_at = report.updated_at; }
