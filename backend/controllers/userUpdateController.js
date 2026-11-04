@@ -4,6 +4,7 @@ const { clearWorkerProfile } = require('../utils/workerProfileCache');
 const { deleteCachedAuthUser } = require('../utils/authUserCache');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
 const { assertUserManagementScope } = require('../services/processAuthorizationService');
+const AuditService = require('../services/auditService');
 
 const ROLE_CREATE_RULES = { admin: ['manager','lead','worker'], admin_ops: ['lead','worker'], manager: ['lead','worker'], lead: ['worker'] };
 const manageableRoles = (role) => ROLE_CREATE_RULES[role] || [];
@@ -57,7 +58,7 @@ exports.updateUser = async (req,res) => {
   try {
     const id=Number(req.params.id);
     if(!Number.isInteger(id)||id<=0)return res.status(400).json({success:false,message:'ID người dùng không hợp lệ'});
-    const [found]=await connection.query('SELECT u.id,u.role,w.id AS worker_id FROM users u LEFT JOIN workers w ON w.user_id=u.id WHERE u.id=? LIMIT 1',[id]);
+    const [found]=await connection.query('SELECT u.id,u.role,u.status,w.id AS worker_id FROM users u LEFT JOIN workers w ON w.user_id=u.id WHERE u.id=? LIMIT 1',[id]);
     if(!found.length)return res.status(404).json({success:false,message:'Người dùng không tồn tại'});
     if(!await canManageTarget(connection,req.user,found[0]))return res.status(403).json({success:false,message:'Bạn không có quyền sửa người dùng này'});
     const body=req.body||{};
@@ -87,7 +88,13 @@ exports.updateUser = async (req,res) => {
     if(processIdsProvided)await replaceProcessAssignments(connection,found[0].role,id,found[0].worker_id,processIds);
     if(Object.prototype.hasOwnProperty.call(payload,'password')||payload.status==='inactive')await revokeAllUserFamilies(id,{executor:connection});
     clearWorkerProfile(id);deleteCachedAuthUser(id);
-    return res.json({success:true,message:'Cập nhật người dùng thành công'});
+    // Semantic audit for reversible lock/unlock (the generic activity middleware only records "UPDATE").
+    // Master Control writes its own CONTROL_USER_* record and sets _statusAuditHandled.
+    if('status'in payload&&payload.status!==String(found[0].status||'')&&!req._statusAuditHandled){
+      try{await AuditService.logActivity({userId:req.user?.id,action:payload.status==='inactive'?'USER_LOCKED':'USER_UNLOCKED',entityType:'user',entityId:id,description:`${payload.status==='inactive'?'Khóa':'Mở khóa'} tài khoản #${id} (${found[0].role})`,metadata:{before:{status:found[0].status??null},after:{status:payload.status},target_role:found[0].role,reversible:true,actor_role:req.user?.role||null,request_id:req.requestId||null},req});}
+      catch(auditError){console.error('[KTC] USER_STATUS_AUDIT_FAILED',{requestId:req.requestId||null,message:auditError?.message});}
+    }
+    return res.json({success:true,message:payload.status==='inactive'?'Đã khóa tài khoản (có thể mở lại)':'Cập nhật người dùng thành công'});
   } catch(error){
     if(error?.code==='ER_DUP_ENTRY')return res.status(409).json({success:false,message:'Tên đăng nhập hoặc mã công nhân đã tồn tại'});
     if(error?.status)return res.status(error.status).json({success:false,message:error.message});
