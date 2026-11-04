@@ -16,14 +16,19 @@ test('worker and master-data loads are fenced when process changes', () => {
   assert.match(source, /\[processInfo\.id, processCode, showToast\]/);
 });
 
-test('KQD is counted as a normal NG defect with no product exclusion policy', () => {
+test('KQD is counted normally by default and excluded only when product master policy says so', () => {
   const config = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'worker', 'processPageConfig.ts'), 'utf8');
   const formUtils = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'worker', 'processFormUtils.ts'), 'utf8');
   const submission = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'worker', 'processReportSubmission.ts'), 'utf8');
-  assert.doesNotMatch(source, /resolvedReportKqdPolicy|setResolvedReportKqdPolicy|productExcludesKqd|KQD_CODES|excludeKqdFromTt/);
-  assert.doesNotMatch(config, /KQD_CODES|kqdExclusionRegistry/);
-  assert.match(formUtils, /sum \+ Number\(values\[item\.key\] \|\| 0\)/);
+
+  assert.match(source, /resolvedReportKqdPolicy/);
+  assert.match(source, /setResolvedReportKqdPolicy\(Number\(resolved\.exclude_kqd_from_tt/);
+  assert.match(source, /excludeKqdFromTt: resolvedReportKqdPolicy === true/);
+  assert.doesNotMatch(source, /Quy tắc KQD theo sản phẩm|name=["']exclude_kqd_from_tt["']/);
+  assert.match(config, /kqdExclusionRegistry/);
+  assert.match(formUtils, /if \(excludeKqd && kqdCodes\.has\(code\)\) return sum/);
+  assert.match(formUtils, /return sum \+ Number\(values\[item\.key\] \|\| 0\)/);
   assert.match(submission, /\["kqdDapLai", "KQD", "KQD"\]/);
   assert.match(submission, /\["kqdTuot", "KQD", "KQD"\]/);
-  assert.doesNotMatch(submission, /exclude_kqd_from_tt|excludeKqdFromTt/);
+  assert.match(submission, /exclude_kqd_from_tt:args\.excludeKqdFromTt\?1:0/);
 });
