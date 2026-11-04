@@ -57,6 +57,7 @@ export default function ProcessTimeDeductionSection({ processCode = "", form, se
 
     return (
         <section className="worker-form-card">
+            <style>{".worker-time-grid,.machine-worker-time-grid{display:grid!important;grid-template-columns:minmax(0,1.7fr) repeat(2,minmax(0,1fr))!important;gap:10px!important;align-items:stretch!important}.worker-time-grid>.worker-time-item,.machine-worker-time-grid>.worker-time-item{min-width:0!important;width:auto!important;grid-column:auto!important}@media(max-width:700px){.worker-time-grid,.machine-worker-time-grid{grid-template-columns:minmax(0,1fr)!important}}"}</style>
             <h2 className="worker-card-title"><span><AppIcon name="clock" size={15} /></span> Hiệu suất &amp; Thời gian</h2>
             <div className="worker-time-grid">
                 <div className="worker-time-item" data-worker-time="actual">
