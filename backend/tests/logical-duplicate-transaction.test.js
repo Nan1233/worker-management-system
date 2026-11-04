@@ -10,6 +10,7 @@ function loadCreateModelHarness() {
   const capacityPath = require.resolve('../services/factoryMachineRuleService');
   const auditPath = require.resolve('../services/auditService');
   const modelPath = require.resolve('../models/productionTempCreateModel');
+  const submissionServicePath = require.resolve('../services/productionTempSubmissionService');
 
   const rows = [];
   const requestRows = new Map();
@@ -47,6 +48,7 @@ function loadCreateModelHarness() {
     loadTempReportSnapshot: async (id) => ({ id }),
     createReportVersion: async () => 1,
   });
+  delete require.cache[submissionServicePath];
   delete require.cache[modelPath];
   const model = require(modelPath);
 
