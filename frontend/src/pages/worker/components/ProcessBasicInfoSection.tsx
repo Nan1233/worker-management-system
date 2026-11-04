@@ -62,6 +62,7 @@ export default function ProcessBasicInfoSection({ processCode, form, setForm, on
     // ProcessTimeDeductionSection.tsx cho báo cáo không có máy.
     const getMachineActualMinutes = (line: MachineLineState): number => (Number(line.hours) || 0) * 60 + (Number(line.minutes) || 0);
     const getMachineDeductionMinutes = (line: MachineLineState): number => Object.values(line.deductions || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+    const formatMachineHours = (minutes: number): string => (Math.max(0, minutes) / 60).toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     const updateMachineActualHours = (lineIndex: number, rawValue: string) => {
         const line = machineLines[lineIndex];
         if (!line) return;
@@ -140,13 +141,11 @@ export default function ProcessBasicInfoSection({ processCode, form, setForm, on
 </div>
 <div className="worker-time-item worker-time-computed" data-worker-time="machine-deduction">
 <label>{isMaiProcess ? "Thời gian dừng máy" : "Thời gian trừ"}</label>
-<input data-worker-time-value="machine-deduction" value={String(getMachineDeductionMinutes(line))} readOnly aria-readonly="true" />
-<small>{Math.floor(getMachineDeductionMinutes(line) / 60)} giờ {getMachineDeductionMinutes(line) % 60} phút</small>
+<div className="worker-time-value-with-unit"><input data-worker-time-value="machine-deduction" value={formatMachineHours(getMachineDeductionMinutes(line))} readOnly aria-readonly="true" /><span>giờ</span></div>
 </div>
 <div className="worker-time-item worker-time-computed" data-worker-time="machine-total">
 <label>Tổng thời gian</label>
-<input data-worker-time-value="machine-total" value={String(getMachineActualMinutes(line) + getMachineDeductionMinutes(line))} readOnly aria-readonly="true" />
-<small>{Math.floor((getMachineActualMinutes(line) + getMachineDeductionMinutes(line)) / 60)} giờ {(getMachineActualMinutes(line) + getMachineDeductionMinutes(line)) % 60} phút</small>
+<div className="worker-time-value-with-unit"><input data-worker-time-value="machine-total" value={formatMachineHours(getMachineActualMinutes(line) + getMachineDeductionMinutes(line))} readOnly aria-readonly="true" /><span>giờ</span></div>
 </div>
 
 </div>
@@ -161,7 +160,7 @@ export default function ProcessBasicInfoSection({ processCode, form, setForm, on
 </div>
 <div className="machine-detail-dropdown-row"><div className="machine-detail-dropdown-item"><div className="worker-dropdown-box machine-worker-deduction-box">
 <button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineDeductionIndex((current) => current === index ? null : index)} aria-expanded={openMachineDeductionIndex === index}>
-<span className="worker-dropdown-title-main"><span>{isMaiProcess ? "Thời gian dừng máy" : "⏱ Thời gian trừ"}</span><small>{line.selectedDeductions?.length ? `${line.selectedDeductions.length} loại · ${getMachineDeductionMinutes(line)} phút` : "Không có thời gian dừng máy"}</small></span>
+<span className="worker-dropdown-title-main"><span>{isMaiProcess ? "Thời gian dừng máy" : "⏱ Thời gian trừ"}</span><small>{line.selectedDeductions?.length ? `${line.selectedDeductions.length} loại · ${formatMachineHours(getMachineDeductionMinutes(line))} giờ` : "Không có thời gian dừng máy"}</small></span>
 <span aria-hidden="true">▼</span>
 </button>
 {openMachineDeductionIndex === index && <div className="worker-dropdown-options">
