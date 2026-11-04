@@ -13,14 +13,6 @@ const controller = require("../controllers/productionTempController");
 const validate = require("../middleware/validateRequest");
 const { workerReportLimiter } = require("../middleware/rateLimiters");
 
-const { TtlCache } = require("../utils/cache");
-const managerListCache = new TtlCache({ maxEntries: 300 });
-const MANAGER_LIST_TTL_MS = 15000;
-function invalidateManagerReportLists() {
-    managerListCache.deleteByPrefix("manager:pending:");
-    managerListCache.deleteByPrefix("manager:approved:");
-}
-
 const productionTempValidation = validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:false,maxLength:100}, product_name:{required:false,maxLength:150} });
 
 router.post("/", authMiddleware, workerReportLimiter, checkRole("worker"), permission("WORKER_ENTRY"), productionTempValidation, controller.createTempReport);
@@ -55,5 +47,5 @@ router.put("/:id",authMiddleware,checkRole("admin","admin_ops","manager","lead",
 
 router.delete("/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_DELETE"), controller.deleteTempReport);
 
-router.invalidateManagerReportLists = invalidateManagerReportLists;
+router.invalidateManagerReportLists = controller.invalidateManagerReportLists;
 module.exports = router;
