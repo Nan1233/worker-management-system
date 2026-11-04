@@ -38,11 +38,10 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             return { valid: false, lines: [], totals: null, errors };
         }
 
-        const machineCodes = machineLines.map((line) => normalizeCode(line.machine_code).toUpperCase());
-        if (new Set(machineCodes).size !== machineCodes.length) {
-            errors.machine_lines = "Không được chọn trùng máy";
-            return { valid: false, lines: [], totals: null, errors };
-        }
+        // MAI allows the same physical machine on multiple rows: a worker may
+        // finish one product code and then switch to another on that machine.
+        // Keep each run as a separate line so its product, quantities and time
+        // remain attributable; totals below sum every run's machine_time_hours.
 
         // IMPORTANT for Cloudflare Workers + TiDB:
         // Do not query defect_types once per selected defect. When a worker
