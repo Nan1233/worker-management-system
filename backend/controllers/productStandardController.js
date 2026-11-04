@@ -9,7 +9,7 @@ const GC_NO_STANDARD_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
 // Cache-key versions deliberately invalidate stale master data after external DB updates.
 const MACHINE_CACHE_VERSION = "v3";
-const PRODUCT_STANDARD_CACHE_VERSION = "v4";
+const PRODUCT_STANDARD_CACHE_VERSION = "v5";
 
 const loadGcProductStandardsDirect = async (processId, processCode) => {
   const where = processCode
@@ -23,13 +23,13 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ps.process_id,
         p.process_code,
         CASE
+          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('LỒNG','LONG','LNG') THEN 'LONG'
+          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('CẮT','CUT','CAT') THEN 'CUT'
           WHEN UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP') THEN 'LONG'
-          WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('LỒNG','LONG') THEN 'LONG'
-          WHEN UPPER(TRIM(COALESCE(pa.alias_code, ''))) LIKE 'C%' THEN 'CUT'
-          ELSE COALESCE(ps.work_type, 'LONG')
+          ELSE NULL
         END AS work_type,
-        ps.product_code,
-        COALESCE(pa.alias_code, ps.encoding_code) AS alias_code,
+        UPPER(TRIM(ps.product_code)) AS product_code,
+        NULL AS alias_code,
         ps.encoding_code,
         ps.standard_output,
         COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
@@ -52,10 +52,6 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ), '') AS eligible_machine_codes
     FROM product_standards ps
     JOIN processes p ON p.id = ps.process_id
-    LEFT JOIN product_aliases pa
-      ON pa.process_id = ps.process_id
-     AND UPPER(TRIM(pa.product_code)) = UPPER(TRIM(ps.product_code))
-     AND pa.status = 'active'
     WHERE ${where}
       AND p.status = 'active'
       AND ps.status = 'active'
@@ -63,7 +59,7 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ps.standard_output > 0
         OR UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP')
       )
-    ORDER BY ps.product_code ASC, alias_code ASC, ps.id ASC
+    ORDER BY ps.product_code ASC, ps.id ASC
   `, [param]);
 
   return Array.isArray(rows) ? rows : [];
