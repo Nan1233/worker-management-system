@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const ProductionTemp = require("../models/productionTempModel");
+const { updateTempReportUseCase } = require("./productionTempUpdateUseCase");
 
 const canAccessProposalReport = async (user, reportId) => {
     if (user?.role === "admin") return true;
@@ -177,6 +178,80 @@ const setEditProposalStatus = async (id, status) => {
     );
 };
 
+
+const reviewEditProposal = async ({ user, id, body = {} }) => {
+    const decision = String(body?.decision || "").toLowerCase();
+    const statusAfter = String(body?.status_after || "pending").toLowerCase();
+    const current = await getProposalDetail(id);
+
+    if (!current) {
+        return { status: 404, body: { success: false, message: "Không tìm thấy đề xuất sửa" } };
+    }
+    if (!(await canAccessProposalReport(user, current.report_id))) {
+        return { status: 403, body: { success: false, message: "Đề xuất ngoài phạm vi phụ trách" } };
+    }
+    if (current.status !== "pending") {
+        return { status: 400, body: { success: false, message: "Đề xuất này đã được xử lý" } };
+    }
+
+    if (decision === "reject") {
+        const reason = String(body?.reason || "").trim();
+        if (reason.length < 2) {
+            return { status: 400, body: { success: false, message: "Vui lòng nhập lý do từ chối" } };
+        }
+        await setEditProposalStatus(id, "rejected");
+        return {
+            status: 200,
+            body: {
+                success: true,
+                message: "Đã từ chối đề xuất sửa",
+                data: await getProposalDetail(id)
+            }
+        };
+    }
+
+    if (decision !== "approve") {
+        return { status: 400, body: { success: false, message: "Thao tác xử lý không hợp lệ" } };
+    }
+
+    const proposed = current.proposed_data && typeof current.proposed_data === "object"
+        ? current.proposed_data
+        : {};
+    const updateResult = await updateTempReportUseCase({
+        reportId: current.report_id,
+        body: { ...proposed, reason: `Duyệt đề xuất sửa #${id}` },
+        user
+    });
+
+    if (updateResult.status >= 400 || updateResult.body?.success === false) {
+        return {
+            status: updateResult.status || 400,
+            body: updateResult.body || { success: false, message: "Không thể cập nhật báo cáo theo đề xuất" }
+        };
+    }
+
+    if (statusAfter === "approved") {
+        await ProductionTemp.approveSelected(
+            [{ id: current.report_id }],
+            Number(user.id),
+            user.role === "admin"
+        );
+    }
+
+    const newStatus = statusAfter === "approved" ? "approved" : "accepted";
+    await setEditProposalStatus(id, newStatus);
+    return {
+        status: 200,
+        body: {
+            success: true,
+            message: statusAfter === "approved"
+                ? "Đã sửa và duyệt báo cáo"
+                : "Đã áp dụng đề xuất, báo cáo đang chờ duyệt",
+            data: await getProposalDetail(id)
+        }
+    };
+};
+
 module.exports = {
     listEditProposals,
     createEditProposal,
@@ -185,7 +260,8 @@ module.exports = {
     deleteEditProposal,
     createLegacyEditProposal,
     canAccessProposalReport,
-    setEditProposalStatus
+    setEditProposalStatus,
+    reviewEditProposal
 };
 
 
