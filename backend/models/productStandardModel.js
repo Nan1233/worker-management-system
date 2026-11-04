@@ -93,7 +93,7 @@ exports.findByProcess = async (processId) => {
 exports.findByProcessCode = async (processCode) => {
     const normalized = String(processCode || '').trim().toUpperCase();
     if (normalized === 'GC') {
-        return query(`${GC_ALIAS_SELECT} ORDER BY product_code ASC, alias_code ASC`, []);
+        return query(`${GC_CANONICAL_SELECT} ORDER BY product_code ASC`, []);
     }
 
     return query(`${PRODUCT_STANDARD_SELECT}
@@ -108,6 +108,8 @@ exports.findByProcessCode = async (processCode) => {
 const resolveAliasToProductCode = async (processId, productCode) => {
     const input = String(productCode || '').trim();
     if (!input) return input;
+    // GC product_code is canonical. Never translate it through product_aliases.
+    if (Number(processId) === 1) return input.toUpperCase();
 
     const rows = await query(`
         SELECT DISTINCT product_code
