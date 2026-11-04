@@ -207,4 +207,4 @@ const rejectSelectedReports = async (req, res) => {
     }
 };
 
-module.exports = { ...workerController, ...managementController, createTempReport, rejectSelectedReports, validateManualOutputCeiling, getDailyHours: dailyHoursController.getDailyHours, getEditProposals: editProposalController.getEditProposals, createEditProposal: editProposalController.createEditProposal, updateEditProposal: editProposalController.updateEditProposal, deleteEditProposal: editProposalController.deleteEditProposal, requestEditProposal: editProposalController.requestEditProposal };
+module.exports = { ...workerController, ...managementController, createTempReport, rejectSelectedReports, validateManualOutputCeiling, getDailyHours: dailyHoursController.getDailyHours, getEditProposals: editProposalController.getEditProposals, createEditProposal: editProposalController.createEditProposal, updateEditProposal: editProposalController.updateEditProposal, deleteEditProposal: editProposalController.deleteEditProposal, requestEditProposal: editProposalController.requestEditProposal, reviewEditProposal: editProposalController.reviewEditProposal };
