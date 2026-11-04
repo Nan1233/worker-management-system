@@ -4,12 +4,8 @@ const {
     updateEditProposal,
     deleteEditProposal,
     createLegacyEditProposal,
-    getProposalDetail,
-    canAccessProposalReport,
-    setEditProposalStatus
+    reviewEditProposal
 } = require("../services/productionTempEditProposalService");
-const ProductionTemp = require("../models/productionTempModel");
-const { updateTempReportUseCase } = require("../services/productionTempUpdateUseCase");
 
 exports.getEditProposals = async (req, res) => {
     try {
@@ -96,67 +92,12 @@ exports.requestEditProposal = async (req, res) => {
 
 exports.reviewEditProposal = async (req, res) => {
     try {
-        const id = Number(req.params.id);
-        const decision = String(req.body?.decision || "").toLowerCase();
-        const statusAfter = String(req.body?.status_after || "pending").toLowerCase();
-        const current = await getProposalDetail(id);
-        if (!current) return res.status(404).json({ success: false, message: "Không tìm thấy đề xuất sửa" });
-        if (!(await canAccessProposalReport(req.user, current.report_id))) {
-            return res.status(403).json({ success: false, message: "Đề xuất ngoài phạm vi phụ trách" });
-        }
-        if (current.status !== "pending") {
-            return res.status(400).json({ success: false, message: "Đề xuất này đã được xử lý" });
-        }
-
-        if (decision === "reject") {
-            const reason = String(req.body?.reason || "").trim();
-            if (reason.length < 2) {
-                return res.status(400).json({ success: false, message: "Vui lòng nhập lý do từ chối" });
-            }
-            await setEditProposalStatus(id, "rejected");
-            return res.json({
-                success: true,
-                message: "Đã từ chối đề xuất sửa",
-                data: await getProposalDetail(id)
-            });
-        }
-
-        if (decision !== "approve") {
-            return res.status(400).json({ success: false, message: "Thao tác xử lý không hợp lệ" });
-        }
-
-        const proposed = current.proposed_data && typeof current.proposed_data === "object"
-            ? current.proposed_data
-            : {};
-        const updateResult = await updateTempReportUseCase({
-            reportId: current.report_id,
-            body: { ...proposed, reason: `Duyệt đề xuất sửa #${id}` },
-            user: req.user
+        const result = await reviewEditProposal({
+            user: req.user,
+            id: Number(req.params.id),
+            body: req.body
         });
-
-        if (updateResult.status >= 400 || updateResult.body?.success === false) {
-            return res.status(updateResult.status || 400).json(
-                updateResult.body || { success: false, message: "Không thể cập nhật báo cáo theo đề xuất" }
-            );
-        }
-
-        if (statusAfter === "approved") {
-            await ProductionTemp.approveSelected(
-                [{ id: current.report_id }],
-                Number(req.user.id),
-                req.user.role === "admin"
-            );
-        }
-
-        const newStatus = statusAfter === "approved" ? "approved" : "accepted";
-        await setEditProposalStatus(id, newStatus);
-        return res.json({
-            success: true,
-            message: statusAfter === "approved"
-                ? "Đã sửa và duyệt báo cáo"
-                : "Đã áp dụng đề xuất, báo cáo đang chờ duyệt",
-            data: await getProposalDetail(id)
-        });
+        return res.status(result.status).json(result.body);
     } catch (error) {
         console.error("REVIEW EDIT PROPOSAL ERROR:", error);
         return res.status(error.status || 500).json({
