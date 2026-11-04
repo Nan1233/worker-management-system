@@ -67,7 +67,7 @@ test('Non-Worker (pooled MySQL) path keeps SET TRANSACTION before BEGIN', async 
 test('no LAST_INSERT_ID lookup for hash-keyed duplicate locks, no cleanup queries for a new report, process_code read once', async () => {
   const { Model, log } = setup({ supportsBeginIsolation: true });
   await run(Model);
-  assert.equal(log.filter((sql) => /LAST_INSERT_ID/i.test(sql)).length, 1, 'only the auto-increment report insert may recover its id');
+  assert.equal(log.filter((sql) => /LAST_INSERT_ID/i.test(sql)).length, 0, 'the fake driver already returns insertId; duplicate-lock rows must not request LAST_INSERT_ID');
   assert.equal(log.filter((sql) => /^(SELECT id, machine_event_id, machine_code|DELETE FROM production_temp_machine_(lines|defects))/i.test(sql)).length, 0);
   assert.equal(log.filter((sql) => /^SELECT process_code FROM processes/i.test(sql)).length, 1);
 });
