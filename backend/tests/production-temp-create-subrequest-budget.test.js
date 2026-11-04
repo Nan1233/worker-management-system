@@ -45,7 +45,7 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
   return { Model, log };
 }
 
-const baseData = () => ({ worker_id: 7, process_id: 3, work_date: '2026-10-23', shift: 'DAY', client_request_id: 'req-1', actual_time: 4, total_time: 4, tt_ok: 10, tt_ng: 0, operation_mode: 'MANUAL', product_name: 'P1', extra_data: {} });
+const baseData = () => ({ worker_id: 7, process_id: 3, work_date: '2026-10-23', shift: 'DAY', client_request_id: 'req-1', actual_time: 4, total_time: 4, tt_ok: 10, tt_ng: 1, operation_mode: 'MANUAL', product_name: 'P1', extra_data: {} });
 const machineLine = (i) => ({ machine_code: `M${i}`, product_code: 'P1', machine_time_hours: 1, ok_quantity: 5, ng_quantity: 1, defects: [{ defect_type_id: 1, defect_code: 'a', defect_name: 'a', quantity: 1 }], deductions: [] });
 const run = (Model, extra = {}) => Model.createCompleteReport({ data: baseData(), defects: [{ defect_type_id: 1, quantity: 1 }], deductions: [{ deduction_type_id: 1, hours: 0.5 }], machineLines: [], audit: { userId: 9 }, ...extra });
 
@@ -104,5 +104,5 @@ test('re-submitting the same client_request_id returns the existing report and w
   assert.equal(result.duplicate, true);
   assert.equal(result.id, 77);
   assert.ok(!log.some((sql) => /^INSERT INTO production_reports_temp/i.test(sql)));
-  assert.equal(log.at(-1), 'COMMIT');
+  assert.ok(!log.some((sql) => /^BEGIN(?:\\s|$)/i.test(sql)), 'idempotent retry should return before opening a transaction');
 });
