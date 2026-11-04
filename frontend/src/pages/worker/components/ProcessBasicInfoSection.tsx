@@ -151,12 +151,12 @@ export default function ProcessBasicInfoSection({ processCode, form, setForm, on
 </div>
 <div className="machine-quantity-section">
 <div className="machine-section-title">Sản lượng máy</div>
-{isMaiProcess && <label className="worker-field-block"><span className="worker-field-label">KQSX (OK + NG)</span><input className="worker-text-input" type="number" value={String((Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0))} readOnly aria-readonly="true" /></label>}
+
 <div className="machine-quantity-row machine-worker-quantity-row">
 <label className="machine-quantity-item machine-quantity-ok"><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} placeholder="0" /></label>
 <label className="machine-quantity-item machine-quantity-ng"><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly={!isMaiProcess} aria-readonly={!isMaiProcess} title={isMaiProcess ? "Nhập số NG; chi tiết lỗi bên dưới phải khớp" : "Tự động tính từ chi tiết lỗi NG"} onChange={(event) => updateMachineLine(index, { ngQuantity: event.target.value.replace(/\D/g, "") })} placeholder="0" /></label>
 </div>
-{isMaiProcess && <small className="worker-field-hint">KQSX tự tính bằng OK + NG; tổng chi tiết lỗi phải bằng NG.</small>}
+{isMaiProcess && <small className="worker-field-hint">Sản lượng được tự động tính bằng OK + NG; tổng chi tiết lỗi phải bằng NG.</small>}
 </div>
 <div className="machine-detail-dropdown-row"><div className="machine-detail-dropdown-item"><div className="worker-dropdown-box machine-worker-deduction-box">
 <button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineDeductionIndex((current) => current === index ? null : index)} aria-expanded={openMachineDeductionIndex === index}>
