@@ -5,7 +5,7 @@ import type { ProductionDeduction, ProductionDefect, ProductionReport } from "..
 
 export interface CompanyNetworkAccess { allowed:boolean; restricted:boolean; enforced:boolean; configured:boolean; client_ip:string; message:string; }
 export const getCompanyNetworkAccess=async(forceRefresh=false):Promise<CompanyNetworkAccess>=>{const loader=async()=>{const res=await api.get("/network/access");return res.data?.data||res.data;};if(forceRefresh)return loader();return getSessionCached("network-access",5*60*1000,loader);};
-export const createTempReport=async(data:ProductionReport)=>{const res=await api.post("/production-temp",data,{timeout:30000});return res.data;};
+export const createTempReport=async(data:ProductionReport)=>{const res=await api.post("/production-temp",data,{timeout:20000,_skipProactiveRefresh:true} as any);return res.data;};
 export interface SimilarReportCheckResponse{success:boolean;duplicate:boolean;data:{id:number;status:string;work_date:string;shift:string;machine_no:string;product_name:string}|null;message:string;}
 export const checkSimilarTempReport=async(data:Pick<ProductionReport,"process_id"|"work_date"|"shift"|"machine_no"|"product_name">&Partial<Pick<ProductionReport,"operation_mode"|"work_type"|"operation_type">>):Promise<SimilarReportCheckResponse>=>{const res=await api.post("/production-temp/check-similar",data);return res.data;};
 export const getTempDates=async()=>{const res=await api.get("/production-temp/dates");return res.data.data||res.data||[];};

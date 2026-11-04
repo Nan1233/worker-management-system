@@ -74,7 +74,7 @@ interface RefreshResponse {
 }
 
 const TOKEN_REFRESH_LEEWAY_MS = 2 * 60 * 1000;
-const REFRESH_REQUEST_TIMEOUT_MS = 90_000;
+const REFRESH_REQUEST_TIMEOUT_MS = 20_000;
 const TRANSIENT_REFRESH_COOLDOWN_MS = 10_000;
 const CROSS_TAB_LOGIN_MARKER_KEY = "ktcCrossTabAuthInvalidated";
 
