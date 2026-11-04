@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const db = require("../config/db");
 const { getOrLoadAuthUser, setCachedAuthUser } = require("../utils/authUserCache");
+const { effectiveRole, isSuperAdminRole } = require("../utils/roles");
 
 function normalize(value) { return String(value ?? "").trim().toLowerCase(); }
 function isDatabaseUnavailable(error) { return ["ER_ACCESS_DENIED_ERROR","ECONNREFUSED","ETIMEDOUT","PROTOCOL_CONNECTION_LOST","ECONNRESET"].includes(error?.code); }
@@ -32,9 +33,10 @@ module.exports = async (req,res,next) => {
         const currentUser = await getOrLoadAuthUser(cacheKey, () => loadCurrentUser(decoded));
         if (!currentUser) return res.status(401).json({code:"TOKEN_USER_NOT_FOUND",message:"Phiên đăng nhập cần được làm mới"});
         setCachedAuthUser(currentUser);
-        const role = normalize(currentUser.role), userStatus = normalize(currentUser.status), workerStatus = normalize(currentUser.worker_status);
+        const role = effectiveRole(currentUser.role), userStatus = normalize(currentUser.status), workerStatus = normalize(currentUser.worker_status);
         if (userStatus !== "active" || (role === "worker" && (!currentUser.worker_id || workerStatus !== "active"))) return res.status(403).json({code:userStatus!=="active"?"USER_INACTIVE":"WORKER_INACTIVE",message:"Tài khoản đã bị khóa. Vui lòng liên hệ quản lý"});
-        req.user = {...decoded,id:Number(currentUser.id),username:currentUser.username,role,worker_id:currentUser.worker_id?Number(currentUser.worker_id):null};
+        // role/is_super_admin come from the DB row; a forged JWT or request body cannot raise them.
+        req.user = {...decoded,id:Number(currentUser.id),username:currentUser.username,role,is_super_admin:isSuperAdminRole(currentUser.role),worker_id:currentUser.worker_id?Number(currentUser.worker_id):null};
         return next();
     } catch(error) {
         if (isDatabaseUnavailable(error)) return res.status(503).json({code:"AUTH_DATABASE_UNAVAILABLE",message:"Không thể xác thực tài khoản lúc này"});
