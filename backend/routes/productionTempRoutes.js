@@ -5,10 +5,13 @@ const authMiddleware = require("../middleware/authMiddleware");
 const checkRole = require("../middleware/roleMiddleware");
 const permission = require("../middleware/permissionMiddleware");
 const notifyWorkerOnTempEdit = require("../middleware/notifyWorkerOnTempEdit");
+const {
+    denyAdminOpsPendingEdit,
+    ensureLeadOwnsTempReport
+} = require("../middleware/productionTempEditAccess");
 const controller = require("../controllers/productionTempController");
 const validate = require("../middleware/validateRequest");
 const { workerReportLimiter } = require("../middleware/rateLimiters");
-const ProductionTemp = require("../models/productionTempModel");
 
 const { TtlCache } = require("../utils/cache");
 const managerListCache = new TtlCache({ maxEntries: 300 });
@@ -46,11 +49,9 @@ router.post("/:id/request-edit", authMiddleware, checkRole("admin", "manager", "
 router.get("/:id", authMiddleware, checkRole("admin", "admin_ops", "manager", "lead", "worker"), permission("WORKER_HISTORY", "REPORT_PENDING_VIEW"), controller.getTempReportDetail);
 router.get("/:id/logs",authMiddleware,checkRole("admin","admin_ops","manager","lead"),permission("AUDIT_VIEW"),controller.getReportActionLogs);
 
-const denyAdminOpsPendingEdit = (req,res,next) => String(req.user?.role||"").toLowerCase() === "admin_ops"
-  ? res.status(403).json({success:false,code:"ROLE_SCOPE_FORBIDDEN",message:"Admin vận hành không được sửa báo cáo đang chờ duyệt"})
-  : next();
 
-router.put("/:id",authMiddleware,checkRole("admin","admin_ops","manager","lead","worker"),denyAdminOpsPendingEdit,validate({id:{in:"params",required:true,type:"positiveInt"}}),permission("REPORT_PENDING_EDIT","REPORT_APPROVE","WORKER_ENTRY"),async(req,res,next)=>{if(String(req.user?.role||"").toLowerCase()!=="lead")return next();try{const reportId=Number(req.params.id),report=await ProductionTemp.getDetail(reportId);if(!report)return res.status(404).json({success:false,message:"Không tìm thấy báo cáo"});if(Number(report.proposer_user_id)!==Number(req.user.id))return res.status(403).json({success:false,message:"Lead chỉ được sửa đề xuất của chính mình"});return next();}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể kiểm tra quyền sửa báo cáo"});}},notifyWorkerOnTempEdit,controller.updateTempReport);
+
+router.put("/:id",authMiddleware,checkRole("admin","admin_ops","manager","lead","worker"),denyAdminOpsPendingEdit,validate({id:{in:"params",required:true,type:"positiveInt"}}),permission("REPORT_PENDING_EDIT","REPORT_APPROVE","WORKER_ENTRY"),ensureLeadOwnsTempReport,notifyWorkerOnTempEdit,controller.updateTempReport);
 
 router.delete("/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_DELETE"), controller.deleteTempReport);
 
