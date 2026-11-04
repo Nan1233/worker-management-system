@@ -170,6 +170,22 @@ const createLegacyEditProposal = async ({ user, reportId, reason, proposedData }
     return getProposalDetail(Number(result.insertId));
 };
 
-module.exports = { listEditProposals, createEditProposal, getProposalDetail, updateEditProposal, deleteEditProposal, createLegacyEditProposal };
+const setEditProposalStatus = async (id, status) => {
+    await db.promise().query(
+        "UPDATE report_edit_proposals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [status, id]
+    );
+};
+
+module.exports = {
+    listEditProposals,
+    createEditProposal,
+    getProposalDetail,
+    updateEditProposal,
+    deleteEditProposal,
+    createLegacyEditProposal,
+    canAccessProposalReport,
+    setEditProposalStatus
+};
 
 
