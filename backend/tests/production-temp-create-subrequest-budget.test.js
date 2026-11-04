@@ -107,3 +107,11 @@ test('re-submitting the same client_request_id returns the existing report and w
   assert.ok(!log.some((sql) => /^INSERT INTO production_reports_temp/i.test(sql)));
   assert.ok(!log.some((sql) => sql.startsWith('BEGIN')), 'idempotent retry should return before opening a transaction');
 });
+
+test('a brand-new report never reads or deletes old machine lines (isNewReport is passed by the submission service)', () => {
+  const fs = require('node:fs');
+  const source = fs.readFileSync(require('node:path').join(__dirname, '..', 'services', 'productionTempSubmissionService.js'), 'utf8');
+  const calls = source.match(/createModel\.replaceMachineLines\([^)]*\)/g) || [];
+  assert.ok(calls.length >= 2);
+  for (const call of calls) assert.match(call, /\{ isNewReport: true \}/, call);
+});

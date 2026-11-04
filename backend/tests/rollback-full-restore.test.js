@@ -409,3 +409,23 @@ test('semantic comparison does not coerce product codes or arbitrary JSON string
   right.machineLines[0].line.product_code = '00123';
   assert.equal(approvedSnapshotsEqual(left, right), false);
 });
+
+test('semantic post-compare normalizes each DECIMAL field on its own (machine time, standard seconds, training %)', () => {
+  const { approvedSnapshotsEqual } = require('../services/approvedVersionSnapshotService');
+  const cases = [
+    (t, r) => { t.machineLines[0].line.machine_time_hours = 8; r.machineLines[0].line.machine_time_hours = '8.0000'; },
+    (t, r) => { t.machineLines[0].line.standard_time_seconds = 12.5; r.machineLines[0].line.standard_time_seconds = '12.500000'; },
+    (t, r) => { t.report.training_percent_snapshot = 100; r.report.training_percent_snapshot = '100.00'; },
+  ];
+  for (const apply of cases) {
+    const target = targetSnapshot();
+    const reloaded = JSON.parse(JSON.stringify(target));
+    apply(target, reloaded);
+    assert.equal(approvedSnapshotsEqual(target, reloaded), true);
+  }
+  const target = targetSnapshot();
+  const reloaded = JSON.parse(JSON.stringify(target));
+  target.machineLines[0].line.machine_time_hours = 8;
+  reloaded.machineLines[0].line.machine_time_hours = '8.2500';
+  assert.equal(approvedSnapshotsEqual(target, reloaded), false, 'a real machine-time change is still detected');
+});

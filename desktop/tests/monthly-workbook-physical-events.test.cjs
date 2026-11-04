@@ -88,14 +88,17 @@ test('Desktop hidden machine-event sheet stores each physical event exactly once
   assert.equal(sheet.getCell('K2').value, 6);
   assert.equal(sheet.getCell('A3').value, 56);
   assert.equal(sheet.getCell('K3').value, 2);
-  assert.equal(sheet.getCell('P2').value, 0.5);
-  assert.match(sheet.getCell('Q2').value, /STOP/);
-  assert.equal(sheet.getCell('R2').value, 'RECORDED_ONCE');
-  assert.equal(sheet.getCell('P3').value, null);
-  assert.equal(sheet.getCell('R3').value, 'CONFLICTING_PARTICIPANT_LINES');
+  // Header contract (17 columns A..Q): O=machine_deduction_hours, P=machine_deductions_json, Q=machine_deduction_status.
+  assert.deepEqual(sheet.getRow(1).values.slice(15, 18), ['machine_deduction_hours', 'machine_deductions_json', 'machine_deduction_status']);
+  assert.equal(sheet.getRow(1).cellCount, 17);
+  assert.equal(sheet.getCell('O2').value, 0.5);
+  assert.match(sheet.getCell('P2').value, /STOP/);
+  assert.equal(sheet.getCell('Q2').value, 'RECORDED_ONCE');
+  assert.equal(sheet.getCell('O3').value, null);
+  assert.equal(sheet.getCell('Q3').value, 'CONFLICTING_PARTICIPANT_LINES');
 });
 
-test('Desktop NG metrics preserve approved total NG while excluding configured KQD from counted NG', () => {
+test('Desktop NG metrics count KQD as ordinary NG even when a legacy KQD snapshot flag is present', () => {
   const report = {
     tt_ok: 90,
     tt_ng: 10,
@@ -109,7 +112,7 @@ test('Desktop NG metrics preserve approved total NG while excluding configured K
 
   const snapshot = _private.reportSnapshot(report);
   assert.equal(snapshot.ng, 10, 'visible total NG remains the approved DB snapshot');
-  assert.equal(_private.countedNg(report), 6, 'KQD is excluded from counted NG');
+  assert.equal(_private.countedNg(report), 10, 'KQD is ordinary NG; the legacy flag is ignored');
   assert.equal(snapshot.output, 96, 'approved actual output is not recalculated');
 });
 
@@ -168,12 +171,12 @@ test('Desktop GC MACHINE monthly snapshot derives Worker credit from machine lin
   assert.equal(snapshot.actualTime, 4.5, 'Worker worked time is participation less Worker deductions');
   assert.equal(snapshot.ok, 220);
   assert.equal(snapshot.ng, 10, 'all Worker NG remains visible');
-  assert.equal(snapshot.countedNg, 6, 'KQD is excluded only from counted NG');
+  assert.equal(snapshot.countedNg, 10, 'KQD counts as ordinary NG; legacy exclude flags are ignored');
   assert.equal(snapshot.enteredOutput, 230);
-  assert.equal(snapshot.output, 226);
+  assert.equal(snapshot.output, 230, 'output = OK 220 + all NG 10 (KQD not removed)');
   assert.equal(snapshot.standard, 210 / 4.5, 'line standards are weighted by Worker worked time and training snapshot');
-  assert.equal(snapshot.outputPerHour, 226 / 4.5);
-  assert.equal(snapshot.achievement, 226 / 210);
+  assert.equal(snapshot.outputPerHour, 230 / 4.5);
+  assert.equal(snapshot.achievement, 230 / 210);
   assert.notEqual(snapshot.workingTime, 9, 'shared physical event hours must not replace Worker participation hours');
   assert.notEqual(snapshot.output, 900, 'shared physical event output must not replace Worker credit');
 });

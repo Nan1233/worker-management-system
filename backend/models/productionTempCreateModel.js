@@ -6,6 +6,7 @@ const { query } = require("./productionTempModelShared");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const { storedStandardSource } = require('../utils/standardSourceCode');
 const getStoredWorkType = (value) => {
     if (value && typeof value === "object") return String(value.work_type || "").trim();
@@ -35,28 +36,7 @@ const incoming = isGc && machineLines.length
             return Math.max(0, machineHours - deductionHours);
         }))
         : (Number(data?.actual_time) || 0);
-    const rows = await query(executor, `SELECT COALESCE(SUM(group_hours),0) AS counted_hours FROM (
-            SELECT group_key, MAX(counted_hours) AS group_hours FROM (
-                SELECT CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')) IS NOT NULL
-                    THEN CONCAT('GC_GROUP:', JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')))
-                    ELSE CONCAT('APPROVED:', pr.id) END AS group_key,
-                    CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                        THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
-                        ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-                FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-                WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
-                UNION ALL
-                SELECT CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')) IS NOT NULL
-                    THEN CONCAT('GC_GROUP:', JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')))
-                    ELSE CONCAT('TEMP:', pr.id) END AS group_key,
-                    CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
-                        THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
-                        ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-                FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
-                WHERE pr.worker_id=? AND pr.work_date=? AND pr.status IN ('pending','need_fix')
-            ) daily_rows GROUP BY group_key
-        ) daily_groups`, [workerId, workDate, workerId, workDate]);
-    const existing = Number(rows?.[0]?.counted_hours || 0);
+    const existing = await queryCountedDailyHours((sql, params) => query(executor, sql, params), { workerId, workDate });
     const projected = existing + incoming;
     if (exceedsDailyHoursLimit(projected)) {
         const remaining = Math.max(0, DAILY_HOURS_LIMIT - existing);

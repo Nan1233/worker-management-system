@@ -23,7 +23,7 @@ test('production temp create serializes submissions and retries TiDB lock wait t
   assert.match(serviceSource, /createModel\.create\(data, parentConnection\)/);
   assert.match(serviceSource, /createModel\.createDefects\(tempId, data\.process_id, defects, parentConnection\)/);
   assert.match(serviceSource, /createModel\.createDeductions\(tempId, data\.process_id, deductions, parentConnection\)/);
-  assert.match(serviceSource, /createModel\.replaceMachineLines\(tempId, machineLines, parentConnection\)/);
+  assert.match(serviceSource, /createModel\.replaceMachineLines\(tempId, machineLines, parentConnection, \{ isNewReport: true \}\)/);
   assert.doesNotMatch(serviceSource, /UPDATE production_reports_temp SET status='need_fix'/);
   assert.match(serviceSource, /findExistingClientRequest\(data\)/);
   assert.match(serviceSource, /for \(const delay of \[0, 150, 500, 1000\]\)/);

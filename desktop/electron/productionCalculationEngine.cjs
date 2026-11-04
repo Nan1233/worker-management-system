@@ -32,6 +32,13 @@ function trainingFactor(value, defaultPercent = 100) {
   return normalizeTrainingPercent(value, defaultPercent) / 100;
 }
 
+// Process/operation codes are compared case-insensitively (e.g. 'gc' / 'GC',
+// 'machine' / 'MACHINE'). Restored after 7d2fe072 removed it while
+// calculateProductionMetrics still depends on it.
+function normalizeCode(value) {
+  return String(value ?? '').trim().toUpperCase();
+}
+
 function defectQuantity(item) {
   return asInteger(item?.quantity) || 0;
 }
