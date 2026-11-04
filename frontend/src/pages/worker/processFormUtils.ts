@@ -40,17 +40,27 @@ export function parseIntegerDisplay(value: string): string {
 
 export function calculateCountedNg(
     values: FormState,
-    activeNgOptions: Array<{ key: string }>,
+    activeNgOptions: Array<{ key: string; code?: string | null }>,
+    excludeKqd: boolean,
+    kqdCodes: ReadonlySet<string>,
 ): number {
-    return activeNgOptions.reduce(
-        (sum, item) => sum + Number(values[item.key] || 0),
-        0,
-    );
+    return activeNgOptions.reduce((sum, item) => {
+        const code = String(item.code || "").trim().toUpperCase();
+        if (excludeKqd && kqdCodes.has(code)) return sum;
+        return sum + Number(values[item.key] || 0);
+    }, 0);
 }
 
 export function calculateActualOutput(
     values: FormState,
-    activeNgOptions: Array<{ key: string }>,
+    activeNgOptions: Array<{ key: string; code?: string | null }>,
+    excludeKqd: boolean,
+    kqdCodes: ReadonlySet<string>,
 ): number {
-    return Number(values.ttOk || 0) + calculateCountedNg(values, activeNgOptions);
+    return Number(values.ttOk || 0) + calculateCountedNg(
+        values,
+        activeNgOptions,
+        excludeKqd,
+        kqdCodes,
+    );
 }
