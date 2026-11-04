@@ -118,7 +118,7 @@ function installPendingTableFix(navigate: (to: string) => void) {
       add(String(r?.process_name || r?.process_code || "—"));
       add(String(r?.shift || "—"));
       add(dateText(r?.work_date));
-      add(`${f(r?.actual_time || r?.total_time)} giờ`);
+      add(`${f(r?.total_time || r?.actual_time)} giờ`);
       add(pct(x.hv), "pending-full-metric");
       add(f(x.ok), "pending-full-metric");
       add(f(x.ng), "pending-full-metric");

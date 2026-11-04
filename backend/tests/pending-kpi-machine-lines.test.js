@@ -41,6 +41,25 @@ test('pending list derives time and TT định mức from the machine lines, lik
   assert.equal(list.items[0].standard_missing_lines, 0);
 });
 
+test('machine KPI separates gross machine time from net productive time after deductions', async () => {
+  const lines = [{
+    ...line(1, 6.17, 100),
+    deduction_time_hours: 1.3366,
+  }];
+  const Model = load(lines, { ...parent, actual_time: 0, total_time: 0, deduction_time: 0, standard_output: 0 });
+  const list = await Model.getPending(9, { pagination: { page: 1, page_size: 20, offset: 0 } }, true);
+  const detail = await Model.getDetail(900001);
+
+  for (const report of [list.items[0], detail]) {
+    assert.ok(Math.abs(report.total_time - 6.17) < 0.000001);
+    assert.ok(Math.abs(report.deduction_time - 1.3366) < 0.000001);
+    assert.ok(Math.abs(report.actual_time - 4.8334) < 0.000001);
+    assert.ok(Math.abs(report.tt_dinh_muc - 483.34) < 0.000001);
+  }
+  assert.equal(list.items[0].actual_time, detail.actual_time);
+  assert.equal(list.items[0].tt_dinh_muc, detail.tt_dinh_muc);
+});
+
 test('a machine line without a standard is flagged and never borrows another product standard', () => {
   const Model = load([], parent);
   const out = Model.deriveMachineKpiFields({ ...parent, standard_output: 0 }, [line(1, 2, 500), line(2, 2, 0)]);
