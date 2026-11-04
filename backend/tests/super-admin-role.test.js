@@ -69,7 +69,7 @@ test('super admin passes every admin route guard; worker/lead/manager/admin_ops 
 
 test('permissions: super admin and admin both have every permission; overrides on them are refused', async () => {
   const fakeDb = { promise: () => ({ query: async (sql, params) => {
-    if (/information_schema\\.tables/i.test(sql)) return [[{ total: 2 }], []];
+    if (/information_schema\.tables/i.test(sql)) return [[{ total: 2 }], []];
     if (/^SELECT id,role FROM users/i.test(sql)) return [[{ id: params[0], role: params[0] === 1 ? 'super_admin' : 'admin' }], []];
     return [[], []];
   } }) };
