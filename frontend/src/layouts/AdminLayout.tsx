@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart3, Boxes, ClipboardCheck, Cog, Download, Factory, FileWarning, History, LayoutDashboard, Menu, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, Bell, X, Layers3 } from "lucide-react";
+import { BarChart3, Boxes, ClipboardCheck, Cog, Download, Factory, FileWarning, History, LayoutDashboard, Menu, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, Bell, X, Layers3, CircleGauge } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -23,6 +23,7 @@ const items:AdminMenuItem[]=[
  {label:"Công đoạn",path:"master/processes",icon:Factory,permission:"MASTER_VIEW"},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE"},
  {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW"},
+ {label:"Master Control Center",path:"master-control",icon:CircleGauge,permission:"DASHBOARD_VIEW"},
 ];
 const roleLabel="Quản trị viên";
 
@@ -46,7 +47,7 @@ export default function AdminLayout(){
     {visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label}</span></button>;})}
    </nav>
    <div className="admin-sidebar-footer">
-    <div className="admin-security-status"><span className="admin-status-dot"/><span><strong>Hệ thống đang hoạt động</strong><small>Quyền quản trị toàn hệ thống</small></span></div>
+    <button type="button" className="admin-security-status" onClick={()=>go("master-control/health")}><span className="admin-status-dot"/><span><strong>Trạng thái hệ thống</strong><small>Xem đo thực tế trong Master Control</small></span></button>
     <button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button>
    </div>
   </aside>

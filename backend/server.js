@@ -68,6 +68,8 @@ app.use("/api", (req, res, next) => { res.setHeader("Cache-Control", "private, n
 app.use("/api", require("./middleware/activityAuditMiddleware"));
 app.get("/api/health/live", (_req, res) => res.json({ success: true, service: "ktc-api", status: "live", uptimeSeconds: Math.round(process.uptime()), version: process.env.KTC_BACKEND_VERSION || process.env.npm_package_version || "unknown" }));
 const runtimeReadiness = { ready: false, initializing: false, startedAt: null, readyAt: null, database: "starting", databaseLatencyMs: null, schemaReady: false, schemaStatus: "STARTING", schemaContractVersion: 26, errorCode: null, errorMessage: null, missingTables: [], missingColumns: [] };
+// Shared with the admin-only Master Control health/overview endpoints (read-only).
+app.locals.runtimeReadiness = runtimeReadiness;
 async function readinessHandler(_req, res) {
   res.setHeader("Cache-Control", "no-store");
   const version = require("./config/version");
@@ -144,6 +146,7 @@ mount("/api/sync-jobs", syncJobRoutes, "syncJobRoutes");
 mount("/api/version", require("./routes/versionRoutes"), "versionRoutes");
 mount("/api/system", systemRoutes, "systemRoutes");
 mount("/api/permissions", permissionRoutes, "permissionRoutes");
+mount("/api/admin/control", require("./routes/adminControlRoutes"), "adminControlRoutes");
 mount("/api/admin/master", adminMasterRoutes, "adminMasterRoutes");
 mount("/api/formula-settings", formulaSettingsRoutes, "formulaSettingsRoutes");
 mount("/api/governance", governanceRoutes, "governanceRoutes");
