@@ -25,58 +25,14 @@ export const normalizeWorkType = (value: unknown): string => {
 
 const eligibleMachineCodes = (product: ProductStandardOption): string[] => String(product.eligible_machine_codes || "").split(",").map(normalizeMachineKey).filter(Boolean);
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11", "C5", "C6", "C7", "C11"]);
-const GC_AUTOMATIC_ALIAS_CODES = new Set(["C2556", "C5770", "CGYX", "C3880", "C8052"]);
-
-export const normalizeGcAlias = (value: unknown): string => {
-    const alias = normalize(value);
-    if (!alias) return "";
-    const legacyAuto = alias.match(/^(?:C)?(2556|5770|GYX|3880|8052)-AUTO$/i);
-    if (!legacyAuto) return alias;
-    const suffix = legacyAuto[1].toUpperCase();
-    return suffix === "GYX" ? "CGYX" : `C${suffix}`;
-};
-
 export const getProductDisplayAlias = (product: ProductStandardOption): string => normalize(product.product_code);
 
-export const getFullProductCode = (alias: string, products: ProductStandardOption[]): string => {
-    const normalizedAlias = normalizeGcAlias(alias);
-    if (!normalizedAlias) return "";
-
-    const positive = (row: ProductStandardOption | undefined) => {
-        if (!row || Number(row.standard_output) <= 0) return "";
-        return String(row.encoding_code || row.product_code || "").trim();
-    };
-
-    const exactDisplayRows = products.filter((product) => getProductDisplayAlias(product) === normalizedAlias && Number(product.standard_output) > 0);
-    if (exactDisplayRows.length === 1) {
-        const value = positive(exactDisplayRows[0]);
-        if (value) return value;
-    }
-
-    const exactCodeRows = products.filter((product) => normalize(product.product_code) === normalizedAlias && Number(product.standard_output) > 0);
-    if (exactCodeRows.length === 1) {
-        const value = positive(exactCodeRows[0]);
-        if (value) return value;
-    }
-
-    if (GC_AUTOMATIC_ALIAS_CODES.has(normalizedAlias)) {
-        const automaticCode = normalizedAlias === "CGYX" ? "CGYX-AUTO" : `${normalizedAlias}-AUTO`;
-        const automatic = products.find((product) => normalize(product.product_code) === automaticCode && Number(product.standard_output) > 0);
-        const automaticStandard = positive(automatic);
-        if (automaticStandard) return automaticStandard;
-    }
-
-    if (normalizedAlias.startsWith("C")) {
-        const stripped = normalizedAlias.slice(1);
-        const strippedRows = products.filter((product) => normalize(product.product_code) === stripped && Number(product.standard_output) > 0);
-        if (strippedRows.length === 1) {
-            const strippedStandard = positive(strippedRows[0]);
-            if (strippedStandard) return strippedStandard;
-        }
-    }
-
-    const match = products.find((product) => getProductDisplayAlias(product) === normalizedAlias);
-    return String(match?.product_code || alias || "").trim();
+/** GC gửi đúng mã sản phẩm chuẩn; không đổi qua alias, encoding_code hoặc hậu tố tự sinh. */
+export const getFullProductCode = (productCode: string, products: ProductStandardOption[]): string => {
+    const canonical = normalize(productCode);
+    if (!canonical) return "";
+    const matches = products.filter((product) => normalize(product.product_code) === canonical);
+    return matches.length === 1 ? normalize(matches[0].product_code) : canonical;
 };
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean => GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
