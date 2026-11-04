@@ -69,19 +69,30 @@ test('super admin passes every admin route guard; worker/lead/manager/admin_ops 
 
 test('permissions: super admin and admin both have every permission; overrides on them are refused', async () => {
   const fakeDb = { promise: () => ({ query: async (sql, params) => {
-    if (/information_schema\.tables/i.test(sql)) return [[{ total: 2 }], []];
+    if (/information_schema\\.tables/i.test(sql)) return [[{ total: 2 }], []];
     if (/^SELECT id,role FROM users/i.test(sql)) return [[{ id: params[0], role: params[0] === 1 ? 'super_admin' : 'admin' }], []];
     return [[], []];
   } }) };
-  const [service] = withStubs({ 'config/db': fakeDb }, ['services/permissionService']);
-  const all = service.getPermissionList().map((p) => p.code).sort();
-  assert.deepEqual([...await service.getEffectivePermissions({ id: 1, role: 'super_admin' })].sort(), all);
-  assert.deepEqual([...await service.getEffectivePermissions({ id: 60002, role: 'admin' })].sort(), all, 'existing admins keep full permissions');
-  assert.equal(await service.hasPermission({ id: 1, role: 'super_admin' }, 'PERMISSION_MANAGE'), true);
-  await assert.rejects(() => service.setUserPermission(1, 'REPORT_EXPORT', false), (e) => e.code === 'PERMISSION_ADMIN_IMMUTABLE');
-  await assert.rejects(() => service.setRolePermission('super_admin', 'REPORT_EXPORT', false), (e) => e.code === 'PERMISSION_ADMIN_IMMUTABLE');
+  const originalLoad = Module._load;
+  Module._load = function (request, parent, ...rest) {
+    if (request.endsWith('config/db')) return fakeDb;
+    return originalLoad.call(this, request, parent, ...rest);
+  };
+  try {
+    const modulePath = require.resolve(path.join(BACKEND, 'services/permissionService'));
+    delete require.cache[modulePath];
+    const service = require(modulePath);
+    const all = service.getPermissionList().map((p) => p.code).sort();
+    assert.deepEqual([...await service.getEffectivePermissions({ id: 1, role: 'super_admin' })].sort(), all);
+    assert.deepEqual([...await service.getEffectivePermissions({ id: 60002, role: 'admin' })].sort(), all, 'existing admins keep full permissions');
+    assert.equal(await service.hasPermission({ id: 1, role: 'super_admin' }, 'PERMISSION_MANAGE'), true);
+    await assert.rejects(() => service.setUserPermission(1, 'REPORT_EXPORT', false), (e) => e.code === 'PERMISSION_ADMIN_IMMUTABLE');
+    await assert.rejects(() => service.setRolePermission('super_admin', 'REPORT_EXPORT', false), (e) => e.code === 'PERMISSION_ADMIN_IMMUTABLE');
+  } finally {
+    Module._load = originalLoad;
+    delete require.cache[require.resolve(path.join(BACKEND, 'services/permissionService'))];
+  }
 });
-
 test('user management scope: only a super admin may manage admin / super_admin accounts', async () => {
   const { assertUserManagementScope } = require('../services/processAuthorizationService');
   const admin = { id: 60002, role: 'admin', is_super_admin: false };
