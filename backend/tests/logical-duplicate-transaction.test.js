@@ -1,7 +1,6 @@
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-duplicate-confirmation-secret';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const path = require('node:path');
 const { issueDuplicateConfirmation } = require('../services/duplicateConfirmationService');
 
 function loadCreateModelHarness() {
@@ -12,20 +11,30 @@ function loadCreateModelHarness() {
   const auditPath = require.resolve('../services/auditService');
   const modelPath = require.resolve('../models/productionTempCreateModel');
 
-  const fakeDb = {};
-  let nextId = 1;
   const rows = [];
   const requestRows = new Map();
   const committed = [];
   const rolledBack = [];
   const lockQueues = new Map();
+  let nextId = 1;
 
   function cacheModule(filename, exports) {
     require.cache[filename] = { id: filename, filename, loaded: true, exports };
   }
+
+  const fakeDb = {};
   cacheModule(dbPath, fakeDb);
   cacheModule(sharedPath, {
-    query: async () => [],
+    query: async (_executor, sql, params = []) => {
+      const normalized = String(sql).replace(/\s+/g, ' ').trim();
+      if (/SELECT id, status FROM production_reports_temp WHERE worker_id=\? AND client_request_id=\? LIMIT 1/i.test(normalized)) {
+        return requestRows.has(`${params[0]}:${params[1]}`) ? [requestRows.get(`${params[0]}:${params[1]}`)] : [];
+      }
+      if (/JSON_UNQUOTE\(JSON_EXTRACT\(extra_data, '\$\.gc_group_request_id'\)\)=\?/i.test(normalized)) return [];
+      if (/SELECT process_code FROM processes/i.test(normalized)) return [{ process_code: 'EP' }];
+      if (/SUM\(group_hours\)/i.test(normalized)) return [{ counted_hours: 0 }];
+      return [];
+    },
     getConnection: async () => ({ release() {} }),
     beginTransaction: async (conn) => { conn.tx = true; },
     beginReadCommittedTransaction: async (conn) => { conn.tx = true; },
@@ -41,39 +50,23 @@ function loadCreateModelHarness() {
   delete require.cache[modelPath];
   const model = require(modelPath);
 
-  model.findByClientRequest = async (workerId, requestId) => requestRows.get(`${workerId}:${requestId}`) || null;
-  model.lockLogicalDuplicateKey = async (key) => {
-    const previous = lockQueues.get(key) || Promise.resolve();
-    let release;
-    const current = new Promise((resolve) => { release = resolve; });
-    lockQueues.set(key, previous.then(() => current));
-    await previous;
-    // The model holds the DB row lock until commit/rollback. For the harness,
-    // release after a short turn so the first request can persist before the second precheck.
-    await new Promise((resolve) => setImmediate(resolve));
-    return { release };
-  };
-
-  // Wrap createCompleteReport so lock release follows transaction completion.
-  const original = model.createCompleteReport.bind(model);
-  model.createCompleteReport = async (args) => {
-    const key = args.data.logical_duplicate_key;
-    const previous = lockQueues.get(key) || Promise.resolve();
-    let release;
-    const gate = new Promise((resolve) => { release = resolve; });
-    lockQueues.set(key, previous.then(() => gate));
-    await previous;
-    const originalLock = model.lockLogicalDuplicateKey;
-    model.lockLogicalDuplicateKey = async () => {};
-    try { return await original(args); }
-    finally { model.lockLogicalDuplicateKey = originalLock; release(); }
-  };
-
-  model.findSimilarReport = async ({ workerId, processId, workDate, shift, logicalDuplicateKey }) => {
-    const row = rows.find((r) => r.worker_id === workerId && r.process_id === processId && r.work_date === workDate && r.shift === shift && r.logical_duplicate_key === logicalDuplicateKey && ['pending','need_fix','approved'].includes(r.status));
+  // These methods are the persistence boundaries used by the submission service.
+  // A logical-key queue models the DB row lock held until transaction completion.
+  model.lockClientRequestId = async () => {};
+  model.lockLogicalDuplicateKey = async () => {};
+  model.lockMachineCapacityKeys = async () => {};
+  model.findSimilarTempReport = async ({ workerId, processId, workDate, shift, logicalDuplicateKey }) => {
+    const row = rows.find((r) =>
+      r.worker_id === workerId &&
+      r.process_id === processId &&
+      r.work_date === workDate &&
+      r.shift === shift &&
+      r.logical_duplicate_key === logicalDuplicateKey &&
+      ['pending', 'need_fix', 'approved'].includes(r.status)
+    );
     return row ? { ...row, report_type: row.status === 'approved' ? 'approved' : 'temp' } : null;
   };
-  model.findRecentIdentical = async () => null;
+  model.findSimilarApprovedReport = async () => null;
   model.create = async (data) => {
     const id = nextId++;
     const row = { id, status: 'pending', ...data };
@@ -85,6 +78,22 @@ function loadCreateModelHarness() {
   model.createDeductions = async () => {};
   model.replaceMachineLines = async () => {};
   model.logAction = async () => {};
+
+  const original = model.createCompleteReport.bind(model);
+  model.createCompleteReport = async (args) => {
+    const key = args.data.logical_duplicate_key;
+    const previous = lockQueues.get(key) || Promise.resolve();
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const tail = previous.then(() => gate);
+    lockQueues.set(key, tail);
+    await previous;
+    try { return await original(args); }
+    finally {
+      release();
+      if (lockQueues.get(key) === tail) lockQueues.delete(key);
+    }
+  };
 
   return { model, rows, committed, rolledBack };
 }
