@@ -82,8 +82,17 @@ async function createCompleteReport(payload = {}) {
     await beginReadCommittedTransaction(connection);
     const clientRequestId = String(data.client_request_id || "").trim();
     if (!clientRequestId) { const error = new Error("Thiếu mã yêu cầu gửi báo cáo"); error.status = 400; error.code = "CLIENT_REQUEST_ID_REQUIRED"; error.isPublic = true; throw error; }
+
+    // Use the same database-backed lock order as regular production reports.
+    // Without these locks, two concurrent CVK requests can both pass the
+    // read-before-insert checks and create duplicate rows.
+    await createModel.lockClientRequestId(workerId, clientRequestId, connection);
     const previousRequest = await createModel.findByClientRequest(workerId, clientRequestId, connection);
     if (previousRequest) { await commit(connection); return { id: Number(previousRequest.id), duplicate: true, duplicate_reason: "request_id", existing_report: previousRequest }; }
+
+    // A different request ID can still represent the same logical CVK task.
+    // Serialize that identity separately before checking pending/approved rows.
+    await createModel.lockLogicalDuplicateKey(logicalDuplicateKey, connection);
     const existing = await findExisting({ workerId, workDate: data.work_date, shift: data.shift, workType }, connection);
     if (existing && !data.force_create) { const error = new Error("Đã có báo cáo CVK cùng nhân viên, ngày, ca và công việc"); error.status = 409; error.code = "DUPLICATE_CONFIRMATION_REQUIRED"; error.isPublic = true; error.existing_report = existing; error.details = existing; throw error; }
     if (existing && data.force_create) {
