@@ -259,26 +259,31 @@ exports.rejectSelectedReports = async (req, res) => {
     }
 };
 
-exports.updateTempReport = async (req, res) => {
+const updateTempReportUseCase = async ({ reportId: requestedReportId, body, user }) => {
+    const req = {
+        params: { id: requestedReportId },
+        body: body || {},
+        user
+    };
     try {
         const reportId = toPositiveInteger(req.params.id);
         const changedBy = toPositiveInteger(req.user?.id);
-        if (!reportId) return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
+        if (!reportId) return { status: 400, body: { success: false, message: "ID báo cáo không hợp lệ" } };;
 
         // The payload below takes `defects`/`deductions` from the request body when it sends both arrays, so the two
         // child lists are not read in that case.
         const current = await ProductionTemp.getDetail(reportId, { skipChildRows: Array.isArray(req.body?.defects) && Array.isArray(req.body?.deductions) });
-        if (!current) return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
+        if (!current) return { status: 404, body: { success: false, message: "Không tìm thấy báo cáo" } };;
 
         const requiredPermission = String(req.user?.role || "").toLowerCase() === "worker"
             ? "WORKER_ENTRY"
             : "REPORT_PENDING_EDIT";
         if (!(await hasPermission(req.user, requiredPermission))) {
-            return res.status(403).json({ success:false, code:"PERMISSION_DENIED", message:"Bạn không có quyền sửa báo cáo chờ duyệt" });
+            return { status: 403, body: { success:false, code:"PERMISSION_DENIED", message:"Bạn không có quyền sửa báo cáo chờ duyệt" } };;
         }
         if (String(req.user?.role || "").toLowerCase() === "worker") {
             if (Number(current.worker_id) !== Number(req.user?.worker_id)) {
-                return res.status(403).json({ success:false, code:"WORKER_OWNERSHIP_FORBIDDEN", message:"Bạn không có quyền sửa báo cáo của công nhân khác" });
+                return { status: 403, body: { success:false, code:"WORKER_OWNERSHIP_FORBIDDEN", message:"Bạn không có quyền sửa báo cáo của công nhân khác" } };;
             }
         } else {
             await assertProcessesScope(req.user, [current.process_id], { action:"REPORT_PENDING_EDIT" });
@@ -289,12 +294,12 @@ exports.updateTempReport = async (req, res) => {
         if (req.user?.role === "worker") {
             const workDateError = validateWorkerWorkDate(payload.work_date);
             if (workDateError) {
-                return res.status(422).json({ success: false, message: workDateError });
+                return { status: 422, body: { success: false, message: workDateError } };;
             }
         }
 
         const validation = validateProductionReport(payload, { enforceBackDate: false });
-        if (!validation.valid) return res.status(422).json({ success: false, message: "Dữ liệu báo cáo không hợp lệ", errors: validation.errors });
+        if (!validation.valid) return { status: 422, body: { success: false, message: "Dữ liệu báo cáo không hợp lệ", errors: validation.errors } };;
         const operationType = String(req.body?.operation_type || payload?.operation_type || "").trim().toUpperCase() || null;
         const operationMode = String(req.body?.operation_mode || req.body?.execution_method || payload?.operation_mode || "").trim().toUpperCase() || null;
         const machinePolicy = getProcessMachinePolicy(current.process_id);
@@ -306,17 +311,17 @@ exports.updateTempReport = async (req, res) => {
         const normalizedMachineNo = String(validation.normalized.machine_no || payload?.machine_no || "").trim();
 
         if (machinePolicy.mode === "MANUAL_ONLY" && (operationMode === "MACHINE" || rawMachineLines.length || normalizedMachineNo)) {
-            return res.status(422).json({ success: false, message: "Công đoạn này chỉ thực hiện bằng tay", errors: { machine_no: "Không được chọn máy" } });
+            return { status: 422, body: { success: false, message: "Công đoạn này chỉ thực hiện bằng tay", errors: { machine_no: "Không được chọn máy" } } };;
         }
         if (machinePolicy.mode === "MULTI_MACHINE_REQUIRED" && rawMachineLines.length === 0) {
-            return res.status(422).json({ success: false, message: "Công đoạn này bắt buộc nhập danh sách máy", errors: { machine_lines: "Vui lòng chọn từ 1 đến 4 máy" } });
+            return { status: 422, body: { success: false, message: "Công đoạn này bắt buộc nhập danh sách máy", errors: { machine_lines: "Vui lòng chọn từ 1 đến 4 máy" } } };;
         }
         if (machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && ((!normalizedMachineNo && rawMachineLines.length === 0) || rawMachineLines.length > 1)) {
             const label = machinePolicy.code === "DO" ? "Đo" : machinePolicy.code === "EP" ? "Ép" : "Cán";
-            return res.status(422).json({ success: false, message: `Công đoạn ${label} yêu cầu đúng một máy`, errors: { machine_no: `Vui lòng chọn đúng một máy ${label.toLowerCase()}` } });
+            return { status: 422, body: { success: false, message: `Công đoạn ${label} yêu cầu đúng một máy`, errors: { machine_no: `Vui lòng chọn đúng một máy ${label.toLowerCase()}` } } };;
         }
         if (machinePolicy.mode === "MANUAL_OR_SINGLE_MACHINE" && rawMachineLines.length > 1) {
-            return res.status(422).json({ success: false, message: "Công đoạn Kiểm chỉ được chọn tối đa một máy", errors: { machine_lines: "Chỉ được chọn một máy hoặc làm tay" } });
+            return { status: 422, body: { success: false, message: "Công đoạn Kiểm chỉ được chọn tối đa một máy", errors: { machine_lines: "Chỉ được chọn một máy hoặc làm tay" } } };;
         }
 
         const machineValidation = await validateMachineLines({
@@ -328,11 +333,11 @@ exports.updateTempReport = async (req, res) => {
             workDate: payload.work_date
         });
         if (!machineValidation.valid) {
-            return res.status(422).json({
+            return { status: 422, body: {
                 success: false,
                 message: "Thông tin máy hoặc thời gian máy không hợp lệ",
                 errors: machineValidation.errors
-            });
+            } };;
         }
         const editFactoryRules = await validateFactoryMachineRules({
             processCode: machinePolicy.code,
@@ -342,7 +347,7 @@ exports.updateTempReport = async (req, res) => {
                 : (normalizedMachineNo ? [{ machine_code: normalizedMachineNo }] : [])
         });
         if (!editFactoryRules.valid) {
-            return res.status(422).json({ success: false, message: "Cách sử dụng máy không đúng quy tắc thực tế tại xưởng", errors: editFactoryRules.errors });
+            return { status: 422, body: { success: false, message: "Cách sử dụng máy không đúng quy tắc thực tế tại xưởng", errors: editFactoryRules.errors } };;
         }
         // Capacity is checked again under the transaction's worker/machine locks by updateReport().
         // Do not issue an unlocked preflight query here: it is both racy (another request can claim the
@@ -377,7 +382,7 @@ exports.updateTempReport = async (req, res) => {
             // changed after submission; report ownership and manager process scope were checked above.
             skipWorkerProcessAssignment: String(req.user?.role || "").toLowerCase() !== "worker"
         });
-        if (!master.valid) return res.status(422).json({ success: false, message: "Dữ liệu danh mục không hợp lệ", errors: master.errors });
+        if (!master.valid) return { status: 422, body: { success: false, message: "Dữ liệu danh mục không hợp lệ", errors: master.errors } };;
 
         const hasMachineLines = machineValidation.lines.length > 0;
         const totalMachineHours = Number(machineValidation.totals?.totalMachineHours || 0);
@@ -428,22 +433,33 @@ exports.updateTempReport = async (req, res) => {
             }
         );
 
-        return res.status(200).json({
+        return { status: 200, body: {
             success: true,
             message: result.changed ? "Cập nhật báo cáo thành công" : "Không có dữ liệu thay đổi",
             data: result
-        });
+        } };;
     } catch (error) {
         console.error("UPDATE TEMP REPORT ERROR:", error);
         if (/too many subrequests/i.test(String(error?.message || ""))) {
             // Cloudflare Worker budget exhausted mid-request. Normally COMMIT never ran (the open transaction is
             // discarded), but if the limit hit at COMMIT the outcome is unknown, so the message asks for a reload
             // (the optimistic version check then prevents a duplicate write) and is not presented as a validation error.
-            return res.status(503).json({ success: false, code: "DB_SUBREQUEST_LIMIT_EXCEEDED", message: "Hệ thống đang quá tải truy vấn nên chưa xác nhận được việc lưu thay đổi. Vui lòng tải lại báo cáo để kiểm tra rồi thử lại." });
+            return { status: 503, body: { success: false, code: "DB_SUBREQUEST_LIMIT_EXCEEDED", message: "Hệ thống đang quá tải truy vấn nên chưa xác nhận được việc lưu thay đổi. Vui lòng tải lại báo cáo để kiểm tra rồi thử lại." } };;
         }
-        return res.status(error.status || 400).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể cập nhật báo cáo") });
+        return { status: error.status || 400, body: { success: false, code: error.code || undefined, message: publicMessage(error, "Không thể cập nhật báo cáo") } };;
     }
 };
+
+exports.updateTempReport = async (req, res) => {
+    const result = await updateTempReportUseCase({
+        reportId: req.params?.id,
+        body: req.body,
+        user: req.user
+    });
+    return res.status(result.status).json(result.body);
+};
+
+exports.updateTempReportUseCase = updateTempReportUseCase;
 
 exports.getReportActionLogs = async (req, res) => {
     try {
