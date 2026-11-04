@@ -142,6 +142,34 @@ const deleteEditProposal = async ({ user, id }) => {
     await db.promise().query("DELETE FROM report_edit_proposals WHERE id = ?", [id]);
 };
 
-module.exports = { listEditProposals, createEditProposal, getProposalDetail, updateEditProposal, deleteEditProposal };
+const createLegacyEditProposal = async ({ user, reportId, reason, proposedData }) => {
+    const report = await ProductionTemp.getDetail(reportId);
+    if (!report) {
+        const error = new Error("Không tìm thấy báo cáo");
+        error.status = 404;
+        throw error;
+    }
+    if (!(await canAccessProposalReport(user, reportId))) {
+        const error = new Error("Báo cáo ngoài phạm vi phụ trách");
+        error.status = 403;
+        throw error;
+    }
+
+    const [result] = await db.promise().query(
+        `INSERT INTO report_edit_proposals
+            (report_id, proposer_user_id, proposer_role, reason, proposed_data, status)
+         VALUES (?, ?, ?, ?, ?, 'pending')`,
+        [
+            reportId,
+            Number(user.id),
+            String(user.role || "").toLowerCase(),
+            reason || "Tổ trưởng đề xuất sửa báo cáo",
+            JSON.stringify(proposedData || report)
+        ]
+    );
+    return getProposalDetail(Number(result.insertId));
+};
+
+module.exports = { listEditProposals, createEditProposal, getProposalDetail, updateEditProposal, deleteEditProposal, createLegacyEditProposal };
 
 
