@@ -5,7 +5,7 @@ const REPORT_FIELDS = [
   'work_date','entry_date','shift','operation_type','operation_mode',
   'machine_no','product_name',
   'total_time','actual_time','deduction_time',
-  'standard_output','standard_version_id','machine_standard_id','training_percent_snapshot',
+  'standard_output','standard_version_id','machine_standard_id','training_percent_snapshot','exclude_kqd_from_tt_snapshot',
   'actual_output','tt_ok','tt_ng',
   // Legacy approved aggregate columns remain business state until a later cleanup wave removes them.
   'kqd_dap_lai','kqd_tuot','vo_do_long','xuoc_do_long','cong_gay','xoay','khong_dut',
@@ -17,7 +17,7 @@ const MACHINE_LINE_FIELDS = [
   'machine_event_id','machine_id','machine_code',
   'product_standard_id','standard_version_id','machine_standard_id','product_code',
   'machine_time_hours','standard_output','standard_time_seconds','standard_source','maximum_output',
-  'ok_quantity','ng_quantity','deduction_time_hours','deductions_json','counted_output','earned_standard_hours',
+  'ok_quantity','ng_quantity','exclude_kqd_from_tt','deduction_time_hours','deductions_json','counted_output','earned_standard_hours',
   'defects_json','sort_order'
 ];
 
