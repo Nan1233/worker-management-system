@@ -6,18 +6,21 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('worker and manager/admin UI no longer exposes KQD exclusion policy', () => {
-  for (const relative of [
-    'frontend/src/pages/worker/ProcessPage.tsx',
-    'frontend/src/pages/worker/WorkerReportEditV2.tsx',
-    'frontend/src/pages/admin/MasterData.tsx',
-    'frontend/src/pages/admin/FormulaSettings.tsx',
-    'frontend/src/services/masterDataService.ts',
-    'frontend/src/types/production.ts'
-  ]) {
-    const source = read(relative);
-    assert.doesNotMatch(source, /exclude_kqd_from_tt|excludeKqdFromTt|Quy tắc KQD theo sản phẩm/);
-  }
+test('KQD exclusion remains master-data driven and is not user-editable in report/master UI', () => {
+  const workerPage = read('frontend/src/pages/worker/ProcessPage.tsx');
+  const workerEdit = read('frontend/src/pages/worker/WorkerReportEditV2.tsx');
+  const masterPage = read('frontend/src/pages/admin/MasterData.tsx');
+  const formulaRoutes = read('backend/routes/formulaSettingsRoutes.js');
+
+  // The worker resolves the rule from the product standard; there is no worker toggle.
+  assert.match(workerPage, /resolvedReportKqdPolicy/);
+  assert.match(workerPage, /setResolvedReportKqdPolicy\(Number\(resolved\.exclude_kqd_from_tt/);
+  assert.doesNotMatch(workerPage, /Quy tắc KQD theo sản phẩm|name=["']exclude_kqd_from_tt["']/);
+  assert.doesNotMatch(workerEdit, /exclude_kqd_from_tt|excludeKqdFromTt|Quy tắc KQD theo sản phẩm/);
+  assert.doesNotMatch(masterPage, /exclude_kqd_from_tt|excludeKqdFromTt|Quy tắc KQD theo sản phẩm/);
+
+  // The old public formula UI/API is intentionally disabled.
+  assert.match(formulaRoutes, /FORMULA_FEATURE_REMOVED/);
 });
 
 test('build patch script does not restore removed KQD UI exports', () => {
