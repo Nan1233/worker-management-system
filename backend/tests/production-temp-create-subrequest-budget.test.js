@@ -16,7 +16,7 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
     if (/FROM processes/i.test(sql)) return [{ process_code: processCode }];
     if (/FROM defect_types/i.test(sql)) return [{ id: 1, defect_code: 'a', defect_name: 'a' }];
     if (/FROM deduction_types/i.test(sql)) return [{ id: 1, deduction_code: 'd', deduction_name: 'Deduction' }];
-    if (existingRequest && /FROM production_reports_temp WHERE worker_id = \? AND client_request_id/i.test(sql)) return [{ id: 77, status: 'pending' }];
+    if (existingRequest && /FROM production_reports_temp WHERE worker_id\\s*=\\s*\\?\\s+AND client_request_id\\s*=\\s*\\?/i.test(sql)) return [{ id: 77, status: 'pending' }];
     if (/^\s*INSERT/i.test(sql)) { nextId += 1; return { insertId: /duplicate_locks/.test(sql) ? 0 : nextId, affectedRows: 1 }; }
     return [];
   };
