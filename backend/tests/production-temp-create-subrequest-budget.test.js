@@ -14,6 +14,8 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
     if (/SUM\((?:group_hours|counted_hours)\)/i.test(sql)) return [{ counted_hours: inTransaction ? dailyHours : 0 }];
     if (/training_percent FROM workers/i.test(sql)) return [{ training_percent: 100 }];
     if (/FROM processes/i.test(sql)) return [{ process_code: processCode }];
+    if (/FROM defect_types/i.test(sql)) return [{ id: 1, defect_code: 'a', defect_name: 'a' }];
+    if (/FROM deduction_types/i.test(sql)) return [{ id: 1, deduction_code: 'd', deduction_name: 'Deduction' }];
     if (existingRequest && /FROM production_reports_temp WHERE worker_id = \? AND client_request_id/i.test(sql)) return [{ id: 77, status: 'pending' }];
     if (/^\s*INSERT/i.test(sql)) { nextId += 1; return { insertId: /duplicate_locks/.test(sql) ? 0 : nextId, affectedRows: 1 }; }
     return [];
