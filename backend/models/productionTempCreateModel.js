@@ -259,25 +259,28 @@ module.exports = {
         const process = Number(processId);
         if (!Number.isInteger(process) || process <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !shiftKey || !machines.length) return;
 
-        // Serialize capacity checks per physical machine/day/shift across Worker isolates.
-        // Sorted acquisition order prevents deadlocks for submissions sharing multiple machines.
-        for (const machineCode of machines) {
-            const key = crypto.createHash("sha256")
-                .update(`machine-capacity:${process}:${date}:${shiftKey}:${machineCode}`, "utf8")
-                .digest("hex");
-            await query(
-                executor,
-                `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
-                 VALUES (?, NOW())
-                 ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
-                [key]
-            );
-            await query(
-                executor,
-                `SELECT logical_key FROM production_report_duplicate_locks WHERE logical_key = ? FOR UPDATE`,
-                [key]
-            );
-        }
+        // Batch the deterministic machine keys into one INSERT + one ordered locking SELECT.
+        // Sorting the hashed keys gives every concurrent submission the same lock acquisition order,
+        // while keeping the Cloudflare Worker statement budget independent of machine count.
+        const keys = machines.map((machineCode) => crypto.createHash("sha256")
+            .update(`machine-capacity:${process}:${date}:${shiftKey}:${machineCode}`, "utf8")
+            .digest("hex")).sort();
+        const placeholders = keys.map(() => "(?, NOW())").join(", ");
+        await query(
+            executor,
+            `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
+             VALUES ${placeholders}
+             ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
+            keys
+        );
+        await query(
+            executor,
+            `SELECT logical_key FROM production_report_duplicate_locks
+             WHERE logical_key IN (${keys.map(() => "?").join(",")})
+             ORDER BY logical_key
+             FOR UPDATE`,
+            keys
+        );
     },
 
 
