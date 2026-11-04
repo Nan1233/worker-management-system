@@ -8,7 +8,7 @@ const Module = require('node:module');
 function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false, processCode = 'EP' }) {
   const log = [];
   let nextId = 1000;
-  const answer = (rawSql) => {
+  const answer = (rawSql, inTransaction = false) => {
     const sql = String(rawSql).replace(/\s+/g, ' ');
     if (/LAST_INSERT_ID/i.test(sql)) return [{ insertId: nextId }];
     if (/SUM\((?:group_hours|counted_hours)\)/i.test(sql)) return [{ counted_hours: dailyHours }];
@@ -21,7 +21,7 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
   const record = (sql) => log.push(String(sql).replace(/\s+/g, ' ').trim());
   const conn = {
     supportsBeginIsolation,
-    query(sql, params, cb) { if (typeof params === 'function') cb = params; record(sql); const r = answer(sql); setImmediate(() => cb(null, r, [])); },
+    query(sql, params, cb) { if (typeof params === 'function') cb = params; record(sql); const r = answer(sql, true); setImmediate(() => cb(null, r, [])); },
     beginTransaction(a, b) { const cb = typeof a === 'function' ? a : b; record(`BEGIN${a && typeof a === 'object' ? ` ${a.isolation}` : ''}`); setImmediate(() => cb(null)); },
     commit(cb) { record('COMMIT'); setImmediate(() => cb(null)); },
     rollback(cb) { record('ROLLBACK'); setImmediate(() => cb(null)); },
