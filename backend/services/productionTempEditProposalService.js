@@ -96,5 +96,52 @@ const getProposalDetail = async (id) => {
     return parseProposedData(rows[0]);
 };
 
-module.exports = { listEditProposals, createEditProposal, getProposalDetail };
+
+const updateEditProposal = async ({ user, id, body }) => {
+    const current = await getProposalDetail(id);
+    if (!current) {
+        const error = new Error("Không tìm thấy đề xuất sửa");
+        error.status = 404;
+        throw error;
+    }
+    if (!(await canAccessProposalReport(user, current.report_id))) {
+        const error = new Error("Đề xuất ngoài phạm vi phụ trách");
+        error.status = 403;
+        throw error;
+    }
+
+    const reason = String(body?.reason ?? current.reason).trim();
+    const proposedData = body?.proposed_data ?? current.proposed_data;
+    if (reason.length < 2 || reason.length > 1000) {
+        const error = new Error("Nội dung đề xuất sửa phải từ 2 đến 1000 ký tự");
+        error.status = 400;
+        throw error;
+    }
+
+    await db.promise().query(
+        `UPDATE report_edit_proposals
+            SET reason = ?, proposed_data = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        [reason, JSON.stringify(proposedData || {}), id]
+    );
+    return getProposalDetail(id);
+};
+
+const deleteEditProposal = async ({ user, id }) => {
+    const current = await getProposalDetail(id);
+    if (!current) {
+        const error = new Error("Không tìm thấy đề xuất sửa");
+        error.status = 404;
+        throw error;
+    }
+    if (!(await canAccessProposalReport(user, current.report_id))) {
+        const error = new Error("Đề xuất ngoài phạm vi phụ trách");
+        error.status = 403;
+        throw error;
+    }
+    await db.promise().query("DELETE FROM report_edit_proposals WHERE id = ?", [id]);
+};
+
+module.exports = { listEditProposals, createEditProposal, getProposalDetail, updateEditProposal, deleteEditProposal };
+
 
