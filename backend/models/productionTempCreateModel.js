@@ -204,14 +204,8 @@ module.exports = {
              ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
             [logicalLockKey]
         );
-        await query(
-            executor,
-            `SELECT logical_key
-             FROM production_report_duplicate_locks
-             WHERE logical_key = ?
-             FOR UPDATE`,
-            [logicalLockKey]
-        );
+        // The INSERT ... ON DUPLICATE KEY UPDATE already acquires an exclusive InnoDB row lock held until transaction end.
+        // A follow-up SELECT ... FOR UPDATE is redundant and costs another TiDB HTTP subrequest.
     },
 
     async lockLogicalDuplicateKey(logicalDuplicateKey, executor = db) {
@@ -223,11 +217,7 @@ module.exports = {
              ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
             [logicalDuplicateKey]
         );
-        await query(
-            executor,
-            `SELECT logical_key FROM production_report_duplicate_locks WHERE logical_key = ? FOR UPDATE`,
-            [logicalDuplicateKey]
-        );
+        // The upsert itself owns the duplicate-key row lock until commit.
     },
 
     async lockMachineCapacityKeys(processId, workDate, shift, machineLines, executor = db) {
