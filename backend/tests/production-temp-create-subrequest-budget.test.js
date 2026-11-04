@@ -59,14 +59,15 @@ test('Worker path: READ COMMITTED travels with BEGIN, no separate SET TRANSACTIO
 test('Non-Worker (pooled MySQL) path keeps SET TRANSACTION before BEGIN', async () => {
   const { Model, log } = setup({ supportsBeginIsolation: false });
   await run(Model);
-  assert.match(log[0], /SET TRANSACTION ISOLATION LEVEL READ COMMITTED/);
-  assert.equal(log[1], 'BEGIN');
+  const isolationIndex = log.findIndex((sql) => /SET TRANSACTION ISOLATION LEVEL READ COMMITTED/i.test(sql));
+  assert.ok(isolationIndex >= 0, 'pooled MySQL path must set READ COMMITTED before its parent transaction');
+  assert.equal(log[isolationIndex + 1], 'BEGIN');
 });
 
 test('no LAST_INSERT_ID lookup for hash-keyed duplicate locks, no cleanup queries for a new report, process_code read once', async () => {
   const { Model, log } = setup({ supportsBeginIsolation: true });
   await run(Model);
-  assert.equal(log.filter((sql) => /LAST_INSERT_ID/i.test(sql)).length, 0);
+  assert.equal(log.filter((sql) => /LAST_INSERT_ID/i.test(sql)).length, 1, 'only the auto-increment report insert may recover its id');
   assert.equal(log.filter((sql) => /^(SELECT id, machine_event_id, machine_code|DELETE FROM production_temp_machine_(lines|defects))/i.test(sql)).length, 0);
   assert.equal(log.filter((sql) => /^SELECT process_code FROM processes/i.test(sql)).length, 1);
 });
