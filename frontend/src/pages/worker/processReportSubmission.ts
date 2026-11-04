@@ -28,7 +28,6 @@ const LEGACY_DEFECT_BINDINGS: Array<[keyof FormState, string, string]> = [
   ["ppcm", "PPCM", "PPCM"], ["loiCaoSu", "LCS", "Lỗi cao su"], ["ngKichThuoc", "KT_LON", "KT kích thước"], ["catLem", "CAT_LEM", "Cắt lẹm"],
 ];
 
-const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, "");
 const resolveSubmittedProductCode = (
   productCode: string,
   products: ProductStandardOption[],
