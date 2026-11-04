@@ -86,7 +86,7 @@ const LAYOUTS = Object.freeze({
     lastReportColumn: 46,
     fixed: {
       sequence: 1, workerCode: 2, workerName: 3, shift: 4, machine: 5,
-      training: 8, actualTime: 9, totalTime: 10, deductionTotal: 11,
+      grindingSeconds: 6, training: 8, actualTime: 9, totalTime: 10, deductionTotal: 11,
       product: 32, standardOutput: 33, actualOutput: 34,
       achievement: 35, workDate: 36, outputPerHour: 37,
       ok: 38, totalNg: 39
@@ -100,7 +100,7 @@ const LAYOUTS = Object.freeze({
     lastReportColumn: 49,
     fixed: {
       sequence: 1, workerCode: 2, workerName: 3, shift: 4, machine: 5,
-      training: 7, totalTime: 8, actualTime: 9, deductionTotal: 10,
+      relatedGrindingMachine: 6, training: 7, totalTime: 8, actualTime: 9, deductionTotal: 10,
       product: 28, standardOutput: 29, actualOutput: 30,
       achievement: 31, workDate: 32, outputPerHour: 33,
       ok: 34, totalNg: 35, ngRate: 36
@@ -125,6 +125,25 @@ const num = (value) => {
   const parsed = Number(safeText(value ?? 0).replace(/,/g, '').trim());
   return Number.isFinite(parsed) ? parsed : 0;
 };
+
+function reportExtraValue(report, key) {
+  const extra = report?.extra_data;
+  if (!extra) return '';
+  try {
+    const parsed = typeof extra === 'string' ? JSON.parse(extra) : extra;
+    const value = parsed && typeof parsed === 'object' ? parsed[key] : '';
+    return value == null ? '' : String(value).trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+function reportGrindingSeconds(report) {
+  const lines = getMachineLines(report);
+  const lineValue = lines.find((line) => line?.standard_time_seconds != null)?.standard_time_seconds;
+  const value = report?.standard_time_seconds ?? lineValue ?? reportExtraValue(report, 'standard_time_seconds');
+  return value === '' || value == null ? null : num(value);
+}
 
 const normalizeCode = (value) => safeText(value)
   .normalize('NFD')
@@ -721,6 +740,12 @@ function writeRow(sheet, rowNumber, report, layout, deductionTypes, defectTypes,
     report.full_name || report.worker_name || report.worker_full_name || report.user_full_name
   ));
   setCell(row, fixed.machine, getMachineText(report));
+  if (layout === LAYOUTS.MAI) {
+    setCell(row, fixed.grindingSeconds, reportGrindingSeconds(report), '0.00');
+  }
+  if (layout === LAYOUTS.DO) {
+    setCell(row, fixed.relatedGrindingMachine, reportExtraValue(report, 'grinding_machine_no'));
+  }
   setCell(row, fixed.shift, safeText(report.shift));
   setCell(row, fixed.training, metrics.trainingPercent / 100, '0%');
   setCell(row, fixed.totalTime, metrics.totalTime, '0.00');
