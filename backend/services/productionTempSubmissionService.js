@@ -122,9 +122,13 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
     const processRows = await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
     const resolvedProcessCode = String(processRows?.[0]?.process_code || "").trim().toUpperCase();
-    // The request may contain only process_id. Preserve the resolved code so the
-    // later split-GC persistence path uses the same authoritative process record.
-    if (resolvedProcessCode) data.process_code = resolvedProcessCode;
+    // Keep the DB-resolved process code for the later persistence transaction. This
+    // avoids repeating the same master-data lookup and lets the locked daily-hours
+    // check reuse the authoritative value rather than issuing another SELECT.
+    if (resolvedProcessCode) {
+        data.process_code = resolvedProcessCode;
+        data._resolved_process_code = resolvedProcessCode;
+    }
     const isGc = (resolvedProcessCode || String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase()) === "GC";
     const incoming = isGc && machineLines.length
         ? Math.max(...machineLines.map((line) => {
@@ -363,8 +367,12 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         data.logical_duplicate_key = buildLogicalDuplicateKey({ workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, shift: data.shift, operationMode: data.operation_mode ?? data.operationMode, machineNo: data.machine_no, productName: data.product_name, workType: data.work_type || data.extra_data?.work_type, machineLines });
 
 
-        const processRows = await query(db, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
+        const resolvedProcessCode = String(data._resolved_process_code || "").trim().toUpperCase();
+        const processRows = resolvedProcessCode
+            ? [{ process_code: resolvedProcessCode }]
+            : await query(db, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
         data.process_code = processRows[0]?.process_code || data.process_code || null;
+        if (processRows[0]?.process_code) data._resolved_process_code = String(processRows[0].process_code).trim().toUpperCase();
         const training = await resolveInitialTrainingSnapshot({ executor: db, workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, trainingPercent: data.training_percent });
         data.training_percent_snapshot = Number(training);
         data.standard_version_id = data.standard_version_id || null;
