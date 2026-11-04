@@ -360,7 +360,7 @@ exports.createTempReport = async (req, res) => {
                 // Machine-line reports validate each line's OK/NG/output in validateMachineLines.
                 // Do not compare aggregate output against only the first machine's defects.
                 skipActualOutputValidation: Array.isArray(machineValidation.lines) && machineValidation.lines.length > 0,
-                allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
+                allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY" || (machinePolicy.code === "MAI" && rawMachineLines.length === 0 && !normalizedMachineNo),
                 operationMode,
                 operationType: validation.normalized.operation_type ?? req.body.operation_type,
                 workDate: req.body.work_date,
