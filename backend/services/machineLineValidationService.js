@@ -342,7 +342,9 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             // Định mức là mốc chuẩn cho sản lượng OK. Cho phép sản lượng OK cao hơn
             // định mức nhưng tối đa 200%. NG không bị giới hạn bởi định mức vì số NG
             // chỉ biết chính xác sau khi công nhân khai báo chi tiết lỗi.
-            const maximumOutput = standardOutput * machineTimeHours;
+            // Productivity target follows actual run time; deduction/support hours
+            // are excluded from the standard-time denominator.
+            const maximumOutput = standardOutput * actualTimeHours;
             const maximumOkOutput = maximumOutput * 2;
             const outputMetrics = calculateProductionOutput({
                 ok: okQuantity,
