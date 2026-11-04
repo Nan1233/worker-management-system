@@ -139,20 +139,25 @@ export default function ProcessBasicInfoSection({ processCode, form, setForm, on
 
 </div>
 <div className="worker-time-item worker-time-computed" data-worker-time="machine-deduction">
-{isMaiProcess ? <label>Tổng thời gian dừng máy</label> : <label>Thời gian trừ</label>}
+<label>{isMaiProcess ? "Thời gian dừng máy" : "Thời gian trừ"}</label>
 <input data-worker-time-value="machine-deduction" value={String(getMachineDeductionMinutes(line))} readOnly aria-readonly="true" />
 <small>{Math.floor(getMachineDeductionMinutes(line) / 60)} giờ {getMachineDeductionMinutes(line) % 60} phút</small>
+</div>
+<div className="worker-time-item worker-time-computed" data-worker-time="machine-total">
+<label>Tổng thời gian</label>
+<input data-worker-time-value="machine-total" value={String(getMachineActualMinutes(line) + getMachineDeductionMinutes(line))} readOnly aria-readonly="true" />
+<small>{Math.floor((getMachineActualMinutes(line) + getMachineDeductionMinutes(line)) / 60)} giờ {(getMachineActualMinutes(line) + getMachineDeductionMinutes(line)) % 60} phút</small>
 </div>
 
 </div>
 <div className="machine-quantity-section">
 <div className="machine-section-title">Sản lượng máy</div>
-{isMaiProcess && <label className="worker-field-block"><span className="worker-field-label">KQSX (tổng sản lượng)</span><input className="worker-text-input" type="number" min="0" inputMode="numeric" value={line.actualQuantity} onChange={(event) => updateMachineLine(index, { actualQuantity: event.target.value.replace(/\D/g, "") })} placeholder="Nhập KQSX" /></label>}
+{isMaiProcess && <label className="worker-field-block"><span className="worker-field-label">KQSX (OK + NG)</span><input className="worker-text-input" type="number" value={String((Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0))} readOnly aria-readonly="true" /></label>}
 <div className="machine-quantity-row machine-worker-quantity-row">
 <label className="machine-quantity-item machine-quantity-ok"><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} placeholder="0" /></label>
 <label className="machine-quantity-item machine-quantity-ng"><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly={!isMaiProcess} aria-readonly={!isMaiProcess} title={isMaiProcess ? "Nhập số NG; chi tiết lỗi bên dưới phải khớp" : "Tự động tính từ chi tiết lỗi NG"} onChange={(event) => updateMachineLine(index, { ngQuantity: event.target.value.replace(/\D/g, "") })} placeholder="0" /></label>
 </div>
-{isMaiProcess && <small className="worker-field-hint">KQSX phải bằng OK + NG; tổng chi tiết lỗi phải bằng NG.</small>}
+{isMaiProcess && <small className="worker-field-hint">KQSX tự tính bằng OK + NG; tổng chi tiết lỗi phải bằng NG.</small>}
 </div>
 <div className="machine-detail-dropdown-row"><div className="machine-detail-dropdown-item"><div className="worker-dropdown-box machine-worker-deduction-box">
 <button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineDeductionIndex((current) => current === index ? null : index)} aria-expanded={openMachineDeductionIndex === index}>
