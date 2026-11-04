@@ -35,7 +35,6 @@ export const getFullProductCode = (productCode: string, products: ProductStandar
     return matches.length === 1 ? normalize(matches[0].product_code) : canonical;
 };
 
-const isGcAutomaticMachine = (machineCode: unknown): boolean => GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
 const isGcLongMachine = (machineCode: unknown, machineOptions?: MachineOption[]): boolean => {
     const raw = normalize(machineCode).replace(/\s+/g, "");
     // Machine master (gc_work_type) decides Lồng when the API supplies it. The
