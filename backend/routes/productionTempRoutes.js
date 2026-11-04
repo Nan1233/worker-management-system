@@ -44,9 +44,7 @@ router.get("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lea
 
 router.post("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), editProposalController.createEditProposal);
 
-router.put("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{
-    try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});const reason=String(req.body?.reason??current.reason).trim(),proposedData=req.body?.proposed_data??current.proposed_data;if(reason.length<2||reason.length>1000)return res.status(400).json({success:false,message:"Nội dung đề xuất sửa phải từ 2 đến 1000 ký tự"});await db.promise().query(`UPDATE report_edit_proposals SET reason=?, proposed_data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,[reason,JSON.stringify(proposedData||{}),id]);return res.json({success:true,message:"Đã cập nhật đề xuất sửa",data:await proposalDetail(id)});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể cập nhật đề xuất sửa"});}
-});
+router.put("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), editProposalController.updateEditProposal);
 
 router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","admin","lead"), permission("REPORT_APPROVE"), async (req,res)=>{
     try{
@@ -72,7 +70,7 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
     }catch(error){console.error("REVIEW EDIT PROPOSAL ERROR:",error);return res.status(error.status||500).json({success:false,message:error.message||"Không thể xử lý đề xuất sửa"});}
 });
 
-router.delete("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});await db.promise().query(`DELETE FROM report_edit_proposals WHERE id=?`,[id]);return res.json({success:true,message:"Đã xóa đề xuất sửa"});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa đề xuất sửa"});}});
+router.delete("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), editProposalController.deleteEditProposal);
 
 router.post("/approve-selected",authMiddleware,checkRole("admin","admin_ops","manager","lead"),validate({ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true}}),permission("REPORT_APPROVE"),controller.approveSelectedReports);
 router.post("/reject-selected",authMiddleware,checkRole("admin","admin_ops","manager","lead"),validate({ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true},reason:{required:true,type:"string",minLength:2,maxLength:500}}),permission("REPORT_APPROVE"),controller.rejectSelectedReports);
