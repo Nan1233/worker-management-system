@@ -15,8 +15,8 @@ test('Đo export maps related Mài machine to template column F from extra_data'
   assert.match(source, /setCell\(row, fixed\.relatedGrindingMachine, reportExtraValue\(report, 'grinding_machine_no'\)\)/);
 });
 
-test('Mài–Đo keeps one local workbook with both template sheets and uses the same local build entry point as Gia công', () => {
-  assert.match(source, /MAI_DO:[\\s\\S]*template: 'file-mau\\.xlsx'/);
+test('Mài–Đo uses one local workbook with both template sheets, like Gia công', () => {
+  assert.match(source, /MAI_DO:[\s\S]*template: 'file-mau\.xlsx'/);
   assert.match(source, /sheetName: 'TT Mài', layout: 'MAI'/);
   assert.match(source, /sheetName: 'TT Đo', layout: 'DO'/);
   assert.match(source, /async function buildProcessExcelLocal/);
