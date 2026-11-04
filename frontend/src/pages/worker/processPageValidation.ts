@@ -46,9 +46,7 @@ export function validateMachineLines(args: {
     if (String(args.processCode || "").trim().toUpperCase() === "MAI") {
       const ok = Math.max(0, Math.trunc(Number(line.okQuantity) || 0));
       const ng = Math.max(0, Math.trunc(Number(line.ngQuantity) || 0));
-      const kqsx = String((line as MachineLineState & { actualQuantity?: string }).actualQuantity ?? "").trim();
-      if (!/^[0-9]+$/.test(kqsx)) return `Máy ${machineCode || "đang chọn"}: KQSX phải là số nguyên không âm`;
-      if (Number(kqsx) !== ok + ng) return `Máy ${machineCode || "đang chọn"}: KQSX phải bằng OK + NG (${ok + ng})`;
+      // KQSX is derived from OK + NG; workers no longer enter it separately.
       const defectTotal = Object.values(line.defects || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0);
       if (defectTotal !== ng) return `Máy ${machineCode || "đang chọn"}: tổng chi tiết lỗi (${defectTotal}) phải bằng NG (${ng})`;
     }
