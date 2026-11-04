@@ -9,7 +9,7 @@ const {
     setEditProposalStatus
 } = require("../services/productionTempEditProposalService");
 const ProductionTemp = require("../models/productionTempModel");
-const managementController = require("./productionTempManagementController");
+const { updateTempReportUseCase } = require("../services/productionTempUpdateUseCase");
 
 exports.getEditProposals = async (req, res) => {
     try {
@@ -128,7 +128,7 @@ exports.reviewEditProposal = async (req, res) => {
         const proposed = current.proposed_data && typeof current.proposed_data === "object"
             ? current.proposed_data
             : {};
-        const updateResult = await managementController.updateTempReportUseCase({
+        const updateResult = await updateTempReportUseCase({
             reportId: current.report_id,
             body: { ...proposed, reason: `Duyệt đề xuất sửa #${id}` },
             user: req.user
