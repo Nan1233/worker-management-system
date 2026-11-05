@@ -10,9 +10,11 @@ exports.getDefectsByProcess = async (req, res) => {
 
     // GC defect master was corrected by migration 040. Use a versioned cache key
     // so an already-warm worker isolate cannot keep serving the pre-040 NG list.
-    const cacheKey = processId === 60006
-      ? "defects:60006:v7"
-      : `defects:${processId}`;
+    const cacheKey = processId === 5
+      ? "defects:5:k2-ng-only-v1"
+      : processId === 60006
+        ? "defects:60006:v7"
+        : `defects:${processId}`;
     const data = await getOrLoadMasterData(
       cacheKey,
       TTL.defects,
