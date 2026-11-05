@@ -302,7 +302,12 @@ export function useProcessMasterData(processId: number, processCode: string) {
       if (defects) {
         const normalized = normalizeDefectOptions(defects.value, resolvedProcessId);
         const maiFiltered = filterMaiMasterOptions(normalized, processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_");
-        setActiveNgOptions(filterK2MasterOptions(maiFiltered, processCode, K2_ALLOWED_DEFECT_NAMES));
+        // K2 must use the canonical K2_NG_* catalogue only. Name-based filtering
+        // is insufficient because the legacy KTC_DEF_K2_* rows share the same labels.
+        const k2Filtered = String(processCode || "").trim().toUpperCase() === "K2"
+          ? maiFiltered.filter((option) => /^K2_NG_/i.test(String(option.code || "").trim()))
+          : filterK2MasterOptions(maiFiltered, processCode, K2_ALLOWED_DEFECT_NAMES);
+        setActiveNgOptions(k2Filtered);
       } else {
         setActiveNgOptions([]);
       }
