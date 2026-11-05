@@ -9,7 +9,7 @@ const GC_NO_STANDARD_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
 // Cache-key versions deliberately invalidate stale master data after external DB updates.
 const MACHINE_CACHE_VERSION = "v3";
-const PRODUCT_STANDARD_CACHE_VERSION = "v7";
+const PRODUCT_STANDARD_CACHE_VERSION = "v8";
 
 const loadGcProductStandardsDirect = async (processId, processCode) => {
   const where = processCode
@@ -67,7 +67,7 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ps.standard_output > 0
         OR UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP')
       )
-    ORDER BY ps.product_code ASC, alias_code ASC, ps.id ASC
+    ORDER BY ps.product_code ASC, ps.id ASC
   `, [param]);
 
   return Array.isArray(rows) ? rows : [];
