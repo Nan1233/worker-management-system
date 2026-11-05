@@ -41,7 +41,7 @@ export const getProductStandardsByProcess = async (processId: number, _processCo
     const payload = response.data?.data ?? response.data;
     const sourceRows = Array.isArray(payload) ? payload as ProductStandardOption[] : [];
 
-    // The API already returns active master data. Keep each DB row/alias distinct
+    // The API already returns active master data. Keep each DB product-standard row distinct
     // and preserve its own work_type + standard_output without guessing a winner.
     const uniqueRows = new Map<string, ProductStandardOption>();
     for (const row of sourceRows) {
