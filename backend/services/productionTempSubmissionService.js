@@ -461,7 +461,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                 if (splitMachines) {
                     // All machine-specific parent reports and child rows are committed together.
                     for (const [index, line] of machineLines.entries()) {
-                        const childData = splitGcLinePayload(data, line, requestId, index);
+                        const childData = splitMachineLinePayload(data, line, requestId, index);
                         childData._skip_daily_hours_enforcement = index > 0; // Enforce once under the worker lock; later machine children must not count the same group again.
                         const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, parentConnection);
                         validateChildTotals(childData, resolved.defects, resolved.deductions);
