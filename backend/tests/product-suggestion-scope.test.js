@@ -24,9 +24,8 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   assert.match(basic, /productOptions\.find/);
   assert.doesNotMatch(page, /product_code:\s*productOptions\.find/);
 
-  // Cắt may uses encoded aliases/machine suffixes. Lồng eligibility is
-  // determined only by the selected machine's explicit master-data work type;
-  // never infer it from an ML/numeric/C-prefixed code.
+  // Product selection uses exact product_code values; machine suffixes remain
+  // valid only when they are part of an actual product_code in the master.
   assert.match(rules, /const isGcAutomaticMachine =/);
   assert.match(rules, /const selectedMachineWorkType = selectedRawMachine/);
   assert.match(rules, /selectedMachineWorkType !== "LONG"/);
@@ -34,7 +33,8 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   assert.match(rules, /productWorkTypes\.has\("CUT"\)/);
   assert.match(rules, /productWorkTypes\.has\("LONG"\)/);
   assert.match(rules, /if \(useEncodedMachineSuffix\)/);
-  assert.match(rules, /GC_AUTOMATIC_ALIAS_CODES\.has\(alias\)/);
+  assert.match(rules, /getProductMachineHint\(product\.product_code\)/);
+  assert.doesNotMatch(rules, /alias_code|encoding_code|GC_AUTOMATIC_ALIAS_CODES/);
 
   // The current master-data contract no longer depends on the obsolete
   // 2801-LT migration fixture. Lồng selection must remain source-driven.
