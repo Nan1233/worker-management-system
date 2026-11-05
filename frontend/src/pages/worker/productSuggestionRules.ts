@@ -79,7 +79,8 @@ export const normalizeGcAlias = (value: unknown): string => {
     return suffix === "GYX" ? "CGYX" : `C${suffix}`;
 };
 
-export const getProductDisplayAlias = (product: ProductStandardOption): string => normalizeGcAlias(product.alias_code || product.product_code);
+// Alias is not an independent product identifier in KTC; use product_code only.
+export const getProductDisplayAlias = (product: ProductStandardOption): string => normalizeGcAlias(product.product_code);
 
 export const getFullProductCode = (alias: string, products: ProductStandardOption[]): string => {
     const normalizedAlias = normalizeGcAlias(alias);
@@ -140,8 +141,7 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
         if (selectedRawMachine) {
             if (!selectedMachineWorkType) return [];
             canonicalProducts = canonicalProducts.filter(({ product, alias }) => {
-                const codeFields = [product.product_code, product.encoding_code, product.alias_code, alias]
-                    .map((value) => normalize(value));
+                const codeFields = [product.product_code, alias].map((value) => normalize(value));
                 // Every GC code/alias beginning with C is a cutting code.
                 // Never show it in a Lồng machine/manual selection, even if an
                 // older API payload still labels the row LONG.
