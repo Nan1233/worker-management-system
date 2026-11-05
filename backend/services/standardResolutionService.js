@@ -171,8 +171,8 @@ function createStandardResolver({query=defaultQuery}={}) {
     const product=await resolveProduct({processId:pid,productCode:requestedProduct,workDate:date,standardVersionId:requestedVersionId,allowAutoAlias:processAutoEligible,workType:resolvedWorkType});
     const resolvedSource=product.nonProductWork?product.source:(machine?`${product.source}_MACHINE_FALLBACK`:`${product.source}_PROCESS_FALLBACK`);const resolved={...product,machineId:machine?Number(machine.id):null,machineCode:machine?machine.machine_code:null,machineStandardId:null,source:resolvedSource};standardCache.set(standardKey,resolved);return resolved;
   }
-  // Batch the per-machine-line lookups (machine master, product aliases, machine standards) of one report
-  // into three statements. resolveStandard() then reads them from memory; any key not warmed up still
+  // Batch the per-machine-line lookups (machine master and machine standards) of one report
+  // into focused statements. resolveStandard() then reads them from memory; any key not warmed up still
   // falls back to its original per-line query, so results are identical, only the round trips change.
   async function warmUp({processId,workDate,items=[],machineRows=null}){
     const pid=Number(processId), date=normalizeWorkDate(workDate);
