@@ -296,43 +296,91 @@ const isMaiProcess = (data) => processCodeOf(data) === "MAI";
 const shouldSplitMachineReports = (data, machineLines) =>
     Array.isArray(machineLines) && machineLines.length > 1 && (isGiaCongProcess(data) || isMaiProcess(data));
 
-// Stable child request IDs allow the API to retry one machine report without
-// accidentally re-creating it. Kept below the 120-character DB column limit.
-const childRequestId = (groupRequestId, line, index) => {
-    const identity = [String(line?.machine_code || line?.machine_id || index), String(line?.product_code || "")].join("|");
-    const digest = require("node:crypto").createHash("sha256").update(identity).digest("hex").slice(0, 20);
-    return `${String(groupRequestId).slice(0, 80)}:gc:${digest}`;
+const sumLineNumber = (lines, field) => lines.reduce((sum, line) => sum + (Number(line?.[field]) || 0), 0);
+const mergeLineDetails = (lines, field, valueField) => {
+    const totals = new Map();
+    for (const line of lines) {
+        for (const item of (Array.isArray(line?.[field]) ? line[field] : [])) {
+            const key = String(item?.[valueField] || item?.[valueField.replace("_name", "_code")] || item?.[valueField.replace("_code", "_name")] || item?.deduction_type_id || item?.defect_type_id || item?.id || "");
+            const current = totals.get(key) || { ...item, [valueField]: Number(item?.[valueField]) || 0 };
+            current[valueField] += Number(item?.[valueField]) || 0;
+            totals.set(key, current);
+        }
+    }
+    return [...totals.values()];
 };
 
-const splitMachineLinePayload = (data, line, requestId, index, totalCount = 1) => {
-    const defects = Array.isArray(line?.defects) ? line.defects : [];
-    const deductions = Array.isArray(line?.deductions) ? line.deductions : [];
+// Mài may record several products on one physical machine. They must become
+// one report per machine while retaining each product line as machine detail.
+const groupMaiLinesByMachine = (machineLines = []) => {
+    const groups = new Map();
+    for (const line of machineLines) {
+        const machineCode = String(line?.machine_code || "").trim();
+        const key = machineCode.toUpperCase();
+        if (!key) continue;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(line);
+    }
+    return [...groups.values()].map((lines) => {
+        const first = lines[0];
+        return {
+            ...first,
+            machine_code: String(first.machine_code || "").trim(),
+            product_code: [...new Set(lines.map((line) => String(line?.product_code || "").trim()).filter(Boolean))].join(", "),
+            machine_time_hours: sumLineNumber(lines, "machine_time_hours"),
+            deduction_time_hours: sumLineNumber(lines, "deduction_time_hours"),
+            standard_output: sumLineNumber(lines, "standard_output"),
+            counted_output: sumLineNumber(lines, "counted_output"),
+            ok_quantity: sumLineNumber(lines, "ok_quantity"),
+            ng_quantity: sumLineNumber(lines, "ng_quantity"),
+            earned_standard_hours: sumLineNumber(lines, "earned_standard_hours"),
+            defects: lines.flatMap((line) => Array.isArray(line?.defects) ? line.defects : []),
+            deductions: lines.flatMap((line) => Array.isArray(line?.deductions) ? line.deductions : []),
+            _source_machine_lines: lines
+        };
+    });
+};
+
+// Stable child request IDs are keyed by physical machine, not product line.
+const childRequestId = (groupRequestId, lines, index) => {
+    const machineCode = Array.isArray(lines) ? lines[0]?.machine_code : lines?.machine_code;
+    const identity = String(machineCode || index).trim().toUpperCase();
+    const digest = require("node:crypto").createHash("sha256").update(identity).digest("hex").slice(0, 20);
+    return `${String(groupRequestId).slice(0, 80)}:machine:${digest}`;
+};
+
+const splitMachineLinePayload = (data, lineOrLines, requestId, index, totalCount = 1) => {
+    const lines = Array.isArray(lineOrLines) ? lineOrLines : [lineOrLines];
+    const line = lines[0] || {};
+    const defects = lines.flatMap((item) => Array.isArray(item?.defects) ? item.defects : []);
+    const deductions = lines.flatMap((item) => Array.isArray(item?.deductions) ? item.deductions : []);
     const extra = typeof data.extra_data === "string" ? (() => { try { return JSON.parse(data.extra_data); } catch { return {}; } })() : (data.extra_data || {});
     const groupMetadata = isGiaCongProcess(data)
         ? { gc_group_request_id: requestId, gc_group_machine_count: totalCount, gc_group_machine_index: index, gc_split_report: true }
         : { machine_group_request_id: requestId, machine_group_machine_count: totalCount, machine_group_machine_index: index, machine_split_report: true };
+    const productCodes = [...new Set(lines.map((item) => String(item?.product_code || "").trim()).filter(Boolean))];
     return {
         ...data,
         machine_no: line.machine_code || data.machine_no || null,
-        product_name: line.product_code || data.product_name || null,
-        total_time: Number(line.machine_time_hours) || 0,
+        product_name: productCodes.join(", ") || data.product_name || null,
+        total_time: sumLineNumber(lines, "machine_time_hours"),
         actual_time: 0,
-        deduction_time: Number(line.deduction_time_hours) || 0,
-        standard_output: Number(line.standard_output) || 0,
-        standard_version_id: line.standard_version_id || null,
-        machine_standard_id: line.machine_standard_id || null,
-        actual_output: Number(line.counted_output) || 0,
-        tt_ok: Number(line.ok_quantity) || 0,
-        tt_ng: Number(line.ng_quantity) || 0,
+        deduction_time: sumLineNumber(lines, "deduction_time_hours"),
+        standard_output: sumLineNumber(lines, "standard_output"),
+        standard_version_id: lines.every((item) => String(item?.standard_version_id || "") === String(line?.standard_version_id || "")) ? (line.standard_version_id || null) : null,
+        machine_standard_id: lines.every((item) => String(item?.machine_standard_id || "") === String(line?.machine_standard_id || "")) ? (line.machine_standard_id || null) : null,
+        actual_output: sumLineNumber(lines, "counted_output"),
+        tt_ok: sumLineNumber(lines, "ok_quantity"),
+        tt_ng: sumLineNumber(lines, "ng_quantity"),
         defects,
         deductions,
-        client_request_id: childRequestId(requestId, line, index),
+        client_request_id: childRequestId(requestId, lines, index),
         logical_duplicate_key: buildLogicalDuplicateKey({
             workerId: data.worker_id, processId: data.process_id, workDate: data.work_date,
             shift: data.shift, operationMode: data.operation_mode ?? data.operationMode,
             machineNo: line.machine_code || data.machine_no,
-            productName: line.product_code || data.product_name,
-            machineLines: [line]
+            productName: productCodes.join(", ") || data.product_name,
+            machineLines: lines
         }),
         extra_data: { ...extra, ...groupMetadata }
     };
@@ -361,6 +409,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         return nonProductWorkModel.createCompleteReport({ data, defects: defectsInput, deductions: deductionsInput, audit });
     }
 
+    const reportMachineLines = isMaiProcess(data) ? groupMaiLinesByMachine(machineLines) : machineLines;
     await enforceDailyWorkerHours(data, db, machineLines);
     data._daily_hours_machine_lines = machineLines;
     return runSerialized(queueKey(data, machineLines), async () => {
@@ -402,7 +451,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         let deductions;
         try {
             await beginTransaction(validationConnection);
-            if (shouldSplitMachineReports(data, machineLines)) {
+            if (shouldSplitMachineReports(data, reportMachineLines)) {
                 // Validate each machine's NG and deduction details against its own parent report.
                 for (const [index, line] of machineLines.entries()) {
                     const childData = splitMachineLinePayload(data, line, requestId, index, machineLines.length);
@@ -423,7 +472,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             throw error;
         } finally { validationConnection.release(); }
 
-        const splitMachines = shouldSplitMachineReports(data, machineLines);
+        const splitMachines = shouldSplitMachineReports(data, reportMachineLines);
         let tempId;
         const createdIds = [];
         const parentConnection = await getConnection();
@@ -470,7 +519,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                         createdIds.push(Number(tempId));
                         await createModel.createDefects(tempId, data.process_id, resolved.defects, parentConnection);
                         await createModel.createDeductions(tempId, data.process_id, resolved.deductions, parentConnection);
-                        await createModel.replaceMachineLines(tempId, [line], parentConnection, { isNewReport: true }); // inserted in this transaction: no old lines to read/delete
+                        await createModel.replaceMachineLines(tempId, childLines, parentConnection, { isNewReport: true }); // inserted in this transaction: no old lines to read/delete
                     }
                 } else {
                     tempId = await createModel.create(data, parentConnection);
@@ -495,14 +544,14 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         // already committed, complete report and its NG/trừ giờ/machine details.
         let auditWarning = null;
         for (const createdId of createdIds) {
-            try { await createAuditAfterChildren({ tempId: createdId, audit, data, requestId: splitMachines ? childRequestId(requestId, machineLines[createdIds.indexOf(createdId)], createdIds.indexOf(createdId)) : requestId, logicalDuplicateKey: data.logical_duplicate_key }); }
+            try { await createAuditAfterChildren({ tempId: createdId, audit, data, requestId: splitMachines ? childRequestId(requestId, reportMachineLines[createdIds.indexOf(createdId)]?._source_machine_lines || [reportMachineLines[createdIds.indexOf(createdId)]], createdIds.indexOf(createdId)) : requestId, logicalDuplicateKey: data.logical_duplicate_key }); }
             catch (error) {
                 auditWarning = String(error?.message || error).slice(0,450);
                 try { await query(db, `UPDATE production_reports_temp SET review_note=? WHERE id=?`, [`Audit chưa hoàn tất: ${auditWarning}`, createdId]); } catch {}
             }
         }
 
-        return { id: Number(createdIds[0] || tempId), ids: createdIds, reports: createdIds.map((id, index) => ({ id, machine_code: splitMachines ? machineLines[index]?.machine_code || null : null })), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key, audit_warning: auditWarning };
+        return { id: Number(createdIds[0] || tempId), ids: createdIds, reports: createdIds.map((id, index) => ({ id, machine_code: splitMachines ? reportMachineLines[index]?.machine_code || null : null })), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key, audit_warning: auditWarning };
     });
 };
 
