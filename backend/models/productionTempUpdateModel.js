@@ -9,11 +9,11 @@ const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHou
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
-const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isParallelMachineProcess = false, excludeTempReportId = null }) => {
+const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isParallelMachineProcess = false, isGc = false, excludeTempReportId = null }) => {
     const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     const existingHours = await queryCountedDailyHours((sql, params) => query(connection, sql, params), { workerId: worker, workDate: date, excludeTempReportId });
-    const incoming = isParallelMachineProcess && Array.isArray(incomingMachineLines) && incomingMachineLines.length
+    const incoming = (isParallelMachineProcess || isGc) && Array.isArray(incomingMachineLines) && incomingMachineLines.length
         ? (() => {
             const netHoursByMachine = new Map();
             for (const line of incomingMachineLines) {
