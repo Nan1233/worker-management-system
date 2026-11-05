@@ -139,7 +139,15 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
         // master work type before rendering suggestions; never leak other-process-type products.
         if (selectedRawMachine) {
             if (!selectedMachineWorkType) return [];
-            canonicalProducts = canonicalProducts.filter(({ product }) => normalizeWorkType(product.work_type) === selectedMachineWorkType);
+            canonicalProducts = canonicalProducts.filter(({ product, alias }) => {
+                const codeFields = [product.product_code, product.encoding_code, product.alias_code, alias]
+                    .map((value) => normalize(value));
+                // Every GC code/alias beginning with C is a cutting code.
+                // Never show it in a Lồng machine/manual selection, even if an
+                // older API payload still labels the row LONG.
+                if (selectedMachineWorkType === "LONG" && codeFields.some((code) => code.startsWith("C"))) return false;
+                return normalizeWorkType(product.work_type) === selectedMachineWorkType;
+            });
             canonicalProducts = filterC9149FamilyForMachine(canonicalProducts, selectedRawMachine, machineOptions);
         }
         const productWorkTypes = new Set(canonicalProducts.map(({ product }) => normalizeWorkType(product.work_type)).filter(Boolean));
