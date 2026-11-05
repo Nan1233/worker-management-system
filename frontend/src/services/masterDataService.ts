@@ -122,8 +122,7 @@ const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProd
     const normalizedCanonical = String(canonicalProduct || "").trim().toUpperCase();
     const normalizedInput = String(normalizedProduct || "").trim().toUpperCase();
     const isPositive = (row: ProductStandardOption) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0;
-    const hasExactCode = (row: ProductStandardOption) => [row?.product_code, row?.alias_code]
-        .some((value) => String(value || "").trim().toUpperCase() === normalizedInput);
+    const hasExactCode = (row: ProductStandardOption) => String(row?.product_code || "").trim().toUpperCase() === normalizedInput;
     const byWorkType = (candidates: ProductStandardOption[]) => {
         if (!workType) return candidates;
         return candidates.filter((row) => {
