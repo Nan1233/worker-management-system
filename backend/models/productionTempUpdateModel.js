@@ -9,12 +9,21 @@ const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHou
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
-const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isGc = false, excludeTempReportId = null }) => {
+const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isParallelMachineProcess = false, excludeTempReportId = null }) => {
     const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     const existingHours = await queryCountedDailyHours((sql, params) => query(connection, sql, params), { workerId: worker, workDate: date, excludeTempReportId });
-    const incoming = isGc && Array.isArray(incomingMachineLines) && incomingMachineLines.length
-        ? Math.max(...incomingMachineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0)))
+    const incoming = isParallelMachineProcess && Array.isArray(incomingMachineLines) && incomingMachineLines.length
+        ? (() => {
+            const netHoursByMachine = new Map();
+            for (const line of incomingMachineLines) {
+                const machine = String(line?.machine_code || line?.machine_id || "").trim().toUpperCase() || "__UNKNOWN__";
+                const net = Math.max(0, (Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0)
+                    - (Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0));
+                netHoursByMachine.set(machine, (netHoursByMachine.get(machine) || 0) + net);
+            }
+            return Math.max(0, ...netHoursByMachine.values());
+        })()
         : (Number(incomingActualHours) || 0);
     const projectedHours = existingHours + incoming;
     if (exceedsDailyHoursLimit(projectedHours)) {
@@ -181,7 +190,7 @@ module.exports = {
             const processRows = options.processCode
                 ? [{ process_code: options.processCode }]
                 : await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(current.process_id)]);
-            const isGc = String(processRows?.[0]?.process_code || "").trim().toUpperCase() === "GC";
+            const isParallelMachineProcess = ["GC", "MAI"].includes(String(processRows?.[0]?.process_code || "").trim().toUpperCase());
             if (hasMachineLines) {
                 // The controller validated these exact lines moments ago in the same request (options.machineLinesValidated);
                 // repeating the master-data reads here only burns Worker subrequests. The locked capacity check below
@@ -198,13 +207,13 @@ module.exports = {
                 data.machine_lines = normalizedMachineLines;
             }
             let dailyHoursMachineLines = normalizedMachineLines;
-            if (isGc && !Array.isArray(dailyHoursMachineLines)) {
+            if (isParallelMachineProcess && !Array.isArray(dailyHoursMachineLines)) {
                 const storedLines = Array.isArray(oldSnapshot?.machine_lines)
                     ? oldSnapshot.machine_lines
-                    : await query(connection, `SELECT machine_time_hours, deduction_time_hours FROM production_temp_machine_lines WHERE temp_report_id=?`, [id]);
-                dailyHoursMachineLines = storedLines.map(line => ({ actual_time_hours: Math.max(0, Number(line.machine_time_hours || 0) - Number(line.deduction_time_hours || 0)) }));
+                    : await query(connection, `SELECT machine_code, machine_time_hours, deduction_time_hours FROM production_temp_machine_lines WHERE temp_report_id=?`, [id]);
+                dailyHoursMachineLines = storedLines.map(line => ({ machine_code: line.machine_code, machine_time_hours: Number(line.machine_time_hours || 0), deduction_time_hours: Number(line.deduction_time_hours || 0) }));
             }
-            await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, incomingActualHours: nextActualTime, incomingMachineLines: dailyHoursMachineLines || [], isGc, excludeTempReportId: id });
+            await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, incomingActualHours: nextActualTime, incomingMachineLines: dailyHoursMachineLines || [], isParallelMachineProcess, excludeTempReportId: id });
             const changes = editableFields.filter(field => Object.prototype.hasOwnProperty.call(data, field)).filter(field => String(current[field] ?? "") !== String(data[field] ?? ""));
             const detailChanged = hasDeductions || hasDefects || hasMachineLines;
             if (changes.length === 0 && !detailChanged) { await rollback(connection); return { changed: false, report: current }; }
