@@ -102,21 +102,13 @@ function AutocompleteInput({
                 setOpen(false);
                 setActiveIndex(-1);
                 if (selectOnly) {
-                    // Keep the controlled selection when the option list is
-                    // recalculated after choosing a product (e.g. MAI without
-                    // a machine). A transient options change must not erase
-                    // the selected value when the user clicks outside.
-                    const controlledValue = String(value || "").trim();
-                    if (controlledValue) {
-                        setTypedValue(controlledValue);
-                    } else {
-                        const normalizedValue = typedValue.trim().toLowerCase();
-                        const exactOption = options.find((option) => option.value.trim().toLowerCase() === normalizedValue);
-                        if (!exactOption) {
-                            setTypedValue("");
-                            onChange("");
-                        }
-                    }
+                    // Selection is controlled by the parent via onSelect.
+                    // Blur/outside-click must never clear the committed value:
+                    // the option list can be refreshed/re-filtered between
+                    // selection and moving focus to the next field.
+                    // If the user typed an uncommitted search string, restore
+                    // the last committed value instead of emitting onChange("").
+                    setTypedValue(String(value || ""));
                 }
             }
         };
