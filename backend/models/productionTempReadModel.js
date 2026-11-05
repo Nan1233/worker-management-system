@@ -214,7 +214,7 @@ module.exports = {
     },
     async getApproved(managerId, filters = {}, isAdmin = false) {
         const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
-        const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status = 'approved'");
+        const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status = 'approved' AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))");
         const where = conditions.join(" AND ");
         const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
         const items = await query(db, `SELECT pr.*,w.worker_code,u.full_name,p.process_name,p.process_code FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.approved_at DESC, pr.id DESC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
