@@ -20,6 +20,8 @@ test('product suggestions are scoped by operation mode and selected machine', ()
   assert.ok(page.includes('filterProductsForSelection'));
   assert.ok(page.includes('getMachineProductOptions(line.machineCode)'));
   assert.ok(page.includes('useEncodedMachineSuffix: processCode === "GC"'));
+  assert.ok(page.includes('if (processCode === "MAI" && !String(form.machineNo || "").trim())'));
+  assert.ok(page.includes('return toProductAutocompleteOptions(scopedProductOptions);'));
   assert.ok(page.includes('if (processCode === "MAI" && !String(machineCode || "").trim())'));
   assert.ok(page.includes('return scopedProductOptions;'));
   assert.ok(basic.includes('isMaiProcess ? getMachineProductAutocompleteOptions("") : []'));
