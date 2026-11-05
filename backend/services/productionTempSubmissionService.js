@@ -371,10 +371,12 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         return nonProductWorkModel.createCompleteReport({ data, defects: defectsInput, deductions: deductionsInput, audit });
     }
 
-    const reportMachineLines = isMaiProcess(data) ? groupMaiLinesByMachine(machineLines) : machineLines;
-    const splitMachines = (isMaiProcess(data) && machineLines.length > 1) || shouldSplitMachineReports(data, reportMachineLines);
     await enforceDailyWorkerHours(data, db, machineLines);
     data._daily_hours_machine_lines = machineLines;
+    // enforceDailyWorkerHours resolves the authoritative process code from DB.
+    // Group only after that lookup so clients need not send process_code.
+    const reportMachineLines = isMaiProcess(data) ? groupMaiLinesByMachine(machineLines) : machineLines;
+    const splitMachines = (isMaiProcess(data) && machineLines.length > 1) || shouldSplitMachineReports(data, reportMachineLines);
     return runSerialized(queueKey(data, machineLines), async () => {
         // No second pre-transaction idempotency lookup here: sequential retries already returned above,
         // and a concurrent duplicate is resolved authoritatively inside the transaction under the
