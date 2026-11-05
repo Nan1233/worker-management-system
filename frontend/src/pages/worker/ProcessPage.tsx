@@ -304,6 +304,12 @@ const machineAutocompleteOptions =
     const usesMachineLineAccounting = usesMultiMachineLines;
 
     const productAutocompleteOptions = useMemo<AutocompleteOption[]>(() => {
+        // MAI: khi chưa chọn máy, hiển thị hợp nhất mã sản phẩm của TẤT CẢ máy
+        // trong công đoạn (danh sách product_standards của MAI). Khi đã chọn máy
+        // ở từng dòng, getMachineProductOptions sẽ lọc theo máy đó.
+        if (processCode === "MAI" && !String(form.machineNo || "").trim()) {
+            return toProductAutocompleteOptions(scopedProductOptions);
+        }
         const effectiveMode: OperationMode = usesAnyMachine ? "MACHINE" : "MANUAL";
         const filtered = filterProductsForSelection({
             products: scopedProductOptions,
