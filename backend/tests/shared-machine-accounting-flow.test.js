@@ -148,7 +148,7 @@ test('GC process code is resolved from the database when the client sends only p
   const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   assert.match(source, /const resolvedProcessCode = String\(processRows\?\.\[0\]\?\.process_code/);
   assert.match(source, /if \(resolvedProcessCode\) \{\s*data\.process_code = resolvedProcessCode;/);
-  assert.match(source, /const splitMachines = shouldSplitMachineReports\\(data, reportMachineLines\\)/);
+  assert.match(source, /const splitMachines = shouldSplitMachineReports\(data, reportMachineLines\)/);
   assert.match(source, /const isMaiProcess = \(data\) => processCodeOf\(data\) === "MAI"/);
   assert.match(source, /processCodeOf\(data\) === "DO" && machineLines\.length !== 1/);
   assert.match(source, /machine_group_request_id/);
@@ -266,10 +266,10 @@ test('machine report with no machine lines is explicitly marked as missing', () 
 test('Mài multi-machine reports are split per machine and Đo remains single-machine', () => {
   const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   assert.match(source, /const shouldSplitMachineReports = \(data, machineLines\) =>[\s\S]*isGiaCongProcess\(data\) \|\| isMaiProcess\(data\)/);
-  assert.match(source, /const splitMachines = shouldSplitMachineReports\\(data, reportMachineLines\\)/);
+  assert.match(source, /const splitMachines = shouldSplitMachineReports\(data, reportMachineLines\)/);
   assert.match(source, /DO_SINGLE_MACHINE_REQUIRED/);
   assert.match(source, /machine_group_request_id/);
-  assert.match(source, /splitMachineLinePayload\(data, line, requestId, index\)/);
+  assert.match(source, /splitMachineLinePayload\(data, childLines, requestId, index, reportMachineLines\.length\)/);
   assert.doesNotMatch(source, /splitGcLinePayload/);
 });
 
