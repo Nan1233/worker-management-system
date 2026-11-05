@@ -32,7 +32,7 @@ export function validateMachineLines(args: {
       || hasDeductionInput
     );
   });
-  if (!lines.length) return String(args.processCode || "").trim().toUpperCase() === "MAI" ? "Vui lòng chọn mã sản phẩm và nhập sản lượng trước khi nộp báo cáo" : "Vui lòng nhập ít nhất một máy";
+  if (!lines.length) return String(args.processCode || "").trim().toUpperCase() === "MAI" || String(args.processCode || "").trim().toUpperCase() === "DO" ? "Vui lòng chọn mã sản phẩm và nhập sản lượng trước khi nộp báo cáo" : "Vui lòng nhập ít nhất một máy";
   if (lines.length > (args.maxMachines || 4)) return `Tối đa ${args.maxMachines || 4} máy`;
   for (const [lineIndex, line] of lines.entries()) {
     const machineCode = line.machineCode.trim();
@@ -44,7 +44,7 @@ export function validateMachineLines(args: {
     // the source of truth for whether that product is valid without a machine.
     // Other machine workflows still fail here because their product validator
     // returns false for an empty machine.
-    if (String(args.processCode || "").trim().toUpperCase() === "MAI") {
+    if (["MAI", "DO"].includes(String(args.processCode || "").trim().toUpperCase())) {
       const ng = Math.max(0, Math.trunc(Number(line.ngQuantity) || 0));
       // KQSX is derived from OK + NG; workers no longer enter it separately.
       const defectTotal = Object.values(line.defects || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0);
@@ -52,7 +52,7 @@ export function validateMachineLines(args: {
     }
     if (!args.allowZeroQuantity && Math.max(0, Number(line.okQuantity) || 0) + Math.max(0, Number(line.ngQuantity) || 0) <= 0) return `${machineLabel}: phải nhập OK hoặc NG lớn hơn 0`;
     if (!productCode) return `${machineLabel}: thiếu mã sản phẩm`;
-    if (!machineCode && !manualWithoutMachine) return "Thiếu số máy";
+    if (!machineCode && !manualWithoutMachine && !["MAI", "DO"].includes(String(args.processCode || "").trim().toUpperCase())) return "Thiếu số máy";
     if (machineCode && args.isMachineValid && !args.isMachineValid(machineCode)) return `Máy ${machineCode} không hợp lệ`;
 
     // Product selection and validation use the exact product_code from the process master.
