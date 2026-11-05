@@ -307,7 +307,7 @@ const machineAutocompleteOptions =
         // MAI: khi chưa chọn máy, hiển thị hợp nhất mã sản phẩm của TẤT CẢ máy
         // trong công đoạn (danh sách product_standards của MAI). Khi đã chọn máy
         // ở từng dòng, getMachineProductOptions sẽ lọc theo máy đó.
-        if (processCode === "MAI" && !String(form.machineNo || "").trim()) {
+        if (["MAI", "DO"].includes(processCode) && !String(form.machineNo || "").trim()) {
             return toProductAutocompleteOptions(scopedProductOptions);
         }
         const effectiveMode: OperationMode = usesAnyMachine ? "MACHINE" : "MANUAL";
@@ -325,7 +325,7 @@ const machineAutocompleteOptions =
         // Mài cho phép nhập sản phẩm không cần gắn máy. Khi chưa chọn máy,
         // hiển thị toàn bộ sản phẩm thuộc phạm vi công đoạn; khi đã chọn máy
         // vẫn lọc theo mapping/định mức của máy như các công đoạn khác.
-        if (processCode === "MAI" && !String(machineCode || "").trim()) {
+        if (["MAI", "DO"].includes(processCode) && !String(machineCode || "").trim()) {
             return scopedProductOptions;
         }
         return filterProductsForSelection({
@@ -406,7 +406,7 @@ const machineAutocompleteOptions =
         const isCurrentRequest = () => machineStandardRequestSeqRef.current[index] === requestSeq;
         // Mài cho phép không chọn máy nhưng vẫn phải tra định mức theo mã sản phẩm.
         // resolveProductStandard hỗ trợ machineCode rỗng và lấy định mức mặc định của sản phẩm.
-        if (!normalizedProduct || (!normalizedMachine && processCode !== "MAI")) {
+        if (!normalizedProduct || (!normalizedMachine && !["MAI", "DO"].includes(processCode))) {
             updateMachineLine(index, {
                 standardOutputPerHour: 0,
                 standardTimeSeconds: null,
@@ -1386,11 +1386,11 @@ const updateDeductionValue = (
             });
             if (machineLinesError) return machineLinesError;
         } else if (usesSingleMachine) {
-            if (!form.machineNo.trim()) return "Vui lòng chọn số máy";
+            if (!form.machineNo.trim() && processCode !== "DO") return "Vui lòng chọn số máy";
             const matchedMachine = machineOptions.find(
                 (item) => item.machine_code.trim().toLowerCase() === form.machineNo.trim().toLowerCase()
             );
-            if (!matchedMachine) return "Máy không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
+            if (form.machineNo.trim() && !matchedMachine) return "Máy không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
         }
 
         if (isManualOnlyProcess && (form.machineNo.trim() || machineLines.some((line) => line.machineCode.trim()))) {
