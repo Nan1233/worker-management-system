@@ -79,16 +79,13 @@ exports.getProductStandards = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_code không hợp lệ" });
     }
 
-    const resolvedProcessCode = processCode || String((await query(
-      "SELECT process_code FROM processes WHERE id = ? LIMIT 1",
-      [processId]
-    ))[0]?.[0]?.process_code || '').trim().toUpperCase();
-
-    // GC is read directly from product_standards so zero-standard Long Tay
-    // work items cannot be lost by standard filters in the generic model.
-    // Only the three explicitly configured no-standard jobs are allowed at 0.
-    const cacheKey = resolvedProcessCode === 'GC'
-      ? `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:gc:${processId > 0 ? processId : resolvedProcessCode}`
+    // A process_id request already identifies the canonical process. Avoid an
+    // extra SELECT process_code round-trip before loading its product standards.
+    // GC is process 1 and keeps its dedicated query for zero-standard Long Tay
+    // work items; all other process IDs use the normal process-scoped model.
+    const isGcRequest = processCode === 'GC' || (!processCode && processId === 1);
+    const cacheKey = isGcRequest
+      ? `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:gc:${processId > 0 ? processId : processCode}`
       : processCode
         ? `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:code:${processCode}`
         : `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:id:${processId}`;
@@ -97,7 +94,7 @@ exports.getProductStandards = async (req, res) => {
       cacheKey,
       TTL.productStandards,
       async () => {
-        if (resolvedProcessCode === 'GC') {
+        if (isGcRequest) {
           return loadGcProductStandardsDirect(processId, processCode || null);
         }
         return processCode
