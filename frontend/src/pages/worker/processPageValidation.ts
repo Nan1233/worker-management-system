@@ -53,11 +53,7 @@ export function validateMachineLines(args: {
     if (!machineCode && !manualWithoutMachine) return "Thiếu số máy";
     if (machineCode && args.isMachineValid && !args.isMachineValid(machineCode)) return `Máy ${machineCode} không hợp lệ`;
 
-    // Worker-facing GC forms use alias codes (for example C2556), while the
-    // master may expose the same product under product_code/alias_code. The
-    // caller normally normalizes this before validation, but keep the
-    // validation contract alias-safe so a canonical/alias row cannot be
-    // rejected merely because the UI stores the worker-facing code.
+    // Product selection and validation use the exact product_code from the process master.
     if (args.isProductValid) {
       const valid = args.isProductValid(machineCode, productCode)
         || args.isProductValid(machineCode, normalizeProduct(productCode));
