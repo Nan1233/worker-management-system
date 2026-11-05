@@ -315,14 +315,21 @@ const machineAutocompleteOptions =
         return toProductAutocompleteOptions(filtered);
     }, [scopedProductOptions, usesAnyMachine, usesSingleMachine, form.machineNo, machineOptions, processCode]);
 
-    const getMachineProductOptions = useCallback((machineCode: string): ProductStandardOption[] =>
-        filterProductsForSelection({
+    const getMachineProductOptions = useCallback((machineCode: string): ProductStandardOption[] => {
+        // Mài cho phép nhập sản phẩm không cần gắn máy. Khi chưa chọn máy,
+        // hiển thị toàn bộ sản phẩm thuộc phạm vi công đoạn; khi đã chọn máy
+        // vẫn lọc theo mapping/định mức của máy như các công đoạn khác.
+        if (processCode === "MAI" && !String(machineCode || "").trim()) {
+            return scopedProductOptions;
+        }
+        return filterProductsForSelection({
             products: scopedProductOptions,
             mode: "MACHINE",
             machineCode,
             machineOptions,
             useEncodedMachineSuffix: processCode === "GC",
-        }), [scopedProductOptions, machineOptions, processCode]);
+        });
+    }, [scopedProductOptions, machineOptions, processCode]);
 
     const getMachineProductOptionsForLine = useCallback((line: MachineLineState) =>
         getMachineProductOptions(line.machineCode), [getMachineProductOptions]);
