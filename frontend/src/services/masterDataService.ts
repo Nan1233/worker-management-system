@@ -35,50 +35,29 @@ export const getMachinesByProcess = async (processId: number): Promise<MachineOp
 const PROCESS_PRODUCT_CACHE_TTL_MS = 30_000;
 const processProductRowsCache = new Map<number, { expiresAt: number; rows: ProductStandardOption[] }>();
 
-export const getProductStandardsByProcess = async (processId: number, processCode?: string): Promise<ProductStandardOption[]> => {
-    const requests: Promise<ProductStandardOption[]>[] = [
-        api.get("/product-standards", { params: { process_id: processId } }).then((response) => {
-            const payload = response.data?.data ?? response.data;
-            return Array.isArray(payload) ? payload : [];
-        }),
-    ];
-    const normalizedCode = String(processCode || "").trim().toUpperCase();
-    if (normalizedCode) {
-        requests.push(
-            api.get("/product-standards", { params: { process_code: processCode } }).then((response) => {
-                const payload = response.data?.data ?? response.data;
-                return Array.isArray(payload) ? payload : [];
-            }).catch(() => []),
-        );
+export const getProductStandardsByProcess = async (processId: number, _processCode?: string): Promise<ProductStandardOption[]> => {
+    // The process ID is the canonical selector. Do not merge process_id and
+    // process_code responses: that can duplicate rows and silently replace a
+    // product's real standard with the highest value from another row.
+    const response = await api.get("/product-standards", { params: { process_id: processId } });
+    const payload = response.data?.data ?? response.data;
+    const sourceRows = Array.isArray(payload) ? payload as ProductStandardOption[] : [];
+
+    // The API already returns active master data. Keep each DB row/alias distinct
+    // and preserve its own work_type + standard_output without guessing a winner.
+    const uniqueRows = new Map<string, ProductStandardOption>();
+    for (const row of sourceRows) {
+        if (!row || !String(row.product_code || row.alias_code || "").trim()) continue;
+        const key = [
+            Number(row.id || 0),
+            String(row.product_code || "").trim().toUpperCase(),
+            String(row.alias_code || "").trim().toUpperCase(),
+            String(row.work_type || "").trim().toUpperCase(),
+        ].join("|");
+        if (!uniqueRows.has(key)) uniqueRows.set(key, row);
     }
-    const results = await Promise.all(requests);
-    const merged = new Map<string, ProductStandardOption>();
-    for (const rows of results) {
-        for (const row of rows) {
-            if (!row || !String(row.product_code || row.alias_code || "").trim()) continue;
-            const productCodeValue = String(row.product_code || "").trim().toUpperCase();
-            const aliasValue = String(row.alias_code || "").trim().toUpperCase();
-            const workTypeValue = String(row.work_type || "").trim().toUpperCase();
-            const machineScope = String(row.eligible_machine_codes || "").trim().toUpperCase();
-            const key = `${productCodeValue}|${aliasValue}|${workTypeValue}|${machineScope}`;
-            const previous = merged.get(key);
-            if (!previous) {
-                merged.set(key, row);
-                continue;
-            }
-            // Duplicate active rows for the same product/work type can have
-            // conflicting outputs. Business rule: keep the highest positive
-            // standard instead of whichever row the API returned last.
-            const previousOutput = Number(previous.standard_output);
-            const currentOutput = Number(row.standard_output);
-            if (Number.isFinite(currentOutput) && currentOutput > previousOutput) {
-                merged.set(key, { ...previous, ...row });
-            } else {
-                merged.set(key, { ...row, ...previous });
-            }
-        }
-    }
-    const rows = Array.from(merged.values());
+
+    const rows = Array.from(uniqueRows.values());
     processProductRowsCache.set(Number(processId), { expiresAt: Date.now() + PROCESS_PRODUCT_CACHE_TTL_MS, rows });
     return rows;
 };
