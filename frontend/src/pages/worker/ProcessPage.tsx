@@ -1361,6 +1361,7 @@ const updateDeductionValue = (
                 processCode,
                 machineLines,
                 maxMachines: maxMachineCount,
+                allowZeroQuantity: isCvkMode,
                 isMachineValid: (machineCode) => machineOptions.some(
                     (item) => item.machine_code.trim().toLowerCase() === machineCode.trim().toLowerCase()
                 ),
