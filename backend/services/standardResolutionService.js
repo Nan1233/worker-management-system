@@ -30,7 +30,7 @@ function createStandardResolver({query=defaultQuery}={}) {
   const productCache=new Map(), standardCache=new Map();
   // Per-request lookup caches filled only by warmUp(). The shared runtime resolver never calls warmUp,
   // so long-lived isolates cannot serve stale machine/alias/standard rows from them.
-  const warmMachines=new Map(), warmAliases=new Map(), warmMachineStandards=new Map();
+  const warmMachines=new Map(), warmMachineStandards=new Map();
   const warmStandards=new Map(), warmVersions=new Map();
   const sqlTrim=(value)=>String(value??'').replace(/^ +| +$/g,'');
   const machineLookupKey=(pid,id,code)=>`${pid}|${id||''}|${String(code||'').trim()}`;
@@ -59,27 +59,8 @@ function createStandardResolver({query=defaultQuery}={}) {
     if(exactCodeRows.length)return exactCodeRows;
     const encodingRows=await query(`${fields} AND BINARY TRIM(encoding_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,product]);
     if(encodingRows.length)return encodingRows;
-    // Resolve aliases only after exact product_code and encoding_code misses.
-    // Multiple active canonical targets are a data conflict, never a tie-break.
-    // warmUp() has already loaded aliases for every product in this report. Reuse that
-    // exact per-request snapshot so alias resolution does not fall back to an extra SQL round trip.
-    const warmedAliases=warmAliases.get(`${pid}|${sqlTrim(product)}`);
-    const aliasRows=warmAliases.has(`${pid}|${sqlTrim(product)}`)
-      ? (warmedAliases||[])
-      : await query(`SELECT DISTINCT product_code FROM product_aliases WHERE process_id=? AND status='active' AND BINARY TRIM(alias_code)=BINARY TRIM(?) ORDER BY product_code LIMIT 2`,[pid,product]);
-    const aliasProducts=[...new Set(aliasRows.map(row=>normalizeCode(row?.product_code)).filter(Boolean))];
-    if(aliasProducts.length>1)throw businessError('PRODUCT_ALIAS_CONFLICT',`Mã alias ${product} ánh xạ tới nhiều sản phẩm`,{process_id:pid,alias_code:product,product_codes:aliasProducts});
-    if(!aliasRows.length){
-      // Legacy master data can differ only by case (e.g. 15U vs 15u). Accept a case-insensitive
-      // product_code only after exact code, encoding code and alias lookups miss; LIMIT 2 keeps
-      // ambiguous standards fail-closed through selectProductRow().
-      return query(`${fields} AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) ORDER BY id LIMIT 2`,[pid,product]);
-    }
-    const canonicalRows=await query(`${fields} AND BINARY TRIM(product_code)=BINARY TRIM(?) ORDER BY id LIMIT 2`,[pid,String(aliasRows[0].product_code||'').trim()]);
-    if(canonicalRows.length)return canonicalRows;
-    // An active alias can point to a retired/imported canonical code that has no standard
-    // for this work type. Only then retry the entered product case-insensitively; still fail
-    // closed if the case-insensitive lookup returns multiple candidates.
+    // Alias mappings were retired: resolve only by product_code, then encoding_code,
+    // followed by a case-insensitive product_code fallback.
     return query(`${fields} AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) ORDER BY id LIMIT 2`,[pid,product]);
   }
   function pickEquivalentRow(rows){if(!Array.isArray(rows)||rows.length<2)return null;const out=Number(rows[0]?.standard_output);if(!Number.isFinite(out)||out<=0)return null;const allSame=rows.every(row=>sameDecimal(Number(row?.standard_output),out));return allSame?rows[0]:null;}
@@ -171,7 +152,7 @@ function createStandardResolver({query=defaultQuery}={}) {
       throw businessError('GC_WORK_TYPE_UNRESOLVED',`Máy ${machine?.machine_code||requestedMachineCode} chưa được cấu hình loại gia công (Cắt/Lồng) trong danh mục máy; cần cập nhật danh mục máy trước khi báo cáo`,{process_id:pid,machine_code:machine?.machine_code||requestedMachineCode||null,work_type:workType||null});
     }
     const standardKey=cacheKey;
-    if(machine){const aliasWarmKey=`${pid}|${sqlTrim(requestedProduct)}`;const aliasRows=warmAliases.has(aliasWarmKey)?warmAliases.get(aliasWarmKey):await query(`SELECT DISTINCT product_code FROM product_aliases WHERE process_id=? AND status='active' AND BINARY TRIM(alias_code)=BINARY TRIM(?) ORDER BY product_code LIMIT 2`,[pid,requestedProduct]);const aliasProducts=[...new Set(aliasRows.map(row=>normalizeCode(row?.product_code)).filter(Boolean))];if(aliasProducts.length>1)throw businessError('PRODUCT_ALIAS_CONFLICT',`Mã alias ${requestedProduct} ánh xạ tới nhiều sản phẩm`,{process_id:pid,alias_code:requestedProduct,product_codes:aliasProducts});const canonicalMachineProduct=aliasRows[0]?.product_code?String(aliasRows[0].product_code).trim():requestedProduct;const machineStandardWarmKey=`${pid}|${Number(machine.id)}|${sqlTrim(canonicalMachineProduct)}|${date}`;const rows=warmMachineStandards.has(machineStandardWarmKey)?warmMachineStandards.get(machineStandardWarmKey):await query(`SELECT id,process_id,product_code,machine_id,standard_output,calculated_output_per_hour,standard_time_seconds,effective_from,effective_to,is_active FROM product_machine_standards WHERE process_id=? AND machine_id=? AND BINARY TRIM(product_code)=BINARY TRIM(?) AND (effective_from IS NULL OR effective_from<=?) AND (effective_to IS NULL OR effective_to>=?) ORDER BY COALESCE(effective_from,'1000-01-01') DESC,id DESC`,[pid,Number(machine.id),canonicalMachineProduct,date,date]);const active=rows.filter(r=>Number(r.is_active)===1),usable=active.length?active:rows;if(usable.length>1)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức máy cùng hiệu lực cho ${requestedProduct} / ${machine.machine_code}`);if(!usable.length){
+    if(machine){const canonicalMachineProduct=requestedProduct;const machineStandardWarmKey=`${pid}|${Number(machine.id)}|${sqlTrim(canonicalMachineProduct)}|${date}`;const rows=warmMachineStandards.has(machineStandardWarmKey)?warmMachineStandards.get(machineStandardWarmKey):await query(`SELECT id,process_id,product_code,machine_id,standard_output,calculated_output_per_hour,standard_time_seconds,effective_from,effective_to,is_active FROM product_machine_standards WHERE process_id=? AND machine_id=? AND BINARY TRIM(product_code)=BINARY TRIM(?) AND (effective_from IS NULL OR effective_from<=?) AND (effective_to IS NULL OR effective_to>=?) ORDER BY COALESCE(effective_from,'1000-01-01') DESC,id DESC`,[pid,Number(machine.id),canonicalMachineProduct,date,date]);const active=rows.filter(r=>Number(r.is_active)===1),usable=active.length?active:rows;if(usable.length>1)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức máy cùng hiệu lực cho ${requestedProduct} / ${machine.machine_code}`);if(!usable.length){
       // Legacy worker reports may store mode=MACHINE while the applicable machine standard
       // is named with an explicit -AUTO suffix. Try entered product and its AUTO variant
       // only after the canonical alias lookup found no usable machine standard.
@@ -199,7 +180,7 @@ function createStandardResolver({query=defaultQuery}={}) {
     if(!Number.isInteger(pid)||pid<=0||!list.length)return;
     // Always start from empty lookup maps: the resolver may be a long-lived singleton, and a key warmed by an
     // earlier request must never be served again. A concurrent warmUp only makes lookups fall back to SQL.
-    warmMachines.clear();warmAliases.clear();warmMachineStandards.clear();warmStandards.clear();warmVersions.clear();
+    warmMachines.clear();warmMachineStandards.clear();warmStandards.clear();warmVersions.clear();
     const machineIds=[...new Set(list.map(i=>i.machineId).filter(Boolean))];
     const machineCodes=[...new Set(list.map(i=>i.machineCode.toUpperCase()).filter(Boolean))];
     const machineById=new Map();
@@ -220,20 +201,9 @@ function createStandardResolver({query=defaultQuery}={}) {
       }
     }
     const products=[...new Set(list.map(i=>sqlTrim(i.productCode)).filter(Boolean))];
-    const canonicalByProduct=new Map();
-    if(products.length){
-      const aliasRows=await query(`SELECT DISTINCT alias_code, product_code FROM product_aliases WHERE process_id=? AND status='active' AND TRIM(alias_code) IN (${products.map(()=>'?').join(',')}) ORDER BY product_code`,[pid,...products]);
-      for(const product of products){
-        const rows=[],seen=new Set();
-        for(const row of aliasRows||[]){if(sqlTrim(row.alias_code)!==product||seen.has(row.product_code))continue;seen.add(row.product_code);rows.push({product_code:row.product_code});}
-        warmAliases.set(`${pid}|${product}`,rows.slice(0,2));
-        canonicalByProduct.set(product,rows[0]?.product_code?String(rows[0].product_code).trim():product);
-      }
-    }
-    // Product standards + effective versions of every product in the report in two statements instead of two per line.
-    // Rows are kept per exact product code; anything not matched exactly (aliases, encoding codes, case variants) simply
-    // misses the warm map and runs its original per-line SQL.
-    const stdProducts=[...new Set([...products,...[...canonicalByProduct.values()].map(sqlTrim)].filter(Boolean))];
+    // Product standards + effective versions of every exact product code in the report.
+    // Alias mappings are no longer consulted; unmatched encoding/case variants fall back to SQL.
+    const stdProducts=products;
     if(stdProducts.length){
       const holders=stdProducts.map(()=>'?').join(',');
       const stdRows=await query(`SELECT id AS product_standard_id, product_code, encoding_code, work_type, standard_output, status FROM product_standards ps WHERE process_id=? AND TRIM(product_code) IN (${holders})`,[pid,...stdProducts]);
