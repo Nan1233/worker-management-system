@@ -3,7 +3,7 @@ const { publicMessage } = require("../utils/httpError");
 const { validateMachineLines } = require("../services/machineLineValidationService");
 const { getProcessMachinePolicy } = require("../services/processMachinePolicy");
 const { validateProcessExtraData } = require("../services/processExtraDataValidationService");
-const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require("../services/factoryMachineRuleService");
+const { validateFactoryMachineRules } = require("../services/factoryMachineRuleService");
 const {
     toPositiveInteger,
     normalizeOperationType,
@@ -319,23 +319,9 @@ exports.createTempReport = async (req, res) => {
                 errors: factoryRuleValidation.errors
             });
         }
-        const machineCapacityValidation = isNonProductWorkWithinProcess ? { valid: true, errors: {} } : await validateMachineWorkerCapacity({
-            processCode: machinePolicy.code,
-            processId,
-            machineLines: machineValidation.lines.length
-                ? machineValidation.lines
-                : (normalizedMachineNo ? [{ machine_code: normalizedMachineNo }] : []),
-            workerId,
-            workDate: req.body.work_date,
-            shift: req.body.shift
-        });
-        if (!machineCapacityValidation.valid) {
-            return res.status(422).json({
-                success: false,
-                message: "Máy đã đủ số người cho phép trong ngày/ca",
-                errors: machineCapacityValidation.errors
-            });
-        }
+        // Machine-worker capacity is checked again under the submission transaction
+        // after capacity keys are locked. Do not run the same two-query check here:
+        // it spends Worker subrequests and can race before the authoritative lock.
 
 
         // =================================================
