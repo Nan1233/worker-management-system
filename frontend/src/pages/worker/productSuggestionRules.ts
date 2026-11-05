@@ -69,7 +69,7 @@ const filterC9149FamilyForMachine = (
     });
 };
 
-export const normalizeGcAlias = (value: unknown): string => {
+export const normalizeProductCode = (value: unknown): string => {
     const alias = normalize(value);
     if (!alias) return "";
     const legacyAuto = alias.match(/^(?:C)?(2556|5770|GYX|3880|8052)-AUTO$/i);
@@ -79,10 +79,10 @@ export const normalizeGcAlias = (value: unknown): string => {
 };
 
 // Alias is not an independent product identifier in KTC; use product_code only.
-export const getProductDisplayAlias = (product: ProductStandardOption): string => normalizeGcAlias(product.product_code);
+export const getProductCode = (product: ProductStandardOption): string => normalizeProductCode(product.product_code);
 
 export const getFullProductCode = (productCode: string, products: ProductStandardOption[]): string => {
-    const normalizedCode = normalizeGcAlias(productCode);
+    const normalizedCode = normalizeProductCode(productCode);
     if (!normalizedCode) return "";
     const exact = products.find((product) => normalize(product.product_code) === normalizedCode);
     return String(exact?.product_code || normalizedCode).trim();
@@ -94,7 +94,7 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
     if (useEncodedMachineSuffix) {
-        let canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
+        let canonicalProducts = products.map((product) => ({ product, alias: getProductCode(product) })).filter(({ alias }) => Boolean(alias));
         // Only the selected machine's configured master-data type is authoritative.
         // Missing/unknown metadata fails closed instead of guessing from C/ML/numeric
         // machine or product-code prefixes.
