@@ -19,8 +19,6 @@ export interface ProductStandardOption {
     process_code?: string;
     work_type: string;
     product_code: string;
-    alias_code?: string;
-    encoding_code?: string;
     has_machine_specific_standard?: number;
     eligible_machine_codes?: string;
     standard_output: number;
@@ -47,11 +45,10 @@ export const getProductStandardsByProcess = async (processId: number, _processCo
     // and preserve its own work_type + standard_output without guessing a winner.
     const uniqueRows = new Map<string, ProductStandardOption>();
     for (const row of sourceRows) {
-        if (!row || !String(row.product_code || row.alias_code || "").trim()) continue;
+        if (!row || !String(row.product_code || "").trim()) continue;
         const key = [
             Number(row.id || 0),
             String(row.product_code || "").trim().toUpperCase(),
-            String(row.alias_code || "").trim().toUpperCase(),
             String(row.work_type || "").trim().toUpperCase(),
         ].join("|");
         if (!uniqueRows.has(key)) uniqueRows.set(key, row);
@@ -66,7 +63,6 @@ export interface ResolvedProductStandard {
     product_standard_id: number;
     process_id: number;
     product_code: string;
-    alias_code?: string | null;
     machine_id: number | null;
     machine_code: string;
     standard_time_seconds: number | null;
@@ -106,7 +102,7 @@ const hasExactProcessProduct = async (processId: number, productCode: string, ma
     const normalized = String(productCode || "").trim().toUpperCase();
     if (!normalized) return false;
     const rows = await getCachedProcessProductRows(processId);
-    const codes = new Set(rows.flatMap((row) => [row?.product_code, row?.alias_code]).map((value) => String(value || "").trim().toUpperCase()).filter(Boolean));
+    const codes = new Set(rows.map((row) => String(row?.product_code || "").trim().toUpperCase()).filter(Boolean));
     processProductCache.set(Number(processId), { expiresAt: Date.now() + PROCESS_PRODUCT_CACHE_TTL_MS, codes });
     if (codes.has(normalized)) return true;
     return Boolean(await getAutomaticAliasProduct(processId, machineCode, normalized, rows));
@@ -119,10 +115,7 @@ const resolveCanonicalProductCode = async (processId: number, productCode: strin
     const exact = rows.find((row) => String(row?.product_code || "").trim().toUpperCase() === normalized);
     if (exact?.product_code) return String(exact.product_code).trim();
     const automatic = await getAutomaticAliasProduct(processId, machineCode, normalized, rows);
-    if (automatic?.product_code) return String(automatic.product_code).trim();
-    const aliasCandidates = rows.filter((row) => String(row?.alias_code || "").trim().toUpperCase() === normalized);
-    const positiveAlias = aliasCandidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0).sort((a, b) => Number(b.standard_output) - Number(a.standard_output))[0];
-    return String((positiveAlias ?? aliasCandidates[0])?.product_code || productCode).trim();
+    return String(automatic?.product_code || productCode).trim();
 };
 
 const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProduct: string, canonicalProduct: string, workType: GcWorkType | null = null): ProductStandardOption | undefined => {
@@ -160,7 +153,7 @@ const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProd
 const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string, requestedProductCode?: string): ResolvedProductStandard => {
     const output = Number(row.standard_output);
     return {
-        product_standard_id: Number(row.id), process_id: Number(row.process_id || processId), product_code: requestedProductCode || String(row.product_code), alias_code: row.alias_code || requestedProductCode || null,
+        product_standard_id: Number(row.id), process_id: Number(row.process_id || processId), product_code: String(row.product_code),
         machine_id: null, machine_code: machineCode, standard_time_seconds: null, machine_standard_output: null,
         default_standard_output: output,
         resolved_output_per_hour: output,
@@ -180,7 +173,6 @@ export const resolveProductStandard = async (processId: number, machineCode: str
             product_standard_id: 0,
             process_id: Number(processId),
             product_code: normalizedProduct,
-            alias_code: normalizedProduct,
             machine_id: null,
             machine_code: normalizedMachine,
             standard_time_seconds: null,
@@ -209,7 +201,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     // Never reject a machine/product pair merely because the product-list endpoint omitted it;
     // the authoritative resolver is allowed to find a machine-specific standard directly.
     if (!normalizedMachine) {
-        const candidates = rows.filter((row) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedProduct.toUpperCase()) || String(row?.product_code || "").trim().toUpperCase() === canonicalProduct.toUpperCase());
+        const candidates = rows.filter((row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct.toUpperCase() || String(row?.product_code || "").trim().toUpperCase() === canonicalProduct.toUpperCase());
         const positiveCandidates = candidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0);
         const product = positiveCandidates.length > 0
             ? positiveCandidates.slice().sort((a, b) => Number(b.standard_output) - Number(a.standard_output) || Number(a.id) - Number(b.id))[0]
@@ -231,7 +223,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
         });
         const resolvedData = resolved.data?.data ?? resolved.data;
         const resolvedOutput = Number(resolvedData?.resolved_output_per_hour || 0);
-        if (resolvedOutput > 0) return { ...resolvedData, product_code: normalizedProduct, alias_code: resolvedData?.alias_code || normalizedProduct };
+        if (resolvedOutput > 0) return { ...resolvedData, product_code: String(resolvedData?.product_code || normalizedProduct) };
         throw new Error(resolvedData?.message || `Không có định mức hợp lệ cho ${normalizedProduct} / ${normalizedMachine}`);
     } catch (error: any) {
         // Machine-specific standard is optional. If it is absent or zero, use the
