@@ -471,7 +471,6 @@ module.exports = {
                 Number(line.machine_standard_id) || null,
                 String(line.product_code || "").trim(),
                 Number(line.machine_time_hours) || 0,
-                Number(line.actual_time_hours ?? Math.max(0, Number(line.machine_time_hours || 0) - Number(line.deduction_time_hours || 0))) || 0,
                 Number(line.standard_output) || 0,
                 Number(line.standard_time_seconds) || null,
                 storedStandardSource(line.standard_source),
@@ -500,10 +499,10 @@ module.exports = {
 
         await query(executor, `INSERT INTO production_temp_machine_lines
             (temp_report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
-             machine_time_hours, actual_time_hours, standard_output, standard_time_seconds, standard_source,
+             machine_time_hours, standard_output, standard_time_seconds, standard_source,
              ok_quantity, ng_quantity, maximum_output, deduction_time_hours, deductions_json, counted_output, earned_standard_hours,
              defects_json, sort_order)
-            VALUES ${lineRows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`, lineRows.flat());
+            VALUES ${lineRows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`, lineRows.flat());
 
         if (!defectRows.length) return;
         await query(executor,
