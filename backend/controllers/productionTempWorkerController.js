@@ -298,7 +298,7 @@ exports.createTempReport = async (req, res) => {
                     errors: machineValidation.errors
                 });
             }
-        } else if (!isNonProductWorkWithinProcess && machinePolicy.code !== "MAI" && operationMode === "MACHINE" && !normalizedMachineNo) {
+        } else if (!isNonProductWorkWithinProcess && !["MAI", "DO"].includes(machinePolicy.code) && operationMode === "MACHINE" && !normalizedMachineNo) {
             return res.status(422).json({
                 success: false,
                 message: "Vui lòng chọn máy",
