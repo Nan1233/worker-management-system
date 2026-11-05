@@ -25,8 +25,7 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         CASE
           -- Shop-floor rule: every GC product/alias beginning with C belongs to Cắt,
           -- even when an older master row was incorrectly tagged as Lồng.
-          WHEN UPPER(TRIM(COALESCE(ps.product_code, ''))) LIKE 'C%'
-            OR UPPER(TRIM(COALESCE(pa.alias_code, ps.encoding_code, ''))) LIKE 'C%' THEN 'CUT'
+          WHEN UPPER(TRIM(COALESCE(ps.product_code, ''))) LIKE 'C%' THEN 'CUT'
           -- Explicit legacy jobs remain Long Tay exceptions; other GC rows follow
           -- the persisted product_standards.work_type value.
           WHEN UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP') THEN 'LONG'
