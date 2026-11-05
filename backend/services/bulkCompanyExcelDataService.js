@@ -134,6 +134,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
        LEFT JOIN processes p ON p.id = pr.process_id
        LEFT JOIN production_reports_temp temp ON temp.id = pr.source_temp_id
       WHERE LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
+        AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))
         AND pr.work_date >= ? AND pr.work_date < ?
         AND pr.process_id IN (${processPlaceholders})
       ORDER BY pr.work_date, w.worker_code, pr.machine_no, pr.created_at, pr.id`,
