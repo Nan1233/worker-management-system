@@ -116,6 +116,14 @@ test('bulk company payload marks approved TiDB rows for Desktop export', () => {
   assert.match(service, /isApprovedDatabaseRecord: true/);
 });
 
+test('bulk monthly Excel groups approved reports by authoritative process ID', () => {
+  const service = read('services/bulkCompanyExcelDataService.js');
+  assert.match(service, /processCodeById = new Map/);
+  assert.match(service, /processCodeById\.get\(Number\(report\.process_id\)\)/);
+  assert.match(service, /EXCEL_REPORT_PROCESS_MAPPING_FAILED/);
+  assert.match(service, /UPPER\(TRIM\(process_code\)\)/);
+});
+
 test('monthly workbook only accepts approved TiDB database payload', () => {
   const service = read('services/processExcelExportService.js');
   const source = read('../desktop/electron/monthlyWorkbookLocal.cjs');
