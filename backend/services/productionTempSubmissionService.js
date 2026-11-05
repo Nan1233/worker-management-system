@@ -55,25 +55,36 @@ const findExistingClientRequest = async (data, executor = db) => {
     const workerId = Number(data?.worker_id);
     const requestId = String(data?.client_request_id || "").trim();
     if (!Number.isInteger(workerId) || workerId <= 0 || !requestId) return null;
-    // Resolve both ordinary idempotency and split-GC group retries in one
-    // round trip. The exact client_request_id still takes precedence.
+    // Resolve ordinary requests and grouped per-machine submissions (GC legacy + Mài).
+    // Exact child request IDs take precedence; a group retry returns every child report.
     const matches = await query(executor,
         `SELECT id, status, client_request_id,
-                JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.gc_group_request_id')) AS gc_group_request_id
+                JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.gc_group_request_id')) AS gc_group_request_id,
+                JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.machine_group_request_id')) AS machine_group_request_id
            FROM production_reports_temp
           WHERE worker_id=?
-            AND (client_request_id=? OR JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.gc_group_request_id'))=?)
+            AND (client_request_id=?
+                 OR JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.gc_group_request_id'))=?
+                 OR JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.machine_group_request_id'))=?)
           ORDER BY id ASC`,
-        [workerId, requestId, requestId]);
+        [workerId, requestId, requestId, requestId]);
     const exact = matches.find((row) => String(row.client_request_id || "") === requestId);
     if (exact) return exact;
     if (!matches.length) return null;
-    const grouped = matches.filter((row) => String(row.gc_group_request_id || "") === requestId);
+    const grouped = matches.filter((row) =>
+        String(row.gc_group_request_id || "") === requestId
+        || String(row.machine_group_request_id || "") === requestId
+    );
     if (!grouped.length) return null;
-    return { ...grouped[0], gc_group_ids: grouped.map((row) => Number(row.id)) };
+    return { ...grouped[0], machine_group_ids: grouped.map((row) => Number(row.id)) };
 };
 
-const idempotent = (row) => ({ id: Number(row.id), ids: Array.isArray(row.gc_group_ids) ? row.gc_group_ids : [Number(row.id)], duplicate: true, duplicate_reason: "request_id", existing_report: row });
+const idempotent = (row) => ({
+    id: Number(row.id),
+    ids: Array.isArray(row.machine_group_ids) ? row.machine_group_ids
+        : (Array.isArray(row.gc_group_ids) ? row.gc_group_ids : [Number(row.id)]),
+    duplicate: true, duplicate_reason: "request_id", existing_report: row
+});
 
 const assertNoLogicalDuplicate = async (data, executor = db) => {
     const input = {
@@ -134,13 +145,19 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
         data.process_code = resolvedProcessCode;
         data._resolved_process_code = resolvedProcessCode;
     }
-    const isGc = (resolvedProcessCode || String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase()) === "GC";
-    const incoming = isGc && machineLines.length
-        ? Math.max(...machineLines.map((line) => {
-            const machineHours = Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0;
-            const deductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
-            return Math.max(0, machineHours - deductionHours);
-        }))
+    const resolvedCode = resolvedProcessCode || String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
+    const isParallelMachineProcess = resolvedCode === "GC" || resolvedCode === "MAI";
+    const incoming = isParallelMachineProcess && machineLines.length
+        ? (() => {
+            const netHoursByMachine = new Map();
+            for (const line of machineLines) {
+                const machine = String(line?.machine_code || line?.machine_id || "").trim().toUpperCase() || "__UNKNOWN__";
+                const net = Math.max(0, (Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0)
+                    - (Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0));
+                netHoursByMachine.set(machine, (netHoursByMachine.get(machine) || 0) + net);
+            }
+            return Math.max(0, ...netHoursByMachine.values());
+        })()
         : (Number(data?.actual_time) || 0);
     const existing = await queryCountedDailyHours((sql, params) => query(executor, sql, params), { workerId, workDate });
     const projected = existing + incoming;
@@ -278,44 +295,61 @@ const createAuditAfterChildren = async ({ tempId, audit, data, requestId, logica
     finally { connection.release(); }
 };
 
-const isGiaCongProcess = (data) => String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
+const processCodeOf = (data) => String(data?._resolved_process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
+const isGiaCongProcess = (data) => processCodeOf(data) === "GC";
+const isMaiProcess = (data) => processCodeOf(data) === "MAI";
+const shouldSplitMachineReports = (data, machineLines) =>
+    Array.isArray(machineLines) && machineLines.length > 1 && (isGiaCongProcess(data) || isMaiProcess(data));
 
-// Stable child request IDs allow the API to retry one machine report without
-// accidentally re-creating it. Kept below the 120-character DB column limit.
-const childRequestId = (groupRequestId, line, index) => {
-    const identity = [String(line?.machine_code || line?.machine_id || index), String(line?.product_code || "")].join("|");
+const sumLineNumber = (lines, field) => lines.reduce((sum, line) => sum + (Number(line?.[field]) || 0), 0);
+// Stable child request IDs are keyed by physical machine, not product line.
+const childRequestId = (groupRequestId, lines, index) => {
+    const line = Array.isArray(lines) ? (lines[0] || {}) : (lines || {});
+    // A report belongs to a product line, not to a physical machine. Include
+    // product identity and position so two products on the same machine never collide.
+    const identity = [
+        String(line.machine_code || "").trim().toUpperCase(),
+        String(line.product_code || "").trim().toUpperCase(),
+        String(index)
+    ].join("|");
     const digest = require("node:crypto").createHash("sha256").update(identity).digest("hex").slice(0, 20);
-    return `${String(groupRequestId).slice(0, 80)}:gc:${digest}`;
+    return `${String(groupRequestId).slice(0, 80)}:line:${digest}`;
 };
 
-const splitGcLinePayload = (data, line, requestId, index) => {
-    const defects = Array.isArray(line?.defects) ? line.defects : [];
-    const deductions = Array.isArray(line?.deductions) ? line.deductions : [];
+const splitMachineLinePayload = (data, lineOrLines, requestId, index, totalCount = 1) => {
+    const lines = Array.isArray(lineOrLines) ? lineOrLines : [lineOrLines];
+    const line = lines[0] || {};
+    const defects = lines.flatMap((item) => Array.isArray(item?.defects) ? item.defects : []);
+    const deductions = lines.flatMap((item) => Array.isArray(item?.deductions) ? item.deductions : []);
     const extra = typeof data.extra_data === "string" ? (() => { try { return JSON.parse(data.extra_data); } catch { return {}; } })() : (data.extra_data || {});
+    const groupMetadata = isGiaCongProcess(data)
+        ? { gc_group_request_id: requestId, gc_group_machine_count: totalCount, gc_group_machine_index: index, gc_split_report: true }
+        : { machine_group_request_id: requestId, machine_group_machine_count: totalCount, machine_group_machine_index: index, machine_split_report: true };
+    const productCodes = [...new Set(lines.map((item) => String(item?.product_code || "").trim()).filter(Boolean))];
     return {
         ...data,
         machine_no: line.machine_code || data.machine_no || null,
-        product_name: line.product_code || data.product_name || null,
-        total_time: Number(line.machine_time_hours) || 0,
+        product_name: productCodes.join(", ") || data.product_name || null,
+        total_time: sumLineNumber(lines, "machine_time_hours"),
         actual_time: 0,
-        deduction_time: Number(line.deduction_time_hours) || 0,
-        standard_output: Number(line.standard_output) || 0,
-        standard_version_id: line.standard_version_id || null,
-        machine_standard_id: line.machine_standard_id || null,
-        actual_output: Number(line.counted_output) || 0,
-        tt_ok: Number(line.ok_quantity) || 0,
-        tt_ng: Number(line.ng_quantity) || 0,
+        deduction_time: sumLineNumber(lines, "deduction_time_hours"),
+        standard_output: sumLineNumber(lines, "standard_output"),
+        standard_version_id: lines.every((item) => String(item?.standard_version_id || "") === String(line?.standard_version_id || "")) ? (line.standard_version_id || null) : null,
+        machine_standard_id: lines.every((item) => String(item?.machine_standard_id || "") === String(line?.machine_standard_id || "")) ? (line.machine_standard_id || null) : null,
+        actual_output: sumLineNumber(lines, "counted_output"),
+        tt_ok: sumLineNumber(lines, "ok_quantity"),
+        tt_ng: sumLineNumber(lines, "ng_quantity"),
         defects,
         deductions,
-        client_request_id: childRequestId(requestId, line, index),
+        client_request_id: childRequestId(requestId, lines, index),
         logical_duplicate_key: buildLogicalDuplicateKey({
             workerId: data.worker_id, processId: data.process_id, workDate: data.work_date,
             shift: data.shift, operationMode: data.operation_mode ?? data.operationMode,
             machineNo: line.machine_code || data.machine_no,
-            productName: line.product_code || data.product_name,
-            machineLines: [line]
+            productName: productCodes.join(", ") || data.product_name,
+            machineLines: lines
         }),
-        extra_data: { ...extra, gc_group_request_id: requestId, gc_group_machine_count: 1, gc_group_machine_index: index, gc_split_report: true }
+        extra_data: { ...extra, ...groupMetadata }
     };
 };
 
@@ -344,6 +378,10 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
     await enforceDailyWorkerHours(data, db, machineLines);
     data._daily_hours_machine_lines = machineLines;
+    // Each product/machine line is an independent report. Never merge two
+    // products merely because they use the same physical machine.
+    const reportMachineLines = machineLines;
+    const splitMachines = shouldSplitMachineReports(data, reportMachineLines);
     return runSerialized(queueKey(data, machineLines), async () => {
         // No second pre-transaction idempotency lookup here: sequential retries already returned above,
         // and a concurrent duplicate is resolved authoritatively inside the transaction under the
@@ -359,6 +397,15 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             : await query(db, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
         data.process_code = processRows[0]?.process_code || data.process_code || null;
         if (processRows[0]?.process_code) data._resolved_process_code = String(processRows[0].process_code).trim().toUpperCase();
+
+        // Đo is strictly one worker / one machine. Reject malformed multi-machine
+        // payloads rather than creating misleading split reports.
+        if (processCodeOf(data) === "DO" && machineLines.length !== 1) {
+            const error = new Error("Công đoạn Đo chỉ cho phép một công nhân báo cáo trên một máy mỗi lần.");
+            error.status = 422; error.code = "DO_SINGLE_MACHINE_REQUIRED"; error.isPublic = true;
+            error.details = { process_code: "DO", machine_line_count: machineLines.length, required_machine_line_count: 1 };
+            throw error;
+        }
         const training = await resolveInitialTrainingSnapshot({ executor: db, workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, trainingPercent: data.training_percent });
         data.training_percent_snapshot = Number(training);
         data.standard_version_id = data.standard_version_id || null;
@@ -374,10 +421,10 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         let deductions;
         try {
             await beginTransaction(validationConnection);
-            if (isGiaCongProcess(data) && machineLines.length > 1) {
+            if (splitMachines) {
                 // Validate each machine's NG and deduction details against its own parent report.
-                for (const [index, line] of machineLines.entries()) {
-                    const childData = splitGcLinePayload(data, line, requestId, index);
+                for (const [index, line] of reportMachineLines.entries()) {
+                    const childData = splitMachineLinePayload(data, line._source_machine_lines || [line], requestId, index, reportMachineLines.length);
                     const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, validationConnection);
                     validateChildTotals(childData, resolved.defects, resolved.deductions);
                 }
@@ -395,7 +442,6 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             throw error;
         } finally { validationConnection.release(); }
 
-        const splitGc = isGiaCongProcess(data) && machineLines.length > 1;
         let tempId;
         const createdIds = [];
         const parentConnection = await getConnection();
@@ -431,10 +477,11 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                 }
             }
             try {
-                if (splitGc) {
+                if (splitMachines) {
                     // All machine-specific parent reports and child rows are committed together.
-                    for (const [index, line] of machineLines.entries()) {
-                        const childData = splitGcLinePayload(data, line, requestId, index);
+                    for (const [index, line] of reportMachineLines.entries()) {
+                        const childLines = line._source_machine_lines || [line];
+                        const childData = splitMachineLinePayload(data, childLines, requestId, index, reportMachineLines.length);
                         childData._skip_daily_hours_enforcement = index > 0; // Enforce once under the worker lock; later machine children must not count the same group again.
                         const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, parentConnection);
                         validateChildTotals(childData, resolved.defects, resolved.deductions);
@@ -442,7 +489,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                         createdIds.push(Number(tempId));
                         await createModel.createDefects(tempId, data.process_id, resolved.defects, parentConnection);
                         await createModel.createDeductions(tempId, data.process_id, resolved.deductions, parentConnection);
-                        await createModel.replaceMachineLines(tempId, [line], parentConnection, { isNewReport: true }); // inserted in this transaction: no old lines to read/delete
+                        await createModel.replaceMachineLines(tempId, childLines, parentConnection, { isNewReport: true }); // inserted in this transaction: no old lines to read/delete
                     }
                 } else {
                     tempId = await createModel.create(data, parentConnection);
@@ -467,14 +514,14 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         // already committed, complete report and its NG/trừ giờ/machine details.
         let auditWarning = null;
         for (const createdId of createdIds) {
-            try { await createAuditAfterChildren({ tempId: createdId, audit, data, requestId: splitGc ? childRequestId(requestId, machineLines[createdIds.indexOf(createdId)], createdIds.indexOf(createdId)) : requestId, logicalDuplicateKey: data.logical_duplicate_key }); }
+            try { await createAuditAfterChildren({ tempId: createdId, audit, data, requestId: splitMachines ? childRequestId(requestId, reportMachineLines[createdIds.indexOf(createdId)]?._source_machine_lines || [reportMachineLines[createdIds.indexOf(createdId)]], createdIds.indexOf(createdId)) : requestId, logicalDuplicateKey: data.logical_duplicate_key }); }
             catch (error) {
                 auditWarning = String(error?.message || error).slice(0,450);
                 try { await query(db, `UPDATE production_reports_temp SET review_note=? WHERE id=?`, [`Audit chưa hoàn tất: ${auditWarning}`, createdId]); } catch {}
             }
         }
 
-        return { id: Number(createdIds[0] || tempId), ids: createdIds, reports: createdIds.map((id, index) => ({ id, machine_code: splitGc ? machineLines[index]?.machine_code || null : null })), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key, audit_warning: auditWarning };
+        return { id: Number(createdIds[0] || tempId), ids: createdIds, reports: createdIds.map((id, index) => ({ id, machine_code: splitMachines ? reportMachineLines[index]?.machine_code || null : null })), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key, audit_warning: auditWarning };
     });
 };
 

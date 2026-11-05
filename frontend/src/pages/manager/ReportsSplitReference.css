@@ -188,3 +188,31 @@
 .pending-reference-page .pending-table-wrap{min-width:0}
 .pending-reference-page .pending-bulk-toolbar{min-height:52px}
 .pending-reference-page .pending-table-footer{min-height:42px}
+
+
+/* Pending review filters: deterministic two-row layout; avoid legacy nth-of-type overrides. */
+.pending-reference-page .pending-filter-card[style]{
+  display:grid!important;
+  grid-template-columns:minmax(260px,2fr) minmax(170px,1fr) minmax(150px,.9fr) minmax(150px,.9fr)!important;
+  grid-template-areas:"search date process shift" "quick quick quick quick"!important;
+  gap:12px!important;
+  align-items:end!important;
+  padding:14px!important;
+}
+.pending-reference-page .pending-filter-card > .pending-search{grid-area:search!important}
+.pending-reference-page .pending-filter-card > .pending-date-filter{grid-area:date!important}
+.pending-reference-page .pending-filter-card > .pending-process-filter{grid-area:process!important}
+.pending-reference-page .pending-filter-card > .pending-shift-filter{grid-area:shift!important}
+.pending-reference-page .pending-filter-card > .pending-quick-filters{grid-area:quick!important}
+.pending-reference-page .pending-filter-card label>span{display:block!important;position:static!important;width:auto!important;height:auto!important;overflow:visible!important;clip:auto!important;white-space:normal!important;font-size:12px!important;line-height:16px!important;color:#526b88!important}
+.pending-reference-page .pending-filter-card input,
+.pending-reference-page .pending-filter-card select{box-sizing:border-box!important;height:38px!important;font-size:13px!important}
+.pending-reference-page .pending-quick-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.pending-reference-page .pending-quick-filters button{min-width:0;min-height:36px}
+@media(max-width:1100px){
+ .pending-reference-page .pending-filter-card[style]{grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-template-areas:"search search" "date shift" "process process" "quick quick"!important}
+}
+@media(max-width:620px){
+ .pending-reference-page .pending-filter-card[style]{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"search" "date" "process" "shift" "quick"!important}
+ .pending-reference-page .pending-quick-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

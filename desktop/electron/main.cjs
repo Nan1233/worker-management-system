@@ -1025,6 +1025,16 @@ async function performSyncSingleMonth({ date, source }) {
       payload: companyData
     });
 
+    const expectedProcessCodes = Object.keys(PROCESS_SHEETS);
+    const builtProcessCodes = (built.processes || []).map((item) => String(item.processCode || '').toUpperCase());
+    const missingProcessCodes = expectedProcessCodes.filter((code) => !builtProcessCodes.includes(code));
+    if (missingProcessCodes.length || builtProcessCodes.length !== expectedProcessCodes.length) {
+      throw Object.assign(
+        new Error(`Thiếu workbook công đoạn: ${missingProcessCodes.join(', ') || 'danh sách công đoạn không khớp'}.`),
+        { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' }
+      );
+    }
+
     // File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY.xlsx
     const summaryFilePath = path.join(
       folder,
@@ -1055,7 +1065,7 @@ async function performSyncSingleMonth({ date, source }) {
       formulaReplacementCount: built.summary.formulaReplacementCount
     });
 
-    // 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test.
+    // 10 công đoạn: luôn tạo đủ workbook, kể cả công đoạn chưa có báo cáo trong tháng.
     for (const processBuilt of built.processes || []) {
       const processFolder = path.join(folder, safeFolderName(processBuilt.processName || processBuilt.processCode));
       await fs.mkdir(processFolder, { recursive: true });

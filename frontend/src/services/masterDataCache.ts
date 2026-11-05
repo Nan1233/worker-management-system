@@ -18,7 +18,7 @@ const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v20";
 // p2: invalidate browser/session and offline product snapshots after adding GC product C0575 (Cắt, 1460) and KCT work_type fix.
 const PRODUCT_MASTER_VERSION = "p3";
 const DEDUCTION_MASTER_VERSION = "v13";
-const DEFECT_MASTER_VERSION = "v11";
+const DEFECT_MASTER_VERSION = "v12";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
 type DeductionOptions = Awaited<ReturnType<typeof getDeductionOptionsByProcess>>;

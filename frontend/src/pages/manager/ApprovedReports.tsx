@@ -4,6 +4,7 @@ import { getApprovedReports, getReportById } from "../../services/productionServ
 import { getAccessToken } from "../../utils/authStorage";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
+import { getAllReportDefects } from "../../utils/reportDetails";
 import "./ReportsSplitReference.css";
 
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
@@ -197,7 +198,7 @@ export default function ApprovedReports() {
     const detailKpi = detail ? kpi(detail) : null;
     const detailAny = detail as (ProductionReport & Record<string, unknown>) | null;
     const detailDeductions = Array.isArray(detailAny?.deductions) ? (detailAny?.deductions as any[]).filter(x => num(x.hours) > 0) : [];
-    const detailDefects = Array.isArray(detailAny?.defects) ? (detailAny?.defects as any[]).filter(x => num(x.quantity) > 0) : [];
+    const detailDefects = detail ? getAllReportDefects(detail).filter(x => num(x.quantity) > 0) : [];
     const detailMachineDefects = parseMachineDefects(detailAny);
 
     return (

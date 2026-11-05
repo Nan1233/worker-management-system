@@ -16,7 +16,7 @@ export const getMyTempReports=async()=>{const res=await api.get("/production-tem
 export interface DailyWorkingHours{work_date:string;counted_hours:number;limit_hours:number;}
 export const getMyDailyWorkingHours=async(date:string):Promise<DailyWorkingHours>=>{const res=await api.get("/production-temp/daily-hours",{params:{date}});return res.data?.data||res.data;};
 export interface ManagerReportPagination{page:number;page_size:number;total:number;total_pages:number;}
-export interface ManagerReportPage{data:ProductionReport[];pagination:ManagerReportPagination;processes?:string[];previous_count?:number;}
+export interface ManagerReportPage{data:ProductionReport[];pagination:ManagerReportPagination;processes?:Array<{id:number;process_code?:string;process_name:string}>;previous_count?:number;}
 export interface PendingReportFilters{dateFrom?:string;dateTo?:string;shift?:string;processId?:number|string;processName?:string;search?:string;page?:number;pageSize?:number;signal?:AbortSignal;includeMeta?:boolean;}
 const normalizeManagerReportPage=(payload:any):ManagerReportPage=>({data:Array.isArray(payload?.data)?payload.data:Array.isArray(payload)?payload:[],pagination:{page:Number(payload?.pagination?.page||1),page_size:Number(payload?.pagination?.page_size||20),total:Number(payload?.pagination?.total ?? (Array.isArray(payload?.data)?payload.data.length:0)),total_pages:Math.max(1,Number(payload?.pagination?.total_pages||1))},processes:Array.isArray(payload?.processes)?payload.processes:undefined,previous_count:Number(payload?.previous_count||0)});
 const approvedTrainingPercentCache=new Map<number,number>();

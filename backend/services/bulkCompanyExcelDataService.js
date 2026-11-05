@@ -72,7 +72,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   const allProcesses = await query(
     `SELECT id, process_code, process_name
        FROM processes
-      WHERE UPPER(process_code) IN (${placeholders})
+      WHERE UPPER(TRIM(process_code)) IN (${placeholders})
       ORDER BY id`,
     PROCESS_CODES
   );
@@ -134,6 +134,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
        LEFT JOIN processes p ON p.id = pr.process_id
        LEFT JOIN production_reports_temp temp ON temp.id = pr.source_temp_id
       WHERE LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
+        AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))
         AND pr.work_date >= ? AND pr.work_date < ?
         AND pr.process_id IN (${processPlaceholders})
       ORDER BY pr.work_date, w.worker_code, pr.machine_no, pr.created_at, pr.id`,
@@ -304,10 +305,34 @@ async function loadBulkCompanyReports(yearMonth, actor) {
 
   // Group once instead of scanning every report/event/type list for each process.
   // This keeps bulk export work close to O(rows + processes), even for large months.
+  // process_id is the authoritative relation. Do not rely only on the joined
+  // process_code text: legacy rows can have NULL/whitespace/case variations,
+  // which previously caused approved reports to be silently omitted from Excel.
+  const processCodeById = new Map(
+    processes.map((process) => [Number(process.id), String(process.process_code || '').trim().toUpperCase()])
+  );
   const reportsByProcess = new Map(PROCESS_CODES.map((code) => [code, []]));
+  const unassignedReports = [];
   for (const report of reports) {
-    const bucket = reportsByProcess.get(String(report.process_code || '').toUpperCase());
+    const code = processCodeById.get(Number(report.process_id))
+      || String(report.process_code || '').trim().toUpperCase();
+    const bucket = reportsByProcess.get(code);
     if (bucket) bucket.push(report);
+    else unassignedReports.push({
+      reportId: Number(report.id),
+      processId: Number(report.process_id),
+      processCode: report.process_code || null
+    });
+  }
+  // Fail loudly rather than returning a workbook that looks successful while
+  // dropping approved rows whose process mapping is inconsistent.
+  if (unassignedReports.length) {
+    const error = new Error(
+      `Có ${unassignedReports.length} báo cáo đã duyệt không ánh xạ được công đoạn để xuất Excel.`
+    );
+    error.code = 'EXCEL_REPORT_PROCESS_MAPPING_FAILED';
+    error.details = unassignedReports.slice(0, 20);
+    throw error;
   }
 
   const physicalEventsByProcess = new Map();
@@ -331,8 +356,11 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     defectTypesByProcess.get(key).push(item);
   }
 
+  const processByCode = new Map(
+    processes.map((process) => [String(process.process_code || '').trim().toUpperCase(), process])
+  );
   for (const [code, data] of Object.entries(processData)) {
-    const process = processes.find((row) => String(row.process_code).toUpperCase() === code);
+    const process = processByCode.get(code);
     data.processId = process ? Number(process.id) : null;
     data.processName = process?.process_name || code;
     data.reports = (reportsByProcess.get(code) || [])
@@ -381,6 +409,10 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         }
         return {
           ...report,
+          // This bulk query reads only approved production_reports rows. Mark each
+          // row explicitly so the Desktop export guard can verify its provenance.
+          dataSource: 'production_reports',
+          isApprovedDatabaseRecord: true,
           deductions,
           machineDeductions: machineAccounting?.deductions || [],
           defects,

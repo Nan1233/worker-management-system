@@ -101,7 +101,7 @@ export default function Reports() {
     const [date, setDate] = useState(getToday());
     const [range, setRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
     const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
-    const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+    const [reports, setReports] = useState<ProductionReport[]>([]); const [processOptions, setProcessOptions] = useState<string[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
     const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false);
@@ -127,12 +127,12 @@ export default function Reports() {
         try {
             setLoading(true); setError("");
             const r = range || { dateFrom: date, dateTo: date };
-            const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page, pageSize: 8, includeMeta: false, signal: controller.signal });
+            const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page, pageSize: 8, includeMeta: true, signal: controller.signal });
             if (!isCurrentRequest()) return;
-            setReports(result.data || []); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
+            setReports(result.data || []); setProcessOptions((result.processes || []).map((item: any) => String(item?.process_name || item?.process_code || "")).filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "vi"))); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
         } catch (e: any) {
             if (!isCurrentRequest()) return;
-            setError(e?.response?.data?.message || "Không thể tải báo cáo chờ duyệt"); setReports([]); setTotal(0); setPages(1);
+            setError(e?.response?.data?.message || "Không thể tải báo cáo chờ duyệt"); setReports([]); setProcessOptions([]); setTotal(0); setPages(1);
         } finally {
             if (reportAbortRef.current === controller) reportAbortRef.current = null;
             if (isCurrentRequest()) setLoading(false);
@@ -162,7 +162,7 @@ export default function Reports() {
     useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, searchQuery]);
     useEffect(() => { setSelectedIds([]); }, [page]);
 
-    const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
+    const processes = processOptions;
     const shifts = useMemo(() => Array.from(new Set(reports.map(r => r.shift).filter(Boolean))).sort(), [reports]);
     const quick = (type: "day" | "week" | "month" | "year") => { const today = getToday(); setDate(today); setRange(type === "day" ? null : rangeFor(today, type)); };
 

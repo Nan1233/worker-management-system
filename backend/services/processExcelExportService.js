@@ -114,6 +114,7 @@ async function loadProcessMonthReports(value, processId, options = {}) {
        INNER JOIN users AS u ON u.id = w.user_id
        INNER JOIN processes AS p ON p.id = pr.process_id
       WHERE LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
+        AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))
         AND pr.work_date >= ?
         AND pr.work_date < ?
         AND pr.process_id = ?

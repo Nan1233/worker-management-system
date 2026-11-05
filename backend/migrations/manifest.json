@@ -1,5 +1,5 @@
 {
-  "latestVersion": 38,
+  "latestVersion": 39,
   "latestMigration": "060_schema_gaps_encoding_updated_by_standard_source_20261022.sql",
   "migrations": [
     "001_core_master_schema.sql",

@@ -66,17 +66,9 @@ function expectedAccounting(report) {
       .filter(([id]) => Number.isInteger(id) && id > 0)
   );
 
-  const reportDeductions = parseArray(report?.deductions);
-  const hasLineBreakdown = lines.some((line) => parseArray(line?.deductions_json)
-    .some((item) => positive(item?.hours) > 0));
-  const safeReportFallback = lines.length === 1 && !hasLineBreakdown
-    ? reportDeductions
-    : [];
-  const hasLegacySingleLineDeduction = lines.length === 1
-    && String(report?.operation_mode || '').trim().toUpperCase() === 'MACHINE'
-    && Array.isArray(report?.deductions)
-    && !hasLineBreakdown;
-
+  // This oracle intentionally uses only physical machine-line fields.
+  // report.deductions and report.deduction_time are Worker-credit fields and
+  // must never be projected onto physical machine accounting.
   const seenEvents = new Set();
   const seenDeductionKeys = new Set();
   let grossHours = 0;
@@ -106,19 +98,19 @@ function expectedAccounting(report) {
       ? `EVENT:${eventId}`
       : `LINE:${Number(line?.id) || index}`;
     if (seenDeductionKeys.has(deductionKey)) continue;
-    seenDeductionKeys.add(deductionKey);
 
-    const storedLineDeductions = parseArray(line?.deductions_json);
-    const lineDeductions = storedLineDeductions.length ? storedLineDeductions : safeReportFallback;
-    const detailHours = lineDeductions.reduce((sum, item) => sum + positive(item?.hours), 0);
+    const detailHours = parseArray(line?.deductions_json)
+      .reduce((sum, item) => sum + positive(item?.hours), 0);
     const lineDeductionHours = Math.max(
       0,
       positive(line?.deduction_time_hours),
       positive(line?.adjustment_minutes) / 60,
-      detailHours,
-      hasLegacySingleLineDeduction ? positive(report?.deduction_time) : 0
+      detailHours
     );
-    deductionHours += lineDeductionHours;
+    if (lineDeductionHours > 0) {
+      seenDeductionKeys.add(deductionKey);
+      deductionHours += lineDeductionHours;
+    }
   }
 
   return {

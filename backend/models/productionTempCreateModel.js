@@ -21,20 +21,26 @@ const enforceDailyHoursLocked = async (executor, data) => {
     const workDate = String(data?.work_date || "").slice(0, 10);
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
     await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
-    // The facade may validate a complete multi-machine GC submission once, then persist its child reports atomically. Keep the worker lock but avoid counting the same group repeatedly.
+    // The facade may validate a complete multi-machine GC/Mài submission once, then persist its child reports atomically. Keep the worker lock but avoid counting the same group repeatedly.
     if (data?._skip_daily_hours_enforcement === true) return;
     // createCompleteReport already read processes.process_code inside this transaction; reuse it.
     const processRows = data?._resolved_process_code !== undefined
         ? [{ process_code: data._resolved_process_code }]
         : await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
-    const isGc = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase() === "GC";
+    const processCode = String(processRows?.[0]?.process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
+    const isParallelMachineProcess = processCode === "GC" || processCode === "MAI";
     const machineLines = Array.isArray(data?._daily_hours_machine_lines) ? data._daily_hours_machine_lines : [];
-const incoming = isGc && machineLines.length
-        ? Math.max(...machineLines.map((line) => {
-            const machineHours = Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0;
-            const deductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
-            return Math.max(0, machineHours - deductionHours);
-        }))
+const incoming = isParallelMachineProcess && machineLines.length
+        ? (() => {
+            const netHoursByMachine = new Map();
+            for (const line of machineLines) {
+                const machine = String(line?.machine_code || line?.machine_id || "").trim().toUpperCase() || "__UNKNOWN__";
+                const net = Math.max(0, (Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0)
+                    - (Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0));
+                netHoursByMachine.set(machine, (netHoursByMachine.get(machine) || 0) + net);
+            }
+            return Math.max(0, ...netHoursByMachine.values());
+        })()
         : (Number(data?.actual_time) || 0);
     const existing = await queryCountedDailyHours((sql, params) => query(executor, sql, params), { workerId, workDate });
     const projected = existing + incoming;
