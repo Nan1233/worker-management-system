@@ -382,6 +382,10 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         }
         return {
           ...report,
+          // This bulk query reads only approved production_reports rows. Mark each
+          // row explicitly so the Desktop export guard can verify its provenance.
+          dataSource: 'production_reports',
+          isApprovedDatabaseRecord: true,
           deductions,
           machineDeductions: machineAccounting?.deductions || [],
           defects,
