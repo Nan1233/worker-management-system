@@ -13,7 +13,7 @@ async function processIdsForCodes(codes) {
   return rows.map((row)=>Number(row.id)).filter(Boolean);
 }
 async function allCanonicalProcessIds(){
-  return processIdsForCodes(['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3']);
+  return processIdsForCodes(['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3','CVK']);
 }
 async function assertCompanyScope(actor){ await assertProcessesScope(actor,await allCanonicalProcessIds(),{action:'COMPANY_EXPORT'}); }
 
