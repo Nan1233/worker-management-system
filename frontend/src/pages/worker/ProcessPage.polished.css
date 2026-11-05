@@ -347,7 +347,10 @@
   justify-self:stretch!important;
   align-items:stretch!important;
 }
-.worker-form-page .machine-line .machine-worker-time-grid .worker-time-item{min-width:0!important;}
+.worker-form-page .machine-line .machine-worker-time-grid .worker-time-item{min-width:0!important;grid-column:auto!important;grid-row:1!important;}
+.worker-form-page .machine-line .machine-worker-time-grid .worker-time-item[data-worker-time="machine-actual"]{grid-column:1!important;}
+.worker-form-page .machine-line .machine-worker-time-grid .worker-time-item[data-worker-time="machine-deduction"]{grid-column:2!important;}
+.worker-form-page .machine-line .machine-worker-time-grid .worker-time-item[data-worker-time="machine-total"]{grid-column:3!important;}
 @media(max-width:560px){
   .worker-form-page .machine-line .machine-data-grid .worker-time-grid.machine-worker-time-grid{
     grid-template-columns:repeat(3,minmax(0,1fr))!important;
