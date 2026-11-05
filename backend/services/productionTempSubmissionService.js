@@ -10,7 +10,6 @@ const { buildLogicalDuplicateKey } = require("./logicalDuplicateReportService");
 const { verifyDuplicateConfirmation } = require("./duplicateConfirmationService");
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
-const { groupMaiLinesByMachine } = require("../utils/groupMaiLinesByMachine");
 
 const submissionQueues = new Map();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -305,10 +304,16 @@ const shouldSplitMachineReports = (data, machineLines) =>
 const sumLineNumber = (lines, field) => lines.reduce((sum, line) => sum + (Number(line?.[field]) || 0), 0);
 // Stable child request IDs are keyed by physical machine, not product line.
 const childRequestId = (groupRequestId, lines, index) => {
-    const machineCode = Array.isArray(lines) ? lines[0]?.machine_code : lines?.machine_code;
-    const identity = String(machineCode || index).trim().toUpperCase();
+    const line = Array.isArray(lines) ? (lines[0] || {}) : (lines || {});
+    // A report belongs to a product line, not to a physical machine. Include
+    // product identity and position so two products on the same machine never collide.
+    const identity = [
+        String(line.machine_code || "").trim().toUpperCase(),
+        String(line.product_code || "").trim().toUpperCase(),
+        String(index)
+    ].join("|");
     const digest = require("node:crypto").createHash("sha256").update(identity).digest("hex").slice(0, 20);
-    return `${String(groupRequestId).slice(0, 80)}:machine:${digest}`;
+    return `${String(groupRequestId).slice(0, 80)}:line:${digest}`;
 };
 
 const splitMachineLinePayload = (data, lineOrLines, requestId, index, totalCount = 1) => {
@@ -373,10 +378,10 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
     await enforceDailyWorkerHours(data, db, machineLines);
     data._daily_hours_machine_lines = machineLines;
-    // enforceDailyWorkerHours resolves the authoritative process code from DB.
-    // Group only after that lookup so clients need not send process_code.
-    const reportMachineLines = isMaiProcess(data) ? groupMaiLinesByMachine(machineLines) : machineLines;
-    const splitMachines = (isMaiProcess(data) && machineLines.length > 1) || shouldSplitMachineReports(data, reportMachineLines);
+    // Each product/machine line is an independent report. Never merge two
+    // products merely because they use the same physical machine.
+    const reportMachineLines = machineLines;
+    const splitMachines = shouldSplitMachineReports(data, reportMachineLines);
     return runSerialized(queueKey(data, machineLines), async () => {
         // No second pre-transaction idempotency lookup here: sequential retries already returned above,
         // and a concurrent duplicate is resolved authoritatively inside the transaction under the
