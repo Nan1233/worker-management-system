@@ -17,7 +17,8 @@ test('company-data API uses split-workbook contract without per-report Worker sn
   const loader = fs.readFileSync(path.join(__dirname, '../services/bulkCompanyExcelDataService.js'), 'utf8');
   assert.match(controller, /mode:\s*'SPLIT_MONTHLY_WORKBOOKS'/);
   assert.match(controller, /calculationContractVersion:\s*2/);
-  assert.match(loader, /pr\.exclude_kqd_from_tt_snapshot/);
+  // KQD is ordinary NG (2026-11-04): the loader no longer ships a KQD exclusion snapshot to Desktop.
+  assert.doesNotMatch(loader, /exclude_kqd_from_tt/);
   assert.doesNotMatch(loader, /calculateProductionMetrics\(report/);
 });
 
@@ -27,7 +28,7 @@ test('company-data contract preserves approved database snapshots for Desktop ca
   assert.match(loader, /pr\.actual_output/);
   assert.match(loader, /pr\.tt_ok/);
   assert.match(loader, /pr\.tt_ng/);
-  assert.match(loader, /pr\.exclude_kqd_from_tt_snapshot/);
+  assert.doesNotMatch(loader, /exclude_kqd_from_tt/);
   assert.match(loader, /production_report_machine_lines/);
 });
 

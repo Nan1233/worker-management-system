@@ -1,7 +1,7 @@
 export type ExtraFieldDefinition = {
   key: string;
   label: string;
-  type: "text" | "number" | "date";
+  type: "text" | "number" | "date" | "select";
   required?: boolean;
   placeholder?: string;
   unit?: string;
@@ -15,7 +15,9 @@ export type ExtraFieldDefinition = {
 export const PROCESS_SPECIFIC_FIELDS: Record<string, ExtraFieldDefinition[]> = {
   "cat-long": [],
   mai: [],
-  do: [],
+  do: [
+    { key: "grinding_machine_no", label: "Máy mài liên quan", type: "select", placeholder: "Chọn máy mài liên quan (nếu có)" },
+  ],
 
   "kiem-1": [
     { key: "press_date", label: "Ngày tháng Ép", type: "date" },

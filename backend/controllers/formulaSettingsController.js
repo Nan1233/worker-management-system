@@ -10,7 +10,6 @@ exports.list = async (req, res, next) => {
     const [products] = await db.promise().query(`
       SELECT ps.id, ps.process_id, ps.product_code,
              ps.standard_output AS standard_output,
-             COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
              p.process_code, p.process_name
       FROM product_standards ps
       LEFT JOIN processes p ON p.id = ps.process_id
@@ -97,25 +96,4 @@ exports.resetScope = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-exports.updateProductRule = async (req, res, next) => {
-  try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({ success:false, message:'ID mã sản phẩm không hợp lệ' });
-    }
-    const value = req.body?.exclude_kqd_from_tt;
-    const normalized = value === true || value === 1 || value === '1' ? 1 : value === false || value === 0 || value === '0' ? 0 : null;
-    if (normalized === null) {
-      return res.status(400).json({ success:false, message:'Quy tắc KQD không hợp lệ' });
-    }
-    const [rows] = await db.promise().query('SELECT id,process_id FROM product_standards WHERE id=? LIMIT 1',[id]);
-    if (!rows[0]) return res.status(404).json({success:false,message:'Không tìm thấy mã sản phẩm'});
-    await assertProcessScope(req.user, rows[0].process_id, { action:'FORMULA_PRODUCT_EDIT' });
-    const [result] = await db.promise().query(
-      'UPDATE product_standards SET exclude_kqd_from_tt=? WHERE id=?',
-      [normalized, id]
-    );
-    if (!result.affectedRows) return res.status(404).json({success:false,message:'Không tìm thấy mã sản phẩm'});
-    res.json({ success:true, message:'Đã cập nhật công thức tính TT theo mã sản phẩm' });
-  } catch (error) { next(error); }
-};
+// Product-level KQD exclusion was removed (2026-11-04): KQD is always ordinary NG.

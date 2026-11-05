@@ -74,8 +74,11 @@ function machineLineRow(report, line, reportLevelDeductions = [], allowReportTot
   if (!deductions.length && fallbackHours > 0) warnings.push('DEDUCTION_WITHOUT_BREAKDOWN');
 
   const hasPhysicalEvent = Number(line.machine_event_id) > 0;
-  const machineHours = Math.max(0, toNumber(line.excel_machine_time_hours ?? line.machine_time_hours));
-  if (hasPhysicalEvent && machineHours <= 0) warnings.push('PHYSICAL_MACHINE_EVENT_TIME_MISSING');
+  const physicalMachineHours = Math.max(0, toNumber(line.excel_machine_time_hours ?? line.machine_time_hours));
+  // Worker rows use canonical participation time. Physical event time is
+  // stored once per event and must not replace or multiply worker credit.
+  const machineHours = Math.max(0, toNumber(line.machine_time_hours));
+  if (hasPhysicalEvent && physicalMachineHours <= 0) warnings.push('PHYSICAL_MACHINE_EVENT_TIME_MISSING');
   const workedHours = Math.max(0, machineHours - deductionHours);
   const ok = Math.max(0, Math.round(toNumber(line.ok_quantity)));
   const ng = Math.max(0, Math.round(toNumber(line.ng_quantity)));

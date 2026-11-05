@@ -19,15 +19,15 @@ test('P0 approval path keeps transaction + row-lock + optimistic concurrency', (
 
 test('P0 worker submission keeps idempotency and duplicate challenge controls', () => {
   const controller = read('controllers/productionTempWorkerController.js');
-  const createModel = read('models/productionTempCreateModel.js');
+  const submissionService = read('services/productionTempSubmissionService.js');
   assert.match(controller, /CLIENT_REQUEST_ID_REQUIRED/);
   assert.match(controller, /DUPLICATE_CONFIRMATION_REQUIRED/);
   assert.match(controller, /duplicate_confirmation_token/);
   assert.match(controller, /client_request_id/);
-  assert.match(createModel, /lockClientRequestId/);
-  assert.match(createModel, /findByClientRequest/);
-  assert.match(createModel, /verifyDuplicateConfirmation/);
-  assert.match(createModel, /duplicate_reason: "request_id"/);
+  assert.match(submissionService, /lockClientRequestId/);
+  assert.match(submissionService, /findExistingClientRequest/);
+  assert.match(submissionService, /verifyDuplicateConfirmation/);
+  assert.match(submissionService, /duplicate_reason: "request_id"/);
 });
 
 test('P0 manager authorization is process-scoped before approval', () => {

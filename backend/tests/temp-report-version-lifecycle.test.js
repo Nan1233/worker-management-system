@@ -7,7 +7,8 @@ const root = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 test('temp report lifecycle creates immutable versions at create/update/reject/approve', () => {
-  const create = read('models/productionTempCreateModel.js');
+  // Create-time versioning moved from the create model into the submission service.
+  const create = read('services/productionTempSubmissionService.js');
   const update = read('models/productionTempUpdateModel.js');
   const approval = read('models/productionTempApprovalModel.js');
 

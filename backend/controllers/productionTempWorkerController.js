@@ -2,7 +2,8 @@ const ProductionTemp = require("../models/productionTempModel");
 const { publicMessage } = require("../utils/httpError");
 const { validateMachineLines } = require("../services/machineLineValidationService");
 const { getProcessMachinePolicy } = require("../services/processMachinePolicy");
-const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require("../services/factoryMachineRuleService");
+const { validateProcessExtraData } = require("../services/processExtraDataValidationService");
+const { validateFactoryMachineRules } = require("../services/factoryMachineRuleService");
 const {
     toPositiveInteger,
     normalizeOperationType,
@@ -13,7 +14,7 @@ const {
 const { validateMasterData } = require("../services/reportBusinessValidationService");
 const { validateProductionReport } = require("../utils/reportValidation");
 const { queuePostCreateSideEffects } = require("../services/productionReportSideEffectsService");
-const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
+const { calculateProductionOutput } = require("../../shared/productionOutput.cjs");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 const { issueDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
@@ -115,8 +116,8 @@ exports.createTempReport = async (req, res) => {
                 req.body?.process_id
             );
 
-        const extraDataInput = req.body?.extra_data && typeof req.body.extra_data === "object" && !Array.isArray(req.body.extra_data)
-            ? req.body.extra_data
+        let extraDataInput = req.body?.extra_data && typeof req.body.extra_data === "object" && !Array.isArray(req.body.extra_data)
+            ? { ...req.body.extra_data }
             : {};
         const isNonProductWorkWithinProcess = extraDataInput.non_product_work === true
             && processId !== 30002 && processId !== 60006;
@@ -233,6 +234,15 @@ exports.createTempReport = async (req, res) => {
         }));
 
         const machinePolicy = getProcessMachinePolicy(processId);
+        const extraDataValidation = await validateProcessExtraData({ processCode: machinePolicy.code, extraData: extraDataInput });
+        if (!extraDataValidation.valid) {
+            return res.status(422).json({
+                success: false,
+                message: "Thông tin riêng công đoạn không hợp lệ",
+                errors: extraDataValidation.errors
+            });
+        }
+        extraDataInput = extraDataValidation.extraData;
         const normalizedMachineNo = String(validation.normalized.machine_no || req.body?.machine_no || "").trim();
         const requestedMachineMode = operationMode === "MACHINE" || rawMachineLines.length > 0 || Boolean(normalizedMachineNo);
 
@@ -252,12 +262,13 @@ exports.createTempReport = async (req, res) => {
             });
         }
 
-        if (!isNonProductWorkWithinProcess && machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && (!normalizedMachineNo && rawMachineLines.length === 0 || rawMachineLines.length > 1)) {
+        if (!isNonProductWorkWithinProcess && ["SINGLE_MACHINE_REQUIRED", "SINGLE_MACHINE_OPTIONAL"].includes(machinePolicy.mode)
+            && (machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && !normalizedMachineNo && rawMachineLines.length === 0 || rawMachineLines.length > 1)) {
             const label = machinePolicy.code === "DO" ? "Đo" : machinePolicy.code === "EP" ? "Ép" : "Cán";
             return res.status(422).json({
                 success: false,
-                message: `Công đoạn ${label} yêu cầu đúng một máy cho mỗi công nhân`,
-                errors: { machine_no: `Vui lòng chọn đúng một máy ${label.toLowerCase()}` }
+                message: `Công đoạn ${label} chỉ được ghi nhận tối đa một máy`,
+                errors: { machine_no: `Chỉ được chọn tối đa một máy ${label.toLowerCase()}` }
             });
         }
 
@@ -277,6 +288,7 @@ exports.createTempReport = async (req, res) => {
                 operationType,
                 operationMode: "MACHINE",
                 maxMachines: machinePolicy.maxMachines || 4,
+                allowZeroQuantity: isNonProductWorkWithinProcess || machinePolicy.code === "CVK",
                 workDate: req.body.work_date
             });
             if (!machineValidation.valid) {
@@ -286,7 +298,7 @@ exports.createTempReport = async (req, res) => {
                     errors: machineValidation.errors
                 });
             }
-        } else if (!isNonProductWorkWithinProcess && operationMode === "MACHINE" && !normalizedMachineNo) {
+        } else if (!isNonProductWorkWithinProcess && !["MAI", "DO"].includes(machinePolicy.code) && operationMode === "MACHINE" && !normalizedMachineNo) {
             return res.status(422).json({
                 success: false,
                 message: "Vui lòng chọn máy",
@@ -308,23 +320,9 @@ exports.createTempReport = async (req, res) => {
                 errors: factoryRuleValidation.errors
             });
         }
-        const machineCapacityValidation = isNonProductWorkWithinProcess ? { valid: true, errors: {} } : await validateMachineWorkerCapacity({
-            processCode: machinePolicy.code,
-            processId,
-            machineLines: machineValidation.lines.length
-                ? machineValidation.lines
-                : (normalizedMachineNo ? [{ machine_code: normalizedMachineNo }] : []),
-            workerId,
-            workDate: req.body.work_date,
-            shift: req.body.shift
-        });
-        if (!machineCapacityValidation.valid) {
-            return res.status(422).json({
-                success: false,
-                message: "Máy đã đủ số người cho phép trong ngày/ca",
-                errors: machineCapacityValidation.errors
-            });
-        }
+        // Machine-worker capacity is checked again under the submission transaction
+        // after capacity keys are locked. Do not run the same two-query check here:
+        // it spends Worker subrequests and can race before the authoritative lock.
 
 
         // =================================================
@@ -350,7 +348,7 @@ exports.createTempReport = async (req, res) => {
                 // Machine-line reports validate each line's OK/NG/output in validateMachineLines.
                 // Do not compare aggregate output against only the first machine's defects.
                 skipActualOutputValidation: Array.isArray(machineValidation.lines) && machineValidation.lines.length > 0,
-                allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
+                allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY" || (["MAI", "DO"].includes(machinePolicy.code) && rawMachineLines.length === 0 && !normalizedMachineNo),
                 operationMode,
                 operationType: validation.normalized.operation_type ?? req.body.operation_type,
                 workDate: req.body.work_date,
@@ -374,24 +372,15 @@ exports.createTempReport = async (req, res) => {
             ? null
             : calculateProductionOutput({
                 ok: validation.normalized.tt_ok,
-                defects: masterValidation.authoritativeDefects,
-                excludeKqdFromTt: Boolean(Number(masterValidation.excludeKqdFromTt || 0))
+                defects: masterValidation.authoritativeDefects
             });
-        const parentKqdPolicySnapshot = machineValidation.lines.length
-            ? (() => {
-                const policies = [...new Set(machineValidation.lines.map((line) => Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0))];
-                return policies.length === 1 ? policies[0] : null;
-            })()
-            : (Number(masterValidation.excludeKqdFromTt || 0) === 1 ? 1 : 0);
 
         data = {
             ...validation.normalized,
 
             // work_date là ngày công nhân chọn; entry_date là ngày thực tế nhập báo cáo.
             entry_date: String(req.body?.entry_date || new Date().toISOString().slice(0, 10)).slice(0, 10),
-            extra_data: (req.body?.extra_data && typeof req.body.extra_data === "object" && !Array.isArray(req.body.extra_data))
-                ? req.body.extra_data
-                : {},
+            extra_data: extraDataInput,
 
             worker_id:
                 workerId,
@@ -432,7 +421,7 @@ exports.createTempReport = async (req, res) => {
             standard_version_id: machineValidation.lines.length ? null : masterValidation.standardVersionId,
             machine_standard_id: machineValidation.lines.length ? null : masterValidation.machineStandardId,
 
-            // Với báo cáo máy, actual_output là sản lượng được tính năng suất sau quy tắc KQD.
+            // Với báo cáo máy, actual_output là sản lượng OK cộng toàn bộ NG.
             actual_output:
                 machineValidation.lines.length
                     ? Number(machineValidation.totals?.totalCounted || 0)
@@ -445,10 +434,6 @@ exports.createTempReport = async (req, res) => {
                 machineValidation.lines.length
                     ? Number(machineValidation.totals?.totalNg || 0)
                     : validation.normalized.tt_ng,
-
-            // Legacy alias retained for compatibility; immutable authority is the snapshot field.
-            exclude_kqd_from_tt: parentKqdPolicySnapshot ?? 0,
-            exclude_kqd_from_tt_snapshot: parentKqdPolicySnapshot,
 
             defects:
                 undefined,

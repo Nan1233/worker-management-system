@@ -27,23 +27,6 @@ const normalizeMasterLabel = (value: unknown): string => String(value ?? "")
   .toLowerCase()
   .replace(/[^a-z0-9]/g, "");
 
-const MAI_ALLOWED_DEDUCTION_NAMES = new Set([
-  "Bảo dưỡng máy",
-  "Ko có KHSX, Dừng máy ko HT",
-  "Chờ hàng, hết hàng",
-  "Khí yếu",
-  "Nghỉ giải lao",
-  "Giao ca",
-  "Dừng máy đi hỗ trợ",
-  "5s, đổ bụi,xì bụi,lấy bụi",
-  "Học việc",
-  "Thổi bụi,lấy bụi",
-  "Đi đo kiểm soát",
-  "Đi muộn/về sớm",
-  "Tắt máy hút bụi",
-  "Mất điện",
-].map(normalizeMasterLabel));
-
 const MAI_DISPLAY_LABELS = new Map<string, string>([
   ["chohanghethang", "Chờ hàng, hết hàng"],
   ["kqddao", "KQD ĐẢO"],
@@ -95,6 +78,29 @@ function filterMaiMasterOptions(
 
   return Array.from(unique.values());
 }
+// Mài deductions are already scoped to the process and active rows by the API.
+// Do not apply a hard-coded name allowlist here: real DB labels can differ slightly
+// from historical spellings, and filtering them made the worker dropdown empty.
+// Deduplicate equivalent labels while preserving the canonical MAI_TTH row.
+function dedupeMaiDeductionOptions(options: WorkerMasterOption[], processCode: string, processId: number): WorkerMasterOption[] {
+  const isMai = String(processCode || "").trim().toUpperCase() === "MAI" || Number(processId) === 2;
+  if (!isMai) return options;
+  const unique = new Map<string, WorkerMasterOption>();
+  const priority = (option: WorkerMasterOption): number => {
+    const code = String(option.code || "").trim().toUpperCase();
+    if (code.startsWith("MAI_TTH_")) return 0;
+    if (code.startsWith("KTC_")) return 2;
+    return 1;
+  };
+  for (const option of options) {
+    const key = normalizeMasterLabel(option.label);
+    if (!key) continue;
+    const current = unique.get(key);
+    if (!current || priority(option) < priority(current)) unique.set(key, option);
+  }
+  return Array.from(unique.values());
+}
+
 // GC master data may contain legacy and canonical rows with the same label.
 // Keep one selectable checkbox per normalized label without deleting DB records.
 const dedupeGcDeductionOptions = (options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] => {
@@ -305,7 +311,11 @@ export function useProcessMasterData(processId: number, processCode: string) {
         setActiveDeductionOptions(
           dedupeGcDeductionOptions(
             filterK2MasterOptions(
-              filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId), processCode, resolvedProcessId, MAI_ALLOWED_DEDUCTION_NAMES, "MAI_TTH_"),
+              dedupeMaiDeductionOptions(
+                normalizeDeductionOptions(deductions.value, resolvedProcessId),
+                processCode,
+                resolvedProcessId,
+              ),
               processCode,
               K2_ALLOWED_DEDUCTION_NAMES,
             ),

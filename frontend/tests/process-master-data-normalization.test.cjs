@@ -16,3 +16,8 @@ assert.match(normalizer, /key\s*=\s*clean\(configured\?\.key\) \|\| canonicalCod
 assert.match(normalizer, /label\s*=\s*name \|\| clean\(configured\?\.label\) \|\| canonicalCode/);
 
 console.log('process-master-data-normalization: PASS');
+
+assert.match(hook, /dedupeMaiDeductionOptions\(/);
+assert.doesNotMatch(hook, /MAI_ALLOWED_DEDUCTION_NAMES/);
+assert.match(hook, /normalizeDeductionOptions\(deductions\.value, resolvedProcessId\)/);
+console.log('mai-deduction-db-options: PASS');

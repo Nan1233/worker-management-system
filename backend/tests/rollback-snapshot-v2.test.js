@@ -107,13 +107,13 @@ test('v2 validator rejects missing machineLines instead of normalizing it to emp
   assert.ok(result.issues.some((x) => x.code === 'ROLLBACK_CHILD_GRAPH_INCOMPLETE' && x.path === 'machineLines'));
 });
 
-test('v2 validator classifies missing training and KQD historical evidence', async () => {
+test('v2 validator classifies missing training evidence; a missing retired KQD flag is not a restore risk', async () => {
   const snapshot = await loadApprovedAggregateSnapshot({ reportId: 9, executor: createExecutor(fixture()) });
   snapshot.report.training_percent_snapshot = null;
   snapshot.report.exclude_kqd_from_tt_snapshot = null;
   const result = validateApprovedVersionSnapshot(snapshot);
   assert.ok(result.issues.some((x) => x.code === 'ROLLBACK_MISSING_TRAINING_SNAPSHOT'));
-  assert.ok(result.issues.some((x) => x.code === 'ROLLBACK_MISSING_KQD_POLICY'));
+  assert.ok(!result.issues.some((x) => /KQD/.test(x.code)), 'KQD is ordinary NG; no KQD policy evidence is required');
 });
 
 test('v2 validator rejects malformed machine event reference structurally', async () => {
@@ -134,7 +134,7 @@ test('legacy parent-only snapshot is REVIEW_REQUIRED and never auto-upgraded to 
   assert.ok(result.reasons.includes('ROLLBACK_PARENT_ONLY_VERSION'));
   assert.ok(result.reasons.includes('ROLLBACK_CHILD_GRAPH_INCOMPLETE'));
   assert.ok(result.reasons.includes('ROLLBACK_MISSING_TRAINING_SNAPSHOT'));
-  assert.ok(result.reasons.includes('ROLLBACK_MISSING_KQD_POLICY'));
+  assert.ok(!result.reasons.some((reason) => /KQD/.test(reason)), 'retired KQD policy is not a rollback reason');
   assert.ok(result.reasons.includes('ROLLBACK_EVENT_LINK_UNKNOWN'));
 });
 
@@ -295,8 +295,8 @@ test('rollback scanner taxonomy contains every required legacy risk', () => {
     'ROLLBACK_PARENT_ONLY_VERSION',
     'ROLLBACK_MISSING_STANDARD_SNAPSHOT',
     'ROLLBACK_MISSING_TRAINING_SNAPSHOT',
-    'ROLLBACK_MISSING_KQD_POLICY',
     'ROLLBACK_EVENT_LINK_UNKNOWN',
     'ROLLBACK_CHILD_GRAPH_INCOMPLETE'
   ]) assert.match(source, new RegExp(code));
+  assert.doesNotMatch(source, /ROLLBACK_MISSING_KQD_POLICY/, 'KQD policy evidence was retired on 2026-11-04');
 });

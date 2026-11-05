@@ -1,29 +1,49 @@
 const configuredApiUrl = String(import.meta.env.VITE_API_URL || "").trim();
 const developmentApiUrl = "http://127.0.0.1:10000/api";
+const testApiOrigin = "https://ktc-be-test.nan978971.workers.dev";
+const testFrontendHostname = "ktc-fe-test.nan978971.workers.dev";
+const productionFrontendHostname = "ktc-frontend.nan978971.workers.dev";
+const isTestBuild = import.meta.env.MODE === "test";
+const isProductionBuild = import.meta.env.PROD && !isTestBuild;
 
 function normalizeApiBaseUrl(value: string): string {
   const normalized = value.replace(/\/+$/, "");
-  if (!/\/api$/i.test(normalized)) {
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error("VITE_API_URL must be an absolute API URL");
+  }
+  if (!/\/api$/i.test(parsed.pathname) || parsed.search || parsed.hash) {
     throw new Error("VITE_API_URL must be the full API base URL ending in /api");
+  }
+  if (isTestBuild && parsed.origin !== testApiOrigin) {
+    throw new Error("TEST build must use the KTC TEST API endpoint");
+  }
+  if (isProductionBuild && (parsed.protocol !== "https:" || parsed.hostname === "ktc-be-test.nan978971.workers.dev" || parsed.hostname.includes("-test."))) {
+    throw new Error("Production build must use an HTTPS production API endpoint, never a TEST endpoint");
   }
   return normalized;
 }
 
 /**
- * Test frontend is permanently isolated from production.
- * Never allow a stale VITE_API_URL in the deployed test build to send
- * requests to the production backend.
+ * Deployment isolation is enforced at build time and again in the browser:
+ * TEST bundles cannot point at production; production bundles cannot point at TEST.
  */
 function resolveApiUrl(): string {
   if (typeof window !== "undefined") {
     const hostname = window.location.hostname.toLowerCase();
-    if (hostname === "ktc-fe-test.nan978971.workers.dev") {
-      return "https://ktc-be-test.nan978971.workers.dev/api";
+    if (isProductionBuild && hostname === testFrontendHostname) {
+      throw new Error("Production frontend bundle cannot run on the TEST frontend hostname");
+    }
+    if (isTestBuild && hostname === productionFrontendHostname) {
+      throw new Error("TEST frontend bundle cannot run on the production frontend hostname");
+    }
+    if (hostname === testFrontendHostname && !isTestBuild) {
+      throw new Error("The TEST frontend hostname requires a TEST build profile");
     }
   }
   if (configuredApiUrl) return configuredApiUrl;
-  // A production bundle without VITE_API_URL used to silently call http://127.0.0.1:10000,
-  // which can never work for a real user. Fail loudly instead; local dev keeps its default.
   if (import.meta.env.PROD) return "";
   return developmentApiUrl;
 }
@@ -35,7 +55,6 @@ if (import.meta.env.PROD && !resolvedApiUrl) {
 }
 
 export const API_BASE_URL = normalizeApiBaseUrl(resolvedApiUrl);
-
 export const REQUEST_TIMEOUT_MS = 30_000;
 
 /**

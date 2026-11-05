@@ -63,18 +63,25 @@ test('machine lines are written with constant statements: one multi-row INSERT, 
   assert.equal(find(sqls, /^INSERT INTO production_temp_machine_defects/).length, 1);
   assert.equal(find(sqls, /LAST_INSERT_ID/).length, 0);
   const lineInsert = find(sqls, /^INSERT INTO production_temp_machine_lines/)[0];
-  // 4 rows x 22 columns, each machine keeps its own values (no mixing)
-  assert.equal(lineInsert.params.length, 4 * 22);
-  const rows = [0, 1, 2, 3].map((i) => lineInsert.params.slice(i * 22, i * 22 + 22));
+  // 4 rows x 21 columns (the legacy exclude_kqd_from_tt column is no longer written), each machine
+  // keeps its own values (no mixing). Column order: temp_report_id, machine_event_id, machine_id,
+  // machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
+  // machine_time_hours, standard_output, standard_time_seconds, standard_source, ok_quantity,
+  // ng_quantity, maximum_output, deduction_time_hours, deductions_json, counted_output,
+  // earned_standard_hours, defects_json, sort_order.
+  assert.match(lineInsert.sql, /\(temp_report_id, machine_event_id[\s\S]*defects_json, sort_order\)/);
+  assert.doesNotMatch(lineInsert.sql, /exclude_kqd/);
+  assert.equal(lineInsert.params.length, 4 * 21);
+  const rows = [0, 1, 2, 3].map((i) => lineInsert.params.slice(i * 21, i * 21 + 21));
   rows.forEach((row, i) => {
     assert.equal(row[0], 900001);
     assert.equal(row[3], `M0${5 + i}`);
     assert.equal(row[7], `P${i + 1}`);
     assert.equal(row[8], 2);            // machine_time_hours (derived by the validator: actual 2 + deductions 0)
-    assert.equal(row[13], 100);         // ok_quantity
-    assert.equal(row[14], 2);           // ng_quantity
-    assert.equal(row[16], 0);           // deduction_time_hours (derived from the deductions list)
-    assert.equal(row[21], i + 1);       // sort_order
+    assert.equal(row[12], 100);         // ok_quantity
+    assert.equal(row[13], 2);           // ng_quantity
+    assert.equal(row[15], 0);           // deduction_time_hours (derived from the deductions list)
+    assert.equal(row[20], i + 1);       // sort_order
   });
   const defectInsert = find(sqls, /^INSERT INTO production_temp_machine_defects/)[0];
   assert.match(defectInsert.sql, /ON v\.sort_order = ml\.sort_order/);

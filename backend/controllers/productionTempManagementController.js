@@ -15,6 +15,7 @@ const { assertProcessesScope } = require("../services/processAuthorizationServic
 const { validateMachineLines } = require("../services/machineLineValidationService");
 const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require("../services/factoryMachineRuleService");
 const { getProcessMachinePolicy } = require("../services/processMachinePolicy");
+const { validateProcessExtraData } = require("../services/processExtraDataValidationService");
 const { envEnabled } = require("../utils/featureFlags");
 const {
     toPositiveInteger,
@@ -27,7 +28,7 @@ const { validateMasterData } = require("../services/reportBusinessValidationServ
 const { gcWorkTypeFromOperationType, gcWorkTypeLabel } = require("../utils/gcMachineWorkType");
 const { assertWorkerOwnership } = require("../services/processAuthorizationService");
 const { validateProductionReport } = require("../utils/reportValidation");
-const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
+const { calculateProductionOutput } = require("../../shared/productionOutput.cjs");
 const {
     normalizePagination,
     normalizeSearch,
@@ -285,6 +286,21 @@ exports.updateTempReport = async (req, res) => {
         }
 
         const payload = { ...current, ...(req.body || {}), defects: req.body?.defects ?? current.defects, deductions: req.body?.deductions ?? current.deductions };
+        const hasExtraDataUpdate = Object.prototype.hasOwnProperty.call(req.body || {}, "extra_data");
+        if (hasExtraDataUpdate) {
+            const extraDataValidation = await validateProcessExtraData({
+                processCode: current.process_code || getProcessMachinePolicy(current.process_id).code,
+                extraData: payload.extra_data
+            });
+            if (!extraDataValidation.valid) {
+                return res.status(422).json({
+                    success: false,
+                    message: "Thông tin riêng công đoạn không hợp lệ",
+                    errors: extraDataValidation.errors
+                });
+            }
+            payload.extra_data = extraDataValidation.extraData;
+        }
 
         if (req.user?.role === "worker") {
             const workDateError = validateWorkerWorkDate(payload.work_date);
@@ -311,9 +327,10 @@ exports.updateTempReport = async (req, res) => {
         if (machinePolicy.mode === "MULTI_MACHINE_REQUIRED" && rawMachineLines.length === 0) {
             return res.status(422).json({ success: false, message: "Công đoạn này bắt buộc nhập danh sách máy", errors: { machine_lines: "Vui lòng chọn từ 1 đến 4 máy" } });
         }
-        if (machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && ((!normalizedMachineNo && rawMachineLines.length === 0) || rawMachineLines.length > 1)) {
+        if (["SINGLE_MACHINE_REQUIRED", "SINGLE_MACHINE_OPTIONAL"].includes(machinePolicy.mode)
+            && ((machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && !normalizedMachineNo && rawMachineLines.length === 0) || rawMachineLines.length > 1)) {
             const label = machinePolicy.code === "DO" ? "Đo" : machinePolicy.code === "EP" ? "Ép" : "Cán";
-            return res.status(422).json({ success: false, message: `Công đoạn ${label} yêu cầu đúng một máy`, errors: { machine_no: `Vui lòng chọn đúng một máy ${label.toLowerCase()}` } });
+            return res.status(422).json({ success: false, message: `Công đoạn ${label} chỉ được ghi nhận tối đa một máy`, errors: { machine_no: `Chỉ được chọn tối đa một máy ${label.toLowerCase()}` } });
         }
         if (machinePolicy.mode === "MANUAL_OR_SINGLE_MACHINE" && rawMachineLines.length > 1) {
             return res.status(422).json({ success: false, message: "Công đoạn Kiểm chỉ được chọn tối đa một máy", errors: { machine_lines: "Chỉ được chọn một máy hoặc làm tay" } });
@@ -368,7 +385,7 @@ exports.updateTempReport = async (req, res) => {
             deductions: validation.normalized.deductions,
             ttOk: operationMode === "MANUAL" ? validation.normalized.tt_ok : undefined,
             actualOutput: operationMode === "MANUAL" ? validation.normalized.actual_output : undefined,
-            allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
+            allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY" || (["MAI", "DO"].includes(machinePolicy.code) && rawMachineLines.length === 0 && !normalizedMachineNo),
             operationType: validation.normalized.operation_type ?? payload.operation_type,
             workDate: payload.work_date,
             reuseValidatedMachine,
@@ -383,15 +400,8 @@ exports.updateTempReport = async (req, res) => {
         const totalMachineHours = Number(machineValidation.totals?.totalMachineHours || 0);
         const manualOutput = hasMachineLines ? null : calculateProductionOutput({
             ok: validation.normalized.tt_ok,
-            defects: master.authoritativeDefects,
-            excludeKqdFromTt: Boolean(Number(master.excludeKqdFromTt || 0))
+            defects: master.authoritativeDefects
         });
-        const parentKqdPolicySnapshot = hasMachineLines
-            ? (() => {
-                const policies = [...new Set(machineValidation.lines.map((line) => Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0))];
-                return policies.length === 1 ? policies[0] : null;
-            })()
-            : (Number(master.excludeKqdFromTt || 0) === 1 ? 1 : 0);
         const normalizedUpdate = {
             ...validation.normalized,
             operation_mode: (hasMachineLines || (operationMode === "MACHINE" && master.machineCode)) ? "MACHINE" : "MANUAL",
@@ -415,11 +425,10 @@ exports.updateTempReport = async (req, res) => {
             tt_ng: hasMachineLines
                 ? Number(machineValidation.totals?.totalNg || 0)
                 : validation.normalized.tt_ng,
-            exclude_kqd_from_tt: parentKqdPolicySnapshot ?? 0,
-            exclude_kqd_from_tt_snapshot: parentKqdPolicySnapshot,
             standard_version_id: hasMachineLines ? null : master.standardVersionId,
             machine_standard_id: hasMachineLines ? null : master.machineStandardId,
-            machine_lines: machineValidation.lines
+            machine_lines: machineValidation.lines,
+            ...(hasExtraDataUpdate ? { extra_data: payload.extra_data } : {})
         };
 
         const result = await ProductionTemp.updateReport(

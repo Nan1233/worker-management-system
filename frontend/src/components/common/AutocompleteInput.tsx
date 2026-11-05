@@ -102,12 +102,13 @@ function AutocompleteInput({
                 setOpen(false);
                 setActiveIndex(-1);
                 if (selectOnly) {
-                    const normalizedValue = typedValue.trim().toLowerCase();
-                    const exactOption = options.find((option) => option.value.trim().toLowerCase() === normalizedValue);
-                    if (!exactOption) {
-                        setTypedValue("");
-                        onChange("");
-                    }
+                    // Selection is controlled by the parent via onSelect.
+                    // Blur/outside-click must never clear the committed value:
+                    // the option list can be refreshed/re-filtered between
+                    // selection and moving focus to the next field.
+                    // If the user typed an uncommitted search string, restore
+                    // the last committed value instead of emitting onChange("").
+                    setTypedValue(String(value || ""));
                 }
             }
         };

@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { calculateEventPhysical, isSharedEventManaged, assertApprovedEventForTempLine } = require('../services/machineProductionEventService');
 const { validateMachineWorkerCapacityLocked } = require('../services/factoryMachineRuleService');
+const { buildGiaCongMachineAccounting } = require('../services/giaCongMachineAccounting');
 
 const root = path.resolve(__dirname, '..');
 const repo = path.resolve(root, '..');
@@ -19,7 +20,6 @@ test('physical event output is independent from worker credits and treats KQD as
       { defect_code: 'BAVIA', quantity: 6 },
       { defect_code: 'KQD', quantity: 4 },
     ],
-    excludeKqdFromTt: 1,
     machineTimeHours: 1,
     standardOutput: 1000,
   });
@@ -35,7 +35,6 @@ test('unconfigured KQD_TEST remains a normal physical defect', () => {
   const result = calculateEventPhysical({
     physicalOkQuantity: 990,
     defects: [{ defect_code: 'KQD_TEST', quantity: 10 }],
-    excludeKqdFromTt: 1,
     machineTimeHours: 1,
     standardOutput: 1000,
   });
@@ -137,7 +136,7 @@ test('shared-machine scanner is read-only and never creates events automatically
 });
 
 test('split GC reports re-check the 12-hour cap under the worker lock only once per group', () => {
-  const source = fs.readFileSync(path.join(root, 'models/productionTempModel.js'), 'utf8');
+  const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   assert.match(source, /data\._daily_hours_machine_lines = machineLines/);
   assert.match(source, /childData\._skip_daily_hours_enforcement = index > 0/);
   const guardSource = fs.readFileSync(path.join(root, 'models/productionTempCreateModel.js'), 'utf8');
@@ -145,9 +144,9 @@ test('split GC reports re-check the 12-hour cap under the worker lock only once 
 });
 
 test('GC process code is resolved from the database when the client sends only process_id', () => {
-  const source = fs.readFileSync(path.join(root, 'models/productionTempModel.js'), 'utf8');
+  const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   assert.match(source, /const resolvedProcessCode = String\(processRows\?\.\[0\]\?\.process_code/);
-  assert.match(source, /if \(resolvedProcessCode\) data\.process_code = resolvedProcessCode/);
+  assert.match(source, /if \(resolvedProcessCode\) \{\s*data\.process_code = resolvedProcessCode;/);
   assert.match(source, /const splitGc = isGiaCongProcess\(data\) && machineLines\.length > 1/);
 });
 
@@ -163,4 +162,98 @@ test('repository introduces no equal-split allocation in F05 production files', 
     assert.doesNotMatch(source, /physical(?:Output|_output|_counted_output)\s*\/\s*(?:worker|workers|workerCount|4|N)/i);
     assert.doesNotMatch(source, /equalShare|splitEqually/i);
   }
+});
+
+test('company Excel passes GC machine mode into canonical accounting for legacy deduction fallback', () => {
+  const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
+  assert.match(loader, /buildGiaCongMachineAccounting\([\s\S]*?operation_mode:\s*report\.operation_mode/);
+});
+
+test('bulk company Excel indexes temp report IDs once for deduction and defect hydration', () => {
+  const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
+  assert.match(loader, /const reportIdBySourceTempId = new Map/);
+  assert.match(loader, /reportIdBySourceTempId\.get\(Number\(row\.temp_report_id\)\)/);
+  assert.doesNotMatch(loader, /reports\.find\(\(item\) => Number\(item\.source_temp_id\)/);
+});
+
+test('bulk company Excel preserves worker deductions separately from physical machine deductions', () => {
+  const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
+  assert.match(loader, /const deductions = tempDeductions\.length \? tempDeductions : persistedDeductions/);
+  assert.match(loader, /machineDeductions: machineAccounting\?\.deductions \|\| \[\]/);
+  assert.doesNotMatch(loader, /deductions = machineDeductions/);
+  assert.doesNotMatch(loader, /machineLines,\s*deductions,\s*total_time/);
+});
+
+test('shared physical event is counted once when several Worker lines reference it', () => {
+  const report = {
+    operation_mode: 'MACHINE',
+    machineLines: [
+      { id: 1, machine_event_id: 501, machine_time_hours: 2, deductions_json: JSON.stringify([{ deduction_type_id: 7, deduction_code: 'STOP', hours: 0.5 }]) },
+      { id: 2, machine_event_id: 501, machine_time_hours: 3, deductions_json: JSON.stringify([{ deduction_type_id: 7, deduction_code: 'STOP', hours: 0.5 }]) }
+    ]
+  };
+  const result = buildGiaCongMachineAccounting(report, new Map([[501, { id: 501, machine_time_hours: 6 }]]));
+  assert.equal(result.source, 'MACHINE_EVENT');
+  assert.equal(result.grossHours, 6, 'physical hours are counted once per event');
+  assert.equal(result.deductionHours, 0.5, 'physical downtime is counted once per event');
+  assert.equal(result.netHours, 5.5);
+  assert.equal(result.deductions.length, 1);
+  assert.equal(result.deductions[0].hours, 0.5);
+});
+
+test('different physical events are summed independently without merging Worker participation', () => {
+  const report = {
+    operation_mode: 'MACHINE',
+    machineLines: [
+      { id: 11, machine_event_id: 601, machine_time_hours: 2, deductions_json: JSON.stringify([{ deduction_type_id: 7, deduction_code: 'STOP', hours: 0.25 }]) },
+      { id: 12, machine_event_id: 602, machine_time_hours: 3, deductions_json: JSON.stringify([{ deduction_type_id: 8, deduction_code: 'CHANGE', hours: 0.75 }]) }
+    ]
+  };
+  const result = buildGiaCongMachineAccounting(report, new Map([
+    [601, { id: 601, machine_time_hours: 4 }],
+    [602, { id: 602, machine_time_hours: 5 }]
+  ]));
+  assert.equal(result.source, 'MACHINE_EVENT');
+  assert.equal(result.grossHours, 9);
+  assert.equal(result.deductionHours, 1);
+  assert.equal(result.netHours, 8);
+  assert.deepEqual(result.deductions.map((item) => item.hours), [0.25, 0.75]);
+});
+
+test('missing one linked physical event reports partial source and never invents its hours', () => {
+  const report = {
+    operation_mode: 'MACHINE',
+    machineLines: [
+      { id: 21, machine_event_id: 701, machine_time_hours: 2, excel_machine_time_hours: 8 },
+      { id: 22, machine_event_id: 702, machine_time_hours: 3, excel_machine_time_hours: 9 }
+    ]
+  };
+  const result = buildGiaCongMachineAccounting(report, new Map([
+    [701, { id: 701, machine_time_hours: 4 }]
+  ]));
+  assert.equal(result.source, 'MACHINE_EVENT_PARTIAL');
+  assert.equal(result.grossHours, 4, 'missing linked event is not replaced by Worker or Excel line hours');
+  assert.equal(result.deductionHours, 0);
+  assert.equal(result.netHours, 4);
+});
+
+test('unlinked legacy machine lines use line-level physical-hour fallback only', () => {
+  const report = {
+    operation_mode: 'MACHINE',
+    machineLines: [
+      { id: 31, machine_event_id: null, machine_time_hours: 2, excel_machine_time_hours: 4 },
+      { id: 32, machine_event_id: null, machine_time_hours: 3, excel_machine_time_hours: 5 }
+    ]
+  };
+  const result = buildGiaCongMachineAccounting(report, new Map());
+  assert.equal(result.source, 'MACHINE_LINE');
+  assert.equal(result.grossHours, 9, 'legacy line fallback uses excel_machine_time_hours where present');
+  assert.equal(result.netHours, 9);
+});
+
+test('machine report with no machine lines is explicitly marked as missing', () => {
+  const result = buildGiaCongMachineAccounting({ operation_mode: 'MACHINE', machineLines: [] }, new Map());
+  assert.equal(result.source, 'MACHINE_DATA_MISSING');
+  assert.equal(result.grossHours, 0);
+  assert.equal(result.netHours, 0);
 });

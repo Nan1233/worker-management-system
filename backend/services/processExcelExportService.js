@@ -108,9 +108,7 @@ async function loadProcessMonthReports(value, processId, options = {}) {
         pr.training_percent_snapshot,
         COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent,
         w.position, w.department,
-        u.full_name, p.process_name, p.process_code,
-        pr.exclude_kqd_from_tt_snapshot,
-        COALESCE(pr.exclude_kqd_from_tt_snapshot, 0) AS exclude_kqd_from_tt
+        u.full_name, p.process_name, p.process_code
        FROM production_reports AS pr
        INNER JOIN workers AS w ON w.id = pr.worker_id
        INNER JOIN users AS u ON u.id = w.user_id
@@ -127,7 +125,7 @@ async function loadProcessMonthReports(value, processId, options = {}) {
     `SELECT e.id,e.process_id,e.machine_id,e.machine_code,e.product_code,e.work_date,e.shift,
             e.physical_ok_quantity,e.physical_ng_quantity,e.physical_counted_output,e.physical_total_output,
             e.machine_time_hours,e.maximum_output,e.standard_output,e.standard_version_id,e.machine_standard_id,
-            e.exclude_kqd_from_tt_snapshot,e.status
+            e.status
        FROM machine_production_events e
       WHERE e.status='approved' AND e.process_id=? AND e.work_date>=? AND e.work_date<?
       ORDER BY e.work_date,e.shift,e.machine_code,e.id`,
@@ -155,11 +153,6 @@ async function loadProcessMonthReports(value, processId, options = {}) {
       report.trainingSnapshotSource = 'IMMUTABLE_SNAPSHOT';
     }
 
-    const isMachineReport = String(report.operation_mode || '').toUpperCase() === 'MACHINE';
-    if (!isMachineReport && (report.exclude_kqd_from_tt === null || report.exclude_kqd_from_tt === undefined)) {
-      report.exclude_kqd_from_tt = 0;
-      report.excludeKqdSnapshotSource = 'LEGACY_DEFAULT_0';
-    }
   }
 
   const reportIds = reports.map((report) => Number(report.id));

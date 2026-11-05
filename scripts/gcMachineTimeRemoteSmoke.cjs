@@ -8,7 +8,7 @@
  * company-data payload, then independently checks the GC MACHINE reports:
  *   - one physical machine event is counted once per report
  *   - machine-line fallback is used when no event is linked
- *   - deduction time is taken from machine lines/events, with legacy fallback
+ *   - legacy report-level deductions are only reused for a single machine line
  *   - netHours = max(0, grossHours - deductionHours)
  *
  * Required environment:
@@ -52,6 +52,11 @@ function parseArray(value) {
   }
 }
 
+/**
+ * Independent read-only oracle for the exported accounting payload.
+ * Keep the legacy fallback rules explicit here so the smoke test does not
+ * report false mismatches for old, single-line approved reports.
+ */
 function expectedAccounting(report) {
   const lines = Array.isArray(report?.machineLines) ? report.machineLines : [];
   const eventLines = Array.isArray(report?.eventLines) ? report.eventLines : [];
@@ -60,6 +65,17 @@ function expectedAccounting(report) {
       .map((event) => [Number(event?.id), event])
       .filter(([id]) => Number.isInteger(id) && id > 0)
   );
+
+  const reportDeductions = parseArray(report?.deductions);
+  const hasLineBreakdown = lines.some((line) => parseArray(line?.deductions_json)
+    .some((item) => positive(item?.hours) > 0));
+  const safeReportFallback = lines.length === 1 && !hasLineBreakdown
+    ? reportDeductions
+    : [];
+  const hasLegacySingleLineDeduction = lines.length === 1
+    && String(report?.operation_mode || '').trim().toUpperCase() === 'MACHINE'
+    && Array.isArray(report?.deductions)
+    && !hasLineBreakdown;
 
   const seenEvents = new Set();
   const seenDeductionKeys = new Set();
@@ -92,14 +108,17 @@ function expectedAccounting(report) {
     if (seenDeductionKeys.has(deductionKey)) continue;
     seenDeductionKeys.add(deductionKey);
 
-    const details = parseArray(line?.deductions_json);
-    const detailHours = details.reduce((sum, item) => sum + positive(item?.hours), 0);
-    deductionHours += Math.max(
+    const storedLineDeductions = parseArray(line?.deductions_json);
+    const lineDeductions = storedLineDeductions.length ? storedLineDeductions : safeReportFallback;
+    const detailHours = lineDeductions.reduce((sum, item) => sum + positive(item?.hours), 0);
+    const lineDeductionHours = Math.max(
       0,
       positive(line?.deduction_time_hours),
       positive(line?.adjustment_minutes) / 60,
-      detailHours
+      detailHours,
+      hasLegacySingleLineDeduction ? positive(report?.deduction_time) : 0
     );
+    deductionHours += lineDeductionHours;
   }
 
   return {
@@ -229,7 +248,11 @@ async function main() {
   await client.req('POST', '/api/auth/logout', {}).catch(() => undefined);
 }
 
-main().catch((error) => {
-  console.error('KTC_GC_REMOTE_SMOKE_FATAL', error.stack || error.message);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('KTC_GC_REMOTE_SMOKE_FATAL', error.stack || error.message);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { expectedAccounting };

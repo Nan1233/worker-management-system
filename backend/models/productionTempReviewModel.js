@@ -25,7 +25,7 @@ async function ensureLegacyMachineLines(targets) {
   const [reports] = await db.promise().query(
     `SELECT t.id,t.process_id,t.work_date,t.operation_type,t.operation_mode,t.machine_no,t.product_name,
             t.actual_time,t.standard_output,t.standard_version_id,t.machine_standard_id,
-            t.exclude_kqd_from_tt_snapshot,t.actual_output,t.tt_ok,t.tt_ng,
+            t.actual_output,t.tt_ok,t.tt_ng,
             UPPER(TRIM(COALESCE(p.process_code,''))) AS process_code,
             t.extra_data
        FROM production_reports_temp t
@@ -136,13 +136,13 @@ async function ensureLegacyMachineLines(targets) {
         `INSERT INTO production_temp_machine_lines
          (temp_report_id,machine_event_id,machine_id,machine_code,product_standard_id,
           standard_version_id,machine_standard_id,product_code,machine_time_hours,
-          standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,
+          standard_output,standard_time_seconds,standard_source,
           ok_quantity,ng_quantity,maximum_output,counted_output,earned_standard_hours,
-          defects_json,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          defects_json,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [Number(report.id),null,Number(machine.id),machine.machine_code, resolved.productStandardId || null,
          resolved.standardVersionId || null,resolved.machineStandardId || null,productCode,actualTime,standardOutput,
          resolved.standardTimeSeconds || null,resolved.source || "LEGACY",
-         Number(resolved.excludeKqdFromTt || 0) === 1 ? 1 : 0,Number(report.tt_ok || 0),Number(report.tt_ng || 0),
+         Number(report.tt_ok || 0),Number(report.tt_ng || 0),
          maxOutput,actualOutput,earnedStandardHours,"[]",1]);
     } catch (cause) {
       console.error(`[KTC] Legacy machine-line backfill failed for temp #${report.id}: ${cause.message}`);

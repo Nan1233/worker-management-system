@@ -1,21 +1,13 @@
-const {
-  KQD_EXCLUSION_CODES,
-  isKqdDefect,
-  calculateProductionOutput
-} = require('../../shared/kqdPolicy.cjs');
+const { calculateProductionOutput } = require('../../shared/productionOutput.cjs');
 
-const KQD_CODES = new Set(KQD_EXCLUSION_CODES);
+const calculateCountedNg = (defects = []) =>
+  calculateProductionOutput({ ok: 0, defects }).countedNg;
 
-const calculateCountedNg = (defects = [], excludeKqdFromTt = false) =>
-  calculateProductionOutput({ ok: 0, defects, excludeKqdFromTt }).countedNg;
-
-const calculateActualOutput = ({ ttOk, defects, excludeKqdFromTt = false }) =>
-  calculateProductionOutput({ ok: ttOk, defects, excludeKqdFromTt }).actualOutput;
+const calculateActualOutput = ({ ttOk, defects }) =>
+  calculateProductionOutput({ ok: ttOk, defects }).actualOutput;
 
 module.exports = {
-  KQD_CODES,
-  isKqdDefect,
-  calculateProductionOutput,
   calculateCountedNg,
-  calculateActualOutput
+  calculateActualOutput,
+  calculateProductionOutput
 };

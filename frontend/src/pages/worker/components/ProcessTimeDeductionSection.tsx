@@ -1,6 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { DeductionKey, DeductionState, FormState } from "../processPageConfig";
-import { decimalHoursToText } from "../processPageConfig";
 import AppIcon from "../../../components/common/AppIcon";
 import { MAX_TOTAL_WORK_MINUTES, getDeductionMinutes, parseFlexibleTime } from "../processFormUtils";
 
@@ -21,6 +20,11 @@ interface Props {
 }
 
 export default function ProcessTimeDeductionSection({ processCode = "", form, setForm, deductions, activeDeductionOptions, selectedDeduction, showDeduction, setShowDeduction, onToggleDeduction, onUpdateDeduction, onNormalizeDeduction, onWarning }: Props) {
+    const formatHours = (value: string): string => {
+        const number = Number(String(value ?? "").replace(",", "."));
+        return Number.isFinite(number) ? number.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : "0";
+    };
+
     const handleHoursChange = (rawValue: string) => {
         const value = rawValue.replace(/\D/g, "");
         if (value !== "" && Number(value) > 12) { onWarning("Thời gian tối đa là 12 giờ"); return; }
@@ -53,6 +57,7 @@ export default function ProcessTimeDeductionSection({ processCode = "", form, se
 
     return (
         <section className="worker-form-card">
+            <style>{".worker-time-grid,.machine-worker-time-grid{display:grid!important;grid-template-columns:minmax(0,1.7fr) repeat(2,minmax(0,1fr))!important;gap:10px!important;align-items:stretch!important}.worker-time-grid>.worker-time-item,.machine-worker-time-grid>.worker-time-item{min-width:0!important;width:auto!important;grid-column:auto!important}@media(max-width:700px){.worker-time-grid,.machine-worker-time-grid{grid-template-columns:minmax(0,1fr)!important}}"}</style>
             <h2 className="worker-card-title"><span><AppIcon name="clock" size={15} /></span> Hiệu suất &amp; Thời gian</h2>
             <div className="worker-time-grid">
                 <div className="worker-time-item" data-worker-time="actual">
@@ -65,12 +70,11 @@ export default function ProcessTimeDeductionSection({ processCode = "", form, se
                 </div>
                 <div className="worker-time-item worker-time-computed" data-worker-time="deduction">
                     <label>{String(processCode).toUpperCase() === "K1" ? "Nhập giờ trừ" : "Thời gian trừ"}</label>
-                    <input data-worker-time-value="deduction" value={form.deductionTime} readOnly aria-readonly="true" />
-                    <small>{decimalHoursToText(form.deductionTime)}</small>
+                    <div className="worker-time-value-with-unit"><input data-worker-time-value="deduction" value={formatHours(form.deductionTime)} readOnly aria-readonly="true" /><span>giờ</span></div>
                 </div>
                 <div className="worker-time-item worker-time-computed" data-worker-time="total">
                     <label>Tổng thời gian</label>
-                    <input data-worker-time-value="total" value={form.totalTime} readOnly aria-readonly="true" />
+                    <div className="worker-time-value-with-unit"><input data-worker-time-value="total" value={formatHours(form.totalTime)} readOnly aria-readonly="true" /><span>giờ</span></div>
                     
                 </div>
             </div>
@@ -81,7 +85,7 @@ export default function ProcessTimeDeductionSection({ processCode = "", form, se
             </div>}
             <div className="worker-dropdown-box">
                 <button type="button" className="worker-dropdown-title" onClick={() => setShowDeduction((prev) => !prev)} aria-expanded={showDeduction} aria-controls="worker-deduction-options">
-                    <span className="worker-dropdown-title-main"><span>⏱ {String(processCode).toUpperCase() === "K1" ? "Nhập giờ trừ" : "Thời gian trừ"}</span><small>{selectedDeduction.length > 0 ? `${selectedDeduction.length} loại · ${getDeductionMinutes(deductions)} phút` : "Không có thời gian trừ"}</small></span>
+                    <span className="worker-dropdown-title-main"><span>⏱ {String(processCode).toUpperCase() === "K1" ? "Nhập giờ trừ" : "Thời gian trừ"}</span><small>{selectedDeduction.length > 0 ? `${selectedDeduction.length} loại · ${(getDeductionMinutes(deductions) / 60).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} giờ` : "Không có thời gian trừ"}</small></span>
                     <span aria-hidden="true">{showDeduction ? "▲" : "▼"}</span>
                 </button>
                 {showDeduction && <div id="worker-deduction-options" className="worker-dropdown-options">

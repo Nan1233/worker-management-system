@@ -42,9 +42,9 @@ test('manager can edit reports through the central permission model', () => {
 test('GC product suggestions keep machine suffix rules scoped to Cắt only', () => {
   has(productRules, 'productWorkTypes.has("CUT")');
   has(productRules, 'isGcAutomaticMachine(selectedRawMachine)');
-  has(productRules, 'GC_AUTOMATIC_ALIAS_CODES.has(alias)');
+  has(productRules, 'getProductMachineHint(product.product_code)');
   has(productRules, 'productWorkTypes.has("LONG")');
-  has(productRules, 'isGcLongMachine(selectedRawMachine, machineOptions)');
+  has(productRules, 'selectedMachineWorkType !== "LONG"');
 });
 
 test('Công việc khác uses one Xuất nhập work type and remains product-less', () => {

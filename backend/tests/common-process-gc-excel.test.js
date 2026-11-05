@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const ExcelJS = require('exceljs');
 const { __test, buildCommonProcessMonthlyWorkbook } = require('../services/commonProcessMonthlyExcelService');
+const { resolveReportDefects } = require('../domain/gcWorkerDefectResolver.cjs');
 
 const line = (id, machine, product, hours, ok, ng, deductions = [], defects = []) => ({
   id, sort_order: id, machine_code: machine, product_code: product, machine_time_hours: hours,
@@ -64,6 +65,61 @@ test('multiple workers sharing one machine remain separate credits; repeated bui
   assert.equal(first.reduce((sum, r) => sum + r.actual_output, 0), 100);
 });
 
+test('shared physical event output is not copied into Worker monthly credits', () => {
+  const sharedEventWorker = (id, workerId, workerCode, ok, ng) => report({
+    id,
+    worker_id: workerId,
+    worker_code: workerCode,
+    // Parent report values mirror the physical event and must not replace line-level Worker credit.
+    tt_ok: 500,
+    tt_ng: 5,
+    actual_output: 505,
+    machineLines: [{
+      ...line(id * 100, 'M01', 'SP01', 3, ok, ng),
+      machine_event_id: 8800,
+      excel_machine_time_hours: 6,
+      physical_ok_quantity: 500,
+      physical_ng_quantity: 5,
+      physical_counted_output: 505
+    }]
+  });
+
+  const rows = __test.expandGiaCongMachineLines([
+    sharedEventWorker(1, 10, 'CN01', 60, 2),
+    sharedEventWorker(2, 11, 'CN02', 40, 3)
+  ]);
+
+  assert.deepEqual(rows.map((row) => [row.worker_code, row.tt_ok, row.tt_ng, row.actual_output]), [
+    ['CN01', 60, 2, 62],
+    ['CN02', 40, 3, 43]
+  ]);
+  assert.equal(rows.reduce((sum, row) => sum + row.tt_ok, 0), 100);
+  assert.equal(rows.reduce((sum, row) => sum + row.tt_ng, 0), 5);
+  assert.equal(rows.reduce((sum, row) => sum + row.actual_output, 0), 105);
+  assert.notEqual(rows.reduce((sum, row) => sum + row.actual_output, 0), 505 * 2);
+});
+
+test('shared physical event time is not copied into each worker participation row', () => {
+  const sharedEvent = (id, workerId, workerCode, participationHours) => report({
+    id, worker_id: workerId, worker_code: workerCode,
+    machineLines: [{
+      ...line(id * 100, 'M01', 'SP01', participationHours, 50, 0),
+      machine_event_id: 7001,
+      excel_machine_time_hours: 5
+    }]
+  });
+  const rows = __test.expandGiaCongMachineLines([
+    sharedEvent(1, 10, 'CN01', 3),
+    sharedEvent(2, 11, 'CN02', 1)
+  ]);
+  assert.deepEqual(rows.map((r) => [r.worker_code, r.excelExportTimes.totalHours, r.excelExportTimes.actualHours]), [
+    ['CN01', 3, 3],
+    ['CN02', 1, 1]
+  ]);
+  // Worker participation is 3 + 1 = 4; it must not be replaced by 5 physical hours per worker.
+  assert.equal(rows.reduce((sum, r) => sum + r.excelExportTimes.totalHours, 0), 4);
+});
+
 test('historical GC reports without machineLines stay one row without fabricated machine data', () => {
   const rows = __test.expandGiaCongMachineLines([report({ machineLines: [], machine_no: '', actual_output: 120, tt_ok: 110, tt_ng: 10 })]);
   assert.equal(rows.length, 1);
@@ -114,4 +170,47 @@ test('real monthly workbook serializes distinct GC rows with correct per-line me
   const repeatedSheet = repeated.getWorksheet('Cắt lồng');
   assert.deepEqual([repeatedSheet.getCell('D3').value, repeatedSheet.getCell('D4').value, repeatedSheet.getCell('D5').value], ['M01', 'M02', 'M03']);
   assert.equal(repeatedSheet.getCell('B6').value, null);
+});
+
+test('Desktop GC MACHINE export resolves worker NG details from machine lines without importing physical event defects', () => {
+  const persistedByLine = new Map([
+    [101, [{ defect_type_id: 1, defect_type_code: 'KQD', defect_name: 'KQD', quantity: 2 }]]
+  ]);
+  const lines = [
+    { id: 101, machine_event_id: 8800 },
+    { id: 102, machine_event_id: 8800, defects_json: JSON.stringify([
+      { defect_type_id: 2, defect_type_code: 'BAVIA', defect_name: 'Bavia', quantity: 3 }
+    ]) },
+    // No worker line defect snapshot: physical event fallback must not become worker credit.
+    { id: 103, machine_event_id: 8800 }
+  ];
+  const result = resolveReportDefects({
+    processCode: 'GC',
+    operationMode: 'MACHINE',
+    reportDefects: [],
+    machineLines: lines,
+    machineDefectsByLine: persistedByLine
+  });
+
+  assert.deepEqual(result.map((item) => [item.defect_type_code, item.quantity]), [
+    ['KQD', 2],
+    ['BAVIA', 3]
+  ]);
+  assert.equal(result.reduce((sum, item) => sum + item.quantity, 0), 5);
+});
+
+test('Desktop GC MACHINE export prefers report-level defect snapshot and never expands other modes', () => {
+  const reportDefects = [{ defect_type_code: 'REPORT', quantity: 4 }];
+  const machineLines = [{ id: 101, defects_json: JSON.stringify([{ defect_type_code: 'LINE', quantity: 9 }]) }];
+  const machineDefectsByLine = new Map();
+
+  assert.strictEqual(resolveReportDefects({
+    processCode: 'GC', operationMode: 'MACHINE', reportDefects, machineLines, machineDefectsByLine
+  }), reportDefects);
+  assert.deepEqual(resolveReportDefects({
+    processCode: 'GC', operationMode: 'WORKER', reportDefects: [], machineLines, machineDefectsByLine
+  }), []);
+  assert.deepEqual(resolveReportDefects({
+    processCode: 'MAI', operationMode: 'MACHINE', reportDefects: [], machineLines, machineDefectsByLine
+  }), []);
 });

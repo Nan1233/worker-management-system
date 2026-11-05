@@ -186,7 +186,7 @@ test('row builder: machine rows ignore report totals; legacy reports without lin
   assert.equal(buildGcWorkerRows(manual).length, 1);
 });
 
-test('GC Excel row prefers physical export machine time over worker participation time', () => {
+test('GC worker Excel row uses worker participation time while physical event time stays separate', () => {
   const rows = buildGcWorkerRows({
     ...report2Machines,
     machineLines: [{
@@ -197,9 +197,9 @@ test('GC Excel row prefers physical export machine time over worker participatio
       deductions_json: JSON.stringify([{ deduction_type_id: dedId('5s'), deduction_name: '5s', hours: 0.5 }])
     }]
   });
-  assert.equal(rows[0].totalHours, 5);
+  assert.equal(rows[0].totalHours, 3);
   assert.equal(rows[0].deductionHours, 0.5);
-  assert.equal(rows[0].workedHours, 4.5);
+  assert.equal(rows[0].workedHours, 2.5);
 });
 
 test('GC machine report with no machine detail does not export worker hours as machine hours', () => {
@@ -221,6 +221,10 @@ test('GC machine report with no machine detail does not export worker hours as m
 test('GC Excel row flags a linked event with missing physical time', () => {
   const rows = buildGcWorkerRows({
     ...report2Machines,
+    // This fixture has no Worker deduction credit; do not inherit the unrelated
+    // report-level legacy deduction snapshot from report2Machines.
+    deductions: [],
+    deduction_time: 0,
     machineLines: [{
       id: 99,
       machine_event_id: 900,
@@ -235,6 +239,52 @@ test('GC Excel row flags a linked event with missing physical time', () => {
       defects: []
     }]
   });
-  assert.equal(rows[0].totalHours, 0);
+  // Worker participation remains 7 hours; missing physical event time is a warning,
+  // not a reason to erase the Worker credit or substitute physical machine time.
+  assert.equal(rows[0].totalHours, 7);
+  assert.equal(rows[0].workedHours, 7);
   assert.ok(rows[0].warnings.includes('PHYSICAL_MACHINE_EVENT_TIME_MISSING'));
+});
+
+test('two Worker lines on one shared event retain separate participation and output credits', () => {
+  const report = {
+    id: 880,
+    worker_code: 'W880',
+    full_name: 'Synthetic Worker',
+    operation_mode: 'MACHINE',
+    training_percent: 100,
+    deductions: [],
+    machineLines: [
+      {
+        id: 881,
+        machine_event_id: 990,
+        machine_time_hours: 2,
+        excel_machine_time_hours: 8,
+        standard_output: 100,
+        ok_quantity: 50,
+        ng_quantity: 2,
+        deductions_json: JSON.stringify([{ deduction_type_id: 7, deduction_name: 'Nghỉ giải lao', hours: 0.25 }]),
+        defects_json: JSON.stringify([{ defect_type_id: 1, defect_name: 'Bavia', quantity: 2 }])
+      },
+      {
+        id: 882,
+        machine_event_id: 990,
+        machine_time_hours: 3,
+        excel_machine_time_hours: 8,
+        standard_output: 80,
+        ok_quantity: 70,
+        ng_quantity: 1,
+        deductions_json: JSON.stringify([{ deduction_type_id: 8, deduction_name: 'Chờ hàng', hours: 0.5 }]),
+        defects_json: JSON.stringify([{ defect_type_id: 2, defect_name: 'Cắt lẹm', quantity: 1 }])
+      }
+    ]
+  };
+  const rows = buildGcWorkerRows(report);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((row) => row.totalHours), [2, 3]);
+  assert.deepEqual(rows.map((row) => row.workedHours), [1.75, 2.5]);
+  assert.deepEqual(rows.map((row) => row.ok), [50, 70]);
+  assert.deepEqual(rows.map((row) => row.ng), [2, 1]);
+  assert.deepEqual(rows.map((row) => row.standard), [175, 200]);
+  assert.deepEqual(rows.map((row) => row.deductionHours), [0.25, 0.5]);
 });

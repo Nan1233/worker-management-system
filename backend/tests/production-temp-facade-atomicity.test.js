@@ -37,6 +37,9 @@ function loadFacadeHarness() {
   const createModel = {
     findSimilarTempReport: async () => null,
     findSimilarApprovedReport: async () => null,
+    lockClientRequestId: async () => {},
+    lockLogicalDuplicateKey: async () => {},
+    lockMachineCapacityKeys: async () => {},
     create: async (data, connection) => {
       const id = nextId++;
       connection.pendingReport = {
@@ -81,6 +84,7 @@ function loadFacadeHarness() {
   const mocks = new Map([
     ['../config/db', db],
     ['./productionTempCreateModel', createModel],
+    ['../models/productionTempCreateModel', createModel],
     ['./nonProductWorkCreateModel', { createCompleteReport: async () => { throw new Error('unexpected CVK path'); } }],
     ['./productionTempReadModel', {}],
     ['./productionTempReviewModel', {}],
@@ -92,18 +96,27 @@ function loadFacadeHarness() {
     ['../services/factoryMachineRuleService', { validateMachineWorkerCapacityLocked: async () => ({ valid: true }) }],
     ['../services/logicalDuplicateReportService', { buildLogicalDuplicateKey: () => 'logical-key' }],
     ['../services/duplicateConfirmationService', { verifyDuplicateConfirmation: () => ({ valid: true }) }],
+    ['../models/nonProductWorkCreateModel', { createCompleteReport: async () => { throw new Error('unexpected CVK path'); } }],
+    ['../models/productionTempModelShared', shared],
+    ['./auditService', audit],
+    ['./trainingSnapshotService', { resolveInitialTrainingSnapshot: async () => ({ training_percent: 100 }) }],
+    ['./factoryMachineRuleService', { validateMachineWorkerCapacityLocked: async () => ({ valid: true }) }],
+    ['./logicalDuplicateReportService', { buildLogicalDuplicateKey: () => 'logical-key' }],
+    ['./duplicateConfirmationService', { verifyDuplicateConfirmation: () => ({ valid: true }) }],
     ['../utils/dailyHoursLimit', { DAILY_HOURS_LIMIT: 12, exceedsDailyHoursLimit: (hours) => hours > 12 }],
   ]);
 
   const originalLoad = Module._load;
   const facadePath = require.resolve('../models/productionTempModel');
+  const servicePath = require.resolve('../services/productionTempSubmissionService');
   delete require.cache[facadePath];
+  delete require.cache[servicePath];
   Module._load = function (request, parent, ...rest) {
     if (mocks.has(request)) return mocks.get(request);
     return originalLoad.call(this, request, parent, ...rest);
   };
   let facade;
-  try { facade = require(facadePath); }
+  try { facade = require(facadePath); require(servicePath); }
   finally { Module._load = originalLoad; }
 
   return { facade, persisted, sqlLog, connections };

@@ -1,33 +1,18 @@
 const AuditService = require("../services/auditService");
 const createModel = require("./productionTempCreateModel");
-const { recalculateReportOutput } = require("../services/kqdReportCalculationService");
+const { recalculateReportOutput } = require("../services/productionOutputCalculationService");
 const { validateMachineLines } = require("../services/machineLineValidationService");
 const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback, editableFields } = require("./productionTempModelShared");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
 const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isGc = false, excludeTempReportId = null }) => {
     const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-    const tempExcludeSql = excludeTempReportId ? "AND pr.id <> ?" : "";
-    const params = excludeTempReportId ? [worker, date, worker, date, excludeTempReportId] : [worker, date, worker, date];
-    const rows = await query(connection, `
-        SELECT COALESCE(SUM(counted_hours),0) AS counted_hours FROM (
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
-                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-            FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
-            UNION ALL
-            SELECT CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
-                THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
-                ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-            FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
-            WHERE pr.worker_id=? AND pr.work_date=? ${tempExcludeSql} AND pr.status IN ('pending','need_fix')
-        ) daily_hours`, params);
-    const existingHours = Number(rows?.[0]?.counted_hours || 0);
+    const existingHours = await queryCountedDailyHours((sql, params) => query(connection, sql, params), { workerId: worker, workDate: date, excludeTempReportId });
     const incoming = isGc && Array.isArray(incomingMachineLines) && incomingMachineLines.length
         ? Math.max(...incomingMachineLines.map(line => Math.max(0, Number(line?.actual_time_hours) || 0)))
         : (Number(incomingActualHours) || 0);
@@ -180,13 +165,11 @@ module.exports = {
             if (hasDefects) {
                 if (!machineLinesOwnNg) data.tt_ng = normalizedDefects.reduce((sum, item) => sum + item.quantity, 0);
                 if (!hasMachineLines) {
-                    const policySnapshot = Object.prototype.hasOwnProperty.call(data, "exclude_kqd_from_tt_snapshot") ? data.exclude_kqd_from_tt_snapshot : current.exclude_kqd_from_tt_snapshot;
-                    if (policySnapshot === null || policySnapshot === undefined || String(policySnapshot).trim() === "") { const error = new Error("Báo cáo cũ chưa có snapshot chính sách KQD"); error.status = 422; error.code = "KQD_POLICY_SNAPSHOT_MISSING"; error.isPublic = true; throw error; }
                     const defectIds = normalizedDefects.map((item) => Number(item.defect_type_id)).filter(Boolean);
                     const codeRows = defectIds.length ? await query(connection, `SELECT id,defect_code,defect_name FROM defect_types WHERE id IN (${defectIds.map(() => "?").join(",")})`, defectIds) : [];
                     const byId = new Map(codeRows.map((row) => [Number(row.id), row]));
                     const calculationDefects = normalizedDefects.map((item) => ({ ...item, defect_code: byId.get(Number(item.defect_type_id))?.defect_code || null, defect_name: byId.get(Number(item.defect_type_id))?.defect_name || null }));
-                    const output = recalculateReportOutput({ ttOk: Object.prototype.hasOwnProperty.call(data, "tt_ok") ? Number(data.tt_ok || 0) : Number(current.tt_ok || 0), defects: calculationDefects, excludeKqdFromTtSnapshot: policySnapshot });
+                    const output = recalculateReportOutput({ ttOk: Object.prototype.hasOwnProperty.call(data, "tt_ok") ? Number(data.tt_ok || 0) : Number(current.tt_ok || 0), defects: calculationDefects });
                     data.tt_ok = output.ttOk; data.actual_output = output.actualOutput;
                 }
             }
@@ -209,6 +192,7 @@ module.exports = {
                 if (!validation.valid) { const error = new Error("Thông tin máy hoặc thời gian máy không hợp lệ"); error.status = 422; error.code = "MACHINE_LINES_INVALID"; error.isPublic = true; error.details = validation.errors; throw error; }
                 normalizedMachineLines = validation.lines;
                 const nextShift = Object.prototype.hasOwnProperty.call(data, "shift") ? data.shift : current.shift;
+                await createModel.lockMachineCapacityKeys(current.process_id, nextWorkDate, nextShift, normalizedMachineLines, connection);
                 const lockedCapacity = await validateMachineWorkerCapacityLocked({ executor: connection, processCode: processRows[0]?.process_code, processId: current.process_id, machineLines: normalizedMachineLines, workerId: current.worker_id, workDate: nextWorkDate, shift: nextShift, excludeTempReportId: id });
                 if (!lockedCapacity.valid) { const error = new Error("Máy đã đủ số người cho phép"); error.status = 422; error.code = "MACHINE_WORKER_LIMIT_EXCEEDED"; error.isPublic = true; error.details = lockedCapacity.errors; throw error; }
                 data.machine_lines = normalizedMachineLines;

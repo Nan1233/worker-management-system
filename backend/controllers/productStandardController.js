@@ -9,7 +9,7 @@ const GC_NO_STANDARD_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
 // Cache-key versions deliberately invalidate stale master data after external DB updates.
 const MACHINE_CACHE_VERSION = "v3";
-const PRODUCT_STANDARD_CACHE_VERSION = "v5";
+const PRODUCT_STANDARD_CACHE_VERSION = "v8";
 
 const loadGcProductStandardsDirect = async (processId, processCode) => {
   const where = processCode
@@ -23,19 +23,18 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ps.process_id,
         p.process_code,
         CASE
-          -- Explicit legacy jobs remain Long Tay exceptions; all other GC rows
-          -- follow the persisted product_standards.work_type value. Never infer
-          -- Cắt/Lồng from a product or alias prefix.
+          -- Shop-floor rule: every GC product_code beginning with C belongs to Cắt.
+          -- even when an older master row was incorrectly tagged as Lồng.
+          WHEN UPPER(TRIM(COALESCE(ps.product_code, ''))) LIKE 'C%' THEN 'CUT'
+          -- Explicit legacy jobs remain Long Tay exceptions; other GC rows follow
+          -- the persisted product_standards.work_type value.
           WHEN UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP') THEN 'LONG'
           WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('LỒNG','LONG','LONG TAY') THEN 'LONG'
           WHEN UPPER(TRIM(COALESCE(ps.work_type, ''))) IN ('CẮT','CUT','CAT') THEN 'CUT'
           ELSE NULL
         END AS work_type,
         ps.product_code,
-        COALESCE(pa.alias_code, ps.encoding_code) AS alias_code,
-        ps.encoding_code,
         ps.standard_output,
-        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
         EXISTS(
           SELECT 1 FROM product_machine_standards pms
           WHERE pms.process_id = ps.process_id
@@ -55,10 +54,6 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ), '') AS eligible_machine_codes
     FROM product_standards ps
     JOIN processes p ON p.id = ps.process_id
-    LEFT JOIN product_aliases pa
-      ON pa.process_id = ps.process_id
-     AND UPPER(TRIM(pa.product_code)) = UPPER(TRIM(ps.product_code))
-     AND pa.status = 'active'
     WHERE ${where}
       AND p.status = 'active'
       AND ps.status = 'active'
@@ -66,7 +61,7 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ps.standard_output > 0
         OR UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP')
       )
-    ORDER BY ps.product_code ASC, alias_code ASC, ps.id ASC
+    ORDER BY ps.product_code ASC, ps.id ASC
   `, [param]);
 
   return Array.isArray(rows) ? rows : [];
@@ -84,16 +79,13 @@ exports.getProductStandards = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_code không hợp lệ" });
     }
 
-    const resolvedProcessCode = processCode || String((await query(
-      "SELECT process_code FROM processes WHERE id = ? LIMIT 1",
-      [processId]
-    ))[0]?.[0]?.process_code || '').trim().toUpperCase();
-
-    // GC is read directly from product_standards so zero-standard Long Tay
-    // work items cannot be lost by alias/standard filters in the generic model.
-    // Only the three explicitly configured no-standard jobs are allowed at 0.
-    const cacheKey = resolvedProcessCode === 'GC'
-      ? `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:gc:${processId > 0 ? processId : resolvedProcessCode}`
+    // A process_id request already identifies the canonical process. Avoid an
+    // extra SELECT process_code round-trip before loading its product standards.
+    // GC is process 1 and keeps its dedicated query for zero-standard Long Tay
+    // work items; all other process IDs use the normal process-scoped model.
+    const isGcRequest = processCode === 'GC' || (!processCode && processId === 1);
+    const cacheKey = isGcRequest
+      ? `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:gc:${processId > 0 ? processId : processCode}`
       : processCode
         ? `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:code:${processCode}`
         : `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:id:${processId}`;
@@ -102,7 +94,7 @@ exports.getProductStandards = async (req, res) => {
       cacheKey,
       TTL.productStandards,
       async () => {
-        if (resolvedProcessCode === 'GC') {
+        if (isGcRequest) {
           return loadGcProductStandardsDirect(processId, processCode || null);
         }
         return processCode

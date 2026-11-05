@@ -108,7 +108,6 @@ async function makePayload(processCode) {
     activeNgOptions: [],
     deductions: { matDien: '60' },
     activeDeductionOptions: [{ key: 'matDien', id: 1, code: 'MAT_DIEN', label: 'Mất điện' }],
-    excludeKqdFromTt: false,
   });
 }
 

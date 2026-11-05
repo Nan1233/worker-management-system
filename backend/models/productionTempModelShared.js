@@ -87,7 +87,7 @@ const executeQuery = async (executor, sql, params = []) => {
     // statement is a subrequest (limit 50), so the extra SELECT LAST_INSERT_ID() per INSERT is pure waste.
     // production_temp_machine_lines is written with one multi-row INSERT and defects are mapped by sort_order, so its
     // ids are not read either. Tables whose id IS consumed (production_reports_temp, ...) are not listed.
-    const idNeverReadTable = /^\s*INSERT\s+INTO\s+`?(?:production_temp_machine_lines|production_temp_machine_defects|production_temp_defects|production_temp_deductions|report_edit_logs|report_action_logs|activity_logs|report_versions)\b/i.test(String(sql || ""));
+    const idNeverReadTable = /^\s*INSERT\s+INTO\s+`?(?:production_report_duplicate_locks|production_temp_machine_lines|production_temp_machine_defects|production_temp_defects|production_temp_deductions|report_edit_logs|report_action_logs|activity_logs|report_versions)\b/i.test(String(sql || ""));
 
     if (!isInsert || currentInsertId > 0 || hasNoAutoIncrementId || idNeverReadTable) {
         return result;
@@ -168,8 +168,15 @@ const beginReadCommittedTransaction = async (connection) => {
     return beginTransaction(connection);
 };
 
-const commit = (connection) =>
-    new Promise((resolve, reject) => {
+const flushTransactionQueries = async (connection) => {
+    const pending = transactionQueues.get(connection);
+    if (pending) await pending;
+};
+
+const commit = async (connection) => {
+    // Never send COMMIT while a transaction-bound SQL statement is still queued.
+    await flushTransactionQueries(connection);
+    return new Promise((resolve, reject) => {
         connection.commit((error) => {
             if (error) return reject(error);
             connection.__ktcTransactionActive = false;
@@ -177,16 +184,22 @@ const commit = (connection) =>
             resolve();
         });
     });
+};
 
-// Resolves (never rejects) with { ok, error }: callers that ignore the value behave as before, callers that care
-// (e.g. the pending-report edit) can see that the ROLLBACK statement itself failed - which on Cloudflare Workers
-// happens once the subrequest limit is exhausted - instead of assuming it succeeded.
-const rollback = (connection) =>
-    new Promise((resolve) => connection.rollback((error) => {
+// Resolves (never rejects) with { ok, error } for compatibility. Wait for queued SQL before
+// ROLLBACK so a pending statement cannot execute after the transaction has been closed.
+const rollback = async (connection) => {
+    try {
+        await flushTransactionQueries(connection);
+    } catch (error) {
+        // The original SQL error is already observed by its caller; rollback must still be attempted.
+    }
+    return new Promise((resolve) => connection.rollback((error) => {
         connection.__ktcTransactionActive = false;
         transactionQueues.delete(connection);
         resolve(error ? { ok: false, error } : { ok: true });
     }));
+};
 
 const normalizeIds = (ids) => [
     ...new Set(
@@ -210,7 +223,6 @@ const editableFields = [
     "standard_output",
     "standard_version_id",
     "machine_standard_id",
-    "exclude_kqd_from_tt_snapshot",
     "actual_output",
     "tt_ok",
     "tt_ng",

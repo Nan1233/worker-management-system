@@ -34,9 +34,8 @@ test('single machine line safely reuses persisted report-level deduction details
   assert.equal(rows[0].deductionHours, 1.17);
 
   const accounting = buildGiaCongMachineAccounting(report, new Map());
-  assert.equal(accounting.deductionHours, 1.17);
-  assert.equal(accounting.deductions.length, 1);
-  assert.equal(accounting.deductions[0].hours, 1.17);
+  assert.equal(accounting.deductionHours, 0, 'Worker report-level deductions must not become physical machine deductions');
+  assert.equal(accounting.deductions.length, 0);
 });
 
 test('report-level deductions are not copied to multiple machine lines', () => {
@@ -103,6 +102,6 @@ test('single machine line preserves report total when imported record has no det
   assert.ok(rows[0].warnings.includes('DEDUCTION_WITHOUT_BREAKDOWN'));
 
   const accounting = buildGiaCongMachineAccounting(report, new Map());
-  assert.equal(accounting.deductionHours, 1.83);
+  assert.equal(accounting.deductionHours, 0, 'Worker report.deduction_time must not be inferred as physical machine downtime');
   assert.deepEqual(accounting.deductions, []);
 });

@@ -2,14 +2,11 @@ const crypto = require("node:crypto");
 const db = require("../config/db");
 
 
-const AuditService = require("../services/auditService");
-const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback } = require("./productionTempModelShared");
-const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
-const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
+const { query } = require("./productionTempModelShared");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
-const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const { storedStandardSource } = require('../utils/standardSourceCode');
 const getStoredWorkType = (value) => {
     if (value && typeof value === "object") return String(value.work_type || "").trim();
@@ -39,28 +36,7 @@ const incoming = isGc && machineLines.length
             return Math.max(0, machineHours - deductionHours);
         }))
         : (Number(data?.actual_time) || 0);
-    const rows = await query(executor, `SELECT COALESCE(SUM(group_hours),0) AS counted_hours FROM (
-            SELECT group_key, MAX(counted_hours) AS group_hours FROM (
-                SELECT CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')) IS NOT NULL
-                    THEN CONCAT('GC_GROUP:', JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')))
-                    ELSE CONCAT('APPROVED:', pr.id) END AS group_key,
-                    CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                        THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_report_machine_lines ml WHERE ml.report_id=pr.id),0)
-                        ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-                FROM production_reports pr JOIN processes p ON p.id=pr.process_id
-                WHERE pr.worker_id=? AND pr.work_date=? AND pr.status <> 'deleted'
-                UNION ALL
-                SELECT CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')) IS NOT NULL
-                    THEN CONCAT('GC_GROUP:', JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.gc_group_request_id')))
-                    ELSE CONCAT('TEMP:', pr.id) END AS group_key,
-                    CASE WHEN p.process_code='GC' AND EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id)
-                        THEN COALESCE((SELECT MAX(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours)) FROM production_temp_machine_lines ml WHERE ml.temp_report_id=pr.id),0)
-                        ELSE COALESCE(pr.actual_time,0) END AS counted_hours
-                FROM production_reports_temp pr JOIN processes p ON p.id=pr.process_id
-                WHERE pr.worker_id=? AND pr.work_date=? AND pr.status IN ('pending','need_fix')
-            ) daily_rows GROUP BY group_key
-        ) daily_groups`, [workerId, workDate, workerId, workDate]);
-    const existing = Number(rows?.[0]?.counted_hours || 0);
+    const existing = await queryCountedDailyHours((sql, params) => query(executor, sql, params), { workerId, workDate });
     const projected = existing + incoming;
     if (exceedsDailyHoursLimit(projected)) {
         const remaining = Math.max(0, DAILY_HOURS_LIMIT - existing);
@@ -81,10 +57,10 @@ module.exports = {
                 worker_id, process_id, work_date, entry_date, shift,
                 operation_type, operation_mode, machine_no,
                 product_name, total_time, actual_time, deduction_time,
-                standard_output, standard_version_id, machine_standard_id, training_percent_snapshot, exclude_kqd_from_tt_snapshot, actual_output, tt_ok, tt_ng, note, extra_data,
+                standard_output, standard_version_id, machine_standard_id, training_percent_snapshot, actual_output, tt_ok, tt_ng, note, extra_data,
                 client_request_id, logical_duplicate_key, status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         `;
 
         const result = await query(executor, sql, [
@@ -104,7 +80,6 @@ module.exports = {
             Number(data.standard_version_id) || null,
             Number(data.machine_standard_id) || null,
             data.training_percent_snapshot === null || data.training_percent_snapshot === undefined ? null : Number(data.training_percent_snapshot),
-            data.exclude_kqd_from_tt_snapshot === null || data.exclude_kqd_from_tt_snapshot === undefined ? null : (Number(data.exclude_kqd_from_tt_snapshot) === 1 ? 1 : 0),
             Number(data.actual_output) || 0,
             Number(data.tt_ok) || 0,
             Number(data.tt_ng) || 0,
@@ -252,6 +227,39 @@ module.exports = {
             executor,
             `SELECT logical_key FROM production_report_duplicate_locks WHERE logical_key = ? FOR UPDATE`,
             [logicalDuplicateKey]
+        );
+    },
+
+    async lockMachineCapacityKeys(processId, workDate, shift, machineLines, executor = db) {
+        const machines = [...new Set((Array.isArray(machineLines) ? machineLines : [])
+            .map((line) => String(line?.machine_code || "").trim().toUpperCase())
+            .filter(Boolean))].sort();
+        const date = String(workDate || "").slice(0, 10);
+        const shiftKey = String(shift || "").trim().toUpperCase();
+        const process = Number(processId);
+        if (!Number.isInteger(process) || process <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !shiftKey || !machines.length) return;
+
+        // Batch the deterministic machine keys into one INSERT + one ordered locking SELECT.
+        // Sorting the hashed keys gives every concurrent submission the same lock acquisition order,
+        // while keeping the Cloudflare Worker statement budget independent of machine count.
+        const keys = machines.map((machineCode) => crypto.createHash("sha256")
+            .update(`machine-capacity:${process}:${date}:${shiftKey}:${machineCode}`, "utf8")
+            .digest("hex")).sort();
+        const placeholders = keys.map(() => "(?, NOW())").join(", ");
+        await query(
+            executor,
+            `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
+             VALUES ${placeholders}
+             ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
+            keys
+        );
+        await query(
+            executor,
+            `SELECT logical_key FROM production_report_duplicate_locks
+             WHERE logical_key IN (${keys.map(() => "?").join(",")})
+             ORDER BY logical_key
+             FOR UPDATE`,
+            keys
         );
     },
 
@@ -466,7 +474,6 @@ module.exports = {
                 Number(line.standard_output) || 0,
                 Number(line.standard_time_seconds) || null,
                 storedStandardSource(line.standard_source),
-                Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
                 Math.max(0, Math.trunc(Number(line.ok_quantity) || 0)),
                 Math.max(0, Math.trunc(Number(line.ng_quantity) || 0)),
                 Number(line.maximum_output) || 0,
@@ -492,10 +499,10 @@ module.exports = {
 
         await query(executor, `INSERT INTO production_temp_machine_lines
             (temp_report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
-             machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
+             machine_time_hours, standard_output, standard_time_seconds, standard_source,
              ok_quantity, ng_quantity, maximum_output, deduction_time_hours, deductions_json, counted_output, earned_standard_hours,
              defects_json, sort_order)
-            VALUES ${lineRows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`, lineRows.flat());
+            VALUES ${lineRows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`, lineRows.flat());
 
         if (!defectRows.length) return;
         await query(executor,
@@ -510,264 +517,8 @@ module.exports = {
         );
     },
 
-    async createCompleteReport(data, defects = [], deductions = [], machineLines = [], audit = {}) {
-        // Keep compatibility with the public facade and direct transaction tests:
-        // both { data, defects, deductions, machineLines, audit } and the raw
-        // report object are accepted at this boundary.
-        if (data && typeof data === "object" && data.data && typeof data.data === "object") {
-            const payload = data;
-            data = payload.data;
-            defects = Array.isArray(payload.defects) ? payload.defects : [];
-            deductions = Array.isArray(payload.deductions) ? payload.deductions : [];
-            machineLines = Array.isArray(payload.machineLines) ? payload.machineLines : [];
-            audit = payload.audit && typeof payload.audit === "object" ? payload.audit : {};
-        }
-
-        data._daily_hours_machine_lines = Array.isArray(machineLines) ? machineLines : [];
-
-        const connection = await getConnection();
-
-        try {
-            await beginReadCommittedTransaction(connection);
-
-            const clientRequestId = String(data.client_request_id || "").trim();
-            if (!clientRequestId) {
-                const error = new Error("Thiếu mã yêu cầu gửi báo cáo");
-                error.status = 400;
-                error.code = "CLIENT_REQUEST_ID_REQUIRED";
-                error.isPublic = true;
-                throw error;
-            }
-
-            // Lock idempotency key first, then logical duplicate key. Every
-            // worker submission uses this same lock order to prevent races
-            // where the same request arrives with a different payload.
-            await this.lockClientRequestId(
-                data.worker_id,
-                clientRequestId,
-                connection
-            );
-
-            const previousRequest = await this.findByClientRequest(
-                data.worker_id,
-                clientRequestId,
-                connection
-            );
-
-            if (previousRequest) {
-                await commit(connection);
-                return {
-                    id: Number(previousRequest.id),
-                    duplicate: true,
-                    duplicate_reason: "request_id",
-                    existing_report: previousRequest,
-                };
-            }
-
-            const logicalDuplicateKey = buildLogicalDuplicateKey({
-                workerId: data.worker_id,
-                processId: data.process_id,
-                workDate: data.work_date,
-                shift: data.shift,
-                operationMode: data.operation_mode ?? data.operationMode,
-                machineNo: data.machine_no,
-                productName: data.product_name,
-                machineLines
-            });
-            data.logical_duplicate_key = logicalDuplicateKey;
-
-            await this.lockLogicalDuplicateKey(logicalDuplicateKey, connection);
-
-            const existing = await this.findSimilarReport({
-                workerId: data.worker_id,
-                processId: data.process_id,
-                workDate: data.work_date,
-                shift: data.shift,
-                machineNo: data.machine_no,
-                productName: data.product_name,
-                logicalDuplicateKey
-            }, connection);
-
-            if (existing) {
-                if (!data.force_create) {
-                    const error = new Error("Báo cáo trùng với báo cáo đã tồn tại trong cùng ngày/ca");
-                    error.status = 409;
-                    error.code = "DUPLICATE_CONFIRMATION_REQUIRED";
-                    error.isPublic = true;
-                    error.existing_report = existing;
-                    error.details = existing;
-                    throw error;
-                }
-
-                const confirmation = verifyDuplicateConfirmation(
-                    data.duplicate_confirmation_token,
-                    {
-                        workerId: data.worker_id,
-                        logicalDuplicateKey,
-                        existingReportId: existing.id,
-                        existingReportType: existing.report_type || "temp",
-                    }
-                );
-
-                if (!confirmation.valid) {
-                    const error = new Error("Xác nhận tạo báo cáo trùng không hợp lệ hoặc đã hết hạn");
-                    error.status = 409;
-                    error.code = "DUPLICATE_CONFIRMATION_REQUIRED";
-                    error.isPublic = true;
-                    error.existing_report = existing;
-                    error.details = { reason: confirmation.reason, existing };
-                    throw error;
-                }
-            } else if (data.force_create) {
-                const error = new Error("Không có báo cáo trùng hợp lệ để xác nhận tạo lần thứ hai");
-                error.status = 409;
-                error.code = "DUPLICATE_CONFIRMATION_REQUIRED";
-                error.isPublic = true;
-                throw error;
-            }
-
-            const processRows = await query(
-                connection,
-                `SELECT process_code
-                 FROM processes
-                 WHERE id=?
-                 LIMIT 1`,
-                [Number(data.process_id)]
-            );
-
-            data._resolved_process_code = processRows[0]?.process_code ?? null;
-
-            const trainingSnapshot = await resolveInitialTrainingSnapshot({
-                executor: connection,
-                workerId: data.worker_id,
-                processId: data.process_id,
-                workDate: data.work_date,
-                trainingPercent: data.training_percent,
-            });
-
-            data.training_percent_snapshot = trainingSnapshot.training_percent;
-            data.standard_version_id = data.standard_version_id || null;
-            data.machine_standard_id = data.machine_standard_id || null;
-            data.exclude_kqd_from_tt_snapshot =
-                data.exclude_kqd_from_tt_snapshot ??
-                data.exclude_kqd_from_tt ??
-                null;
-
-            if (Array.isArray(machineLines) && machineLines.length) {
-                const capacity = await validateMachineWorkerCapacityLocked({
-                    executor: connection,
-                    processCode: processRows[0]?.process_code,
-                    processId: data.process_id,
-                    machineLines,
-                    workerId: data.worker_id,
-                    workDate: data.work_date,
-                    shift: data.shift
-                });
-
-                if (!capacity.valid) {
-                    const error = new Error("Số công nhân trên máy vượt giới hạn trong cùng ngày/ca");
-                    error.status = 422;
-                    error.code = "MACHINE_WORKER_LIMIT_EXCEEDED";
-                    error.isPublic = true;
-                    error.details = capacity.errors;
-                    throw error;
-                }
-            }
-
-            const auditUserId = Number(audit?.userId || 0);
-            if (!Number.isInteger(auditUserId) || auditUserId <= 0) {
-                const auditError = new Error("Không xác định được người tạo báo cáo để ghi audit");
-                auditError.code = "REPORT_AUDIT_ACTOR_REQUIRED";
-                throw auditError;
-            }
-
-            let tempId;
-            try {
-                tempId = await this.create(data, connection);
-            } catch (error) {
-                // The canonical schema intentionally keeps client_request_id
-                // nullable and uses the duplicate-lock table for idempotency.
-                // A concurrent/legacy duplicate is still surfaced safely.
-                if (error?.code === "ER_DUP_ENTRY") {
-                    const existingRequest = await this.findByClientRequest(
-                        data.worker_id,
-                        clientRequestId,
-                        connection
-                    );
-                    if (existingRequest) {
-                        await commit(connection);
-                        return {
-                            id: Number(existingRequest.id),
-                            duplicate: true,
-                            duplicate_reason: "request_id",
-                            existing_report: existingRequest,
-                        };
-                    }
-                }
-                throw error;
-            }
-
-            await this.createDefects(tempId, data.process_id, defects, connection);
-            await this.createDeductions(tempId, data.process_id, deductions, connection);
-            await this.replaceMachineLines(tempId, machineLines, connection, { isNewReport: true });
-
-            const createdSnapshot = await AuditService.loadTempReportSnapshot(tempId, connection);
-            if (createdSnapshot) {
-                await AuditService.createReportVersion({
-                    reportType: "temp",
-                    reportId: tempId,
-                    snapshot: createdSnapshot,
-                    reason: "Tạo báo cáo chờ duyệt",
-                    userId: auditUserId
-                }, connection);
-            }
-
-            await this.logAction({
-                reportType: "temp",
-                reportId: tempId,
-                userId: auditUserId,
-                action: "CREATE",
-                note: audit.note || "Công nhân tạo báo cáo",
-                ipAddress: audit.ipAddress || null,
-                userAgent: audit.userAgent || null
-            }, connection);
-
-            await query(
-                connection,
-                `INSERT INTO activity_logs
-                 (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
-                 VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
-                [
-                    auditUserId,
-                    String(tempId),
-                    "Công nhân tạo báo cáo chờ duyệt",
-                    JSON.stringify({
-                        processId: data.process_id,
-                        workDate: data.work_date,
-                        shift: data.shift,
-                        clientRequestId,
-                        logicalDuplicateKey,
-                    }),
-                    audit.ipAddress || null,
-                    audit.userAgent || null
-                ]
-            );
-
-            await commit(connection);
-
-            return {
-                id: Number(tempId),
-                duplicate: false,
-                duplicate_reason: null,
-                existing_report: null,
-                logical_duplicate_key: logicalDuplicateKey,
-            };
-        } catch (error) {
-            await rollback(connection);
-            throw error;
-        } finally {
-            connection.release();
-        }
+    async createCompleteReport(...args) {
+        return require("../services/productionTempSubmissionService").createCompleteReport(...args);
     },
     _enforceDailyHoursLocked: enforceDailyHoursLocked
 };

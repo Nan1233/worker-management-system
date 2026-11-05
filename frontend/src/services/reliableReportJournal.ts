@@ -48,8 +48,20 @@ function readAll(): JournalItem[] {
     }
 }
 
-function writeAll(items: JournalItem[]): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+function writeAll(items: JournalItem[]): boolean {
+    try {
+        if (!items.length) {
+            localStorage.removeItem(STORAGE_KEY);
+        } else {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+        }
+        return true;
+    } catch (error) {
+        // The journal is a best-effort recovery layer. A full browser quota must
+        // never prevent an online production report from reaching the backend.
+        console.warn("[KTC] Reliable report journal storage is full; continuing without a new journal copy.", error);
+        return false;
+    }
 }
 
 function removeJournalItem(clientRequestId: string): void {
@@ -86,6 +98,8 @@ function saveBeforeSend(payload: ProductionReport): void {
         throw new Error("Thiết bị đang giữ quá nhiều báo cáo chưa xác nhận gửi thành công. Hãy đồng bộ các báo cáo đang chờ trước khi gửi thêm.");
     }
 
+    // Do not block the actual API request when localStorage is full. The form
+    // remains the source of truth until the backend responds.
     writeAll([...all, {
         clientRequestId,
         createdAt: Date.now(),

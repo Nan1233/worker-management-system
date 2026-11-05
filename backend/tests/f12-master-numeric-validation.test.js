@@ -69,16 +69,10 @@ test('F12 Excel formula result is validated, not formula object stringification'
   assert.equal(out.valid[0].row.standard_output, 617.1);
 });
 
-test('F12 zero-valid KQD field preserves numeric/string zero and one', () => {
-  for (const [input, expected] of [[0,0], ['0',0], [1,1], ['1',1]]) {
-    assert.equal(numeric.validateMasterNumeric('exclude_kqd_from_tt', input).value, expected);
-  }
-});
-
-test('F12 optional KQD blank uses explicit business default zero, not invalid fallback', () => {
-  const parsed = numeric.validateMasterNumeric('exclude_kqd_from_tt', '   ');
-  assert.equal(parsed.value, 0);
-  assert.equal(parsed.sourceState, 'missing');
+test('F12 retired KQD exclusion flag is no longer a master numeric field', () => {
+  // KQD is ordinary NG (2026-11-04); master data no longer carries a KQD exclusion setting.
+  assert.equal(Object.prototype.hasOwnProperty.call(numeric.MASTER_NUMERIC_RULES, 'exclude_kqd_from_tt'), false);
+  assert.throws(() => numeric.validateMasterNumeric('exclude_kqd_from_tt', '1'), /Missing master numeric rule/);
 });
 
 test('F12 optional sort_order blank uses schema default zero and valid zero stays zero', () => {

@@ -94,8 +94,8 @@ test('monthly process columns are generated from process-specific master types',
   assert.match(source, /processDetailTypes\(code, processData, 'defectTypes', 'defects', 'defect'\)/);
   assert.match(source, /deductionTypes\.forEach/);
   assert.match(source, /defectTypes\.forEach/);
-  assert.match(source, /detailMap\(report\.deductions, 'deduction'\)/);
-  assert.match(source, /detailMap\(report\.defects, 'defect'\)/);
+  assert.match(source, /detailMap\(reportDetailItems\(report, processCode, 'deduction'\), 'deduction'\)/);
+  assert.match(source, /detailMap\(reportDetailItems\(report, processCode, 'defect'\), 'defect'\)/);
 });
 
 test('monthly workbook keeps time details beside time and NG beside result', () => {
@@ -180,10 +180,10 @@ test('desktop monthly export is split into one summary file and nine process fil
   assert.match(desktopMain, /expectedFileCount = Object\.keys\(PROCESS_SHEETS\)\.length \+ 1/);
 });
 
-test('company Excel calculation source includes KQD product policy and multi-machine performance', () => {
+test('company Excel calculation source uses all-NG output and multi-machine performance', () => {
   const source = read('services/processExcelExportService.js');
   assert.doesNotMatch(source, /LEFT JOIN product_standards AS ps/);
-  assert.match(source, /pr\.exclude_kqd_from_tt_snapshot/);
+  assert.doesNotMatch(source, /exclude_kqd_from_tt/);
   assert.match(source, /calculateReportPerformance/);
   assert.match(source, /machineLines:\s*report\.machineLines/);
 });

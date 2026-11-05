@@ -9,7 +9,7 @@ const TABLES = {
   defects: { table:'defect_types', fields:['process_id','defect_code','defect_name','sort_order','status'], required:['process_id','defect_code','defect_name'], order:'process_id, sort_order, defect_name' },
   deductions: { table:'deduction_types', fields:['process_id','deduction_code','deduction_name','sort_order','status'], required:['process_id','deduction_code','deduction_name'], order:'process_id, sort_order, deduction_name' },
   machines: { table:'machines', fields:['process_id','machine_code','machine_name','status'], required:['process_id','machine_code','machine_name'], order:'process_id, machine_code' },
-  standards: { table:'product_standards', fields:['process_id','work_type','product_code','standard_output','exclude_kqd_from_tt','status'], required:['process_id','product_code','standard_output'], order:'process_id, product_code' }
+  standards: { table:'product_standards', fields:['process_id','work_type','product_code','standard_output','status'], required:['process_id','product_code','standard_output'], order:'process_id, product_code' }
 };
 
 const PROCESS_BOUND_RESOURCES = new Set(['defects','deductions','machines','standards']);
@@ -113,7 +113,6 @@ function cleanPayload(body, cfg, partial=false) {
   if ('status' in payload && !['active','inactive'].includes(payload.status)) {
     const error = new Error('Trạng thái không hợp lệ'); error.status = 400; throw error;
   }
-  if ('exclude_kqd_from_tt' in payload) payload.exclude_kqd_from_tt = validateMasterNumeric('exclude_kqd_from_tt', payload.exclude_kqd_from_tt).value;
   if ('process_id' in payload) payload.process_id = validateMasterNumeric('process_id', payload.process_id).value;
   if ('sort_order' in payload) payload.sort_order = validateMasterNumeric('sort_order', payload.sort_order).value;
   if ('standard_output' in payload) {

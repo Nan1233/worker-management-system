@@ -62,7 +62,6 @@ import type {
 
 
 import {
-    KQD_CODES,
     clampWorkerWorkDate,
     createEmptyMachineLine,
     getCurrentLocalDate,
@@ -133,6 +132,7 @@ import {
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { buildProductionReportPayload } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
+import { getCachedMachines } from "../../services/masterDataCache";
 
 import type {
     DeductionKey,
@@ -215,6 +215,40 @@ function ProcessPage() {
         loadingMasterData,
     } = useProcessMasterData(processInfo.id, processCode);
 
+    const [relatedMaiMachines, setRelatedMaiMachines] = useState<MachineOption[]>([]);
+    const [loadingRelatedMaiMachines, setLoadingRelatedMaiMachines] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        if (processCode !== "DO") {
+            setRelatedMaiMachines([]);
+            setLoadingRelatedMaiMachines(false);
+            return () => { active = false; };
+        }
+        setLoadingRelatedMaiMachines(true);
+        void getCachedMachines(2)
+            .then((machines) => {
+                if (!active) return;
+                setRelatedMaiMachines(machines.filter((machine) => String(machine.machine_code || "").trim()));
+            })
+            .catch(() => {
+                if (active) setRelatedMaiMachines([]);
+            })
+            .finally(() => {
+                if (active) setLoadingRelatedMaiMachines(false);
+            });
+        return () => { active = false; };
+    }, [processCode]);
+
+    const extraFieldOptions = useMemo(() => ({
+        grinding_machine_no: relatedMaiMachines.map((machine) => ({
+            value: machine.machine_code,
+            label: machine.machine_name
+                ? `${machine.machine_code} — ${machine.machine_name}`
+                : machine.machine_code,
+        })),
+    }), [relatedMaiMachines]);
+
     useEffect(() => {
         masterDataRequestSeqRef.current += 1;
     }, [processInfo.id, processCode, showToast]);
@@ -270,6 +304,12 @@ const machineAutocompleteOptions =
     const usesMachineLineAccounting = usesMultiMachineLines;
 
     const productAutocompleteOptions = useMemo<AutocompleteOption[]>(() => {
+        // MAI: khi chưa chọn máy, hiển thị hợp nhất mã sản phẩm của TẤT CẢ máy
+        // trong công đoạn (danh sách product_standards của MAI). Khi đã chọn máy
+        // ở từng dòng, getMachineProductOptions sẽ lọc theo máy đó.
+        if (["MAI", "DO"].includes(processCode) && !String(form.machineNo || "").trim()) {
+            return toProductAutocompleteOptions(scopedProductOptions);
+        }
         const effectiveMode: OperationMode = usesAnyMachine ? "MACHINE" : "MANUAL";
         const filtered = filterProductsForSelection({
             products: scopedProductOptions,
@@ -281,14 +321,21 @@ const machineAutocompleteOptions =
         return toProductAutocompleteOptions(filtered);
     }, [scopedProductOptions, usesAnyMachine, usesSingleMachine, form.machineNo, machineOptions, processCode]);
 
-    const getMachineProductOptions = useCallback((machineCode: string): ProductStandardOption[] =>
-        filterProductsForSelection({
+    const getMachineProductOptions = useCallback((machineCode: string): ProductStandardOption[] => {
+        // Mài cho phép nhập sản phẩm không cần gắn máy. Khi chưa chọn máy,
+        // hiển thị toàn bộ sản phẩm thuộc phạm vi công đoạn; khi đã chọn máy
+        // vẫn lọc theo mapping/định mức của máy như các công đoạn khác.
+        if (["MAI", "DO"].includes(processCode) && !String(machineCode || "").trim()) {
+            return scopedProductOptions;
+        }
+        return filterProductsForSelection({
             products: scopedProductOptions,
             mode: "MACHINE",
             machineCode,
             machineOptions,
             useEncodedMachineSuffix: processCode === "GC",
-        }), [scopedProductOptions, machineOptions, processCode]);
+        });
+    }, [scopedProductOptions, machineOptions, processCode]);
 
     const getMachineProductOptionsForLine = useCallback((line: MachineLineState) =>
         getMachineProductOptions(line.machineCode), [getMachineProductOptions]);
@@ -357,7 +404,9 @@ const machineAutocompleteOptions =
         const requestSeq = (machineStandardRequestSeqRef.current[index] || 0) + 1;
         machineStandardRequestSeqRef.current[index] = requestSeq;
         const isCurrentRequest = () => machineStandardRequestSeqRef.current[index] === requestSeq;
-        if (!normalizedMachine || !normalizedProduct) {
+        // Mài cho phép không chọn máy nhưng vẫn phải tra định mức theo mã sản phẩm.
+        // resolveProductStandard hỗ trợ machineCode rỗng và lấy định mức mặc định của sản phẩm.
+        if (!normalizedProduct || (!normalizedMachine && !["MAI", "DO"].includes(processCode))) {
             updateMachineLine(index, {
                 standardOutputPerHour: 0,
                 standardTimeSeconds: null,
@@ -438,39 +487,35 @@ const machineAutocompleteOptions =
 
             return next;
         });
-    }, [usesMultiMachineLines, machineLines, activeNgOptions]);const [resolvedReportKqdPolicy, setResolvedReportKqdPolicy] = useState<boolean | null>(null);
+    }, [usesMultiMachineLines, machineLines, activeNgOptions]);
 
-useEffect(() => {
-    let active = true;
-    if (!form.productName.trim() || !form.workDate) {
-        setResolvedReportKqdPolicy(null);
+    useEffect(() => {
+        let active = true;
+        if (!form.productName.trim() || !form.workDate) {
+            return () => { active = false; };
+        }
+        void resolveProductStandard(
+            processInfo.id,
+            form.machineNo.trim(),
+            form.productName.trim(),
+            form.workDate
+        ).then((resolved) => {
+            if (!active) return;
+            const resolvedOutput = Number(resolved.resolved_output_per_hour || 0);
+            if (resolvedOutput > 0) {
+                setForm((current) => ({ ...current, standardOutput: String(resolvedOutput) }));
+            }
+        }).catch(() => {
+            // Standard lookup failure keeps the manually entered standard; KQD is always ordinary NG.
+        });
         return () => { active = false; };
-    }
-    void resolveProductStandard(
-        processInfo.id,
-        form.machineNo.trim(),
-        form.productName.trim(),
-        form.workDate
-    ).then((resolved) => {
-        if (!active) return;
-        setResolvedReportKqdPolicy(Number(resolved.exclude_kqd_from_tt || 0) === 1);
-        const resolvedOutput = Number(resolved.resolved_output_per_hour || 0);
-        if (resolvedOutput > 0) setForm((current) => ({ ...current, standardOutput: String(resolvedOutput) }));
-    }).catch(() => { if (active) setResolvedReportKqdPolicy(null); });
-    return () => { active = false; };
-}, [processInfo.id, form.machineNo, form.productName, form.workDate]);
+    }, [processInfo.id, form.machineNo, form.productName, form.workDate]);
 
-const productExcludesKqd = (): boolean => resolvedReportKqdPolicy === true;
+    // KQD is an ordinary NG defect: actual output is always TT OK + every NG.
+    const calculateActualOutput = (values: FormState): number =>
+        calculateActualOutputValue(values, activeNgOptions);
 
-const calculateActualOutput = (values: FormState): number =>
-    calculateActualOutputValue(values, activeNgOptions, productExcludesKqd(), KQD_CODES);
-
-
-
-
-
-    // =================================================
-    // CHI TIẾT TRỪ GIỜ
+// CHI TIẾT TRỪ GIỜ
     // =================================================
 
     const [
@@ -566,7 +611,6 @@ const calculateActualOutput = (values: FormState): number =>
         deductions,
         selectedDeduction,
         selectedNg,
-        resolvedReportKqdPolicy,
     }), [
         processInfo.id,
         process,
@@ -581,7 +625,6 @@ const calculateActualOutput = (values: FormState): number =>
         deductions,
         selectedDeduction,
         selectedNg,
-        resolvedReportKqdPolicy,
     ]);
 
     const finishDuplicateAction = useCallback(() => {
@@ -1333,6 +1376,7 @@ const updateDeductionValue = (
                 processCode,
                 machineLines,
                 maxMachines: maxMachineCount,
+                allowZeroQuantity: isCvkMode,
                 isMachineValid: (machineCode) => machineOptions.some(
                     (item) => item.machine_code.trim().toLowerCase() === machineCode.trim().toLowerCase()
                 ),
@@ -1342,11 +1386,11 @@ const updateDeductionValue = (
             });
             if (machineLinesError) return machineLinesError;
         } else if (usesSingleMachine) {
-            if (!form.machineNo.trim()) return "Vui lòng chọn số máy";
+            if (!form.machineNo.trim() && processCode !== "DO") return "Vui lòng chọn số máy";
             const matchedMachine = machineOptions.find(
                 (item) => item.machine_code.trim().toLowerCase() === form.machineNo.trim().toLowerCase()
             );
-            if (!matchedMachine) return "Máy không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
+            if (form.machineNo.trim() && !matchedMachine) return "Máy không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
         }
 
         if (isManualOnlyProcess && (form.machineNo.trim() || machineLines.some((line) => line.machineCode.trim()))) {
@@ -1425,9 +1469,7 @@ const updateDeductionValue = (
         // machine/product line. The parent form's aggregate must not be checked
         // against the single-product formula used by manual reports.
         if (!usesMachineLineAccounting && Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
-            return productExcludesKqd()
-                ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã sản phẩm này)"
-                : "Thực tế phải bằng TT OK cộng TT NG";
+            return "Thực tế phải bằng TT OK cộng TT NG";
         }
 
         const missingExtraField = currentExtraFields.find(
@@ -1435,6 +1477,14 @@ const updateDeductionValue = (
         );
         if (missingExtraField) {
             return `Vui lòng nhập ${missingExtraField.label}`;
+        }
+
+        const relatedGrindingMachine = String(extraData.grinding_machine_no || "").trim();
+        if (processCode === "DO" && relatedGrindingMachine) {
+            if (loadingRelatedMaiMachines) return "Đang tải danh mục máy Mài, vui lòng chờ";
+            if (!relatedMaiMachines.some((machine) => machine.machine_code.trim().toUpperCase() === relatedGrindingMachine.toUpperCase())) {
+                return "Máy Mài liên quan không còn trong danh mục hoạt động. Vui lòng chọn lại";
+            }
         }
 
         return "";
@@ -1507,7 +1557,6 @@ const updateDeductionValue = (
                     activeNgOptions,
                     deductions,
                     activeDeductionOptions,
-                    excludeKqdFromTt: resolvedReportKqdPolicy === true,
                 });
 
                 let response;
@@ -1773,6 +1822,8 @@ window.setTimeout(() => {
                     fields={currentExtraFields}
                     extraData={extraData}
                     setExtraData={setExtraData}
+                    fieldOptions={extraFieldOptions}
+                    loadingFieldOptions={loadingRelatedMaiMachines}
                 />
 
                 {!usesMachineLineAccounting && (

@@ -1,7 +1,6 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const ExcelJS = require('exceljs');
-const { isKqdDefect } = require('../../shared/kqdPolicy.cjs');
 
 const GROUPS = Object.freeze({
   GIA_CONG: {
@@ -87,7 +86,7 @@ const LAYOUTS = Object.freeze({
     lastReportColumn: 46,
     fixed: {
       sequence: 1, workerCode: 2, workerName: 3, shift: 4, machine: 5,
-      training: 8, actualTime: 9, totalTime: 10, deductionTotal: 11,
+      grindingSeconds: 6, training: 8, actualTime: 9, totalTime: 10, deductionTotal: 11,
       product: 32, standardOutput: 33, actualOutput: 34,
       achievement: 35, workDate: 36, outputPerHour: 37,
       ok: 38, totalNg: 39
@@ -101,7 +100,7 @@ const LAYOUTS = Object.freeze({
     lastReportColumn: 49,
     fixed: {
       sequence: 1, workerCode: 2, workerName: 3, shift: 4, machine: 5,
-      training: 7, totalTime: 8, actualTime: 9, deductionTotal: 10,
+      relatedGrindingMachine: 6, training: 7, totalTime: 8, actualTime: 9, deductionTotal: 10,
       product: 28, standardOutput: 29, actualOutput: 30,
       achievement: 31, workDate: 32, outputPerHour: 33,
       ok: 34, totalNg: 35, ngRate: 36
@@ -126,6 +125,25 @@ const num = (value) => {
   const parsed = Number(safeText(value ?? 0).replace(/,/g, '').trim());
   return Number.isFinite(parsed) ? parsed : 0;
 };
+
+function reportExtraValue(report, key) {
+  const extra = report?.extra_data;
+  if (!extra) return '';
+  try {
+    const parsed = typeof extra === 'string' ? JSON.parse(extra) : extra;
+    const value = parsed && typeof parsed === 'object' ? parsed[key] : '';
+    return value == null ? '' : String(value).trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+function reportGrindingSeconds(report) {
+  const lines = getMachineLines(report);
+  const lineValue = lines.find((line) => line?.standard_time_seconds != null)?.standard_time_seconds;
+  const value = report?.standard_time_seconds ?? lineValue ?? reportExtraValue(report, 'standard_time_seconds');
+  return value === '' || value == null ? null : num(value);
+}
 
 const normalizeCode = (value) => safeText(value)
   .normalize('NFD')
@@ -521,30 +539,24 @@ function getMetrics(report) {
   const ok = num(report.tt_ok ?? report.ok_quantity ?? report.ok);
   const totalNg = sumDetails(report.defects, 'quantity');
   const isGiaCongMachine = normalizeCode(report.process_code) === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE';
-  const machineAccounting = report.machineAccounting || null;
-  const eventLines = Array.isArray(report.eventLines) ? report.eventLines : [];
   const machineLines = Array.isArray(report.machineLines) ? report.machineLines : [];
-  const uniqueEventIds = new Set();
-  let machineGrossTime = 0;
-  if (isGiaCongMachine) {
-    for (const event of eventLines) {
-      const eventId = Number(event?.id) || 0;
-      if (eventId && uniqueEventIds.has(eventId)) continue;
-      if (eventId) uniqueEventIds.add(eventId);
-      machineGrossTime += Math.max(0, num(event?.machine_time_hours));
-    }
-    if (!eventLines.length) {
-      machineGrossTime = machineLines.reduce((sum, line) => sum + Math.max(0, num(line?.machine_time_hours)), 0);
-    }
-  }
-  const grossMachineTime = machineAccounting ? num(machineAccounting.grossHours) : machineGrossTime;
-  const machineDeductionTime = machineAccounting ? num(machineAccounting.deductionHours) : sumDetails(report.deductions, 'hours');
-  const actualTime = isGiaCongMachine
-    ? Math.max(0, grossMachineTime - machineDeductionTime)
-    : num(report.actual_time ?? report.working_time ?? report.work_time);
+  const hasValue = (value) => value !== null && value !== undefined && String(value).trim() !== '';
+  const lineParticipationHours = machineLines.reduce(
+    (sum, line) => sum + Math.max(0, num(line?.machine_time_hours)),
+    0
+  );
+  const workerTotalTime = hasValue(report.total_time)
+    ? Math.max(0, num(report.total_time))
+    : lineParticipationHours;
+  const workerDeductionTime = hasValue(report.deduction_time)
+    ? Math.max(0, num(report.deduction_time))
+    : sumDetails(report.deductions, 'hours');
   const totalTime = isGiaCongMachine
-    ? grossMachineTime
-    : (num(report.total_time) || (actualTime + sumDetails(report.deductions, 'hours')));
+    ? workerTotalTime
+    : (num(report.total_time) || (num(report.actual_time ?? report.working_time ?? report.work_time) + sumDetails(report.deductions, 'hours')));
+  const actualTime = isGiaCongMachine
+    ? (hasValue(report.actual_time) ? Math.max(0, num(report.actual_time)) : Math.max(0, workerTotalTime - workerDeductionTime))
+    : num(report.actual_time ?? report.working_time ?? report.work_time);
   const rawTraining = report.training_percent === null || report.training_percent === undefined || (typeof report.training_percent === 'string' && report.training_percent.trim() === '')
     ? 100
     : num(report.training_percent);
@@ -554,7 +566,6 @@ function getMetrics(report) {
   // (ví dụ 6.315789 SP/giờ); làm tròn sẽ khiến TT và tỷ lệ đạt sai.
   const standardOutput = num(report.standard_output ?? report.standard_output_per_hour ?? report.standard);
   const countedNg = (report.defects || []).reduce((sum, item) => {
-    if (isKqdDefect(item) && Number(report.exclude_kqd_from_tt || 0) === 1) return sum;
     return sum + num(item.quantity);
   }, 0);
   const hasActualOutput = report.actual_output !== null && report.actual_output !== undefined && safeText(report.actual_output).trim() !== '';
@@ -562,7 +573,7 @@ function getMetrics(report) {
   const outputPerHour = actualTime > 0 ? actualOutput / actualTime : 0;
   const achievement = standardOutput > 0 ? outputPerHour / standardOutput : 0;
   const ngRate = (ok + totalNg) > 0 ? totalNg / (ok + totalNg) : 0;
-  const deductionTotal = isGiaCongMachine ? machineDeductionTime : sumDetails(report.deductions, 'hours');
+  const deductionTotal = isGiaCongMachine ? workerDeductionTime : sumDetails(report.deductions, 'hours');
   const changeCount = (report.deductions || []).filter((item) =>
     normalizeCode(item.deduction_type_code || item.deduction_code || item.code || item.deduction_name) === 'CHUYEN_MA' && num(item.hours) > 0
   ).length;
@@ -729,6 +740,12 @@ function writeRow(sheet, rowNumber, report, layout, deductionTypes, defectTypes,
     report.full_name || report.worker_name || report.worker_full_name || report.user_full_name
   ));
   setCell(row, fixed.machine, getMachineText(report));
+  if (layout === LAYOUTS.MAI) {
+    setCell(row, fixed.grindingSeconds, reportGrindingSeconds(report), '0.00');
+  }
+  if (layout === LAYOUTS.DO) {
+    setCell(row, fixed.relatedGrindingMachine, reportExtraValue(report, 'grinding_machine_no'));
+  }
   setCell(row, fixed.shift, safeText(report.shift));
   setCell(row, fixed.training, metrics.trainingPercent / 100, '0%');
   setCell(row, fixed.totalTime, metrics.totalTime, '0.00');
@@ -1002,4 +1019,4 @@ async function buildProcessExcelLocal({ appPath, date, processCode, payload }) {
   };
 }
 
-module.exports = { buildCompanyExcelLocal, buildProcessExcelLocal };
+module.exports = { buildCompanyExcelLocal, buildProcessExcelLocal, _private: { getMetrics } };

@@ -121,3 +121,149 @@ test('monthly Excel delegates GC accounting to the canonical shared implementati
   assert.match(source, /buildSharedGiaCongMachineAccounting\(\{ \.\.\.report, machineLines \}, eventMap\)/);
   assert.match(source, /deduction_type_code:\s*item\.deduction_code/);
 });
+
+test('legacy single-line GC MACHINE report may use explicitly named machine deduction fields', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 501,
+      machine_event_id: null,
+      machine_time_hours: 8,
+      deduction_time_hours: 0,
+      deductions_json: '[]'
+    }],
+    machineDeductionTime: 1.25,
+    machineDeductions: []
+  }, new Map());
+
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 1.25);
+  assert.equal(result.netHours, 6.75);
+});
+
+test('explicit legacy machine deduction details are retained without using Worker deductions', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 504,
+      machine_event_id: null,
+      machine_time_hours: 8,
+      deduction_time_hours: 0,
+      deductions_json: '[]'
+    }],
+    machineDeductionTime: 0.75,
+    machineDeductions: [{
+      deduction_type_id: 12,
+      deduction_code: 'DUNG_MAY',
+      deduction_name: 'Dừng máy',
+      hours: 0.75
+    }],
+    deduction_time: 1.5,
+    deductions: [{ deduction_type_id: 9, deduction_code: 'CHO_VIEC', deduction_name: 'Chờ việc', hours: 1.5 }]
+  }, new Map());
+
+  assert.equal(result.deductionHours, 0.75);
+  assert.equal(result.netHours, 7.25);
+  assert.deepEqual(result.deductions.map((item) => item.deduction_code), ['DUNG_MAY']);
+});
+
+test('report-level worker deduction rows are not projected onto machine time without explicit MACHINE mode', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'WORKER',
+    machineLines: [{
+      id: 502,
+      machine_event_id: null,
+      machine_time_hours: 8,
+      deduction_time_hours: 0,
+      deductions_json: '[]'
+    }],
+    deduction_time: 1.25,
+    deductions: [
+      { deduction_type_id: 9, deduction_code: 'CHO_VIEC', deduction_name: 'Chờ việc', hours: 1.25 }
+    ]
+  }, new Map());
+
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 0);
+  assert.equal(result.netHours, 8);
+  assert.deepEqual(result.deductions, []);
+});
+
+test('single-line GC MACHINE report never converts Worker deductions into machine deductions', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 503,
+      machine_event_id: null,
+      machine_time_hours: 8,
+      deduction_time_hours: 0,
+      deductions_json: '[]'
+    }],
+    deduction_time: 1.25,
+    deductions: [{ deduction_type_id: 9, deduction_code: 'CHO_VIEC', deduction_name: 'Chờ việc', hours: 1.25 }]
+  }, new Map());
+
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 0);
+  assert.equal(result.netHours, 8);
+  assert.deepEqual(result.deductions, []);
+});
+
+test('zero-hour deduction row on an earlier shared participant does not hide another participant deduction', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'MACHINE',
+    machineLines: [
+      {
+        id: 601,
+        machine_event_id: 9601,
+        machine_time_hours: 8,
+        deduction_time_hours: 0,
+        deductions_json: JSON.stringify([
+          { deduction_type_id: 10, deduction_code: 'CHO_HANG', deduction_name: 'Chờ hàng', hours: 0 }
+        ])
+      },
+      {
+        id: 602,
+        machine_event_id: 9601,
+        machine_time_hours: 8,
+        deduction_time_hours: 1.5,
+        deductions_json: JSON.stringify([
+          { deduction_type_id: 11, deduction_code: 'BAO_TRI', deduction_name: 'Bảo trì', hours: 1.5 }
+        ])
+      }
+    ]
+  }, new Map([[9601, { id: 9601, machine_time_hours: 8 }]]));
+
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 1.5);
+  assert.equal(result.netHours, 6.5);
+  assert.equal(result.deductions.length, 1);
+  assert.equal(result.deductions[0].deduction_code, 'BAO_TRI');
+});
+
+test('zero-only machine deduction detail allows the guarded legacy report breakdown fallback', () => {
+  const result = buildGiaCongMachineAccounting({
+    operation_mode: 'MACHINE',
+    machineLines: [{
+      id: 701,
+      machine_event_id: null,
+      machine_time_hours: 8,
+      deduction_time_hours: 0,
+      deductions_json: JSON.stringify([
+        { deduction_type_id: 12, deduction_code: 'EMPTY', deduction_name: 'Placeholder', hours: 0 }
+      ])
+    }],
+    deduction_time: 1.25,
+    // Explicit machine-level legacy snapshot; Worker deductions are not a machine fallback.
+    machineDeductionTime: 1.25,
+    machineDeductions: [
+      { deduction_type_id: 13, deduction_code: 'CHO_HANG', deduction_name: 'Chờ hàng', hours: 1.25 }
+    ]
+  }, new Map());
+
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 1.25);
+  assert.equal(result.netHours, 6.75);
+  assert.equal(result.deductions.length, 1);
+  assert.equal(result.deductions[0].deduction_code, 'CHO_HANG');
+});

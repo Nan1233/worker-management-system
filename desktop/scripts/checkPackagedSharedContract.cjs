@@ -6,10 +6,9 @@ const sharedSource = path.resolve(__dirname, '../../shared/excelSyncContract.cjs
 if (!fs.existsSync(sharedSource)) {
   throw new Error(`[KTC] Thiếu shared Excel sync contract: ${sharedSource}`);
 }
-const kqdPolicySource = path.resolve(__dirname, '../../shared/kqdPolicy.cjs');
-const kqdRegistrySource = path.resolve(__dirname, '../../shared/kqdExclusionRegistry.json');
-if (!fs.existsSync(kqdPolicySource) || !fs.existsSync(kqdRegistrySource)) {
-  throw new Error('[KTC] Thiếu shared KQD registry/policy contract.');
+const outputCalculationSource = path.resolve(__dirname, '../../shared/productionOutput.cjs');
+if (!fs.existsSync(outputCalculationSource)) {
+  throw new Error('[KTC] Thiếu shared production output calculation contract.');
 }
 
 const entries = Array.isArray(pkg?.build?.extraResources) ? pkg.build.extraResources : [];
@@ -35,12 +34,6 @@ for (const file of runtimeConsumers) {
   }
 }
 
-for (const relative of ['../electron/productionCalculationEngine.cjs','../electron/companyExcelLocal.cjs']) {
-  const file = path.resolve(__dirname, relative);
-  const source = fs.readFileSync(file, 'utf8');
-  if (!source.includes("require('../../shared/kqdPolicy.cjs')")) {
-    throw new Error(`[KTC] Runtime KQD consumer không dùng shared KQD policy: ${file}`);
-  }
-}
+
 
 console.log('[KTC] Packaged shared Excel contract check OK');

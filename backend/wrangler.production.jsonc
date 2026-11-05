@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ktc-be",
+  "main": "cloudflare-entrypoint.js",
+  "compatibility_date": "2026-09-21",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env"
+  ],
+  "workers_dev": true,
+  "previews": {},
+  "keep_vars": true,
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true
+  },
+  "vars": {
+    "KTC_CLOUDFLARE_WORKER": "true",
+    "KTC_ENVIRONMENT": "production",
+    "KTC_FRONTEND_ORIGIN": "https://ktc-frontend.nan978971.workers.dev",
+    "KTC_RUN_MASTER_DATA_BOOTSTRAP": "false",
+    "KTC_EXPOSE_SCHEMA_DIAGNOSTICS": "false",
+    "NODE_ENV": "production"
+  }
+}

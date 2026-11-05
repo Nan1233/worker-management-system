@@ -24,6 +24,9 @@ exports.findByProcess = (processId) => {
         `;
         db.query(sql, [processId], (error, rows) => (error ? reject(error) : resolve(rows)));
     });
+    // gc_work_type is needed only for GC (process_id=1). Other processes skip
+    // this migration-dependent column, avoiding a failed query plus retry.
+    if (Number(processId) !== 1) return load(false);
     return load(true).catch((error) => {
         if (!isMissingColumnError(error)) throw error;
         return load(false);

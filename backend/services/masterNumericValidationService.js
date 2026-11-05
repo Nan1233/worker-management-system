@@ -3,7 +3,6 @@
 const MASTER_NUMERIC_RULES = Object.freeze({
   process_id: Object.freeze({ required: true, integer: true, minExclusive: 0, code: 'PROCESS_ID' }),
   standard_output: Object.freeze({ required: true, integer: false, minExclusive: 0, code: 'STANDARD_OUTPUT' }),
-  exclude_kqd_from_tt: Object.freeze({ required: false, integer: true, allowed: Object.freeze([0, 1]), defaultWhenMissing: 0, code: 'EXCLUDE_KQD_FROM_TT' }),
   sort_order: Object.freeze({ required: false, integer: true, minInclusive: 0, defaultWhenMissing: 0, code: 'SORT_ORDER' })
 });
 

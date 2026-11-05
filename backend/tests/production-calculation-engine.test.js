@@ -50,7 +50,7 @@ test('missing training defaults to 100 percent, not zero', () => {
   assert.equal(metrics.achievement, 0.9);
 });
 
-test('KQD is excluded only when product rule says so', () => {
+test('KQD is always counted as ordinary NG; legacy exclusion flags are ignored', () => {
   const report = {
     training_percent: 100,
     actual_time: 1,
@@ -64,23 +64,23 @@ test('KQD is excluded only when product rule says so', () => {
     ]
   };
 
-  const included = calculateProductionMetrics({ ...report, exclude_kqd_from_tt: 0 }, {
-    ...DEFAULT,
-    output_formula: 'OK_PLUS_NG'
-  });
-  const excluded = calculateProductionMetrics({ ...report, exclude_kqd_from_tt: 1 }, {
+  const calculate = (legacyFlag) => calculateProductionMetrics({
+    ...report,
+    exclude_kqd_from_tt: legacyFlag,
+    exclude_kqd_from_tt_snapshot: legacyFlag
+  }, {
     ...DEFAULT,
     output_formula: 'OK_PLUS_NG'
   });
 
-  assert.equal(included.allNg, 10);
-  assert.equal(included.countedNg, 10);
-  assert.equal(included.adjustedOutput, 100);
-  assert.equal(excluded.allNg, 10);
-  assert.equal(excluded.countedNg, 6);
-  assert.equal(excluded.excludedKqd, 4);
-  assert.equal(excluded.adjustedOutput, 96);
-  assert.equal(excluded.ngRate, 0.1, 'NG rate still uses all physical NG by configured denominator');
+  for (const legacyFlag of [0, 1]) {
+    const metrics = calculate(legacyFlag);
+    assert.equal(metrics.allNg, 10);
+    assert.equal(metrics.countedNg, 10);
+    assert.equal(metrics.adjustedOutput, 100);
+    assert.equal(metrics.ngRate, 0.1);
+    assert.equal(Object.hasOwn(metrics, 'excludedKqd'), false);
+  }
 });
 
 test('actual time formula supports working minus deduction and machine line sum', () => {

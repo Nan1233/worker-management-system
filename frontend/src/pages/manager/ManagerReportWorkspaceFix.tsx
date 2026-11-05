@@ -30,9 +30,21 @@ function kpi(report: any) {
   const ng = n(report?.tt_ng);
   const actual = n(report?.actual_output) || ok + ng;
   const standard = n(report?.standard_output) || n(report?.target_output);
-  const actualTime = n(report?.actual_time);
-  const target = n(report?.tt_dinh_muc) || (standard > 0 && actualTime > 0 ? standard * actualTime : 0);
-  const productivity = n(report?.nang_suat_percent) || (target > 0 ? actual / target * 100 : 0);
+  const machineLines = Array.isArray(report?.machine_lines) ? report.machine_lines : [];
+  const machineNetHours = machineLines.reduce((sum: number, line: any) => {
+    const gross = Math.max(0, n(line?.machine_time_hours));
+    const deduction = Math.max(0, n(line?.deduction_time_hours));
+    return sum + Math.max(0, gross - deduction);
+  }, 0);
+  const machineStandardTime = machineLines.reduce((sum: number, line: any) => {
+    const netHours = Math.max(0, n(line?.machine_time_hours) - n(line?.deduction_time_hours));
+    const lineStandard = Math.max(0, n(line?.standard_output));
+    return sum + (netHours > 0 && lineStandard > 0 ? netHours * lineStandard : 0);
+  }, 0);
+  const actualTime = n(report?.actual_time) || machineNetHours;
+  const target = n(report?.tt_dinh_muc) || machineStandardTime || (standard > 0 && actualTime > 0 ? standard * actualTime : 0);
+  const storedProductivity = n(report?.nang_suat_percent);
+  const productivity = storedProductivity > 0 ? storedProductivity : (target > 0 ? actual / target * 100 : 0);
   const achieved = actual > 0 ? ok / actual * 100 : 0;
   const pp = n(report?.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
   const hv = report?.training_percent_snapshot ?? report?.training_percent ?? report?.hv_percent ?? report?.learning_percent ?? report?.hoc_viec_percent ?? 0;
@@ -118,7 +130,7 @@ function installPendingTableFix(navigate: (to: string) => void) {
       add(String(r?.process_name || r?.process_code || "—"));
       add(String(r?.shift || "—"));
       add(dateText(r?.work_date));
-      add(`${f(r?.actual_time || r?.total_time)} giờ`);
+      add(`${f(r?.total_time || r?.actual_time)} giờ`);
       add(pct(x.hv), "pending-full-metric");
       add(f(x.ok), "pending-full-metric");
       add(f(x.ng), "pending-full-metric");

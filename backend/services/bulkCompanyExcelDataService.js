@@ -4,6 +4,7 @@ const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
 const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
+const { resolveReportDefects } = require('../domain/gcWorkerDefectResolver.cjs');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3','CVK'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -126,9 +127,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         pr.training_percent_snapshot,
         COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent,
         w.position, w.department,
-        u.full_name, p.process_name, p.process_code,
-        pr.exclude_kqd_from_tt_snapshot,
-        COALESCE(pr.exclude_kqd_from_tt_snapshot, 0) AS exclude_kqd_from_tt
+        u.full_name, p.process_name, p.process_code
        FROM production_reports pr
        LEFT JOIN workers w ON w.id = pr.worker_id
        LEFT JOIN users u ON u.id = w.user_id
@@ -159,11 +158,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
       report.trainingSnapshotSource = 'IMMUTABLE_SNAPSHOT';
     }
 
-    const isMachineReport = String(report.operation_mode || '').toUpperCase() === 'MACHINE';
-    if (!isMachineReport && (report.exclude_kqd_from_tt === null || report.exclude_kqd_from_tt === undefined)) {
-      report.exclude_kqd_from_tt = 0;
-      report.excludeKqdSnapshotSource = 'LEGACY_DEFAULT_0';
-    }
   }
 
   const reportIds = reports.map((report) => Number(report.id));
@@ -171,8 +165,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     query(
       `SELECT e.id,e.process_id,e.machine_id,e.machine_code,e.product_code,e.work_date,e.shift,
               e.physical_ok_quantity,e.physical_ng_quantity,e.physical_counted_output,e.physical_total_output,
-              e.machine_time_hours,e.maximum_output,e.standard_output,e.standard_version_id,e.machine_standard_id,
-              e.exclude_kqd_from_tt_snapshot,e.status
+              e.machine_time_hours,e.maximum_output,e.standard_output,e.standard_version_id,e.machine_standard_id ,e.status
          FROM machine_production_events e
         WHERE e.status='approved' AND e.process_id IN (${processPlaceholders})
           AND e.work_date>=? AND e.work_date<?
@@ -247,11 +240,17 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     defect_name: row.defect_name,
     quantity: Number(row.quantity) || 0
   }));
+  // Resolve temp -> approved report IDs once. Repeated Array.find() inside both
+  // detail loops made this O(reports × detail rows) for larger monthly exports.
+  const reportIdBySourceTempId = new Map(
+    reports
+      .filter((report) => Number(report.source_temp_id) > 0)
+      .map((report) => [Number(report.source_temp_id), Number(report.id)])
+  );
   const tempDeductionByReport = new Map();
   for (const row of tempDeductionRows) {
-    const report = reports.find((item) => Number(item.source_temp_id) === Number(row.temp_report_id));
-    if (!report) continue;
-    const id = Number(report.id);
+    const id = reportIdBySourceTempId.get(Number(row.temp_report_id));
+    if (!id) continue;
     if (!tempDeductionByReport.has(id)) tempDeductionByReport.set(id, []);
     tempDeductionByReport.get(id).push({
       deduction_type_id: Number(row.deduction_type_id),
@@ -262,9 +261,8 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   }
   const tempDefectByReport = new Map();
   for (const row of tempDefectRows) {
-    const report = reports.find((item) => Number(item.source_temp_id) === Number(row.temp_report_id));
-    if (!report) continue;
-    const id = Number(report.id);
+    const id = reportIdBySourceTempId.get(Number(row.temp_report_id));
+    if (!id) continue;
     if (!tempDefectByReport.has(id)) tempDefectByReport.set(id, []);
     tempDefectByReport.get(id).push({
       defect_type_id: Number(row.defect_type_id),
@@ -340,7 +338,8 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     data.reports = (reportsByProcess.get(code) || [])
       .map((report) => {
         const reportId = Number(report.id);
-        const machineLines = hydrateMachineLineDefects(machineLinesByReport.get(reportId) || [], machineDefectsByLine, eventDefectsByEvent)
+        const rawMachineLines = machineLinesByReport.get(reportId) || [];
+        const machineLines = hydrateMachineLineDefects(rawMachineLines, machineDefectsByLine, eventDefectsByEvent)
           .map((line) => {
             const event = eventMap.get(Number(line.machine_event_id));
             return {
@@ -356,27 +355,35 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         const persistedDeductions = deductionByReport.get(reportId) || [];
         const persistedDefects = defectByReport.get(reportId) || [];
         const eventLines = (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean);
-        let deductions = tempDeductions.length ? tempDeductions : persistedDeductions;
+        // Keep report-level deductions as Worker credit. Physical machine
+        // deductions stay under machineAccounting and must not overwrite them.
+        const deductions = tempDeductions.length ? tempDeductions : persistedDeductions;
+        const reportDefects = tempDefects.length ? tempDefects : persistedDefects;
+        const defects = resolveReportDefects({
+          processCode: code,
+          operationMode: report.operation_mode,
+          reportDefects,
+          machineLines: rawMachineLines,
+          machineDefectsByLine
+        });
         let machineAccounting = null;
         if (code === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE') {
-          const machineDeductions = [];
           machineAccounting = buildGiaCongMachineAccounting(
             {
+              operation_mode: report.operation_mode,
               machineLines,
-              deductions: tempDeductions.length ? tempDeductions : persistedDeductions,
               total_time: report.total_time,
               actual_time: report.actual_time,
               deduction_time: report.deduction_time
             },
             eventMap
           );
-          machineAccounting.deductions.forEach((item) => machineDeductions.push(item));
-          deductions = machineDeductions.length ? machineDeductions : deductions;
         }
         return {
           ...report,
           deductions,
-          defects: tempDefects.length ? tempDefects : persistedDefects,
+          machineDeductions: machineAccounting?.deductions || [],
+          defects,
           machineLines,
           eventLines,
           machineAccounting
@@ -391,4 +398,4 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   return { processData, processIds, scope };
 }
 
-module.exports = { loadBulkCompanyReports, PROCESS_CODES };
+module.exports = { loadBulkCompanyReports, PROCESS_CODES, resolveReportDefects };

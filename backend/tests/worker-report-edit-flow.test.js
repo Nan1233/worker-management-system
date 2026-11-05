@@ -49,7 +49,12 @@ function build({ current = {}, failOn = null, defectMaster = [{ id: 11, defect_n
     'services/auditService': { loadTempReportSnapshot: async () => ({ id: 900001 }), createReportVersion: async () => {}, logActivity: async () => {}, createNotification: async () => {} },
     'services/machineLineValidationService': { validateMachineLines: async ({ machineLines }) => ({ valid: true, lines: machineLines, errors: {} }) },
     'services/factoryMachineRuleService': { validateMachineWorkerCapacityLocked: async () => ({ valid: true }) },
-    'models/productionTempCreateModel': { replaceMachineLines: async (id, lines) => { machineLinesWritten.push(lines); } },
+    // Mirror the real create-model surface used by updateReport: machine capacity keys are locked
+    // inside the edit transaction before the capacity check (productionTempCreateModel.lockMachineCapacityKeys).
+    'models/productionTempCreateModel': {
+      replaceMachineLines: async (id, lines) => { machineLinesWritten.push(lines); },
+      lockMachineCapacityKeys: async () => { record('LOCK_MACHINE_CAPACITY_KEYS'); },
+    },
   };
   const original = Module._load;
   Module._load = function (request, parent, ...rest) {

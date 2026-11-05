@@ -7,6 +7,8 @@ export interface AuthUser {
     username: string;
     full_name: string;
     role: "admin" | "admin_ops" | "manager" | "lead" | "worker";
+    // Display hint only; the backend derives super-admin rights from the database on every request.
+    is_super_admin?: boolean;
 }
 
 const ACCESS_TOKEN_KEY = "accessToken";
@@ -194,7 +196,8 @@ export function recoverUserFromAccessToken(): AuthUser | null {
         worker_code: workerCode || null,
         username: username || `user-${id}`,
         full_name: username || "Người dùng",
-        role: role as AuthUser["role"]
+        role: role as AuthUser["role"],
+        is_super_admin: payload.is_super_admin === true
     };
     setStoredUser(recovered);
     return recovered;

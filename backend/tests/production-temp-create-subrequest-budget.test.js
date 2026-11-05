@@ -8,20 +8,22 @@ const Module = require('node:module');
 function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false, processCode = 'EP' }) {
   const log = [];
   let nextId = 1000;
-  const answer = (rawSql) => {
+  const answer = (rawSql, inTransaction = false) => {
     const sql = String(rawSql).replace(/\s+/g, ' ');
     if (/LAST_INSERT_ID/i.test(sql)) return [{ insertId: nextId }];
-    if (/SUM\((?:group_hours|counted_hours)\)/i.test(sql)) return [{ counted_hours: dailyHours }];
+    if (/SUM\((?:group_hours|counted_hours)\)/i.test(sql)) return [{ counted_hours: inTransaction ? dailyHours : 0 }];
     if (/training_percent FROM workers/i.test(sql)) return [{ training_percent: 100 }];
     if (/FROM processes/i.test(sql)) return [{ process_code: processCode }];
-    if (existingRequest && /FROM production_reports_temp WHERE worker_id = \? AND client_request_id/i.test(sql)) return [{ id: 77, status: 'pending' }];
+    if (/FROM defect_types/i.test(sql)) return [{ id: 1, defect_code: 'a', defect_name: 'a' }];
+    if (/FROM deduction_types/i.test(sql)) return [{ id: 1, deduction_code: 'd', deduction_name: 'Deduction' }];
+    if (existingRequest && /FROM production_reports_temp WHERE worker_id.*client_request_id/i.test(sql)) return [{ id: 77, status: 'pending' }];
     if (/^\s*INSERT/i.test(sql)) { nextId += 1; return { insertId: /duplicate_locks/.test(sql) ? 0 : nextId, affectedRows: 1 }; }
     return [];
   };
   const record = (sql) => log.push(String(sql).replace(/\s+/g, ' ').trim());
   const conn = {
     supportsBeginIsolation,
-    query(sql, params, cb) { if (typeof params === 'function') cb = params; record(sql); const r = answer(sql); setImmediate(() => cb(null, r, [])); },
+    query(sql, params, cb) { if (typeof params === 'function') cb = params; record(sql); const r = answer(sql, true); setImmediate(() => cb(null, r, [])); },
     beginTransaction(a, b) { const cb = typeof a === 'function' ? a : b; record(`BEGIN${a && typeof a === 'object' ? ` ${a.isolation}` : ''}`); setImmediate(() => cb(null)); },
     commit(cb) { record('COMMIT'); setImmediate(() => cb(null)); },
     rollback(cb) { record('ROLLBACK'); setImmediate(() => cb(null)); },
@@ -30,7 +32,7 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
   const fakeDb = { getConnection(cb) { setImmediate(() => cb(null, conn)); }, query(sql, p, cb) { record(sql); (typeof p === 'function' ? p : cb)(null, answer(sql), []); } };
   const target = require.resolve('../models/productionTempCreateModel');
   // These modules capture config/db at require time, so each scenario needs a fresh copy.
-  for (const name of ['../models/productionTempCreateModel', '../models/productionTempModelShared', '../services/factoryMachineRuleService', '../services/trainingSnapshotService', '../services/auditService']) {
+  for (const name of ['../models/productionTempCreateModel', '../services/productionTempSubmissionService', '../models/productionTempModelShared', '../services/factoryMachineRuleService', '../services/trainingSnapshotService', '../services/auditService']) {
     try { delete require.cache[require.resolve(name)]; } catch { /* optional module */ }
   }
   const original = Module._load;
@@ -39,11 +41,11 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
     return original.call(this, request, parent, ...rest);
   };
   let Model;
-  try { Model = require(target); } finally { Module._load = original; }
+  try { Model = require(target); require('../services/productionTempSubmissionService'); } finally { Module._load = original; }
   return { Model, log };
 }
 
-const baseData = () => ({ worker_id: 7, process_id: 3, work_date: '2026-10-23', shift: 'DAY', client_request_id: 'req-1', actual_time: 4, total_time: 4, tt_ok: 10, tt_ng: 0, operation_mode: 'MANUAL', product_name: 'P1', extra_data: {} });
+const baseData = () => ({ worker_id: 7, process_id: 3, work_date: '2026-10-23', shift: 'DAY', client_request_id: 'req-1', actual_time: 4, total_time: 4, deduction_time: 0.5, tt_ok: 10, tt_ng: 1, operation_mode: 'MANUAL', product_name: 'P1', extra_data: {} });
 const machineLine = (i) => ({ machine_code: `M${i}`, product_code: 'P1', machine_time_hours: 1, ok_quantity: 5, ng_quantity: 1, defects: [{ defect_type_id: 1, defect_code: 'a', defect_name: 'a', quantity: 1 }], deductions: [] });
 const run = (Model, extra = {}) => Model.createCompleteReport({ data: baseData(), defects: [{ defect_type_id: 1, quantity: 1 }], deductions: [{ deduction_type_id: 1, hours: 0.5 }], machineLines: [], audit: { userId: 9 }, ...extra });
 
@@ -57,14 +59,15 @@ test('Worker path: READ COMMITTED travels with BEGIN, no separate SET TRANSACTIO
 test('Non-Worker (pooled MySQL) path keeps SET TRANSACTION before BEGIN', async () => {
   const { Model, log } = setup({ supportsBeginIsolation: false });
   await run(Model);
-  assert.match(log[0], /SET TRANSACTION ISOLATION LEVEL READ COMMITTED/);
-  assert.equal(log[1], 'BEGIN');
+  const isolationIndex = log.findIndex((sql) => /SET TRANSACTION ISOLATION LEVEL READ COMMITTED/i.test(sql));
+  assert.ok(isolationIndex >= 0, 'pooled MySQL path must set READ COMMITTED before its parent transaction');
+  assert.equal(log[isolationIndex + 1], 'BEGIN');
 });
 
 test('no LAST_INSERT_ID lookup for hash-keyed duplicate locks, no cleanup queries for a new report, process_code read once', async () => {
   const { Model, log } = setup({ supportsBeginIsolation: true });
   await run(Model);
-  assert.equal(log.filter((sql) => /LAST_INSERT_ID/i.test(sql)).length, 0);
+  assert.equal(log.filter((sql) => /LAST_INSERT_ID/i.test(sql)).length, 0, 'the fake driver already returns insertId; duplicate-lock rows must not request LAST_INSERT_ID');
   assert.equal(log.filter((sql) => /^(SELECT id, machine_event_id, machine_code|DELETE FROM production_temp_machine_(lines|defects))/i.test(sql)).length, 0);
   assert.equal(log.filter((sql) => /^SELECT process_code FROM processes/i.test(sql)).length, 1);
 });
@@ -87,7 +90,7 @@ test('12-hour daily limit is still enforced and the transaction is rolled back w
 
 test('GC daily cap counts machine_time_hours minus deductions when actual_time_hours is absent', async () => {
   const { Model, log } = setup({ supportsBeginIsolation: true, dailyHours: 9, processCode: 'GC' });
-  const data = { ...baseData(), actual_time: 0, _daily_hours_machine_lines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }] };
+  const data = { ...baseData(), actual_time: 0, deduction_time: 0, tt_ng: 0, _daily_hours_machine_lines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }] };
   await assert.rejects(
     () => Model.createCompleteReport({ data, defects: [], deductions: [], machineLines: [{ machine_time_hours: 4, deduction_time_hours: 0.5 }], audit: { userId: 9 } }),
     (error) => error.code === 'DAILY_WORKING_HOURS_LIMIT_EXCEEDED' && error.status === 422
@@ -102,5 +105,13 @@ test('re-submitting the same client_request_id returns the existing report and w
   assert.equal(result.duplicate, true);
   assert.equal(result.id, 77);
   assert.ok(!log.some((sql) => /^INSERT INTO production_reports_temp/i.test(sql)));
-  assert.equal(log.at(-1), 'COMMIT');
+  assert.ok(!log.some((sql) => sql.startsWith('BEGIN')), 'idempotent retry should return before opening a transaction');
+});
+
+test('a brand-new report never reads or deletes old machine lines (isNewReport is passed by the submission service)', () => {
+  const fs = require('node:fs');
+  const source = fs.readFileSync(require('node:path').join(__dirname, '..', 'services', 'productionTempSubmissionService.js'), 'utf8');
+  const calls = source.match(/createModel\.replaceMachineLines\([^)]*\)/g) || [];
+  assert.ok(calls.length >= 2);
+  for (const call of calls) assert.match(call, /\{ isNewReport: true \}/, call);
 });

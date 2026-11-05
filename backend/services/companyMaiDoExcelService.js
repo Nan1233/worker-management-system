@@ -30,6 +30,25 @@ const toNumber = (value) => {
   return Number.isFinite(numberValue) ? numberValue : 0;
 };
 
+const readExtraData = (report) => {
+  const value = report?.extra_data;
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+  return {};
+};
+
+const extraDataValue = (report, key) => {
+  const value = readExtraData(report)[key];
+  return value == null ? '' : String(value).trim();
+};
+
 const normalizeDateKey = (value) => {
   if (!value) return '';
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
@@ -208,7 +227,7 @@ const fillMaiSheet = (sheet, reports, yearMonth) => {
   const headerRows = discoverHeaderRows(sheet, 300).filter((row) => row >= 343).slice(0, 31);
   if (headerRows.length < 28) throw new Error('File mẫu Mài không có đủ vùng nhập theo ngày');
   const grouped = groupByDay(buildMachineExcelRows(reports), yearMonth);
-  const inputColumns = [2, 4, 5, 8, 9, ...Array.from({ length: 19 }, (_, index) => 13 + index), 32, 34, ...Array.from({ length: 14 }, (_, index) => 40 + index)];
+  const inputColumns = [2, 4, 5, 6, 8, 9, ...Array.from({ length: 19 }, (_, index) => 13 + index), 32, 34, ...Array.from({ length: 14 }, (_, index) => 40 + index)];
 
   headerRows.forEach((headerRow, dayIndex) => {
     const day = dayIndex + 1;
@@ -241,6 +260,9 @@ const fillMaiSheet = (sheet, reports, yearMonth) => {
       setInputCell(row, 2, report.worker_code);
       setInputCell(row, 4, shiftToCompanyValue(report.shift));
       setInputCell(row, 5, report.machine_no);
+      // TT Mài cột F là Giây mài; lấy từ snapshot định mức của machine line.
+      const machineLine = Array.isArray(report.machineLines) ? report.machineLines[0] : null;
+      setInputCell(row, 6, toNumber(machineLine?.standard_time_seconds ?? report.standard_time_seconds));
       setInputCell(row, 8, trainingFactorValue);
       setInputCell(row, 9, toNumber(report.total_time));
 
@@ -285,7 +307,7 @@ const fillDoSheet = (sheet, reports, yearMonth) => {
   const headerRows = discoverHeaderRows(sheet, 200).filter((row) => row >= 207).slice(0, 31);
   if (headerRows.length < 28) throw new Error('File mẫu Đo không có đủ vùng nhập theo ngày');
   const grouped = groupByDay(buildMachineExcelRows(reports), yearMonth);
-  const inputColumns = [2, 4, 5, 7, 8, ...Array.from({ length: 16 }, (_, index) => 12 + index), 28, 30, ...Array.from({ length: 15 }, (_, index) => 37 + index)];
+  const inputColumns = [2, 4, 5, 6, 7, 8, ...Array.from({ length: 16 }, (_, index) => 12 + index), 28, 30, ...Array.from({ length: 15 }, (_, index) => 37 + index)];
 
   headerRows.forEach((headerRow, dayIndex) => {
     const day = dayIndex + 1;
@@ -318,6 +340,8 @@ const fillDoSheet = (sheet, reports, yearMonth) => {
       setInputCell(row, 2, report.worker_code);
       setInputCell(row, 4, shiftToCompanyValue(report.shift));
       setInputCell(row, 5, report.machine_no);
+      // TT Đo cột F lưu máy mài liên quan; giá trị nằm trong extra_data để không cần đổi schema DB.
+      setInputCell(row, 6, extraDataValue(report, 'grinding_machine_no'));
       setInputCell(row, 7, trainingFactorValue);
       setInputCell(row, 8, toNumber(report.total_time));
 

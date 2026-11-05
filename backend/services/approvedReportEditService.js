@@ -2,7 +2,7 @@ const db = require('../config/db');
 const AuditService = require('./auditService');
 const { validateProductionReport } = require('../utils/reportValidation');
 const { validateMasterData } = require('./reportBusinessValidationService');
-const { recalculateReportOutput } = require('./kqdReportCalculationService');
+const { recalculateReportOutput } = require('./productionOutputCalculationService');
 const { assertProcessScope } = require('./processAuthorizationService');
 const { hasPermission } = require('./permissionService');
 const {
@@ -87,7 +87,6 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
     delete normalizedPatch.standard_output;
     delete normalizedPatch.standard_version_id;
     delete normalizedPatch.machine_standard_id;
-    delete normalizedPatch.exclude_kqd_from_tt_snapshot;
     if (!isMachineReport) {
       if (Array.isArray(normalizedPatch.deductions)) {
         normalizedPatch.deduction_time = normalizedPatch.deductions.reduce((sum, item) => sum + Number(item?.hours || 0), 0);
@@ -137,32 +136,22 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
     validation.normalized.standard_output = authorityChanged ? Number(master.standardOutput) : Number(before.standard_output);
     validation.normalized.standard_version_id = authorityChanged ? master.standardVersionId : (before.standard_version_id || null);
     validation.normalized.machine_standard_id = authorityChanged ? master.machineStandardId : (before.machine_standard_id || null);
-    const policySnapshot = authorityChanged
-      ? (Number(master.excludeKqdFromTt || 0) === 1 ? 1 : 0)
-      : before.exclude_kqd_from_tt_snapshot;
-    const needsKqdRecalculation = !isMachineReport && (
+    const needsOutputRecalculation = !isMachineReport && (
       Array.isArray(normalizedPatch.defects)
       || Object.prototype.hasOwnProperty.call(normalizedPatch, 'tt_ok')
       || authorityChanged
     );
-    if (needsKqdRecalculation && (policySnapshot === null || policySnapshot === undefined || String(policySnapshot).trim() === '')) {
-      throw httpError(422, 'KQD_POLICY_SNAPSHOT_MISSING', 'Báo cáo cũ chưa có snapshot chính sách KQD; cần audit trước khi chỉnh dữ liệu sản lượng');
-    }
-    validation.normalized.exclude_kqd_from_tt_snapshot = policySnapshot === null || policySnapshot === undefined || String(policySnapshot).trim() === ''
-      ? null
-      : (Number(policySnapshot) === 1 ? 1 : 0);
-    if (needsKqdRecalculation) {
+    if (needsOutputRecalculation) {
       const output = recalculateReportOutput({
         ttOk: validation.normalized.tt_ok,
         defects: master.authoritativeDefects,
-        excludeKqdFromTtSnapshot: validation.normalized.exclude_kqd_from_tt_snapshot
       });
       validation.normalized.tt_ok = output.ttOk;
       validation.normalized.tt_ng = output.totalNg;
       validation.normalized.actual_output = output.actualOutput;
     }
 
-    const allowed = ['machine_no','product_name','note','shift','work_date','operation_type','operation_mode','total_time','actual_time','deduction_time','standard_output','standard_version_id','machine_standard_id','exclude_kqd_from_tt_snapshot','actual_output','tt_ok','tt_ng'];
+    const allowed = ['machine_no','product_name','note','shift','work_date','operation_type','operation_mode','total_time','actual_time','deduction_time','standard_output','standard_version_id','machine_standard_id','actual_output','tt_ok','tt_ng'];
     await createApprovedReportVersion({ reportId: Number(reportId), reason: changeReason, userId }, connection);
     const values = allowed.map((key) => validation.normalized[key]);
     // Production databases may predate production_reports.updated_by. Preserve
@@ -200,7 +189,7 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
 
     const after = await loadApprovedSnapshot(Number(reportId), connection);
     const versionNo = await createApprovedReportVersion({ reportId: Number(reportId), reason: changeReason, userId }, connection);
-    const trackedKeys = ['work_date','shift','operation_type','operation_mode','machine_no','product_name','training_percent_snapshot','exclude_kqd_from_tt_snapshot','actual_time','total_time','deduction_time','actual_output','tt_ok','tt_ng','note'];
+    const trackedKeys = ['work_date','shift','operation_type','operation_mode','machine_no','product_name','training_percent_snapshot','actual_time','total_time','deduction_time','actual_output','tt_ok','tt_ng','note'];
     const changedFields = {};
     for (const key of trackedKeys) {
       if (JSON.stringify(before?.[key] ?? null) !== JSON.stringify(after?.[key] ?? null)) {

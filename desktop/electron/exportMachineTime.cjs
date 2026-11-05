@@ -50,6 +50,34 @@ function addDeduction(target, item) {
   });
 }
 
+/** Resolve one worker's credited participation; never substitute shared event duration. */
+function resolveWorkerParticipationTimes(report = {}) {
+  const lines = machineLinesOf(report);
+  const hasMachine = hasMachineOf(report, lines);
+  const hasValue = (value) => value !== null && value !== undefined && String(value).trim() !== '';
+  const lineParticipationHours = lines.reduce(
+    (sum, line) => sum + Math.max(0, number(line?.machine_time_hours ?? line?.machineTimeHours)),
+    0
+  );
+  const totalHours = Math.max(0, hasValue(report.total_time)
+    ? number(report.total_time)
+    : (hasMachine ? lineParticipationHours : number(report.actual_time)));
+  const deductionHours = Math.max(0, number(report.deduction_time));
+  const actualHours = Math.max(0, hasValue(report.actual_time)
+    ? number(report.actual_time)
+    : totalHours - deductionHours);
+
+  return {
+    hasMachine,
+    source: hasMachine ? 'WORKER_PARTICIPATION' : 'WORKER_REPORT',
+    totalHours,
+    actualHours,
+    deductionHours,
+    deductions: Array.isArray(report.deductions) ? report.deductions : []
+  };
+}
+
+/** Resolve physical machine totals, deduplicated by event ID. Not a worker-time resolver. */
 function resolveExportTimes(report = {}) {
   const lines = machineLinesOf(report);
   const hasMachine = hasMachineOf(report, lines);
@@ -140,4 +168,4 @@ function resolveExportTimes(report = {}) {
   };
 }
 
-module.exports = { resolveExportTimes, machineLinesOf, parseArray };
+module.exports = { resolveExportTimes, resolveWorkerParticipationTimes, machineLinesOf, parseArray };

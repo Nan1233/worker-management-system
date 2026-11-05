@@ -14,7 +14,7 @@ const machines = [
 const products = [
   {
     id: 201, machine_id: 101, process_id: 1, product_code: 'QC5-1657', status: 'active',
-    default_standard_output: 100, machine_standard_output: 100, standard_time_seconds: 36, exclude_kqd_from_tt: 0
+    default_standard_output: 100, machine_standard_output: 100, standard_time_seconds: 36
   }
 ];
 
@@ -49,7 +49,7 @@ const validate = createMachineLineValidator({
       return {
         productStandardId: product.id, standardVersionId: 301, machineStandardId: 401,
         productCode: product.product_code, machineId, machineCode, standardOutput: product.machine_standard_output,
-        standardTimeSeconds: product.standard_time_seconds, excludeKqdFromTt: product.exclude_kqd_from_tt, source: 'MACHINE'
+        standardTimeSeconds: product.standard_time_seconds, source: 'MACHINE'
       };
     }
   }

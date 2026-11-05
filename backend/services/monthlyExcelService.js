@@ -61,9 +61,7 @@ const loadMonthReports = async (yearMonth) => {
             w.department,
             u.full_name,
             p.process_name,
-            p.process_code,
-            pr.exclude_kqd_from_tt_snapshot,
-            pr.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt
+            p.process_code
          FROM production_reports AS pr
          INNER JOIN workers AS w ON w.id = pr.worker_id
          INNER JOIN users AS u ON u.id = w.user_id
@@ -74,21 +72,6 @@ const loadMonthReports = async (yearMonth) => {
          ORDER BY pr.work_date, w.worker_code, pr.machine_no, pr.created_at, pr.id`,
         [start, next]
     );
-
-    // Historical approved reports may predate the KQD policy snapshot columns.
-    // Excel export must remain available for those records; only the edit/save
-    // workflow requires an immutable policy snapshot. Treat a missing snapshot
-    // as "not excluded from TT" for export calculation compatibility.
-    for (const report of reports) {
-        if (
-            report.exclude_kqd_from_tt_snapshot === null ||
-            report.exclude_kqd_from_tt_snapshot === undefined ||
-            String(report.exclude_kqd_from_tt_snapshot).trim() === ''
-        ) {
-            report.exclude_kqd_from_tt_snapshot = 0;
-            report.exclude_kqd_from_tt = 0;
-        }
-    }
 
     const reportIds = reports.map((report) => Number(report.id));
     const activeProcesses = await query(

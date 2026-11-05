@@ -7,9 +7,9 @@ const ENTITY_CONFIGS = Object.freeze({
   product_standards: Object.freeze({
     table: 'product_standards',
     keyFields: Object.freeze(['process_id', 'product_code']),
-    fields: Object.freeze(['process_id', 'product_code', 'standard_output', 'exclude_kqd_from_tt']),
+    fields: Object.freeze(['process_id', 'product_code', 'standard_output']),
     required: Object.freeze(['process_id', 'product_code', 'standard_output']),
-    numericRules: Object.freeze({ process_id: 'process_id', standard_output: 'standard_output', exclude_kqd_from_tt: 'exclude_kqd_from_tt' })
+    numericRules: Object.freeze({ process_id: 'process_id', standard_output: 'standard_output' })
   }),
   defect_types: Object.freeze({
     table: 'defect_types',

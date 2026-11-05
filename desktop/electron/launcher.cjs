@@ -4,7 +4,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 
-// TEST Excel export: use the company NAS when reachable; otherwise save locally
+// Excel export: use the company NAS when reachable; otherwise save locally
 // under the current Windows user's Documents\KTC\Bao cao san xuat folder.
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const LEGACY_NETWORK_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
@@ -17,11 +17,16 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('vn.ktc.productioncontrol');
 }
 
-// Test desktop always renders the deployed TEST FE and uses the TEST BE.
-// The desktop package does not contain a frontend build anymore.
-const TEST_FRONTEND_URL = 'https://ktc-fe-test.nan978971.workers.dev';
-process.env.KTC_API_URL = 'https://ktc-be-test.nan978971.workers.dev/api';
-process.env.KTC_WEB_ORIGIN = TEST_FRONTEND_URL;
+// The packaged metadata selects the environment. The default package metadata
+// is TEST; the production electron-builder profile overrides it explicitly.
+const { resolveDesktopDeploymentProfile } = require('./deploymentProfile.cjs');
+const desktopPackage = require('../package.json');
+const desktopDeployment = resolveDesktopDeploymentProfile(
+  desktopPackage.ktcDeploymentEnvironment || process.env.KTC_DESKTOP_ENV || 'test'
+);
+const FRONTEND_URL = desktopDeployment.frontendUrl;
+process.env.KTC_API_URL = desktopDeployment.apiUrl;
+process.env.KTC_WEB_ORIGIN = FRONTEND_URL;
 
 let launcherLogWriter = null;
 function writeLauncherLog(level, event, payload = {}) {
@@ -49,16 +54,16 @@ app.on('browser-window-created', (_event, window) => {
     if (process.platform === 'win32') window.setIcon(DESKTOP_ICON);
   } catch (_) {}
 
-  // Test desktop always loads the deployed TEST FE.
+  // Load the frontend belonging to the packaged deployment profile.
   const originalWindowLoadFile = window.loadFile.bind(window);
-  window.loadFile = async function loadRemoteTestFrontend(filePath, ...args) {
+  window.loadFile = async function loadRemoteProfileFrontend(filePath, ...args) {
     const resolved = path.resolve(String(filePath || ''));
     const fileName = path.basename(resolved).toLowerCase();
     if (fileName === 'index.html') {
       try {
         await window.webContents.session.clearCache();
       } catch (_) {}
-      await window.loadURL(TEST_FRONTEND_URL, {
+      await window.loadURL(FRONTEND_URL, {
         extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n'
       });
       return window;
@@ -67,13 +72,13 @@ app.on('browser-window-created', (_event, window) => {
   };
 
   window.webContents.on('did-navigate', (_navigateEvent, url) => {
-    if (url === TEST_FRONTEND_URL || url.startsWith(`${TEST_FRONTEND_URL}/`)) {
+    if (url === FRONTEND_URL || url.startsWith(`${FRONTEND_URL}/`)) {
       void writeLauncherLog('INFO', 'REMOTE_FE_LOADED', { url });
     }
   });
 
   window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
-    if (validatedURL === TEST_FRONTEND_URL || validatedURL.startsWith(`${TEST_FRONTEND_URL}/`)) {
+    if (validatedURL === FRONTEND_URL || validatedURL.startsWith(`${FRONTEND_URL}/`)) {
       void writeLauncherLog('ERROR', 'REMOTE_FE_LOAD_FAILED', {
         errorCode,
         errorDescription,
@@ -117,7 +122,7 @@ function readConfiguredExportRoot() {
     if (normalizedConfigured === normalizedLegacy) return DEFAULT_EXPORT_ROOT;
 
     // Older builds may have saved only the relative folder name "Linh tinh".
-    // It must mean the company NAS folder in the TEST desktop.
+    // It must mean the company NAS folder for this desktop installation.
     if (/^linh\s*tinh$/i.test(configured) || isLegacyNetworkExportRoot(configured)) {
       return DEFAULT_EXPORT_ROOT;
     }

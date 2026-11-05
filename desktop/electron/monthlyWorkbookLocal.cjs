@@ -354,6 +354,39 @@ function detailKey(item, kind) {
   return name ? `name:${normalize(name)}` : '';
 }
 
+function parseDetailArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+// GC MACHINE parent-level deductions are intentionally empty. The Worker
+// deduction credit lives on each machine line, so read those line snapshots
+// without borrowing shared physical-event deductions.
+function reportDetailItems(report, processCode, kind) {
+  const reportKey = kind === 'deduction' ? 'deductions' : 'defects';
+  const reportItems = Array.isArray(report?.[reportKey]) ? report[reportKey] : [];
+  const isGcMachine = normalize(processCode) === 'GC'
+    && normalize(report?.operation_mode) === 'MACHINE';
+  const lines = Array.isArray(report?.machineLines) ? report.machineLines : [];
+  if (!isGcMachine || !lines.length) return reportItems;
+
+  const lineItems = lines.flatMap((line) => {
+    const direct = parseDetailArray(line?.[kind]);
+    if (direct.length) return direct;
+    return parseDetailArray(line?.[kind === 'deduction' ? 'deductions_json' : 'defects_json']);
+  });
+
+  if (kind === 'defect') return reportItems.length ? reportItems : lineItems;
+  if (lineItems.length) return lineItems;
+  return lines.length === 1 ? reportItems : [];
+}
+
 function detailAliases(item, kind) {
   const aliases = new Set();
   const id = detailId(item, kind);
@@ -399,7 +432,7 @@ function processDetailTypes(processCode, processData, masterKey, reportKey, kind
   for (const label of templateLabels) append({ code: normalize(label), name: label });
   for (const item of processData?.[masterKey] || []) append(item);
   for (const report of processData?.reports || []) {
-    for (const item of report?.[reportKey] || []) append(item);
+    for (const item of reportDetailItems(report, processCode, kind)) append(item);
   }
   return result.map((item) => ({ key: item.key, label: item.label, aliases: [...item.aliases] }));
 }
@@ -610,8 +643,8 @@ function parseExtraData(report) {
 
 function rowValues(processCode, report, deductionTypes, defectTypes, settings) {
   const snapshot = reportSnapshot(report, settings);
-  const deductions = detailMap(report.deductions, 'deduction');
-  const defects = detailMap(report.defects, 'defect');
+  const deductions = detailMap(reportDetailItems(report, processCode, 'deduction'), 'deduction');
+  const defects = detailMap(reportDetailItems(report, processCode, 'defect'), 'defect');
   const extra = parseExtraData(report);
   const values = {
     ...snapshot,
@@ -944,8 +977,10 @@ function addReconciliationSheet(workbook, payload) {
     for (const report of sortReports(processData.reports)) {
       const itemSettings = settingsForReport(report, baseSettings, processData.formulaSettingsByDate || {});
       const item = reportSnapshot(report, itemSettings);
-      const detailDeduction = (report.deductions || []).reduce((sum, value) => sum + (detailValue(value, 'deduction') || 0), 0);
-      const detailNg = (report.defects || []).reduce((sum, value) => sum + (detailValue(value, 'defect') || 0), 0);
+      const detailDeduction = reportDetailItems(report, code, 'deduction')
+        .reduce((sum, value) => sum + (detailValue(value, 'deduction') || 0), 0);
+      const detailNg = reportDetailItems(report, code, 'defect')
+        .reduce((sum, value) => sum + (detailValue(value, 'defect') || 0), 0);
       const deductionDiff = (item.deductionTime || 0) - detailDeduction;
       const ngDiff = (item.ng || 0) - detailNg;
       const ok = Math.abs(deductionDiff) < 0.0001 && Math.abs(ngDiff) < 0.0001;
@@ -1087,21 +1122,88 @@ function syncOriginalPatch(report) {
   };
 }
 
+function parseMachineDeductionDetails(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function machineEventDeductionSnapshot(lines) {
+  if (!lines.length) return { hours: null, detailsJson: null, status: 'NO_PARTICIPANT_LINE' };
+  const snapshots = lines.map((line) => {
+    const details = parseMachineDeductionDetails(line.deductions_json ?? line.deductions)
+      .map((item) => ({
+        deduction_type_id: Number(item?.deduction_type_id ?? item?.id) || null,
+        deduction_code: asText(item?.deduction_code ?? item?.deduction_type_code ?? item?.code),
+        deduction_name: asText(item?.deduction_name ?? item?.name),
+        hours: Math.max(0, asNumber(item?.hours) || 0)
+      }))
+      .filter((item) => item.hours > 0)
+      .sort((a, b) => (a.deduction_type_id || 0) - (b.deduction_type_id || 0)
+        || a.deduction_code.localeCompare(b.deduction_code));
+    const detailHours = details.reduce((sum, item) => sum + item.hours, 0);
+    const hours = Math.max(
+      detailHours,
+      Math.max(0, asNumber(line.deduction_time_hours) || 0),
+      Math.max(0, asNumber(line.adjustment_minutes) || 0) / 60
+    );
+    return { hours: Number(hours.toFixed(4)), details };
+  });
+  const signatures = new Set(snapshots.map((item) => JSON.stringify(item)));
+  if (signatures.size > 1) {
+    return { hours: null, detailsJson: null, status: 'CONFLICTING_PARTICIPANT_LINES' };
+  }
+  const snapshot = snapshots[0];
+  return {
+    hours: snapshot.hours,
+    detailsJson: JSON.stringify(snapshot.details),
+    status: snapshot.hours > 0
+      ? (snapshot.details.length ? 'RECORDED_ONCE' : 'TOTAL_ONLY_NO_BREAKDOWN')
+      : 'NO_DEDUCTION_RECORDED'
+  };
+}
+
 function addPhysicalMachineEventsMetadata(workbook, processData) {
   const existing = workbook.getWorksheet('_KTC_MACHINE_EVENTS');
   if (existing) workbook.removeWorksheet(existing.id);
   const sheet = workbook.addWorksheet('_KTC_MACHINE_EVENTS');
   sheet.state = 'veryHidden';
-  sheet.addRow(['event_id','work_date','shift','machine_id','machine_code','product_code','physical_ok','physical_ng','physical_counted_output','physical_total_output','machine_time_hours','maximum_output','standard_output','kqd_exclude_snapshot','status']);
+  sheet.addRow([
+    'event_id','work_date','shift','machine_id','machine_code','product_code',
+    'physical_ok','physical_ng','physical_counted_output','physical_total_output',
+    'machine_time_hours','maximum_output','standard_output',
+    'status','machine_deduction_hours','machine_deductions_json','machine_deduction_status'
+  ]);
+
+  const linesByEvent = new Map();
+  for (const report of processData?.reports || []) {
+    for (const line of (Array.isArray(report.machineLines) ? report.machineLines : [])) {
+      const eventId = Number(line.machine_event_id) || 0;
+      if (!eventId) continue;
+      if (!linesByEvent.has(eventId)) linesByEvent.set(eventId, []);
+      linesByEvent.get(eventId).push(line);
+    }
+  }
+
   const seen = new Set();
   for (const event of processData?.physicalMachineEvents || []) {
     const id = Number(event.id || 0);
     if (!id || seen.has(id)) continue;
     seen.add(id);
+    const deduction = machineEventDeductionSnapshot(linesByEvent.get(id) || []);
     sheet.addRow([
-      id, event.work_date || null, asText(event.shift), Number(event.machine_id || 0) || null, asText(event.machine_code), asText(event.product_code),
-      asNumber(event.physical_ok_quantity), asNumber(event.physical_ng_quantity), asNumber(event.physical_counted_output), asNumber(event.physical_total_output),
-      asNumber(event.machine_time_hours), asNumber(event.maximum_output), asNumber(event.standard_output), Number(event.exclude_kqd_from_tt_snapshot || 0), asText(event.status)
+      id, event.work_date || null, asText(event.shift), Number(event.machine_id || 0) || null,
+      asText(event.machine_code), asText(event.product_code),
+      asNumber(event.physical_ok_quantity), asNumber(event.physical_ng_quantity),
+      asNumber(event.physical_counted_output), asNumber(event.physical_total_output),
+      asNumber(event.machine_time_hours), asNumber(event.maximum_output),
+      asNumber(event.standard_output),
+      asText(event.status), deduction.hours, deduction.detailsJson, deduction.status
     ]);
   }
   return sheet;
@@ -1288,6 +1390,7 @@ module.exports = {
     assertApprovedDatabasePayload,
     normalize,
     reportSnapshot,
+    reportDetailItems,
     detailKey,
     processDetailTypes,
     makeColumns,
@@ -1297,6 +1400,7 @@ module.exports = {
     countedNg,
     reportTimeKey,
     applyAllBorders,
+    addPhysicalMachineEventsMetadata,
     COLORS
   }
 };

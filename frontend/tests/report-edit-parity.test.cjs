@@ -18,7 +18,7 @@ const base = () => ({
   clientRequestId: null, processId: 1, extraData: {}, operationType: 'CUT', isCutLongProcess: true, usesAnyMachine: true, usesMultiMachineLines: true, usesSingleMachine: false,
   form: { ...cfg.initialForm, workDate: '2026-10-23', shift: 'A', workerCode: 'W1', actualHours: '0', actualMinutes: '0', actualTime: '0:00', deductionTime: '0:00', totalTime: '0:00' },
   machineLines: [line('M05', 'P1', 2), line('M06', 'P2', 3)], machineOptions: [], productOptions: [], activeNgOptions: [{ key: 'x', id: 11, code: 'X', label: 'Vỡ' }],
-  deductions: { ...cfg.initialDeduction }, activeDeductionOptions: [], excludeKqdFromTt: false,
+  deductions: { ...cfg.initialDeduction }, activeDeductionOptions: [],
 });
 
 test('GC multi-machine: parent time is 0 only when processCode GC is passed (create parity)', () => {

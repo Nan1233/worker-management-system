@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { resolveExportTimes } = require('../electron/exportMachineTime.cjs');
+const { resolveExportTimes, resolveWorkerParticipationTimes } = require('../electron/exportMachineTime.cjs');
 
 test('machine report uses physical machine accounting instead of worker totals', () => {
   const result = resolveExportTimes({
@@ -109,4 +109,45 @@ test('machine report with no machine detail does not fall back to worker time', 
   assert.equal(result.totalHours, 0);
   assert.equal(result.actualHours, 0);
   assert.equal(result.deductionHours, 0);
+});
+
+test('worker report uses worker participation totals instead of shared physical event duration', () => {
+  const result = resolveWorkerParticipationTimes({
+    operation_mode: 'MACHINE',
+    total_time: 4,
+    actual_time: 3.5,
+    deduction_time: 0.5,
+    machineLines: [
+      { id: 1, machine_event_id: 90, machine_time_hours: 2, deduction_time_hours: 0.25 },
+      { id: 2, machine_event_id: 90, machine_time_hours: 2, deduction_time_hours: 0.25 }
+    ],
+    eventLines: [{ id: 90, machine_time_hours: 6 }],
+    deductions: [{ deduction_type_id: 3, deduction_name: 'Chỉnh máy', hours: 0.5 }]
+  });
+  assert.equal(result.source, 'WORKER_PARTICIPATION');
+  assert.equal(result.totalHours, 4);
+  assert.equal(result.actualHours, 3.5);
+  assert.equal(result.deductionHours, 0.5);
+  assert.equal(result.deductions[0].hours, 0.5);
+});
+
+test('worker report falls back to summed participation lines when report total is absent', () => {
+  const result = resolveWorkerParticipationTimes({
+    operation_mode: 'MACHINE',
+    deduction_time: 0.5,
+    machineLines: [
+      { machine_time_hours: 1.25 },
+      { machine_time_hours: 2.25 }
+    ]
+  });
+  assert.equal(result.totalHours, 3.5);
+  assert.equal(result.actualHours, 3);
+});
+
+test('Desktop worker report template uses worker participation resolver', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const template = fs.readFileSync(path.join(__dirname, '../electron/workerReportTemplateLocal.v2.cjs'), 'utf8');
+  assert.match(template, /resolveWorkerParticipationTimes/);
+  assert.doesNotMatch(template, /resolveExportTimes/);
 });

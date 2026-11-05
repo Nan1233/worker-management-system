@@ -1,7 +1,5 @@
 "use strict";
 
-const { isKqdDefect } = require("../../shared/kqdPolicy.cjs");
-
 const safeNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -43,9 +41,7 @@ const calculateMachineLinePerformance = (line = {}) => {
   // Defect detail is a breakdown and must never rewrite the saved NG total.
   const defects = parseDefects(line.defects ?? line.defects_json);
   const ng = Math.max(0, safeNumber(line.ng_quantity));
-  const excludeKqd = Number(line.exclude_kqd_from_tt || 0) === 1;
-  const excludedKqd = excludeKqd ? defects.reduce((sum, defect) => sum + (isKqdDefect(defect) ? Math.max(0, safeNumber(defect?.quantity)) : 0), 0) : 0;
-  const countedNg = Math.max(0, ng - excludedKqd);
+  const countedNg = ng;
   const physicalOutput = ok + ng;
   const countedOutput = ok + countedNg;
   const machineHours = Math.max(0, safeNumber(line.machine_time_hours));
@@ -58,7 +54,6 @@ const calculateMachineLinePerformance = (line = {}) => {
     defects,
     ok_quantity: ok,
     ng_quantity: ng,
-    excluded_kqd_quantity: excludedKqd,
     counted_ng_quantity: countedNg,
     physical_output: physicalOutput,
     counted_output: countedOutput,
@@ -154,4 +149,4 @@ const calculateReportPerformance = ({ report = {}, machineLines = [] } = {}) => 
   };
 };
 
-module.exports = { parseDefects, isKqdDefect, calculateMachineLinePerformance, calculateManualPerformance, calculateReportPerformance };
+module.exports = { parseDefects, calculateMachineLinePerformance, calculateManualPerformance, calculateReportPerformance };

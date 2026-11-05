@@ -1,0 +1,49 @@
+name: GC Machine Accounting Regression
+
+on:
+  push:
+    branches: [test]
+    paths:
+      - 'backend/services/giaCongMachineAccounting.js'
+      - 'backend/services/bulkCompanyExcelDataService.js'
+      - 'backend/services/processExcelExportService.js'
+      - 'backend/services/monthlyExcelService.js'
+      - 'backend/services/gcWorkerReportRows.js'
+      - 'backend/services/commonProcessMonthlyExcelService.js'
+      - 'backend/tests/gc-machine-time-accounting.test.js'
+      - 'backend/tests/shared-machine-accounting-flow.test.js'
+      - 'backend/tests/gc-worker-report-excel.test.js'
+      - 'backend/tests/common-process-gc-excel.test.js'
+      - '.github/workflows/gc-machine-accounting-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gc-machine-accounting:
+    name: GC machine-time accounting regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Validate accounting and export service syntax
+        run: |
+          node --check services/giaCongMachineAccounting.js
+          node --check services/bulkCompanyExcelDataService.js
+          node --check services/processExcelExportService.js
+          node --check services/monthlyExcelService.js
+          node --check services/gcWorkerReportRows.js
+          node --check services/commonProcessMonthlyExcelService.js
+      - name: Run GC machine accounting regression tests
+        run: node --test tests/gc-machine-time-accounting.test.js tests/shared-machine-accounting-flow.test.js tests/gc-worker-report-excel.test.js tests/common-process-gc-excel.test.js

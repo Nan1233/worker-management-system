@@ -20,7 +20,6 @@ const products = [
     default_standard_output: 100,
     machine_standard_output: 100,
     standard_time_seconds: 36,
-    exclude_kqd_from_tt: 1
   },
   {
     id: 202,
@@ -31,7 +30,6 @@ const products = [
     default_standard_output: 100,
     machine_standard_output: 100,
     standard_time_seconds: 36,
-    exclude_kqd_from_tt: 1
   }
 ];
 
@@ -74,7 +72,6 @@ const createQueryMock = () => async (sql, params = []) => {
         default_standard_output: product.default_standard_output,
         machine_standard_output: product.machine_standard_output,
         standard_time_seconds: product.standard_time_seconds,
-        exclude_kqd_from_tt: product.exclude_kqd_from_tt
       }));
   }
 
@@ -91,13 +88,13 @@ const validate = createMachineLineValidator({
       return {
         productStandardId: product.id, standardVersionId: 301, machineStandardId: 401 + Number(machineId),
         productCode: product.product_code, machineId, machineCode, standardOutput: product.machine_standard_output,
-        standardTimeSeconds: product.standard_time_seconds, excludeKqdFromTt: product.exclude_kqd_from_tt, source: 'MACHINE'
+        standardTimeSeconds: product.standard_time_seconds, source: 'MACHINE'
       };
     }
   }
 });
 
-test('multi-machine line validates DB master data, NG detail and KQD exclusion', async () => {
+test('multi-machine line validates DB master data and counts every NG defect', async () => {
   const result = await validate({
     processId: 1,
     workDate: '2026-08-10',
@@ -123,15 +120,15 @@ test('multi-machine line validates DB master data, NG detail and KQD exclusion',
   assert.equal(result.lines.length, 1);
   assert.equal(result.lines[0].machine_id, 101);
   assert.equal(result.lines[0].standard_output, 100);
-  assert.equal(result.lines[0].counted_output, 98);
-  assert.equal(result.lines[0].earned_standard_hours, 0.98);
+  assert.equal(result.lines[0].counted_output, 100);
+  assert.equal(result.lines[0].earned_standard_hours, 1);
   assert.equal(result.totals.totalOk, 90);
   assert.equal(result.totals.totalNg, 10);
-  assert.equal(result.totals.totalCounted, 98);
+  assert.equal(result.totals.totalCounted, 100);
 });
 
-test('multi-machine line rejects duplicate machine and mismatched NG', async () => {
-  const duplicate = await validate({
+test('same physical machine can run multiple product codes and sums each run time; mismatched NG is still rejected', async () => {
+  const repeatedMachine = await validate({
     processId: 1,
     workDate: '2026-08-10',
     operationMode: 'MACHINE',
@@ -139,6 +136,7 @@ test('multi-machine line rejects duplicate machine and mismatched NG', async () 
       {
         machine_code: 'CAT-01',
         product_code: 'QC5-1657',
+        actual_time_hours: 1,
         machine_time_hours: 1,
         ok_quantity: 10,
         ng_quantity: 0,
@@ -146,17 +144,22 @@ test('multi-machine line rejects duplicate machine and mismatched NG', async () 
       },
       {
         machine_code: 'cat-01',
-        product_code: 'QC5-1657',
-        machine_time_hours: 1,
-        ok_quantity: 10,
+        product_code: 'QC5-1658',
+        actual_time_hours: 1.5,
+        machine_time_hours: 1.5,
+        ok_quantity: 20,
         ng_quantity: 0,
         defects: []
       }
     ]
   });
 
-  assert.equal(duplicate.valid, false);
-  assert.equal(duplicate.errors.machine_lines, 'Không được chọn trùng máy');
+  assert.equal(repeatedMachine.valid, true);
+  assert.equal(repeatedMachine.lines.length, 2);
+  assert.equal(repeatedMachine.lines[0].machine_id, repeatedMachine.lines[1].machine_id);
+  assert.deepEqual(repeatedMachine.lines.map((line) => line.product_code), ['QC5-1657', 'QC5-1658']);
+  assert.equal(repeatedMachine.totals.totalMachineHours, 2.5);
+  assert.equal(repeatedMachine.totals.totalOk, 30);
 
   const mismatchedNg = await validate({
     processId: 1,

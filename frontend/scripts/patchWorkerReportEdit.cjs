@@ -52,6 +52,13 @@ const workTypeSync = `const updateForm = (key: string, value: string) => setForm
   const updateCvkWorkType = (value: string) => { setWorkType(value); setForm((current) => ({ ...current, workType: value })); };`;
 if (!source.includes("const updateCvkWorkType") && source.includes(workTypeSetterMarker)) { source = source.replace(workTypeSetterMarker, workTypeSync); changed = true; }
 
+const oldCvkWorkTypeChange = 'onChange={(e) => setWorkType(e.target.value)}';
+const newCvkWorkTypeChange = 'onChange={(e) => updateCvkWorkType(e.target.value)}';
+if (!source.includes(newCvkWorkTypeChange) && source.includes(oldCvkWorkTypeChange)) {
+  source = source.replace(oldCvkWorkTypeChange, newCvkWorkTypeChange);
+  changed = true;
+}
+
 const marker = `  const updateForm = (key: string, value: string) =>`;
 const standardResolver = `  const resolveEditLineStandards = async () => {
     const workDate = s(form.workDate).slice(0, 10);

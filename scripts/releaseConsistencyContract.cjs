@@ -8,7 +8,7 @@ const json = (p) => JSON.parse(read(p));
 for (const p of [
   '.gitignore','backend/.gitignore','frontend/.gitignore','desktop/.gitignore',
   'desktop/assets/offline.html','desktop/assets/icon.ico','desktop/assets/icon.png',
-  'shared/excelSyncContract.cjs','shared/kqdPolicy.cjs','shared/kqdExclusionRegistry.json',
+  'shared/excelSyncContract.cjs',
   'frontend/android/app/src/main/AndroidManifest.xml','frontend/android/app/src/main/java/com/ktchanoi/productioncontrol/MainActivity.java'
 ]) assert.ok(fs.existsSync(path.join(root,p)), `missing release path: ${p}`);
 

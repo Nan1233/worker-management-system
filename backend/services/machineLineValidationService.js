@@ -17,12 +17,12 @@ const normalizeDefectName = (value) => String(value || "")
 const { validateEncodedGcMachineProduct } = require("../utils/productMachineEligibility");
 const { queryWithOptionalGcWorkType } = require("../utils/gcMachineWorkType");
 const { createStandardResolver } = require("./standardResolutionService");
-const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
+const { calculateProductionOutput } = require("../../shared/productionOutput.cjs");
 
 const createMachineLineValidator = ({ query = defaultQuery, standardResolver: injectedStandardResolver = null } = {}) => {
     const standardResolver = injectedStandardResolver || createStandardResolver({ query });
 
-    return async ({ processId, machineLines, operationMode = null, maxMachines = 4, workDate }) => {
+    return async ({ processId, machineLines, operationMode = null, maxMachines = 4, workDate, allowZeroQuantity = false }) => {
         // An empty machine-line list is valid when there is no machine data to
         // validate. The caller decides whether a process requires a machine.
         // This is important for edit flows: the update model may pass an empty
@@ -38,11 +38,10 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             return { valid: false, lines: [], totals: null, errors };
         }
 
-        const machineCodes = machineLines.map((line) => normalizeCode(line.machine_code).toUpperCase());
-        if (new Set(machineCodes).size !== machineCodes.length) {
-            errors.machine_lines = "Không được chọn trùng máy";
-            return { valid: false, lines: [], totals: null, errors };
-        }
+        // MAI allows the same physical machine on multiple rows: a worker may
+        // finish one product code and then switch to another on that machine.
+        // Keep each run as a separate line so its product, quantities and time
+        // remain attributable; totals below sum every run's machine_time_hours.
 
         // IMPORTANT for Cloudflare Workers + TiDB:
         // Do not query defect_types once per selected defect. When a worker
@@ -290,6 +289,11 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                 errors[`machine_lines.${index}.machine_time_hours`] = `Tổng thời gian máy ${index + 1} (thực tế + trừ) không được quá 12 giờ`;
                 continue;
             }
+            if (!allowZeroQuantity && okQuantity + ngQuantity <= 0) {
+                errors[`machine_lines.${index}.quantity`] = `Máy ${index + 1}: phải nhập OK hoặc NG lớn hơn 0`;
+                continue;
+            }
+
             if (!Number.isInteger(okQuantity) || okQuantity < 0 || !Number.isInteger(ngQuantity) || ngQuantity < 0) {
                 errors[`machine_lines.${index}.quantity`] = `OK và NG của máy ${index + 1} phải là số nguyên không âm`;
                 continue;
@@ -303,6 +307,18 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             if (!machine) {
                 errors[`machine_lines.${index}.machine_code`] = `Máy ${machineCode} không thuộc công đoạn`;
                 continue;
+            }
+
+            // Mài form displays KQSX explicitly and requires KQSX = OK + NG.
+            // Enforce the same relationship at the API boundary whenever the
+            // updated client sends the field; legacy/edit payloads remain compatible.
+            if (String(machine.process_code || "").trim().toUpperCase() === "MAI"
+                && line.actual_quantity !== undefined && line.actual_quantity !== null && line.actual_quantity !== "") {
+                const actualQuantity = Number(line.actual_quantity);
+                if (!Number.isInteger(actualQuantity) || actualQuantity < 0 || actualQuantity !== okQuantity + ngQuantity) {
+                    errors[`machine_lines.${index}.actual_quantity`] = `KQSX máy ${index + 1} phải là số nguyên không âm và bằng OK + NG (${okQuantity + ngQuantity})`;
+                    continue;
+                }
             }
 
             let resolvedStandard;
@@ -344,11 +360,9 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             // chỉ biết chính xác sau khi công nhân khai báo chi tiết lỗi.
             const maximumOutput = standardOutput * machineTimeHours;
             const maximumOkOutput = maximumOutput * 2;
-            const excludeKqdFromTt = Number(resolvedStandard.excludeKqdFromTt || 0) === 1 ? 1 : 0;
             const outputMetrics = calculateProductionOutput({
                 ok: okQuantity,
-                defects: normalizedDefects,
-                excludeKqdFromTt: Boolean(excludeKqdFromTt)
+                defects: normalizedDefects
             });
             const countedOutput = outputMetrics.actualOutput;
             const earnedStandardHours = standardOutput > 0 ? countedOutput / standardOutput : 0;
@@ -373,7 +387,6 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                 standard_time_seconds: Number(resolvedStandard.standardTimeSeconds || 0) || null,
                 standard_output: standardOutput,
                 standard_source: resolvedStandard.source === "MACHINE" ? "MACHINE" : "PRODUCT_VERSION",
-                exclude_kqd_from_tt: excludeKqdFromTt,
                 counted_output: countedOutput,
                 earned_standard_hours: earnedStandardHours,
                 ok_quantity: okQuantity,
