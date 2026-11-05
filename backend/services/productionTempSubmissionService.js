@@ -55,17 +55,21 @@ const findExistingClientRequest = async (data, executor = db) => {
     const workerId = Number(data?.worker_id);
     const requestId = String(data?.client_request_id || "").trim();
     if (!Number.isInteger(workerId) || workerId <= 0 || !requestId) return null;
-    const rows = await query(executor,
-        `SELECT id, status FROM production_reports_temp WHERE worker_id=? AND client_request_id=? LIMIT 1`,
-        [workerId, requestId]);
-    if (rows?.[0]) return rows[0];
-    // A split GC submission stores one deterministic request ID per machine;
-    // recover the whole group from its shared metadata on client retries.
-    const grouped = await query(executor,
-        `SELECT id, status FROM production_reports_temp
-         WHERE worker_id=? AND JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.gc_group_request_id'))=?
-         ORDER BY id ASC`, [workerId, requestId]);
-    if (!grouped?.length) return null;
+    // Resolve both ordinary idempotency and split-GC group retries in one
+    // round trip. The exact client_request_id still takes precedence.
+    const matches = await query(executor,
+        `SELECT id, status, client_request_id,
+                JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.gc_group_request_id')) AS gc_group_request_id
+           FROM production_reports_temp
+          WHERE worker_id=?
+            AND (client_request_id=? OR JSON_UNQUOTE(JSON_EXTRACT(extra_data, '$.gc_group_request_id'))=?)
+          ORDER BY id ASC`,
+        [workerId, requestId, requestId]);
+    const exact = matches.find((row) => String(row.client_request_id || "") === requestId);
+    if (exact) return exact;
+    if (!matches.length) return null;
+    const grouped = matches.filter((row) => String(row.gc_group_request_id || "") === requestId);
+    if (!grouped.length) return null;
     return { ...grouped[0], gc_group_ids: grouped.map((row) => Number(row.id)) };
 };
 
