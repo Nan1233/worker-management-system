@@ -23,7 +23,7 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ps.process_id,
         p.process_code,
         CASE
-          -- Shop-floor rule: every GC product/alias beginning with C belongs to Cắt,
+          -- Shop-floor rule: every GC product_code beginning with C belongs to Cắt.
           -- even when an older master row was incorrectly tagged as Lồng.
           WHEN UPPER(TRIM(COALESCE(ps.product_code, ''))) LIKE 'C%' THEN 'CUT'
           -- Explicit legacy jobs remain Long Tay exceptions; other GC rows follow
@@ -34,8 +34,6 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
           ELSE NULL
         END AS work_type,
         ps.product_code,
-        COALESCE(pa.alias_code, ps.encoding_code) AS alias_code,
-        ps.encoding_code,
         ps.standard_output,
         EXISTS(
           SELECT 1 FROM product_machine_standards pms
@@ -56,10 +54,6 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ), '') AS eligible_machine_codes
     FROM product_standards ps
     JOIN processes p ON p.id = ps.process_id
-    LEFT JOIN product_aliases pa
-      ON pa.process_id = ps.process_id
-     AND UPPER(TRIM(pa.product_code)) = UPPER(TRIM(ps.product_code))
-     AND pa.status = 'active'
     WHERE ${where}
       AND p.status = 'active'
       AND ps.status = 'active'
@@ -91,7 +85,7 @@ exports.getProductStandards = async (req, res) => {
     ))[0]?.[0]?.process_code || '').trim().toUpperCase();
 
     // GC is read directly from product_standards so zero-standard Long Tay
-    // work items cannot be lost by alias/standard filters in the generic model.
+    // work items cannot be lost by standard filters in the generic model.
     // Only the three explicitly configured no-standard jobs are allowed at 0.
     const cacheKey = resolvedProcessCode === 'GC'
       ? `product-standards:${PRODUCT_STANDARD_CACHE_VERSION}:gc:${processId > 0 ? processId : resolvedProcessCode}`
