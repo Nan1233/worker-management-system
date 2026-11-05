@@ -372,6 +372,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
     }
 
     const reportMachineLines = isMaiProcess(data) ? groupMaiLinesByMachine(machineLines) : machineLines;
+    const splitMachines = (isMaiProcess(data) && machineLines.length > 1) || shouldSplitMachineReports(data, reportMachineLines);
     await enforceDailyWorkerHours(data, db, machineLines);
     data._daily_hours_machine_lines = machineLines;
     return runSerialized(queueKey(data, machineLines), async () => {
@@ -413,7 +414,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         let deductions;
         try {
             await beginTransaction(validationConnection);
-            if (shouldSplitMachineReports(data, reportMachineLines)) {
+            if (splitMachines) {
                 // Validate each machine's NG and deduction details against its own parent report.
                 for (const [index, line] of reportMachineLines.entries()) {
                     const childData = splitMachineLinePayload(data, line._source_machine_lines || [line], requestId, index, reportMachineLines.length);
@@ -434,7 +435,6 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             throw error;
         } finally { validationConnection.release(); }
 
-        const splitMachines = shouldSplitMachineReports(data, reportMachineLines);
         let tempId;
         const createdIds = [];
         const parentConnection = await getConnection();
