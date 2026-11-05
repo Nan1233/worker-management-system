@@ -148,11 +148,16 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
     const resolvedCode = resolvedProcessCode || String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
     const isParallelMachineProcess = resolvedCode === "GC" || resolvedCode === "MAI";
     const incoming = isParallelMachineProcess && machineLines.length
-        ? Math.max(...machineLines.map((line) => {
-            const machineHours = Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0;
-            const deductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
-            return Math.max(0, machineHours - deductionHours);
-        }))
+        ? (() => {
+            const netHoursByMachine = new Map();
+            for (const line of machineLines) {
+                const machine = String(line?.machine_code || line?.machine_id || "").trim().toUpperCase() || "__UNKNOWN__";
+                const net = Math.max(0, (Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0)
+                    - (Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0));
+                netHoursByMachine.set(machine, (netHoursByMachine.get(machine) || 0) + net);
+            }
+            return Math.max(0, ...netHoursByMachine.values());
+        })()
         : (Number(data?.actual_time) || 0);
     const existing = await queryCountedDailyHours((sql, params) => query(executor, sql, params), { workerId, workDate });
     const projected = existing + incoming;
