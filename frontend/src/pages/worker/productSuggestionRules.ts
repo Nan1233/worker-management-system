@@ -118,7 +118,6 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
                     product: {
                         ...(canonicalProducts[0]?.product || {} as ProductStandardOption),
                         product_code: code,
-                        alias_code: code,
                         work_type: "LONG",
                         // Positive UI placeholder only so the existing client-side
                         // required-standard validation can accept this selectable
