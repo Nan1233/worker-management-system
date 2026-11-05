@@ -287,6 +287,7 @@ exports.createTempReport = async (req, res) => {
                 operationType,
                 operationMode: "MACHINE",
                 maxMachines: machinePolicy.maxMachines || 4,
+                allowZeroQuantity: isNonProductWorkWithinProcess || machinePolicy.code === "CVK",
                 workDate: req.body.work_date
             });
             if (!machineValidation.valid) {
