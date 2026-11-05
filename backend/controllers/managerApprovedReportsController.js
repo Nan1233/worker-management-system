@@ -43,6 +43,7 @@ exports.getApprovedReports = async (req, res) => {
     const scoped = scopeSql(scope, 'pr.process_id');
     const where = [
       "LOWER(TRIM(COALESCE(pr.status,'')))='approved'",
+      "NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))",
       'pr.work_date >= ?',
       'pr.work_date <= ?',
     ];
