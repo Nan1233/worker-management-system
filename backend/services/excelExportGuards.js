@@ -21,8 +21,8 @@ async function assertReportVolume({ yearMonth, processIds = [] }) {
   const maxDaily = Math.max(Number(process.env.EXCEL_MAX_REPORTS_PER_DAY || 350), 20);
   const params = [start, next, ...ids];
   const [monthRows, dayRows] = await Promise.all([
-    query(`SELECT COUNT(*) AS total FROM production_reports pr WHERE pr.status='approved' AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR)) AND pr.work_date>=? AND work_date<? AND pr.process_id IN (${placeholders})`, params),
-    query(`SELECT DATE(pr.work_date) AS work_date, COUNT(*) AS total FROM production_reports pr WHERE pr.status='approved' AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR)) AND pr.work_date>=? AND work_date<? AND pr.process_id IN (${placeholders}) GROUP BY DATE(pr.work_date) ORDER BY total DESC LIMIT 1`, params)
+    query(`SELECT COUNT(*) AS total FROM production_reports pr WHERE pr.status='approved' AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR)) AND pr.work_date>=? AND pr.work_date<? AND pr.process_id IN (${placeholders})`, params),
+    query(`SELECT DATE(pr.work_date) AS work_date, COUNT(*) AS total FROM production_reports pr WHERE pr.status='approved' AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR)) AND pr.work_date>=? AND pr.work_date<? AND pr.process_id IN (${placeholders}) GROUP BY DATE(pr.work_date) ORDER BY total DESC LIMIT 1`, params)
   ]);
   const monthlyCount = Number(monthRows[0]?.total || 0);
   const maxDailyCount = Number(dayRows[0]?.total || 0);
