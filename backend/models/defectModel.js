@@ -43,7 +43,11 @@ getByProcess(process_id){
 
         AND status='active'
 
-
+        -- K2 uses only canonical K2_NG_* entries; hide duplicate legacy KTC_DEF_K2_* rows.
+        AND (
+          COALESCE((SELECT UPPER(TRIM(process_code)) FROM processes WHERE id = ? LIMIT 1), '') <> 'K2'
+          OR defect_code LIKE 'K2_NG_%'
+        )
 
         ORDER BY sort_order ASC
 
@@ -57,7 +61,7 @@ getByProcess(process_id){
 
             sql,
 
-            [process_id],
+            [process_id, process_id],
 
 
             (err,rows)=>{
