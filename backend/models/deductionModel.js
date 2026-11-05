@@ -166,10 +166,17 @@ const Deduction = {
         // Other processes (including DO/MÀI/K1/K2/XLBV/ÉP/CÁN) must read the
         // active per-process catalogue configured in deduction_types directly.
         if (!['GC', 'CVK'].includes(processCode)) {
+            // K2 has a dedicated 15-item catalogue. Older/shared deduction rows
+            // can also be attached to process_id=5 in legacy data, so process_id
+            // alone is not a sufficient boundary for the K2 worker form.
+            // Keep only the canonical K2 codes; do not mutate or delete legacy rows.
+            const k2Only = processCode === "K2";
             const [rows] = await db.promise().query(
                 `SELECT d.id, d.deduction_code, d.deduction_name, d.sort_order
                    FROM deduction_types d
-                  WHERE d.process_id = ? AND d.status = 'active'
+                  WHERE d.process_id = ?
+                    AND d.status = 'active'
+                    ${k2Only ? "AND LEFT(d.deduction_code, 11) = 'KTC_DED_K2_'" : ""}
                   ORDER BY d.sort_order ASC, d.id ASC`,
                 [requestedId],
             );
