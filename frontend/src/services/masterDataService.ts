@@ -85,7 +85,7 @@ const getCachedProcessProductRows = async (processId: number): Promise<ProductSt
     return rows;
 };
 
-const getAutomaticAliasProduct = async (processId: number, machineCode: string, productCode: string, rows: ProductStandardOption[]): Promise<ProductStandardOption | undefined> => {
+const getAutomaticProductVariant = async (processId: number, machineCode: string, productCode: string, rows: ProductStandardOption[]): Promise<ProductStandardOption | undefined> => {
     if (Number(processId) !== 1) return undefined;
     const normalizedMachine = String(machineCode || "").trim().toUpperCase();
     if (!normalizedMachine) return undefined;
@@ -105,7 +105,7 @@ const hasExactProcessProduct = async (processId: number, productCode: string, ma
     const codes = new Set(rows.map((row) => String(row?.product_code || "").trim().toUpperCase()).filter(Boolean));
     processProductCache.set(Number(processId), { expiresAt: Date.now() + PROCESS_PRODUCT_CACHE_TTL_MS, codes });
     if (codes.has(normalized)) return true;
-    return Boolean(await getAutomaticAliasProduct(processId, machineCode, normalized, rows));
+    return Boolean(await getAutomaticProductVariant(processId, machineCode, normalized, rows));
 };
 
 const resolveCanonicalProductCode = async (processId: number, productCode: string, machineCode = ""): Promise<string> => {
@@ -114,7 +114,7 @@ const resolveCanonicalProductCode = async (processId: number, productCode: strin
     const rows = await getCachedProcessProductRows(processId);
     const exact = rows.find((row) => String(row?.product_code || "").trim().toUpperCase() === normalized);
     if (exact?.product_code) return String(exact.product_code).trim();
-    const automatic = await getAutomaticAliasProduct(processId, machineCode, normalized, rows);
+    const automatic = await getAutomaticProductVariant(processId, machineCode, normalized, rows);
     return String(automatic?.product_code || productCode).trim();
 };
 
@@ -184,8 +184,8 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     }
 
     const rows = await getCachedProcessProductRows(processId);
-    const automaticAlias = await getAutomaticAliasProduct(processId, normalizedMachine, normalizedProduct, rows);
-    const lookupProduct = automaticAlias?.product_code ? String(automaticAlias.product_code).trim() : normalizedProduct;
+    const automaticVariant = await getAutomaticProductVariant(processId, normalizedMachine, normalizedProduct, rows);
+    const lookupProduct = automaticVariant?.product_code ? String(automaticVariant.product_code).trim() : normalizedProduct;
     const productExistsInProcess = await hasExactProcessProduct(processId, normalizedProduct, normalizedMachine);
     const canonicalProduct = await resolveCanonicalProductCode(processId, normalizedProduct, normalizedMachine);
     // Cắt/Lồng comes from the machine master (gc_work_type), never from the machine-code prefix.
