@@ -404,7 +404,9 @@ const machineAutocompleteOptions =
         const requestSeq = (machineStandardRequestSeqRef.current[index] || 0) + 1;
         machineStandardRequestSeqRef.current[index] = requestSeq;
         const isCurrentRequest = () => machineStandardRequestSeqRef.current[index] === requestSeq;
-        if (!normalizedMachine || !normalizedProduct) {
+        // Mài cho phép không chọn máy nhưng vẫn phải tra định mức theo mã sản phẩm.
+        // resolveProductStandard hỗ trợ machineCode rỗng và lấy định mức mặc định của sản phẩm.
+        if (!normalizedProduct || (!normalizedMachine && processCode !== "MAI")) {
             updateMachineLine(index, {
                 standardOutputPerHour: 0,
                 standardTimeSeconds: null,
