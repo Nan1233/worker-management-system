@@ -1,0 +1,47 @@
+name: Build KTC Desktop EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - test
+    paths:
+      - "desktop/**"
+      - ".github/workflows/build-desktop-exe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: test
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build portable EXE
+        run: npm run dist:portable:fast
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTC-Desktop-EXE-test
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
