@@ -8,6 +8,7 @@ export function validateMachineLines(args: {
   isMachineValid?: (code:string)=>boolean;
   isProductValid?: (machineCode:string, productCode:string)=>boolean;
   maxMachines?: number;
+  allowZeroQuantity?: boolean;
 }): string | null {
   // The UI keeps one empty placeholder row when the worker adds a machine
   // card. Ignore only rows that are completely untouched; a partially filled
@@ -49,6 +50,7 @@ export function validateMachineLines(args: {
       const defectTotal = Object.values(line.defects || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0);
       if (defectTotal !== ng) return `Máy ${machineCode || "đang chọn"}: tổng chi tiết lỗi (${defectTotal}) phải bằng NG (${ng})`;
     }
+    if (!args.allowZeroQuantity && Math.max(0, Number(line.okQuantity) || 0) + Math.max(0, Number(line.ngQuantity) || 0) <= 0) return `${machineLabel}: phải nhập OK hoặc NG lớn hơn 0`;
     if (!productCode) return `${machineLabel}: thiếu mã sản phẩm`;
     if (!machineCode && !manualWithoutMachine) return "Thiếu số máy";
     if (machineCode && args.isMachineValid && !args.isMachineValid(machineCode)) return `Máy ${machineCode} không hợp lệ`;
