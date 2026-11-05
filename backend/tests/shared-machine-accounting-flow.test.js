@@ -266,6 +266,7 @@ test('machine report with no machine lines is explicitly marked as missing', () 
 test('Mài multi-machine reports are split per machine and Đo remains single-machine', () => {
   const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   assert.match(source, /const shouldSplitMachineReports = \(data, machineLines\) =>[\s\S]*isGiaCongProcess\(data\) \|\| isMaiProcess\(data\)/);
+  assert.ok(source.indexOf('await enforceDailyWorkerHours(data, db, machineLines)') < source.indexOf('const reportMachineLines ='), 'DB-resolved process code must be available before Mài grouping');
   assert.match(source, /const splitMachines = \(isMaiProcess\(data\) && machineLines\.length > 1\) \|\| shouldSplitMachineReports\(data, reportMachineLines\)/);
   assert.match(source, /DO_SINGLE_MACHINE_REQUIRED/);
   assert.match(source, /machine_group_request_id/);
