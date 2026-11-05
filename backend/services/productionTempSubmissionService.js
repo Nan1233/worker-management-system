@@ -302,19 +302,6 @@ const shouldSplitMachineReports = (data, machineLines) =>
     Array.isArray(machineLines) && machineLines.length > 1 && (isGiaCongProcess(data) || isMaiProcess(data));
 
 const sumLineNumber = (lines, field) => lines.reduce((sum, line) => sum + (Number(line?.[field]) || 0), 0);
-const mergeLineDetails = (lines, field, valueField) => {
-    const totals = new Map();
-    for (const line of lines) {
-        for (const item of (Array.isArray(line?.[field]) ? line[field] : [])) {
-            const key = String(item?.[valueField] || item?.[valueField.replace("_name", "_code")] || item?.[valueField.replace("_code", "_name")] || item?.deduction_type_id || item?.defect_type_id || item?.id || "");
-            const current = totals.get(key) || { ...item, [valueField]: Number(item?.[valueField]) || 0 };
-            current[valueField] += Number(item?.[valueField]) || 0;
-            totals.set(key, current);
-        }
-    }
-    return [...totals.values()];
-};
-
 // Mài may record several products on one physical machine. They must become
 // one report per machine while retaining each product line as machine detail.
 const groupMaiLinesByMachine = (machineLines = []) => {
