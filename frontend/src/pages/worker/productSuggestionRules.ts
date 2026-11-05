@@ -107,7 +107,7 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
             if (!selectedMachineWorkType) return [];
             canonicalProducts = canonicalProducts.filter(({ product, alias }) => {
                 const codeFields = [product.product_code, alias].map((value) => normalize(value));
-                // Every GC code/alias beginning with C is a cutting code.
+                // Every GC product_code beginning with C is a cutting code.
                 // Never show it in a Lồng machine/manual selection, even if an
                 // older API payload still labels the row LONG.
                 if (selectedMachineWorkType === "LONG" && codeFields.some((code) => code.startsWith("C"))) return false;
