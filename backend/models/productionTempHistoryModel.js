@@ -26,7 +26,7 @@ module.exports = {
                            FROM production_report_machine_lines ml WHERE ml.report_id = pr.id
                        ), 0) AS total_time,
                        COALESCE(NULLIF(pr.actual_time, 0), (
-                         SELECT SUM(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours))
+                         SELECT SUM(GREATEST(0, COALESCE(ml.actual_time_hours, ml.machine_time_hours - ml.deduction_time_hours)))
                            FROM production_report_machine_lines ml WHERE ml.report_id = pr.id
                        ), 0) AS actual_time,
                        pr.deduction_time, pr.tt_ok, pr.tt_ng, pr.extra_data,
@@ -46,7 +46,7 @@ module.exports = {
                            FROM production_temp_machine_lines ml WHERE ml.temp_report_id = temp.id
                        ), 0) AS total_time,
                        COALESCE(NULLIF(temp.actual_time, 0), (
-                         SELECT SUM(GREATEST(0, ml.machine_time_hours - ml.deduction_time_hours))
+                         SELECT SUM(GREATEST(0, COALESCE(ml.actual_time_hours, ml.machine_time_hours - ml.deduction_time_hours)))
                            FROM production_temp_machine_lines ml WHERE ml.temp_report_id = temp.id
                        ), 0) AS actual_time,
                        temp.deduction_time, temp.tt_ok, temp.tt_ng, temp.extra_data,
