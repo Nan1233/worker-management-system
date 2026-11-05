@@ -262,12 +262,13 @@ exports.createTempReport = async (req, res) => {
             });
         }
 
-        if (!isNonProductWorkWithinProcess && machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && (!normalizedMachineNo && rawMachineLines.length === 0 || rawMachineLines.length > 1)) {
+        if (!isNonProductWorkWithinProcess && ["SINGLE_MACHINE_REQUIRED", "SINGLE_MACHINE_OPTIONAL"].includes(machinePolicy.mode)
+            && (machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && !normalizedMachineNo && rawMachineLines.length === 0 || rawMachineLines.length > 1)) {
             const label = machinePolicy.code === "DO" ? "Đo" : machinePolicy.code === "EP" ? "Ép" : "Cán";
             return res.status(422).json({
                 success: false,
-                message: `Công đoạn ${label} yêu cầu đúng một máy cho mỗi công nhân`,
-                errors: { machine_no: `Vui lòng chọn đúng một máy ${label.toLowerCase()}` }
+                message: `Công đoạn ${label} chỉ được ghi nhận tối đa một máy`,
+                errors: { machine_no: `Chỉ được chọn tối đa một máy ${label.toLowerCase()}` }
             });
         }
 
@@ -347,7 +348,7 @@ exports.createTempReport = async (req, res) => {
                 // Machine-line reports validate each line's OK/NG/output in validateMachineLines.
                 // Do not compare aggregate output against only the first machine's defects.
                 skipActualOutputValidation: Array.isArray(machineValidation.lines) && machineValidation.lines.length > 0,
-                allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY" || (machinePolicy.code === "MAI" && rawMachineLines.length === 0 && !normalizedMachineNo),
+                allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY" || (["MAI", "DO"].includes(machinePolicy.code) && rawMachineLines.length === 0 && !normalizedMachineNo),
                 operationMode,
                 operationType: validation.normalized.operation_type ?? req.body.operation_type,
                 workDate: req.body.work_date,
