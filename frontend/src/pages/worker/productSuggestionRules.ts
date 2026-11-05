@@ -69,14 +69,7 @@ const filterC9149FamilyForMachine = (
     });
 };
 
-export const normalizeProductCode = (value: unknown): string => {
-    const alias = normalize(value);
-    if (!alias) return "";
-    const legacyAuto = alias.match(/^(?:C)?(2556|5770|GYX|3880|8052)-AUTO$/i);
-    if (!legacyAuto) return alias;
-    const suffix = legacyAuto[1].toUpperCase();
-    return suffix === "GYX" ? "CGYX" : `C${suffix}`;
-};
+export const normalizeProductCode = (value: unknown): string => normalize(value);
 
 // Alias is not an independent product identifier in KTC; use product_code only.
 export const getProductCode = (product: ProductStandardOption): string => normalizeProductCode(product.product_code);
@@ -147,11 +140,8 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
             if (isGcAutomaticMachine(selectedRawMachine)) {
                 // Only offer automatic products that have real rows in the API.
                 // Never fabricate product standards by cloning another product.
-                const automaticProducts = canonicalProducts.filter(({ product, alias }) =>
-                    GC_AUTOMATIC_ALIAS_CODES.has(alias)
-                    || getProductMachineHint(alias)?.kind === "AUTO"
-                    || getProductMachineHint(product.product_code)?.kind === "AUTO"
-                    || getProductMachineHint(product.encoding_code)?.kind === "AUTO");
+                const automaticProducts = canonicalProducts.filter(({ product }) =>
+                    getProductMachineHint(product.product_code)?.kind === "AUTO");
                 return workerSelectionProducts(automaticProducts);
             }
             return workerSelectionProducts(canonicalProducts);
