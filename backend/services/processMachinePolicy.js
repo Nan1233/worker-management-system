@@ -32,7 +32,8 @@ const CODE_BY_ID = new Map(Object.entries(PROCESS_IDS).map(([code, id]) => [Numb
 /**
  * Quy tắc máy theo thực tế xưởng KTC.
  * - Mài/Cán: có thể dùng nhiều máy, tối đa 4.
- * - Đo/Ép: đúng 1 công nhân / 1 máy cho mỗi báo cáo.
+ * - Đo: tối đa 1 máy, có thể tra định mức theo sản phẩm khi không chọn máy.
+ * - Ép: đúng 1 công nhân / 1 máy cho mỗi báo cáo.
  * - GC: manual hoặc smart-machine, tối đa 4 máy.
  * - K1/K2: manual hoặc 1 máy.
  * - XLBV/SX3/CVK: không dùng máy sản xuất.
@@ -43,7 +44,10 @@ const getProcessMachinePolicy = (processId) => {
   if (code === "MAI") {
     return { code, mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 4 };
   }
-  if (["DO", "EP"].includes(code)) {
+  if (code === "DO") {
+    return { code, mode: "SINGLE_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 1 };
+  }
+  if (code === "EP") {
     return { code, mode: "SINGLE_MACHINE_REQUIRED", minMachines: 1, maxMachines: 1 };
   }
   if (code === "CAN") {
