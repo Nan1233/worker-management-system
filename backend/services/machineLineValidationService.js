@@ -22,7 +22,7 @@ const { calculateProductionOutput } = require("../../shared/productionOutput.cjs
 const createMachineLineValidator = ({ query = defaultQuery, standardResolver: injectedStandardResolver = null } = {}) => {
     const standardResolver = injectedStandardResolver || createStandardResolver({ query });
 
-    return async ({ processId, machineLines, operationMode = null, maxMachines = 4, workDate }) => {
+    return async ({ processId, machineLines, operationMode = null, maxMachines = 4, workDate, allowZeroQuantity = false }) => {
         // An empty machine-line list is valid when there is no machine data to
         // validate. The caller decides whether a process requires a machine.
         // This is important for edit flows: the update model may pass an empty
@@ -289,6 +289,11 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                 errors[`machine_lines.${index}.machine_time_hours`] = `Tổng thời gian máy ${index + 1} (thực tế + trừ) không được quá 12 giờ`;
                 continue;
             }
+            if (!allowZeroQuantity && okQuantity + ngQuantity <= 0) {
+                errors[`machine_lines.${index}.quantity`] = `Máy ${index + 1}: phải nhập OK hoặc NG lớn hơn 0`;
+                continue;
+            }
+
             if (!Number.isInteger(okQuantity) || okQuantity < 0 || !Number.isInteger(ngQuantity) || ngQuantity < 0) {
                 errors[`machine_lines.${index}.quantity`] = `OK và NG của máy ${index + 1} phải là số nguyên không âm`;
                 continue;
