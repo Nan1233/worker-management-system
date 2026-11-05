@@ -219,9 +219,8 @@ function createStandardResolver({query=defaultQuery}={}) {
     for(const item of list){
       const machine=machineById.get(`${item.machineId||''}|${item.machineCode}`);
       if(!machine||!item.productCode)continue;
-      const canonical=canonicalByProduct.get(sqlTrim(item.productCode))||item.productCode;
       const fallback=[item.productCode, /-AUTO$/i.test(item.productCode)?item.productCode:(item.productCode+'-AUTO')];
-      msPairs.push({machineId:Number(machine.id),products:[...new Set([canonical,...fallback].map(sqlTrim).filter(Boolean))]});
+      msPairs.push({machineId:Number(machine.id),products:[...new Set(fallback.map(sqlTrim).filter(Boolean))]});
     }
     if(msPairs.length){
       const ids=[...new Set(msPairs.map(p=>p.machineId))],prods=[...new Set(msPairs.flatMap(p=>p.products))];
