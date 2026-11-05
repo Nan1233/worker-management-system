@@ -65,13 +65,13 @@ test('frontend rejects skipped Desktop sync results', () => {
   assert.match(read('../frontend/src/services/productionService.ts'), /if\s*\(result\?\.skipped\)/);
 });
 
-test('monthly workbook contains all nine production processes', () => {
+test('monthly workbook contains all ten production processes', () => {
   const monthly = read('../desktop/electron/monthlyWorkbookLocal.cjs');
   const companyData = read('controllers/companyExcelDataController.js');
-  for (const code of ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3']) {
+  for (const code of ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3','CVK']) {
     assert.match(monthly, new RegExp(`\\b${code}:\\s*\\{`));
   }
-  for (const sheet of ['CÁN','ÉP','XỬ LÝ BAVIA','CẮT LỒNG','MÀI','ĐO','KIỂM 1','KIỂM 2','SẢN XUẤT 3']) {
+  for (const sheet of ['CÁN','ÉP','XỬ LÝ BAVIA','CẮT LỒNG','MÀI','ĐO','KIỂM 1','KIỂM 2','SẢN XUẤT 3','CÔNG VIỆC KHÁC']) {
     assert.ok(monthly.includes(`sheet: '${sheet}'`), `missing sheet ${sheet}`);
   }
   assert.match(companyData, /PROCESS_CODES/);
@@ -107,6 +107,13 @@ test('monthly workbook keeps time details beside time and NG beside result', () 
   assert.ok(block.indexOf('deductionTypes.forEach') < block.indexOf("key: 'ok'"));
   assert.ok(block.indexOf("key: 'ng'") < block.indexOf('defectTypes.forEach'));
   assert.ok(block.indexOf('defectTypes.forEach') < block.indexOf("key: 'output'"));
+});
+
+test('bulk company payload marks approved TiDB rows for Desktop export', () => {
+  const service = read('services/bulkCompanyExcelDataService.js');
+  assert.match(service, /LOWER\\(TRIM\\(COALESCE\\(pr\\.status, ''\\)\\)\\) = 'approved'/);
+  assert.match(service, /dataSource: 'production_reports'/);
+  assert.match(service, /isApprovedDatabaseRecord: true/);
 });
 
 test('monthly workbook only accepts approved TiDB database payload', () => {
@@ -167,12 +174,12 @@ test('release source has one Electron implementation and no generated archives',
   assert.equal(fs.existsSync(path.join(root, 'templates.zip')), false);
 });
 
-test('desktop monthly export is split into one summary file and nine process files', () => {
+test('desktop monthly export is split into one summary file and ten process files', () => {
   const monthly = read('../desktop/electron/monthlyWorkbookLocal.cjs');
   const desktopMain = read('../desktop/electron/main.cjs');
   assert.match(monthly, /buildSplitMonthlyWorkbooksLocal/);
   assert.match(monthly, /00_TONG_HOP_SAN_XUAT_/);
-  for (const prefix of ['01_CAN','02_EP','03_XU_LY_BAVIA','04_CAT_LONG','05_MAI','06_DO','07_KIEM_1','08_KIEM_2','09_SAN_XUAT_3']) {
+  for (const prefix of ['01_CAN','02_EP','03_XU_LY_BAVIA','04_CAT_LONG','05_MAI','06_DO','07_KIEM_1','08_KIEM_2','09_SAN_XUAT_3','10_CONG_VIEC_KHAC']) {
     assert.ok(monthly.includes(`'${prefix}'`), `missing split workbook prefix ${prefix}`);
   }
   assert.match(desktopMain, /MONTHLY_SPLIT_WORKBOOKS_START/);
