@@ -445,8 +445,8 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             await beginTransaction(validationConnection);
             if (shouldSplitMachineReports(data, reportMachineLines)) {
                 // Validate each machine's NG and deduction details against its own parent report.
-                for (const [index, line] of machineLines.entries()) {
-                    const childData = splitMachineLinePayload(data, line, requestId, index, machineLines.length);
+                for (const [index, line] of reportMachineLines.entries()) {
+                    const childData = splitMachineLinePayload(data, line._source_machine_lines || [line], requestId, index, reportMachineLines.length);
                     const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, validationConnection);
                     validateChildTotals(childData, resolved.defects, resolved.deductions);
                 }
@@ -502,8 +502,8 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             try {
                 if (splitMachines) {
                     // All machine-specific parent reports and child rows are committed together.
-                    for (const [index, line] of machineLines.entries()) {
-                        const childData = splitMachineLinePayload(data, line, requestId, index, machineLines.length);
+                    for (const [index, line] of reportMachineLines.entries()) {
+                        const childData = splitMachineLinePayload(data, line._source_machine_lines || [line], requestId, index, reportMachineLines.length);
                         childData._skip_daily_hours_enforcement = index > 0; // Enforce once under the worker lock; later machine children must not count the same group again.
                         const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, parentConnection);
                         validateChildTotals(childData, resolved.defects, resolved.deductions);
