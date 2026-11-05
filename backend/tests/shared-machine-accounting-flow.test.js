@@ -5,6 +5,7 @@ const path = require('node:path');
 const { calculateEventPhysical, isSharedEventManaged, assertApprovedEventForTempLine } = require('../services/machineProductionEventService');
 const { validateMachineWorkerCapacityLocked } = require('../services/factoryMachineRuleService');
 const { buildGiaCongMachineAccounting } = require('../services/giaCongMachineAccounting');
+const { groupMaiLinesByMachine } = require('../utils/groupMaiLinesByMachine');
 
 const root = path.resolve(__dirname, '..');
 const repo = path.resolve(root, '..');
@@ -270,4 +271,31 @@ test('Mài multi-machine reports are split per machine and Đo remains single-ma
   assert.match(source, /machine_group_request_id/);
   assert.match(source, /splitMachineLinePayload\(data, line, requestId, index\)/);
   assert.doesNotMatch(source, /splitGcLinePayload/);
+});
+
+test('Mài product lines on the same physical machine become one parent report and retain line details', () => {
+  const grouped = groupMaiLinesByMachine([
+    { machine_code: '18', product_code: '5120-2', machine_time_hours: 1.8333, deduction_time_hours: 0, counted_output: 230, ok_quantity: 230, ng_quantity: 0, defects: [], deductions: [] },
+    { machine_code: '18', product_code: '6900-1', machine_time_hours: 7.5, deduction_time_hours: 1.5, counted_output: 690, ok_quantity: 690, ng_quantity: 0, defects: [], deductions: [] },
+    { machine_code: '13', product_code: '8UM-2', machine_time_hours: 8, deduction_time_hours: 1.1667, counted_output: 1300, ok_quantity: 1300, ng_quantity: 0, defects: [], deductions: [] }
+  ]);
+  assert.equal(grouped.length, 2);
+  assert.equal(grouped[0].machine_code, '18');
+  assert.equal(grouped[0]._source_machine_lines.length, 2);
+  assert.equal(grouped[0].product_code, '5120-2, 6900-1');
+  assert.equal(Number(grouped[0].machine_time_hours.toFixed(4)), 9.3333);
+  assert.equal(grouped[0].deduction_time_hours, 1.5);
+  assert.equal(grouped[0].counted_output, 920);
+  assert.equal(grouped[1].machine_code, '13');
+  assert.equal(grouped[1]._source_machine_lines.length, 1);
+});
+
+test('parallel-machine daily hours aggregate net hours by machine before taking the maximum', () => {
+  const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
+  const createModel = fs.readFileSync(path.join(root, 'models/productionTempCreateModel.js'), 'utf8');
+  const updateModel = fs.readFileSync(path.join(root, 'models/productionTempUpdateModel.js'), 'utf8');
+  for (const code of [source, createModel, updateModel]) {
+    assert.match(code, /netHoursByMachine/);
+    assert.match(code, /netHoursByMachine\.set\(machine, \(netHoursByMachine\.get\(machine\) \|\| 0\) \+ net\)/);
+  }
 });
