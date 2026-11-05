@@ -31,11 +31,16 @@ const enforceDailyHoursLocked = async (executor, data) => {
     const isParallelMachineProcess = processCode === "GC" || processCode === "MAI";
     const machineLines = Array.isArray(data?._daily_hours_machine_lines) ? data._daily_hours_machine_lines : [];
 const incoming = isParallelMachineProcess && machineLines.length
-        ? Math.max(...machineLines.map((line) => {
-            const machineHours = Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0;
-            const deductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
-            return Math.max(0, machineHours - deductionHours);
-        }))
+        ? (() => {
+            const netHoursByMachine = new Map();
+            for (const line of machineLines) {
+                const machine = String(line?.machine_code || line?.machine_id || "").trim().toUpperCase() || "__UNKNOWN__";
+                const net = Math.max(0, (Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0)
+                    - (Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0));
+                netHoursByMachine.set(machine, (netHoursByMachine.get(machine) || 0) + net);
+            }
+            return Math.max(0, ...netHoursByMachine.values());
+        })()
         : (Number(data?.actual_time) || 0);
     const existing = await queryCountedDailyHours((sql, params) => query(executor, sql, params), { workerId, workDate });
     const projected = existing + incoming;
