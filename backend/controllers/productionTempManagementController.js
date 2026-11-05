@@ -327,9 +327,10 @@ exports.updateTempReport = async (req, res) => {
         if (machinePolicy.mode === "MULTI_MACHINE_REQUIRED" && rawMachineLines.length === 0) {
             return res.status(422).json({ success: false, message: "Công đoạn này bắt buộc nhập danh sách máy", errors: { machine_lines: "Vui lòng chọn từ 1 đến 4 máy" } });
         }
-        if (machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && ((!normalizedMachineNo && rawMachineLines.length === 0) || rawMachineLines.length > 1)) {
+        if (["SINGLE_MACHINE_REQUIRED", "SINGLE_MACHINE_OPTIONAL"].includes(machinePolicy.mode)
+            && ((machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && !normalizedMachineNo && rawMachineLines.length === 0) || rawMachineLines.length > 1)) {
             const label = machinePolicy.code === "DO" ? "Đo" : machinePolicy.code === "EP" ? "Ép" : "Cán";
-            return res.status(422).json({ success: false, message: `Công đoạn ${label} yêu cầu đúng một máy`, errors: { machine_no: `Vui lòng chọn đúng một máy ${label.toLowerCase()}` } });
+            return res.status(422).json({ success: false, message: `Công đoạn ${label} chỉ được ghi nhận tối đa một máy`, errors: { machine_no: `Chỉ được chọn tối đa một máy ${label.toLowerCase()}` } });
         }
         if (machinePolicy.mode === "MANUAL_OR_SINGLE_MACHINE" && rawMachineLines.length > 1) {
             return res.status(422).json({ success: false, message: "Công đoạn Kiểm chỉ được chọn tối đa một máy", errors: { machine_lines: "Chỉ được chọn một máy hoặc làm tay" } });
@@ -384,7 +385,7 @@ exports.updateTempReport = async (req, res) => {
             deductions: validation.normalized.deductions,
             ttOk: operationMode === "MANUAL" ? validation.normalized.tt_ok : undefined,
             actualOutput: operationMode === "MANUAL" ? validation.normalized.actual_output : undefined,
-            allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY" || (machinePolicy.code === "MAI" && rawMachineLines.length === 0 && !normalizedMachineNo),
+            allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY" || (["MAI", "DO"].includes(machinePolicy.code) && rawMachineLines.length === 0 && !normalizedMachineNo),
             operationType: validation.normalized.operation_type ?? payload.operation_type,
             workDate: payload.work_date,
             reuseValidatedMachine,
