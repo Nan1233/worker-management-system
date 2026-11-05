@@ -1304,7 +1304,7 @@ async function buildProcessWorkbookLocal({ date, payload, processCode }) {
 
 /**
  * File số 00: chỉ giữ thông tin chung của tháng. Các sheet công đoạn được tách
- * hoàn toàn sang 9 file riêng để không phải mở một workbook quá rộng/nặng.
+ * hoàn toàn sang 10 file riêng để không phải mở một workbook quá rộng/nặng.
  */
 async function buildMonthlySummaryWorkbookLocal({ date, payload }) {
   assertApprovedDatabasePayload(payload);
