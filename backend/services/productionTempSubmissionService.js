@@ -145,8 +145,9 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
         data.process_code = resolvedProcessCode;
         data._resolved_process_code = resolvedProcessCode;
     }
-    const isGc = (resolvedProcessCode || String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase()) === "GC";
-    const incoming = isGc && machineLines.length
+    const resolvedCode = resolvedProcessCode || String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
+    const isParallelMachineProcess = resolvedCode === "GC" || resolvedCode === "MAI";
+    const incoming = isParallelMachineProcess && machineLines.length
         ? Math.max(...machineLines.map((line) => {
             const machineHours = Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0;
             const deductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
@@ -303,13 +304,13 @@ const childRequestId = (groupRequestId, line, index) => {
     return `${String(groupRequestId).slice(0, 80)}:gc:${digest}`;
 };
 
-const splitMachineLinePayload = (data, line, requestId, index) => {
+const splitMachineLinePayload = (data, line, requestId, index, totalCount = 1) => {
     const defects = Array.isArray(line?.defects) ? line.defects : [];
     const deductions = Array.isArray(line?.deductions) ? line.deductions : [];
     const extra = typeof data.extra_data === "string" ? (() => { try { return JSON.parse(data.extra_data); } catch { return {}; } })() : (data.extra_data || {});
     const groupMetadata = isGiaCongProcess(data)
-        ? { gc_group_request_id: requestId, gc_group_machine_count: 1, gc_group_machine_index: index, gc_split_report: true }
-        : { machine_group_request_id: requestId, machine_group_machine_count: 1, machine_group_machine_index: index, machine_split_report: true };
+        ? { gc_group_request_id: requestId, gc_group_machine_count: totalCount, gc_group_machine_index: index, gc_split_report: true }
+        : { machine_group_request_id: requestId, machine_group_machine_count: totalCount, machine_group_machine_index: index, machine_split_report: true };
     return {
         ...data,
         machine_no: line.machine_code || data.machine_no || null,
@@ -404,7 +405,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             if (shouldSplitMachineReports(data, machineLines)) {
                 // Validate each machine's NG and deduction details against its own parent report.
                 for (const [index, line] of machineLines.entries()) {
-                    const childData = splitMachineLinePayload(data, line, requestId, index);
+                    const childData = splitMachineLinePayload(data, line, requestId, index, machineLines.length);
                     const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, validationConnection);
                     validateChildTotals(childData, resolved.defects, resolved.deductions);
                 }
@@ -461,7 +462,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                 if (splitMachines) {
                     // All machine-specific parent reports and child rows are committed together.
                     for (const [index, line] of machineLines.entries()) {
-                        const childData = splitMachineLinePayload(data, line, requestId, index);
+                        const childData = splitMachineLinePayload(data, line, requestId, index, machineLines.length);
                         childData._skip_daily_hours_enforcement = index > 0; // Enforce once under the worker lock; later machine children must not count the same group again.
                         const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, parentConnection);
                         validateChildTotals(childData, resolved.defects, resolved.deductions);
