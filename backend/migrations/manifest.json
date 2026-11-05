@@ -1,6 +1,6 @@
 {
-  "latestVersion": 38,
-  "latestMigration": "060_schema_gaps_encoding_updated_by_standard_source_20261022.sql",
+  "latestVersion": 39,
+  "latestMigration": "061_mai_multiple_products_per_machine_20261105.sql",
   "migrations": [
     "001_core_master_schema.sql",
     "002_production_schema.sql",
@@ -39,6 +39,7 @@
     "057_gc_c7236_product_for_c13.sql",
     "058_k1_defects_and_deductions_20261012.sql",
     "059_gc_machine_work_type_20261021.sql",
-    "060_schema_gaps_encoding_updated_by_standard_source_20261022.sql"
+    "060_schema_gaps_encoding_updated_by_standard_source_20261022.sql",
+    "061_mai_multiple_products_per_machine_20261105.sql"
   ]
 }
