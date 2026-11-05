@@ -33,3 +33,11 @@ test('journal recovery runs after reconnect and on a timer', () => {
   assert.match(journal, /addEventListener\("online", recover\)/);
   assert.match(journal, /setInterval\(recover, 30_000\)/);
 });
+
+
+test('localStorage quota failure never blocks the production report request', () => {
+  const journal = read('services/reliableReportJournal.ts');
+  assert.match(journal, /function writeAll\(items: JournalItem\[\]\): boolean/);
+  assert.match(journal, /catch \(error\)[\s\S]*Reliable report journal storage is full/);
+  assert.match(journal, /must never prevent an online production report from reaching the backend/);
+});
