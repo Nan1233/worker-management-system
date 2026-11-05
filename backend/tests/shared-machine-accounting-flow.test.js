@@ -270,7 +270,7 @@ test('Mài creates one report per product line, even when several products use t
   assert.match(source, /const shouldSplitMachineReports = \(data, machineLines\) =>[\s\S]*isGiaCongProcess\(data\) \|\| isMaiProcess\(data\)/);
   assert.match(source, /const reportMachineLines = machineLines/);
   assert.match(source, /DO_SINGLE_MACHINE_REQUIRED/);
-  assert.match(source, /line\\.product_code/);
+  assert.match(source, /line\.product_code/);
   assert.match(source, /:line:/);
   assert.match(source, /machine_group_request_id/);
   assert.match(source, /const splitMachines = shouldSplitMachineReports\(data, reportMachineLines\)/);
