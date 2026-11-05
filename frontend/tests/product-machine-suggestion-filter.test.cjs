@@ -27,11 +27,11 @@ test('product suggestions are scoped by operation mode and selected machine', ()
   assert.ok(basic.includes('isMaiProcess ? getMachineProductAutocompleteOptions("") : []'));
 });
 
-test('autocomplete preserves a controlled selection when the option list refreshes', () => {
+test('autocomplete never clears a committed selection when focus moves outside', () => {
   const autocomplete = fs.readFileSync(path.join(root, 'src/components/common/AutocompleteInput.tsx'), 'utf8');
-  assert.ok(autocomplete.includes('const controlledValue = String(value || "").trim();'));
-  assert.ok(autocomplete.includes('if (controlledValue) {'));
-  assert.ok(autocomplete.includes('setTypedValue(controlledValue);'));
+  assert.ok(autocomplete.includes('setTypedValue(String(value || ""));'));
+  assert.ok(autocomplete.includes('Blur/outside-click must never clear the committed value'));
+  assert.ok(!autocomplete.includes('onChange("");'));
 });
 
 test('machine relation matching accepts common machine-code formats', () => {
