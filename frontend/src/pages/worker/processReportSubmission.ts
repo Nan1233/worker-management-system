@@ -61,7 +61,7 @@ export function buildProductionReportPayload(args: {
     const normalizedProduct = String(productCode || "").trim().toUpperCase();
     if (!normalizedProduct) return 0;
     const candidates = args.productOptions
-      .filter((row) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedProduct))
+      .filter((row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct)
       .map((row) => Number(row?.standard_output)).filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => b - a);
     return candidates[0] ?? 0;
   };
