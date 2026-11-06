@@ -424,12 +424,8 @@ function patchMainSource(source) {
     '    } // end legacy multi-workbook branch.\n' + next.slice(splitLogStart);
 
   next = next.replace(
-    'expectedFileCount: Object.keys(PROCESS_SHEETS).length + 1',
-    "expectedFileCount: built?.mode === 'WORKER_REPORT_SINGLE_FILE' ? Number(built.expectedFileCount || 0) : Object.keys(PROCESS_SHEETS).length + 1"
-  );
-  next = next.replace(
     'const expectedFileCount = Object.keys(PROCESS_SHEETS).length + 1;',
-    "const expectedFileCount = files.some((file) => file.category === 'MONTHLY_PROCESS' && file.processCode === 'ALL') ? files.filter((file) => file.category === 'MONTHLY_PROCESS').length : Object.keys(PROCESS_SHEETS).length + 1;"
+    "const expectedFileCount = files.filter((file) => file.category === 'MONTHLY_PROCESS').length === 1 ? 1 : Object.keys(PROCESS_SHEETS).length + 1;"
   );
   next = next.replace(/mode: 'desktop-local-monthly-workbooks'/g, "mode: 'desktop-local-worker-template'");
 
