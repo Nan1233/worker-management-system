@@ -369,6 +369,29 @@ function patchMainSource(source) {
     next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);\n${next}`;
   }
   next = next.replace(/\n\s*\/\/ File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY\.xlsx[\s\S]*?\n\s*\/\/ 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test\./, '\n\n    // 9 công đoạn: dùng cùng template báo cáo công nhân; không tạo file tổng hợp.');
+  // v6 returns one combined worker-report workbook, not ten process workbooks.
+  // Keep legacy validation for legacy builders; validate the single-file contract separately.
+  next = next.replace(/    const expectedProcessCodes = Object\\.keys\\(PROCESS_SHEETS\\);[\\s\\S]*?\\n    }\\n\\n    \/\/ File tổng hợp:/,
+    `    const isWorkerSingleFile = built?.mode === 'WORKER_REPORT_SINGLE_FILE';
+    if (isWorkerSingleFile) {
+      const actualCount = Array.isArray(built.processes) ? built.processes.length : 0;
+      const expectedCount = Number.isFinite(Number(built.expectedFileCount)) ? Number(built.expectedFileCount) : actualCount;
+      if (actualCount !== expectedCount) {
+        throw Object.assign(new Error('Số workbook không khớp: yêu cầu ' + expectedCount + ', tạo được ' + actualCount + '.'),
+          { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' });
+      }
+    } else {
+      const expectedProcessCodes = Object.keys(PROCESS_SHEETS);
+      const builtProcessCodes = (built.processes || []).map((item) => String(item.processCode || '').toUpperCase());
+      const missingProcessCodes = expectedProcessCodes.filter((code) => !builtProcessCodes.includes(code));
+      if (missingProcessCodes.length || builtProcessCodes.length !== expectedProcessCodes.length) {
+        throw Object.assign(new Error('Thiếu workbook công đoạn: ' + (missingProcessCodes.join(', ') || 'danh sách công đoạn không khớp') + '.'),
+          { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' });
+      }
+    }
+
+    if (!isWorkerSingleFile) {
+    // File tổng hợp:`);
   next = next.replace(/\n\s*const processFolder = path\.join\(folder, safeFolderName\(processBuilt\.processName \|\| processBuilt\.processCode\)\);\n\s*await fs\.mkdir\(processFolder, \{ recursive: true \}\);/g, '');
   next = next.replace(/path\.join\(\s*processFolder,\s*/g, 'path.join(\n        folder,\n        ');
   next = next.replace(/folder: processFolder,/g, 'folder,');
@@ -379,7 +402,7 @@ function patchMainSource(source) {
   const cleanupFn = cleanupLegacyMonthlyFilesSource();
   const marker = '\nasync function syncAllProcessExcel';
   if (!next.includes('__ktcCleanupLegacyMonthlyLayout')) next = next.replace(marker, () => `\n${cleanupFn}${marker}`);
-  next = next.replace(/\n\s*await writeLog\('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', \{/g, '\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {');
+  next = next.replace(/\n\s*await writeLog\('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', \{/g, '\n    } // end legacy summary branch; worker single-file skips summary.\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {'); '\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {');
   const successMarker = 'const success = files.length === expectedFileCount && files.every((file) => file.success === true);';
   if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) next = next.replace(successMarker, `${successMarker}\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean));`);
   return next;
