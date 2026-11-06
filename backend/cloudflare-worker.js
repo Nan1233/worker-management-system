@@ -26,7 +26,10 @@ const {
   validateCloudflareRuntimeSecrets,
 } = require("./config/cloudflareDeploymentProfile.cjs");
 const deploymentProfile = resolveCloudflareDeploymentProfile(process.env);
-validateCloudflareRuntimeSecrets(env);
+// Production remains fail-fast. Preview deployments may be created before their secrets are
+// provisioned; gate requests instead of throwing during module evaluation so Cloudflare can
+// finish the Preview build and report a clear 503 until operators add the required secrets.
+if (deploymentProfile.environment === "production") validateCloudflareRuntimeSecrets(env);
 const configuredCorsOrigins = [...deploymentProfile.allowedOrigins];
 process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
 process.env.PORT = process.env.PORT || "3000";
@@ -95,6 +98,20 @@ async function enrichApprovedReportMachineDefects(request, response) { const url
 
 const wrappedServer = { async fetch(request, envArg, ctx) {
   const preflight = handleCorsPreflight(request); if (preflight) return preflight;
+  if (deploymentProfile.environment === "test") {
+    try { validateCloudflareRuntimeSecrets(envArg || env); }
+    catch (error) {
+      if (error?.code !== "CLOUDFLARE_RUNTIME_SECRET_MISSING") throw error;
+      const headers = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+      const origin = getAllowedOrigin(request);
+      if (origin) {
+        headers.set("Access-Control-Allow-Origin", origin);
+        headers.set("Access-Control-Allow-Credentials", "true");
+        headers.set("Vary", "Origin");
+      }
+      return new Response(JSON.stringify({ success: false, code: error.code, message: "Preview backend chưa được cấu hình đầy đủ secrets.", missing: error.missing || [] }), { status: 503, headers });
+    }
+  }
   const pathname = new URL(request.url).pathname;
   if (pathname === "/api/health" || pathname === "/api/health/ready") {
     if (!runtimeReadiness.ready) await initializeRuntime();
