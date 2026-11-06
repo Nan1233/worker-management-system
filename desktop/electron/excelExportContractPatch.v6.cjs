@@ -402,7 +402,7 @@ function patchMainSource(source) {
   const cleanupFn = cleanupLegacyMonthlyFilesSource();
   const marker = '\nasync function syncAllProcessExcel';
   if (!next.includes('__ktcCleanupLegacyMonthlyLayout')) next = next.replace(marker, () => `\n${cleanupFn}${marker}`);
-  next = next.replace(/\n\s*await writeLog\('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', \{/g, '\n    } // end legacy summary branch; worker single-file skips summary.\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {'); '\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {');
+  next = next.replace(/\n\s*await writeLog\('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', \{/g, '\n    } // end legacy summary branch; worker single-file skips summary.\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {');
   const successMarker = 'const success = files.length === expectedFileCount && files.every((file) => file.success === true);';
   if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) next = next.replace(successMarker, `${successMarker}\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean));`);
   return next;
