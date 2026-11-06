@@ -3,35 +3,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const ExcelJS = require('exceljs');
 const JSZip = require('jszip');
 const { buildProcessExcelLocal } = require('../electron/companyExcelLocal.cjs');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const templateRoot = path.join(repoRoot, 'backend', 'templates');
-
-function formulaCount(sheet) {
-  let count = 0;
-  sheet.eachRow({ includeEmpty: false }, (row) => row.eachCell({ includeEmpty: false }, (cell) => {
-    const value = cell.value;
-    if (value && typeof value === 'object' &&
-        (typeof value.formula === 'string' || typeof value.sharedFormula === 'string')) count += 1;
-  }));
-  return count;
-}
-
-function styleSnapshot(sheet, maxRow = 12, maxColumn = 49) {
-  const result = {};
-  for (let row = 1; row <= Math.min(maxRow, sheet.rowCount); row += 1) {
-    for (let col = 1; col <= Math.min(maxColumn, sheet.columnCount); col += 1) {
-      const cell = sheet.getRow(row).getCell(col);
-      if (cell.hasStyle) result[cell.address] = JSON.stringify(cell.style);
-    }
-  }
-  return result;
-}
-
-
 
 async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
   const zip = await JSZip.loadAsync(inputBuffer);
@@ -120,18 +96,10 @@ for (const item of cases) {
     const sourcePath = path.join(templateRoot, item.file);
     assert.ok(fs.existsSync(sourcePath), `Thiếu template test: ${sourcePath}`);
 
-    // Normalize absolute OOXML relationship targets before loading the
-    // workbook. ExcelJS expects relationship targets relative to each part.
-    const normalizedSource = await normalizeAbsoluteRelationshipTargets(fs.readFileSync(sourcePath));
-    const original = new ExcelJS.Workbook();
-    await original.xlsx.load(normalizedSource);
-    const originalSheet = original.getWorksheet(item.sheet);
-    assert.ok(originalSheet, `Template gốc thiếu sheet ${item.sheet}`);
-    const originalFormulaCount = formulaCount(originalSheet);
-    const originalSheetStates = original.worksheets.map((sheet) => [sheet.name, sheet.state]);
-    const originalRaw = await readRawWorkbook(normalizedSource);
+    const originalRaw = await readRawWorkbook(sourcePath);
     const originalRawSheet = originalRaw.sheets.find((sheet) => sheet.name === item.sheet);
-    assert.ok(originalRawSheet, `Template gốc thiếu sheet XML ${item.sheet}`);
+    assert.ok(originalRawSheet, `Template gốc thiếu sheet ${item.sheet}`);
+    const originalSheetStates = originalRaw.sheets.map((sheet) => [sheet.name, sheet.state]);
     const originalRawXfs = rawCellXfs(originalRaw.stylesXml);
     const originalRawStyles = rawStyleSnapshot(originalRawSheet.xml, originalRawXfs);
 
