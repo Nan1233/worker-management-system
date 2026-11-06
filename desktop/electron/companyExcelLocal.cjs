@@ -878,13 +878,13 @@ const PROCESS_REPORT_GROUPS = Object.freeze({
   },
   MAI: {
     key: 'MAI', processCode: 'MAI', processName: 'Mài', slug: 'Mai',
-    groupCode: 'MAI_DO', processCodes: ['MAI'], template: 'bao-cao-mai-do-export.xlsx',
+    groupCode: 'MAI_DO', processCodes: ['MAI'], template: 'TT_MAI_TEMPLATE.xlsx',
     sheets: [{ processCodes: ['MAI'], sheetName: 'TT Mài', layout: 'MAI' }],
     fileName: ({ month, year }) => `05_MAI_${month}-${year}.xlsx`
   },
   DO: {
     key: 'DO', processCode: 'DO', processName: 'Đo', slug: 'Do',
-    groupCode: 'MAI_DO', processCodes: ['DO'], template: 'bao-cao-mai-do-export.xlsx',
+    groupCode: 'MAI_DO', processCodes: ['DO'], template: 'TT_DO_TEMPLATE.xlsx',
     sheets: [{ processCodes: ['DO'], sheetName: 'TT Đo', layout: 'DO' }],
     fileName: ({ month, year }) => `06_DO_${month}-${year}.xlsx`
   }
