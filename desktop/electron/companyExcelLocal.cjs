@@ -740,7 +740,6 @@ function writeRow(sheet, rowNumber, report, layout, deductionTypes, defectTypes,
   const fixed = layout.fixed;
   const metrics = getMetrics(report);
 
-  row.hidden = false;
   clearReportRow(row, layout.lastReportColumn);
 
   setCell(row, fixed.sequence, sequence, '0');
