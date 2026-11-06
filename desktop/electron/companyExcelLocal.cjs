@@ -2,6 +2,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const ExcelJS = require('exceljs');
+const JSZip = require('jszip');
 
 const GROUPS = Object.freeze({
   GIA_CONG: {
@@ -332,6 +333,31 @@ function findBlocks(sheet, layout) {
     startRow: headerRow + startOffset,
     endRow: (headers[index + 1] || (sheet.rowCount + endOffset)) - endOffset
   })).filter((block) => block.endRow >= block.startRow);
+}
+
+
+async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
+  const zip = await JSZip.loadAsync(inputBuffer);
+  const relationshipFiles = Object.keys(zip.files).filter((name) => name.endsWith('.rels'));
+  for (const relationshipPath of relationshipFiles) {
+    const match = /^(.*)\\/_rels\\/([^/]+)\\.rels$/.exec(relationshipPath);
+    const sourcePart = relationshipPath === '_rels/.rels'
+      ? ''
+      : (match ? `${match[1]}/${match[2]}` : '');
+    const sourceDirectory = path.posix.dirname(sourcePart);
+    const xml = await zip.file(relationshipPath).async('string');
+    const normalized = xml.replace(/Target="([^"]+)"/g, (whole, target) => {
+      if (!target.startsWith('/')) return whole;
+      const absoluteTarget = target.replace(/^\\/+/, '').split(/[?#]/, 1)[0];
+      const relativeTarget = sourceDirectory === '.'
+        ? absoluteTarget
+        : path.posix.relative(sourceDirectory, absoluteTarget);
+      const suffix = target.slice(absoluteTarget.length + 1);
+      return `Target="${relativeTarget}${suffix}"`;
+    });
+    if (normalized !== xml) zip.file(relationshipPath, normalized);
+  }
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
 function materializeSharedFormulas(workbook) {
@@ -1017,7 +1043,9 @@ async function buildProcessExcelLocal({ appPath, date, processCode, payload }) {
   for (const candidate of existingCandidates) {
     try {
       const candidateWorkbook = new ExcelJS.Workbook();
-      await candidateWorkbook.xlsx.readFile(candidate);
+      const sourceBuffer = fs.readFileSync(candidate);
+      const compatibleBuffer = await normalizeAbsoluteRelationshipTargets(sourceBuffer);
+      await candidateWorkbook.xlsx.load(compatibleBuffer);
       materializeSharedFormulas(candidateWorkbook);
       const candidateSheet = candidateWorkbook.getWorksheet(config.sheets[0].sheetName);
       if (!candidateSheet) throw new Error(`thiếu sheet ${config.sheets[0].sheetName}`);
