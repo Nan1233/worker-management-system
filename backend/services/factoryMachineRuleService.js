@@ -146,9 +146,10 @@ const validateFactoryMachineRules = async ({
   });
 
   if (MULTI_MACHINE_PROCESS_CODES.has(code)) {
-    if (lines.length > MAX_MACHINES_PER_WORKER) {
+    const maxMachines = getMaxMachinesPerWorker(code);
+    if (lines.length > maxMachines) {
       errors.machine_lines =
-        `Công đoạn ${code} chỉ cho phép một công nhân chạy tối đa ${MAX_MACHINES_PER_WORKER} máy cùng lúc.`;
+        `Công đoạn ${code} chỉ cho phép một công nhân chạy tối đa ${maxMachines} máy cùng lúc.`;
     }
   } else if (lines.length > 1) {
     errors.machine_lines =
@@ -315,12 +316,13 @@ const validateMachineWorkerCapacityLocked = async ({
     lines.map((line) => String(line.machine_code).trim().toUpperCase())
   )];
 
+  const maxMachines = getMaxMachinesPerWorker(code);
   if (MULTI_MACHINE_PROCESS_CODES.has(code) &&
-      uniqueCodes.length > MAX_MACHINES_PER_WORKER) {
+      uniqueCodes.length > maxMachines) {
     return {
       valid: false,
       errors: {
-        machine_lines: `Một công nhân chỉ được chạy tối đa ${MAX_MACHINES_PER_WORKER} máy trong công đoạn ${code}.`
+        machine_lines: `Một công nhân chỉ được chạy tối đa ${maxMachines} máy trong công đoạn ${code}.`
       }
     };
   }
