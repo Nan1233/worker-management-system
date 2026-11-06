@@ -90,7 +90,7 @@ module.exports = {
         ];
         const placeholders = items.map(() => `(${columns.map(() => "?").join(", ")}, 'pending')`).join(", ");
         await query(executor,
-            `INSERT INTO production_reports_temp (${columns.join(", ")}, status) VALUES ${placeholders}`,
+            `INSERT INTO production_reports_temp (${columns.join(", ")}, status) /* KTC_BATCH_ID_LOOKUP */ VALUES ${placeholders}`,
             items.flatMap(rowValues)
         );
         const requestIds = items.map((item) => String(item.client_request_id || "").trim());
