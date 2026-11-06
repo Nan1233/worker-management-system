@@ -556,18 +556,27 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             }
             try {
                 if (splitMachines) {
-                    // All machine-specific parent reports and child rows are committed together.
-                    for (const [index, line] of reportMachineLines.entries()) {
+                    // Keep each machine/product pair as its own report, but batch all
+                    // parent INSERTs and ID resolution into two SQL statements.
+                    const groupedChildren = reportMachineLines.map((line, index) => {
                         const childLines = line._source_machine_lines || [line];
                         const childData = splitMachineLinePayload(data, childLines, requestId, index, reportMachineLines.length);
-                        childData._skip_daily_hours_enforcement = index > 0; // Enforce once under the worker lock; later machine children must not count the same group again.
+                        childData._skip_daily_hours_enforcement = index > 0;
+                        return { childLines, childData };
+                    });
+                    const groupedIds = await createModel.createMany(
+                        groupedChildren.map((item) => item.childData),
+                        parentConnection
+                    );
+                    for (let index = 0; index < groupedChildren.length; index += 1) {
+                        const { childLines, childData } = groupedChildren[index];
+                        tempId = groupedIds[index];
+                        createdIds.push(Number(tempId));
                         const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, parentConnection);
                         validateChildTotals(childData, resolved.defects, resolved.deductions);
-                        tempId = await createModel.create(childData, parentConnection);
-                        createdIds.push(Number(tempId));
                         await createModel.createDefects(tempId, data.process_id, resolved.defects, parentConnection);
                         await createModel.createDeductions(tempId, data.process_id, resolved.deductions, parentConnection);
-                        await createModel.replaceMachineLines(tempId, childLines, parentConnection, { isNewReport: true }); // inserted in this transaction: no old lines to read/delete
+                        await createModel.replaceMachineLines(tempId, childLines, parentConnection, { isNewReport: true });
                     }
                 } else {
                     tempId = await createModel.create(data, parentConnection);
