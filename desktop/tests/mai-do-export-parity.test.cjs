@@ -63,7 +63,7 @@ async function readRawWorkbook(fileOrBuffer) {
 }
 
 function rawFormulaCount(xml) {
-  return (xml.match(/<f(?:\\s|>)/g) || []).length;
+  return (xml.match(/<f(?:\s|>)/g) || []).length;
 }
 
 function columnName(number) {
