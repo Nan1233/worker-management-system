@@ -781,9 +781,15 @@ async function buildCompanyExcelLocal({ appPath, date, groupCode, payload, exist
   if (!groupData) throw new Error(`Backend thiếu dữ liệu ${group.code}`);
 
   const workbook = new ExcelJS.Workbook();
-  const templatePath = path.join(appPath, 'assets', 'templates', group.template);
-  if (!fs.existsSync(templatePath)) {
-    throw new Error(`Không tìm thấy template Excel công ty: ${templatePath}`);
+  const templateCandidates = [
+    process.resourcesPath ? path.join(process.resourcesPath, 'templates', group.template) : '',
+    path.join(appPath, 'assets', 'templates', group.template),
+    path.resolve(__dirname, '..', 'assets', 'templates', group.template),
+    path.resolve(__dirname, '..', '..', 'backend', 'templates', group.template)
+  ].filter(Boolean);
+  const templatePath = templateCandidates.find((candidate) => fs.existsSync(candidate));
+  if (!templatePath) {
+    throw new Error(`Không tìm thấy template Excel công ty ${group.template}. Đã kiểm tra: ${templateCandidates.join(' | ')}`);
   }
 
   // Luôn dựng lại từ template chuẩn của ứng dụng. Không dùng file tháng đang
@@ -964,9 +970,15 @@ function writeReportsIntoTemplateSheet({ sheet, layout, reports, deductionTypes,
 async function buildProcessExcelLocal({ appPath, date, processCode, payload }) {
   const config = resolveProcessReportGroup(processCode);
   const [year, month] = safeText(date).split('-');
-  const templatePath = path.join(appPath, 'assets', 'templates', config.template);
-  if (!fs.existsSync(templatePath)) {
-    throw new Error(`Không tìm thấy file báo cáo mẫu: ${templatePath}`);
+  const templateCandidates = [
+    process.resourcesPath ? path.join(process.resourcesPath, 'templates', config.template) : '',
+    path.join(appPath, 'assets', 'templates', config.template),
+    path.resolve(__dirname, '..', 'assets', 'templates', config.template),
+    path.resolve(__dirname, '..', '..', 'backend', 'templates', config.template)
+  ].filter(Boolean);
+  const templatePath = templateCandidates.find((candidate) => fs.existsSync(candidate));
+  if (!templatePath) {
+    throw new Error(`Không tìm thấy file báo cáo mẫu ${config.template}. Đã kiểm tra: ${templateCandidates.join(' | ')}`);
   }
 
   const workbook = new ExcelJS.Workbook();
