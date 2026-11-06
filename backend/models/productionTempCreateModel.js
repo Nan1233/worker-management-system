@@ -5,7 +5,7 @@ const db = require("../config/db");
 const { query } = require("./productionTempModelShared");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 
-const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { DAILY_HOURS_ENFORCEMENT_ENABLED, DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const { storedStandardSource } = require('../utils/standardSourceCode');
 const getStoredWorkType = (value) => {
@@ -17,6 +17,8 @@ const getStoredWorkType = (value) => {
 };
 
 const enforceDailyHoursLocked = async (executor, data) => {
+    // Feature toggle: preserve the locked daily-hours validation for later re-enabling.
+    if (!DAILY_HOURS_ENFORCEMENT_ENABLED) return;
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
