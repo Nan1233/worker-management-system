@@ -505,11 +505,13 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         // Serverless HTTP driver that extra transaction lifecycle can fail independently
         // and mask the real report error as TRANSACTION_ROLLBACK_FAILED. The authoritative
         // write path below revalidates under its own transaction before inserting rows.
+        const preResolvedChildren = [];
         if (splitMachines) {
             for (const [index, line] of reportMachineLines.entries()) {
                 const childData = splitMachineLinePayload(data, line._source_machine_lines || [line], requestId, index, reportMachineLines.length);
                 const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, db);
                 validateChildTotals(childData, resolved.defects, resolved.deductions);
+                preResolvedChildren.push(resolved);
             }
             defects = [];
             deductions = [];
@@ -569,16 +571,22 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                         parentConnection
                     );
                     const machineLineGroups = [];
+                    const defectGroups = [];
+                    const deductionGroups = [];
                     for (let index = 0; index < groupedChildren.length; index += 1) {
-                        const { childLines, childData } = groupedChildren[index];
+                        const { childLines } = groupedChildren[index];
                         tempId = groupedIds[index];
                         createdIds.push(Number(tempId));
-                        const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, parentConnection);
-                        validateChildTotals(childData, resolved.defects, resolved.deductions);
-                        await createModel.createDefects(tempId, data.process_id, resolved.defects, parentConnection);
-                        await createModel.createDeductions(tempId, data.process_id, resolved.deductions, parentConnection);
+                        // Reuse the exact master-data resolution and total validation completed
+                        // in preflight. Re-querying defect_types/deduction_types for every child
+                        // exhausted Cloudflare's 50-subrequest budget on four-line MAI reports.
+                        const resolved = preResolvedChildren[index];
+                        defectGroups.push({ tempReportId: tempId, items: resolved.defects });
+                        deductionGroups.push({ tempReportId: tempId, items: resolved.deductions });
                         machineLineGroups.push({ tempReportId: tempId, machineLines: childLines });
                     }
+                    await createModel.createDefectsBatch(defectGroups, parentConnection);
+                    await createModel.createDeductionsBatch(deductionGroups, parentConnection);
                     // Persist every MAI machine/product line in one multi-row INSERT,
                     // rather than spending one TiDB subrequest per child report.
                     await createModel.replaceMachineLinesBatch(machineLineGroups, parentConnection);
