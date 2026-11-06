@@ -416,31 +416,27 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
         // Preflight the exact master rows before the parent INSERT. This makes
         // it impossible to create a report that only has tt_ng/deduction_time.
-        const validationConnection = await getConnection();
         let defects;
         let deductions;
-        try {
-            await beginTransaction(validationConnection);
-            if (splitMachines) {
-                // Validate each machine's NG and deduction details against its own parent report.
-                for (const [index, line] of reportMachineLines.entries()) {
-                    const childData = splitMachineLinePayload(data, line._source_machine_lines || [line], requestId, index, reportMachineLines.length);
-                    const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, validationConnection);
-                    validateChildTotals(childData, resolved.defects, resolved.deductions);
-                }
-                defects = [];
-                deductions = [];
-            } else {
-                const resolved = await resolveMasterDetails(data.process_id, defectsInput, deductionsInput, validationConnection);
-                defects = resolved.defects;
-                deductions = resolved.deductions;
-                validateChildTotals(data, defects, deductions);
+        // This preflight performs SELECT-only master-data lookups and arithmetic checks.
+        // Do not open a transaction just to roll it back: on the Cloudflare/TiDB
+        // Serverless HTTP driver that extra transaction lifecycle can fail independently
+        // and mask the real report error as TRANSACTION_ROLLBACK_FAILED. The authoritative
+        // write path below revalidates under its own transaction before inserting rows.
+        if (splitMachines) {
+            for (const [index, line] of reportMachineLines.entries()) {
+                const childData = splitMachineLinePayload(data, line._source_machine_lines || [line], requestId, index, reportMachineLines.length);
+                const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, db);
+                validateChildTotals(childData, resolved.defects, resolved.deductions);
             }
-            await rollbackOrThrow(validationConnection);
-        } catch (error) {
-            try { await rollbackOrThrow(validationConnection, error); } catch (rollbackError) { throw rollbackError; }
-            throw error;
-        } finally { validationConnection.release(); }
+            defects = [];
+            deductions = [];
+        } else {
+            const resolved = await resolveMasterDetails(data.process_id, defectsInput, deductionsInput, db);
+            defects = resolved.defects;
+            deductions = resolved.deductions;
+            validateChildTotals(data, defects, deductions);
+        }
 
         let tempId;
         const createdIds = [];
