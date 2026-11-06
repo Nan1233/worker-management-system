@@ -361,9 +361,11 @@ async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
   // without its matching drawing XML. Such orphan relationships carry no
   // renderable drawing; remove only those orphan .rels entries in-memory.
   for (const relationshipPath of Object.keys(zip.files)) {
-    const drawingRels = /^xl\\/drawings\\/_rels\\/([^/]+)\\.xml\\.rels$/.exec(relationshipPath);
-    if (drawingRels && !zip.file(`xl/drawings/${drawingRels[1]}.xml`)) {
-      zip.remove(relationshipPath);
+    const drawingRelsPrefix = 'xl/drawings/_rels/';
+    const drawingRelsSuffix = '.xml.rels';
+    if (relationshipPath.startsWith(drawingRelsPrefix) && relationshipPath.endsWith(drawingRelsSuffix)) {
+      const drawingName = relationshipPath.slice(drawingRelsPrefix.length, -drawingRelsSuffix.length);
+      if (!zip.file(`xl/drawings/${drawingName}.xml`)) zip.remove(relationshipPath);
     }
   }
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
