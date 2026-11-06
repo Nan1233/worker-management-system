@@ -78,6 +78,6 @@ for (const item of cases) {
 
 test('Mài và Đo phải dùng hai template khác nhau', () => {
   const mai = fs.readFileSync(path.join(templateRoot, 'TT_MAI_TEMPLATE.xlsx'));
-  const do = fs.readFileSync(path.join(templateRoot, 'TT_DO_TEMPLATE.xlsx'));
-  assert.notDeepEqual(mai, do, 'Template Mài và Đo không được dùng chung một workbook');
+  const doTemplate = fs.readFileSync(path.join(templateRoot, 'TT_DO_TEMPLATE.xlsx'));
+  assert.notDeepEqual(mai, doTemplate, 'Template Mài và Đo không được dùng chung một workbook');
 });
