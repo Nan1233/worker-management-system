@@ -36,9 +36,8 @@ function loadSubmissionModule() {
   return compiledModule.exports;
 }
 
-async function makePayload(processCode) {
-  const { buildProductionReportPayload } = loadSubmissionModule();
-  return buildProductionReportPayload({
+function makeArgs(processCode) {
+  return {
     clientRequestId: 'test-request-001',
     processId: processCode === 'GC' ? 1 : 2,
     processCode,
@@ -108,7 +107,12 @@ async function makePayload(processCode) {
     activeNgOptions: [],
     deductions: { matDien: '60' },
     activeDeductionOptions: [{ key: 'matDien', id: 1, code: 'MAT_DIEN', label: 'Mất điện' }],
-  });
+  };
+}
+
+async function makePayload(processCode) {
+  const { buildProductionReportPayload } = loadSubmissionModule();
+  return buildProductionReportPayload(makeArgs(processCode));
 }
 
 test('non-GC machine-line payload preserves worker actual/gross/deduction time for daily-hours accounting', async () => {
@@ -130,4 +134,41 @@ test('GC machine-line payload preserves its established per-machine-only time co
   assert.equal(payload.total_time, 0);
   assert.equal(payload.machine_lines[0].actual_time_hours, 8);
   assert.equal(payload.machine_lines[0].machine_time_hours, 9);
+});
+
+
+test('MAI mixed machine and manual products become two independent reports', () => {
+  const { buildProductionReportPayloads } = loadSubmissionModule();
+  const args = makeArgs('MAI');
+  args.clientRequestId = 'mixed-mai-request';
+  args.machineLines.push({
+    ...args.machineLines[0],
+    machineCode: '',
+    productCode: 'P2',
+    hours: '4',
+    minutes: '30',
+    okQuantity: '20',
+    ngQuantity: '1',
+    standardOutputPerHour: 120,
+    deductions: {},
+    selectedDeductions: [],
+    defects: {},
+    selectedDefects: [],
+  });
+
+  const [machineReport, manualReport] = buildProductionReportPayloads(args);
+  assert.equal(machineReport.operation_mode, 'MACHINE');
+  assert.equal(machineReport.machine_no, 'M1');
+  assert.equal(machineReport.machine_lines.length, 1);
+  assert.equal(machineReport.machine_lines[0].product_code, 'P1');
+
+  assert.equal(manualReport.operation_mode, 'MANUAL');
+  assert.equal(manualReport.machine_no, null);
+  assert.deepEqual(manualReport.machine_lines, []);
+  assert.equal(manualReport.product_name, 'P2');
+  assert.equal(manualReport.tt_ok, 20);
+  assert.equal(manualReport.tt_ng, 1);
+  assert.equal(manualReport.actual_time, 4.5);
+  assert.equal(manualReport.standard_output, 120);
+  assert.notEqual(machineReport.client_request_id, manualReport.client_request_id);
 });

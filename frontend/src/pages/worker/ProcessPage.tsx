@@ -130,7 +130,7 @@ import {
     toDuplicatePrompt,
 } from "./processDuplicateReportLogic";
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
-import { buildProductionReportPayload } from "./processReportSubmission";
+import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
 import { getCachedMachines } from "../../services/masterDataCache";
 
@@ -148,6 +148,7 @@ function ProcessPage() {
     const { showToast } = useToast();
     const submitLockRef = useRef(false);
     const clientRequestIdRef = useRef<string | null>(null);
+    const pendingSplitPayloadsRef = useRef<any[]>([]);
     const workerInfoRequestSeqRef = useRef(0);
     const masterDataRequestSeqRef = useRef(0);
     const machineStandardRequestSeqRef = useRef<Record<number, number>>({});
@@ -629,6 +630,7 @@ const machineAutocompleteOptions =
 
     const finishDuplicateAction = useCallback(() => {
         setDuplicatePrompt(null);
+        pendingSplitPayloadsRef.current = [];
         clientRequestIdRef.current = null;
         submitLockRef.current = false;
         setSubmitting(false);
@@ -653,7 +655,10 @@ const machineAutocompleteOptions =
                 force_create: true,
                 duplicate_confirmation_token: duplicatePrompt.confirmationToken,
             });
-            showToast("Đã tạo báo cáo trùng theo xác nhận.", "success");
+            const pendingPayloads = pendingSplitPayloadsRef.current;
+            pendingSplitPayloadsRef.current = [];
+            for (const payload of pendingPayloads) await createTempReport(payload);
+            showToast(pendingPayloads.length ? "Đã xác nhận báo cáo trùng và gửi các báo cáo còn lại." : "Đã tạo báo cáo trùng theo xác nhận.", "success");
             finishDuplicateAction();
         } catch (error: unknown) {
             showToast((error as any)?.response?.data?.message || "Không thể tạo báo cáo.", "error");
@@ -675,7 +680,10 @@ const machineAutocompleteOptions =
         try {
             setSubmitting(true);
             await updateTempReport(duplicatePrompt.reportId, { ...duplicatePrompt.payload, id: duplicatePrompt.reportId });
-            showToast("Đã cập nhật báo cáo hiện có.", "success");
+            const pendingPayloads = pendingSplitPayloadsRef.current;
+            pendingSplitPayloadsRef.current = [];
+            for (const payload of pendingPayloads) await createTempReport(payload);
+            showToast(pendingPayloads.length ? "Đã cập nhật báo cáo trùng và gửi các báo cáo còn lại." : "Đã cập nhật báo cáo hiện có.", "success");
             finishDuplicateAction();
         } catch (error: unknown) {
             showToast((error as any)?.response?.data?.message || "Không thể cập nhật báo cáo.", "error");
@@ -1539,7 +1547,7 @@ const updateDeductionValue = (
             try {
                 setSubmitting(true);
 
-                const payload = buildProductionReportPayload({
+                const payloads = buildProductionReportPayloads({
                     clientRequestId: clientRequestIdRef.current,
                     processId: processInfo.id,
                     form,
@@ -1559,87 +1567,65 @@ const updateDeductionValue = (
                     activeDeductionOptions,
                 });
 
-                let response;
                 if (!navigator.onLine) {
-                    enqueueOfflineReport(payload);
-                    showToast("Đang mất mạng. Báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
+                    payloads.forEach((payload) => enqueueOfflineReport(payload));
+                    showToast("Đang mất mạng. Các báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
                     clearProcessDraft(process);
                     clientRequestIdRef.current = null;
                     window.setTimeout(() => navigate("/worker", { replace: true }), 900);
                     return;
                 }
-                try {
-                    response = await createTempReport(payload);
-                } catch (error: any) {
-                    if (axios.isAxiosError(error) && error.response?.status === 429) {
-                        showToast("Bạn thao tác quá nhanh. Dữ liệu trên form vẫn được giữ, vui lòng thử lại sau ít phút.", "warning");
-                        return;
-                    }
-                    if (axios.isAxiosError(error) && error.response?.status === 409 && ["DUPLICATE_PRODUCTION_REPORT", "DUPLICATE_CONFIRMATION_REQUIRED"].includes(String(error.response?.data?.code || ""))) {
-                        const duplicateResponse = error.response;
-                        const challengeToken = String(duplicateResponse.data?.duplicate_confirmation_token || "").trim();
-                        if (!challengeToken) {
-                            throw error;
+
+                for (let index = 0; index < payloads.length; index += 1) {
+                    const payload = payloads[index];
+                    let response;
+                    try {
+                        response = await createTempReport(payload);
+                    } catch (error: any) {
+                        if (axios.isAxiosError(error) && error.response?.status === 429) {
+                            showToast("Bạn thao tác quá nhanh. Dữ liệu trên form vẫn được giữ, vui lòng thử lại sau ít phút.", "warning");
+                            return;
                         }
-                        const prompt = toDuplicatePrompt(duplicateResponse.data, payload);
+                        if (axios.isAxiosError(error) && error.response?.status === 409 && ["DUPLICATE_PRODUCTION_REPORT", "DUPLICATE_CONFIRMATION_REQUIRED"].includes(String(error.response?.data?.code || ""))) {
+                            const duplicateResponse = error.response;
+                            const challengeToken = String(duplicateResponse.data?.duplicate_confirmation_token || "").trim();
+                            if (challengeToken) {
+                                const prompt = toDuplicatePrompt(duplicateResponse.data, payload);
+                                if (prompt) {
+                                    pendingSplitPayloadsRef.current = payloads.slice(index + 1);
+                                    const reportType = duplicateResponse.data?.report_type === "approved" ? "approved" : "temp";
+                                    setDuplicatePrompt({ ...prompt, reportType, formSignature: getDuplicateFormSignature() });
+                                    return;
+                                }
+                            }
+                        }
+                        if (isTransientNetworkFailure(error)) {
+                            payloads.slice(index).forEach((payload) => enqueueOfflineReport(payload));
+                            showToast("Kết nối Internet bị gián đoạn. Các báo cáo còn lại đã được lưu trên thiết bị và sẽ tự gửi khi có mạng.", "warning");
+                            clearProcessDraft(process);
+                            clientRequestIdRef.current = null;
+                            window.setTimeout(() => navigate("/worker", { replace: true }), 900);
+                            return;
+                        }
+                        throw error;
+                    }
+
+                    const submitOutcome = classifyProcessSubmitResponse(response);
+                    if (submitOutcome === "similar_report" && response?.data?.id) {
+                        const prompt = toDuplicatePrompt(response, payload);
                         if (prompt) {
-                            const reportType = duplicateResponse.data?.report_type === "approved" ? "approved" : "temp";
-                            setDuplicatePrompt({ ...prompt, reportType, formSignature: getDuplicateFormSignature() });
+                            pendingSplitPayloadsRef.current = payloads.slice(index + 1);
+                            setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
                             return;
                         }
                     }
-                    if (isTransientNetworkFailure(error)) {
-                        enqueueOfflineReport(payload);
-                        showToast("Kết nối Internet bị gián đoạn. Báo cáo đã được lưu trên thiết bị và sẽ tự gửi lại khi có mạng.", "warning");
-                        clearProcessDraft(process);
-                        clientRequestIdRef.current = null;
-                        window.setTimeout(() => navigate("/worker", { replace: true }), 900);
-                        return;
-                    }
-                    throw error;
                 }
 
-                const submitOutcome = classifyProcessSubmitResponse(response);
-
-                if (
-                    submitOutcome === "similar_report" &&
-                    response?.data?.id
-                ) {
-                    // A force-create action is only safe when the server issued
-                    // a challenge token bound to this exact collision. Legacy /
-                    // idempotent duplicate responses without a token are treated
-                    // as already-recorded rather than exposing an unsafe action.
-                    const prompt = toDuplicatePrompt(response, payload);
-                    if (prompt) {
-                        setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
-                        return;
-                    }
-                }
-
-                showToast(
-                    submitOutcome === "duplicate"
-                        ? "Báo cáo này đã được hệ thống ghi nhận trước đó"
-                        : "Lưu báo cáo thành công. Báo cáo đã được gửi chờ duyệt.",
-                    submitOutcome === "duplicate"
-                        ? "info"
-                        : "success"
-                );
-
-clearProcessDraft(process);
-clientRequestIdRef.current = null;
-
-/*
- * Cho người dùng đủ thời gian nhìn thấy thông báo
- * trước khi quay về trang chọn công đoạn.
- */
-window.setTimeout(() => {
-    navigate(
-        "/worker",
-        {
-            replace: true
-        }
-    );
-}, 900);
+                pendingSplitPayloadsRef.current = [];
+                showToast("Lưu báo cáo thành công. Các báo cáo đã được gửi chờ duyệt.", "success");
+                clearProcessDraft(process);
+                clientRequestIdRef.current = null;
+                window.setTimeout(() => navigate("/worker", { replace: true }), 900);
 
             }
             catch (error: unknown) {
@@ -1888,6 +1874,7 @@ window.setTimeout(() => {
                 loadingWorker={loadingWorker}
                 onCancelDuplicate={() => {
                     setDuplicatePrompt(null);
+                    pendingSplitPayloadsRef.current = [];
                     submitLockRef.current = false;
                 }}
                 onUpdateExisting={() => void handleUpdateExistingReport()}

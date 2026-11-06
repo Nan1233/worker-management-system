@@ -4,7 +4,7 @@ const { getProcessMachinePolicy } = require('../services/processMachinePolicy');
 const { getGcMachineRule } = require('../services/factoryMachineRuleService');
 
 test('machine policies match real KTC factory rules 2026-08-10', () => {
-  assert.deepEqual(getProcessMachinePolicy(2), { code: 'MAI', mode: 'MULTI_MACHINE_OPTIONAL', minMachines: 0, maxMachines: 4 });
+  assert.deepEqual(getProcessMachinePolicy(2), { code: 'MAI', mode: 'MULTI_MACHINE_OPTIONAL', minMachines: 0, maxMachines: 6 });
   assert.equal(getProcessMachinePolicy(60001).mode, 'SINGLE_MACHINE_REQUIRED');
   assert.equal(getProcessMachinePolicy(60003).mode, 'SINGLE_MACHINE_REQUIRED');
   assert.equal(getProcessMachinePolicy(1).mode, 'MANUAL_OR_SMART_MACHINE');

@@ -42,6 +42,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: KTC-Desktop-EXE-test
-          path: desktop/dist/*.exe
+          path: desktop/release/*.exe
           if-no-files-found: error
           retention-days: 14

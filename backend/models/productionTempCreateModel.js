@@ -5,7 +5,7 @@ const db = require("../config/db");
 const { query } = require("./productionTempModelShared");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 
-const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { DAILY_HOURS_ENFORCEMENT_ENABLED, DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const { storedStandardSource } = require('../utils/standardSourceCode');
 const getStoredWorkType = (value) => {
@@ -17,12 +17,16 @@ const getStoredWorkType = (value) => {
 };
 
 const enforceDailyHoursLocked = async (executor, data) => {
+    // Feature toggle: preserve the locked daily-hours validation for later re-enabling.
+    if (!DAILY_HOURS_ENFORCEMENT_ENABLED) return;
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
-    await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
-    // The facade may validate a complete multi-machine GC/Mài submission once, then persist its child reports atomically. Keep the worker lock but avoid counting the same group repeatedly.
+    // A grouped GC/Mài submission enforces the daily-hours limit on its first child
+    // while holding the worker row lock. Later children are in the same transaction:
+    // they must not reacquire the same lock or repeat the daily-hours read.
     if (data?._skip_daily_hours_enforcement === true) return;
+    await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
     // createCompleteReport already read processes.process_code inside this transaction; reuse it.
     const processRows = data?._resolved_process_code !== undefined
         ? [{ process_code: data._resolved_process_code }]
@@ -54,6 +58,58 @@ const incoming = isParallelMachineProcess && machineLines.length
 };
 
 module.exports = {
+    // Persist grouped machine reports with one multi-row INSERT and resolve all
+    // generated IDs with one indexed lookup by the existing idempotency keys.
+    // This avoids one INSERT + LAST_INSERT_ID() pair for every MAI product line.
+    async createMany(reports, executor = db) {
+        const items = Array.isArray(reports) ? reports : [];
+        if (!items.length) return [];
+        if (items.length === 1) return [await this.create(items[0], executor)];
+
+        // Daily-hours and worker locking are enforced exactly once for the group.
+        await enforceDailyHoursLocked(executor, items[0]);
+        const columns = [
+            "worker_id", "process_id", "work_date", "entry_date", "shift",
+            "operation_type", "operation_mode", "machine_no", "product_name",
+            "total_time", "actual_time", "deduction_time", "standard_output",
+            "standard_version_id", "machine_standard_id", "training_percent_snapshot",
+            "actual_output", "tt_ok", "tt_ng", "note", "extra_data",
+            "client_request_id", "logical_duplicate_key"
+        ];
+        const rowValues = (data) => [
+            data.worker_id, data.process_id, data.work_date,
+            data.entry_date || new Date().toISOString().slice(0, 10),
+            data.shift, data.operation_type ?? data.operationType ?? null,
+            data.operation_mode ?? data.operationMode ?? null,
+            data.machine_no || null, data.product_name || null,
+            Number(data.total_time) || 0, Number(data.actual_time) || 0,
+            Number(data.deduction_time) || 0, Number(data.standard_output) || 0,
+            Number(data.standard_version_id) || null, Number(data.machine_standard_id) || null,
+            data.training_percent_snapshot === null || data.training_percent_snapshot === undefined ? null : Number(data.training_percent_snapshot),
+            Number(data.actual_output) || 0, Number(data.tt_ok) || 0, Number(data.tt_ng) || 0,
+            data.note || "", JSON.stringify(data.extra_data || {}),
+            data.client_request_id || null, data.logical_duplicate_key || null
+        ];
+        const placeholders = items.map(() => `(${columns.map(() => "?").join(", ")}, 'pending')`).join(", ");
+        await query(executor,
+            `INSERT INTO production_reports_temp (${columns.join(", ")}, status) /* KTC_BATCH_ID_LOOKUP */ VALUES ${placeholders}`,
+            items.flatMap(rowValues)
+        );
+        const requestIds = items.map((item) => String(item.client_request_id || "").trim());
+        if (requestIds.some((id) => !id)) throw new Error("Grouped report is missing a client_request_id");
+        const rows = await query(executor,
+            `SELECT id, client_request_id FROM production_reports_temp
+              WHERE worker_id=? AND client_request_id IN (${requestIds.map(() => "?").join(", ")})`,
+            [Number(items[0].worker_id), ...requestIds]
+        );
+        const idByRequest = new Map(rows.map((row) => [String(row.client_request_id), Number(row.id)]));
+        const ids = requestIds.map((id) => idByRequest.get(id));
+        if (ids.some((id) => !Number.isInteger(id) || id <= 0)) {
+            throw new Error("Could not resolve every grouped production report ID after batch insert");
+        }
+        return ids;
+    },
+
     async create(data, executor = db) {
         await enforceDailyHoursLocked(executor, data);
 
@@ -301,6 +357,36 @@ module.exports = {
         return rows[0] || null;
     },
 
+    async createDefectsBatch(groups = [], executor = db) {
+        const values = [];
+        for (const group of (Array.isArray(groups) ? groups : [])) {
+            const reportId = Number(group?.tempReportId);
+            if (!Number.isInteger(reportId) || reportId <= 0) continue;
+            for (const item of (Array.isArray(group?.items) ? group.items : [])) {
+                const quantity = Math.trunc(Number(item?.quantity) || 0);
+                const typeId = Number(item?.defect_type_id) || 0;
+                if (typeId > 0 && quantity > 0) values.push([reportId, typeId, quantity]);
+            }
+        }
+        if (!values.length) return;
+        await query(executor, `INSERT INTO production_temp_defects (temp_report_id, defect_type_id, quantity) VALUES ${values.map(() => "(?, ?, ?)").join(", ")}`, values.flat());
+    },
+
+    async createDeductionsBatch(groups = [], executor = db) {
+        const values = [];
+        for (const group of (Array.isArray(groups) ? groups : [])) {
+            const reportId = Number(group?.tempReportId);
+            if (!Number.isInteger(reportId) || reportId <= 0) continue;
+            for (const item of (Array.isArray(group?.items) ? group.items : [])) {
+                const hours = Number(item?.hours) || 0;
+                const typeId = Number(item?.deduction_type_id) || 0;
+                if (typeId > 0 && hours > 0) values.push([reportId, typeId, hours]);
+            }
+        }
+        if (!values.length) return;
+        await query(executor, `INSERT INTO production_temp_deductions (temp_report_id, deduction_type_id, hours) VALUES ${values.map(() => "(?, ?, ?)").join(", ")}`, values.flat());
+    },
+
     async createDefects(tempReportId, processId, defects, executor = db) {
         if (!Array.isArray(defects) || defects.length === 0) return;
 
@@ -521,6 +607,60 @@ module.exports = {
               WHERE ml.temp_report_id = ?`,
             [...defectRows.flat(), tempReportId]
         );
+    },
+
+    // Batch machine-line persistence across all child reports in one MAI/GC submission.
+    // temp_report_id is carried per row so multiple reports can share one INSERT safely.
+    async replaceMachineLinesBatch(reportGroups = [], executor = db) {
+        const lineRows = [];
+        const defectRows = [];
+        for (const group of (Array.isArray(reportGroups) ? reportGroups : [])) {
+            const reportId = Number(group?.tempReportId);
+            const machineLines = Array.isArray(group?.machineLines) ? group.machineLines : [];
+            if (!Number.isInteger(reportId) || reportId <= 0) continue;
+            for (let index = 0; index < Math.min(machineLines.length, 4); index += 1) {
+                const line = machineLines[index] || {};
+                lineRows.push([
+                    reportId, Number(line.machine_event_id) || null, Number(line.machine_id) || null,
+                    String(line.machine_code || "").trim(), Number(line.product_standard_id) || null,
+                    Number(line.standard_version_id) || null, Number(line.machine_standard_id) || null,
+                    String(line.product_code || "").trim(), Number(line.machine_time_hours) || 0,
+                    Number(line.standard_output) || 0, Number(line.standard_time_seconds) || null,
+                    storedStandardSource(line.standard_source),
+                    Math.max(0, Math.trunc(Number(line.ok_quantity) || 0)),
+                    Math.max(0, Math.trunc(Number(line.ng_quantity) || 0)),
+                    Number(line.maximum_output) || 0, Number(line.deduction_time_hours) || 0,
+                    JSON.stringify(Array.isArray(line.deductions) ? line.deductions : []),
+                    Number(line.counted_output) || 0, Number(line.earned_standard_hours) || 0,
+                    JSON.stringify(Array.isArray(line.defects) ? line.defects : []), index + 1
+                ]);
+                for (const item of (Array.isArray(line.defects) ? line.defects : [])) {
+                    const quantity = Math.trunc(Number(item?.quantity) || 0);
+                    if (quantity <= 0) continue;
+                    defectRows.push([
+                        reportId, index + 1, Number(item?.defect_type_id) || null,
+                        String(item?.defect_code || "").trim() || null,
+                        String(item?.defect_name || "").trim() || null, quantity
+                    ]);
+                }
+            }
+        }
+        if (!lineRows.length) return;
+        await query(executor, `INSERT INTO production_temp_machine_lines
+            (temp_report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
+             machine_time_hours, standard_output, standard_time_seconds, standard_source,
+             ok_quantity, ng_quantity, maximum_output, deduction_time_hours, deductions_json, counted_output, earned_standard_hours,
+             defects_json, sort_order)
+            VALUES ${lineRows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`, lineRows.flat());
+        if (!defectRows.length) return;
+        await query(executor,
+            `INSERT INTO production_temp_machine_defects
+             (machine_line_id, defect_type_id, defect_code, defect_name, quantity)
+             SELECT ml.id, v.defect_type_id, v.defect_code, v.defect_name, v.quantity
+               FROM production_temp_machine_lines ml
+               JOIN (${defectRows.map(() => "SELECT ? AS temp_report_id, ? AS sort_order, ? AS defect_type_id, ? AS defect_code, ? AS defect_name, ? AS quantity").join(" UNION ALL ")}) v
+                 ON v.temp_report_id = ml.temp_report_id AND v.sort_order = ml.sort_order
+        `, defectRows.flat());
     },
 
     async createCompleteReport(...args) {

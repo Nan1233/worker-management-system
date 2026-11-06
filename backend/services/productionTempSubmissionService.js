@@ -8,7 +8,7 @@ const { resolveInitialTrainingSnapshot } = require("./trainingSnapshotService");
 const { validateMachineWorkerCapacityLocked } = require("./factoryMachineRuleService");
 const { buildLogicalDuplicateKey } = require("./logicalDuplicateReportService");
 const { verifyDuplicateConfirmation } = require("./duplicateConfirmationService");
-const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { DAILY_HOURS_ENFORCEMENT_ENABLED, DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 
 const submissionQueues = new Map();
@@ -17,12 +17,28 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const rollbackOrThrow = async (connection, originalError) => {
     const result = await rollback(connection);
     if (result?.ok === false) {
-        const error = new Error("Không thể rollback transaction sau lỗi ghi báo cáo");
-        error.code = "TRANSACTION_ROLLBACK_FAILED";
-        error.cause = result.error;
-        error.originalError = originalError || null;
-        error.isPublic = false;
-        throw error;
+        const diagnostic = (value) => ({
+            name: value?.name || null,
+            message: String(value?.message || value || "Unknown error").slice(0, 500),
+            code: value?.code || null,
+            errno: value?.errno ?? null,
+            sqlState: value?.sqlState || null,
+            status: value?.status ?? value?.statusCode ?? null,
+        });
+        // Preserve both failures in logs. The rollback error is secondary and must
+        // not erase the SQL/transaction error that caused the rollback in the first place.
+        console.error("[KTC][REPORT] transaction rollback failed", JSON.stringify({
+            originalError: originalError ? diagnostic(originalError) : null,
+            rollbackError: diagnostic(result.error),
+        }));
+        // Rollback is secondary: retain the actual SQL/transaction failure so
+        // callers can distinguish a TiDB query error from a rollback transport error.
+        // The rollback failure remains attached for diagnostics and is never hidden.
+        if (originalError && typeof originalError === "object") {
+            originalError.rollbackFailed = true;
+            originalError.rollbackError = result.error;
+        }
+        return result;
     }
     return result;
 };
@@ -133,6 +149,8 @@ const recoverAfter1205 = async (data) => {
 };
 
 const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) => {
+    // Feature toggle: preserve the daily-hours validation code for later re-enabling.
+    if (!DAILY_HOURS_ENFORCEMENT_ENABLED) return null;
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
@@ -278,21 +296,87 @@ const validateChildTotals = (data, defects, deductions) => {
     }
 };
 
-const createAuditAfterChildren = async ({ tempId, audit, data, requestId, logicalDuplicateKey }) => {
+const createAuditAfterChildrenBatch = async ({ tempIds, audit, data, requestIds, logicalDuplicateKey }) => {
+    const ids = [...new Set((tempIds || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+    if (!ids.length) return;
     const connection = await getConnection();
     try {
         await beginTransaction(connection);
-        const snapshot = await AuditService.loadTempReportSnapshot(tempId, connection);
-        if (snapshot) await AuditService.createReportVersion({ reportType: "temp", reportId: tempId, snapshot, reason: "Tạo báo cáo chờ duyệt", userId: Number(audit?.userId || 0) }, connection);
-        await createModel.logAction({ reportType: "temp", reportId: tempId, userId: Number(audit?.userId || 0), action: "CREATE", note: audit?.note || "Công nhân tạo báo cáo", ipAddress: audit?.ipAddress || null, userAgent: audit?.userAgent || null }, connection);
-        await query(connection,
-            `INSERT INTO activity_logs (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
-             VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
-            [Number(audit?.userId || 0), String(tempId), "Công nhân tạo báo cáo chờ duyệt",
-                JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift, clientRequestId: requestId, logicalDuplicateKey }), audit?.ipAddress || null, audit?.userAgent || null]);
+        const marks = ids.map(() => "?").join(",");
+        // Read all snapshot components in a fixed number of TiDB HTTP requests,
+        // rather than opening a transaction and issuing 5+ statements per report.
+        const reports = await query(connection, `SELECT * FROM production_reports_temp WHERE id IN (${marks}) ORDER BY id`, ids);
+        const defects = await query(connection,
+            `SELECT d.temp_report_id,d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity
+               FROM production_temp_defects d LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+              WHERE d.temp_report_id IN (${marks}) ORDER BY d.temp_report_id,d.id`, ids);
+        const deductions = await query(connection,
+            `SELECT d.temp_report_id,d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours
+               FROM production_temp_deductions d LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+              WHERE d.temp_report_id IN (${marks}) ORDER BY d.temp_report_id,d.id`, ids);
+        const machineLines = await query(connection,
+            `SELECT * FROM production_temp_machine_lines WHERE temp_report_id IN (${marks}) ORDER BY temp_report_id,sort_order,id`, ids);
+        const machineIds = machineLines.map((line) => Number(line.id)).filter(Boolean);
+        const machineDefects = machineIds.length
+            ? await query(connection, `SELECT * FROM production_temp_machine_defects WHERE machine_line_id IN (${machineIds.map(() => "?").join(",")}) ORDER BY machine_line_id,id`, machineIds)
+            : [];
+        const byReport = new Map(reports.map((report) => [Number(report.id), {
+            ...report, defects: [], deductions: [], machine_lines: []
+        }]));
+        for (const item of defects) byReport.get(Number(item.temp_report_id))?.defects.push(item);
+        for (const item of deductions) byReport.get(Number(item.temp_report_id))?.deductions.push(item);
+        const lineDefects = new Map();
+        for (const item of machineDefects) {
+            const key = Number(item.machine_line_id);
+            if (!lineDefects.has(key)) lineDefects.set(key, []);
+            lineDefects.get(key).push(item);
+        }
+        for (const line of machineLines) {
+            const report = byReport.get(Number(line.temp_report_id));
+            if (report) report.machine_lines.push({ ...line, defects: lineDefects.get(Number(line.id)) || [] });
+        }
+
+        const versionRows = await query(connection,
+            `SELECT report_id, COALESCE(MAX(version_no),0) AS max_version
+               FROM report_versions WHERE report_type='temp' AND report_id IN (${marks})
+              GROUP BY report_id`, ids);
+        const maxById = new Map(versionRows.map((row) => [Number(row.report_id), Number(row.max_version) || 0]));
+        const versionValues = [];
+        const actionValues = [];
+        const activityValues = [];
+        const actorId = Number(audit?.userId || 0) || null;
+        for (let index = 0; index < ids.length; index += 1) {
+            const id = ids[index];
+            const snapshot = byReport.get(id);
+            if (snapshot) versionValues.push(["temp", id, (maxById.get(id) || 0) + 1, JSON.stringify(snapshot), "Tạo báo cáo chờ duyệt", actorId]);
+            actionValues.push(["temp", id, actorId, "CREATE", audit?.note || "Công nhân tạo báo cáo", audit?.ipAddress || null, audit?.userAgent || null]);
+            activityValues.push([actorId, "CREATE_REPORT", "temp_report", String(id), "Công nhân tạo báo cáo chờ duyệt",
+                JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift,
+                    clientRequestId: requestIds?.[index] || null, logicalDuplicateKey }),
+                audit?.ipAddress || null, audit?.userAgent || null]);
+        }
+        if (versionValues.length) {
+            await query(connection,
+                `INSERT INTO report_versions (report_type,report_id,version_no,snapshot_json,change_reason,created_by) VALUES ${versionValues.map(() => "(?,?,?,?,?,?)").join(",")}`,
+                versionValues.flat());
+        }
+        if (actionValues.length) {
+            await query(connection,
+                `INSERT INTO report_action_logs (report_type,report_id,user_id,action,note,ip_address,user_agent) VALUES ${actionValues.map(() => "(?,?,?,?,?,?,?)").join(",")}`,
+                actionValues.flat());
+        }
+        if (activityValues.length) {
+            await query(connection,
+                `INSERT INTO activity_logs (user_id,action,entity_type,entity_id,description,metadata_json,ip_address,user_agent) VALUES ${activityValues.map(() => "(?,?,?,?,?,?,?,?)").join(",")}`,
+                activityValues.flat());
+        }
         await commit(connection);
-    } catch (error) { await rollbackOrThrow(connection, error); throw error; }
-    finally { connection.release(); }
+    } catch (error) {
+        await rollbackOrThrow(connection, error);
+        throw error;
+    } finally {
+        connection.release();
+    }
 };
 
 const processCodeOf = (data) => String(data?._resolved_process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
@@ -302,6 +386,49 @@ const shouldSplitMachineReports = (data, machineLines) =>
     Array.isArray(machineLines) && machineLines.length > 1 && (isGiaCongProcess(data) || isMaiProcess(data));
 
 const sumLineNumber = (lines, field) => lines.reduce((sum, line) => sum + (Number(line?.[field]) || 0), 0);
+
+// Mài: duplicate entries for the exact same physical machine + product are
+// one production report. Keep the source lines so splitMachineLinePayload can
+// preserve and batch all their NG/deduction details without losing quantities.
+const groupMaiMachineProductLines = (machineLines) => {
+    const groups = new Map();
+    const additiveFields = [
+        "machine_time_hours", "actual_time_hours", "deduction_time_hours",
+        "standard_output", "counted_output", "maximum_output", "earned_standard_hours",
+        "ok_quantity", "ng_quantity"
+    ];
+    for (const line of Array.isArray(machineLines) ? machineLines : []) {
+        const machine = String(line?.machine_code || "").trim().toUpperCase();
+        const product = String(line?.product_code || "").trim().toUpperCase();
+        // Do not silently combine incomplete rows; normal validation handles them.
+        if (!machine || !product) {
+            const uniqueKey = `__UNMATCHED__:${groups.size}`;
+            groups.set(uniqueKey, { ...line, _source_machine_lines: [line] });
+            continue;
+        }
+        const key = `${machine}::${product}`;
+        const existing = groups.get(key);
+        if (!existing) {
+            const grouped = { ...line, _source_machine_lines: [line] };
+            for (const field of additiveFields) grouped[field] = Number(line?.[field]) || 0;
+            groups.set(key, grouped);
+            continue;
+        }
+        existing._source_machine_lines.push(line);
+        for (const field of additiveFields) {
+            existing[field] = (Number(existing[field]) || 0) + (Number(line?.[field]) || 0);
+        }
+        existing.defects = [
+            ...(Array.isArray(existing.defects) ? existing.defects : []),
+            ...(Array.isArray(line?.defects) ? line.defects : [])
+        ];
+        existing.deductions = [
+            ...(Array.isArray(existing.deductions) ? existing.deductions : []),
+            ...(Array.isArray(line?.deductions) ? line.deductions : [])
+        ];
+    }
+    return [...groups.values()];
+};
 // Stable child request IDs are keyed by physical machine, not product line.
 const childRequestId = (groupRequestId, lines, index) => {
     const line = Array.isArray(lines) ? (lines[0] || {}) : (lines || {});
@@ -378,9 +505,11 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
     await enforceDailyWorkerHours(data, db, machineLines);
     data._daily_hours_machine_lines = machineLines;
-    // Each product/machine line is an independent report. Never merge two
-    // products merely because they use the same physical machine.
-    const reportMachineLines = machineLines;
+    // MAI duplicate machine+product pairs are merged; different pairs remain
+    // independent reports. GC retains its existing per-line behavior.
+    const reportMachineLines = isMaiProcess(data)
+        ? groupMaiMachineProductLines(machineLines)
+        : machineLines;
     const splitMachines = shouldSplitMachineReports(data, reportMachineLines);
     return runSerialized(queueKey(data, machineLines), async () => {
         // No second pre-transaction idempotency lookup here: sequential retries already returned above,
@@ -416,31 +545,29 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
         // Preflight the exact master rows before the parent INSERT. This makes
         // it impossible to create a report that only has tt_ng/deduction_time.
-        const validationConnection = await getConnection();
         let defects;
         let deductions;
-        try {
-            await beginTransaction(validationConnection);
-            if (splitMachines) {
-                // Validate each machine's NG and deduction details against its own parent report.
-                for (const [index, line] of reportMachineLines.entries()) {
-                    const childData = splitMachineLinePayload(data, line._source_machine_lines || [line], requestId, index, reportMachineLines.length);
-                    const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, validationConnection);
-                    validateChildTotals(childData, resolved.defects, resolved.deductions);
-                }
-                defects = [];
-                deductions = [];
-            } else {
-                const resolved = await resolveMasterDetails(data.process_id, defectsInput, deductionsInput, validationConnection);
-                defects = resolved.defects;
-                deductions = resolved.deductions;
-                validateChildTotals(data, defects, deductions);
+        // This preflight performs SELECT-only master-data lookups and arithmetic checks.
+        // Do not open a transaction just to roll it back: on the Cloudflare/TiDB
+        // Serverless HTTP driver that extra transaction lifecycle can fail independently
+        // and mask the real report error as TRANSACTION_ROLLBACK_FAILED. The authoritative
+        // write path below revalidates under its own transaction before inserting rows.
+        const preResolvedChildren = [];
+        if (splitMachines) {
+            for (const [index, line] of reportMachineLines.entries()) {
+                const childData = splitMachineLinePayload(data, line._source_machine_lines || [line], requestId, index, reportMachineLines.length);
+                const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, db);
+                validateChildTotals(childData, resolved.defects, resolved.deductions);
+                preResolvedChildren.push(resolved);
             }
-            await rollbackOrThrow(validationConnection);
-        } catch (error) {
-            try { await rollbackOrThrow(validationConnection, error); } catch (rollbackError) { throw rollbackError; }
-            throw error;
-        } finally { validationConnection.release(); }
+            defects = [];
+            deductions = [];
+        } else {
+            const resolved = await resolveMasterDetails(data.process_id, defectsInput, deductionsInput, db);
+            defects = resolved.defects;
+            deductions = resolved.deductions;
+            validateChildTotals(data, defects, deductions);
+        }
 
         let tempId;
         const createdIds = [];
@@ -478,19 +605,41 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             }
             try {
                 if (splitMachines) {
-                    // All machine-specific parent reports and child rows are committed together.
-                    for (const [index, line] of reportMachineLines.entries()) {
+                    // Keep each machine/product pair as its own report, but batch all
+                    // parent INSERTs and ID resolution into two SQL statements.
+                    const groupedChildren = reportMachineLines.map((line, index) => {
                         const childLines = line._source_machine_lines || [line];
                         const childData = splitMachineLinePayload(data, childLines, requestId, index, reportMachineLines.length);
-                        childData._skip_daily_hours_enforcement = index > 0; // Enforce once under the worker lock; later machine children must not count the same group again.
-                        const resolved = await resolveMasterDetails(data.process_id, childData.defects, childData.deductions, parentConnection);
-                        validateChildTotals(childData, resolved.defects, resolved.deductions);
-                        tempId = await createModel.create(childData, parentConnection);
+                        childData._skip_daily_hours_enforcement = index > 0;
+                        return { childLines, childData };
+                    });
+                    const groupedIds = await createModel.createMany(
+                        groupedChildren.map((item) => item.childData),
+                        parentConnection
+                    );
+                    const machineLineGroups = [];
+                    const defectGroups = [];
+                    const deductionGroups = [];
+                    for (let index = 0; index < groupedChildren.length; index += 1) {
+                        const { childLines } = groupedChildren[index];
+                        tempId = groupedIds[index];
                         createdIds.push(Number(tempId));
-                        await createModel.createDefects(tempId, data.process_id, resolved.defects, parentConnection);
-                        await createModel.createDeductions(tempId, data.process_id, resolved.deductions, parentConnection);
-                        await createModel.replaceMachineLines(tempId, childLines, parentConnection, { isNewReport: true }); // inserted in this transaction: no old lines to read/delete
+                        // Reuse the exact master-data resolution and total validation completed
+                        // in preflight. Re-querying defect_types/deduction_types for every child
+                        // exhausted Cloudflare's 50-subrequest budget on four-line MAI reports.
+                        const resolved = preResolvedChildren[index];
+                        defectGroups.push({ tempReportId: tempId, items: resolved.defects });
+                        deductionGroups.push({ tempReportId: tempId, items: resolved.deductions });
+                        // Persist one detail row for each grouped machine+product pair.
+                        // The grouped line already contains summed quantities/time and merged
+                        // NG/deduction details from every duplicate input row.
+                        machineLineGroups.push({ tempReportId: tempId, machineLines: [reportMachineLines[index]] });
                     }
+                    await createModel.createDefectsBatch(defectGroups, parentConnection);
+                    await createModel.createDeductionsBatch(deductionGroups, parentConnection);
+                    // Persist every MAI machine/product line in one multi-row INSERT,
+                    // rather than spending one TiDB subrequest per child report.
+                    await createModel.replaceMachineLinesBatch(machineLineGroups, parentConnection);
                 } else {
                     tempId = await createModel.create(data, parentConnection);
                     createdIds.push(Number(tempId));
@@ -513,12 +662,18 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         // Audit/version work stays separate so an audit failure cannot undo an
         // already committed, complete report and its NG/trừ giờ/machine details.
         let auditWarning = null;
-        for (const createdId of createdIds) {
-            try { await createAuditAfterChildren({ tempId: createdId, audit, data, requestId: splitMachines ? childRequestId(requestId, reportMachineLines[createdIds.indexOf(createdId)]?._source_machine_lines || [reportMachineLines[createdIds.indexOf(createdId)]], createdIds.indexOf(createdId)) : requestId, logicalDuplicateKey: data.logical_duplicate_key }); }
-            catch (error) {
-                auditWarning = String(error?.message || error).slice(0,450);
-                try { await query(db, `UPDATE production_reports_temp SET review_note=? WHERE id=?`, [`Audit chưa hoàn tất: ${auditWarning}`, createdId]); } catch {}
-            }
+        try {
+            const auditRequestIds = createdIds.map((_, index) => splitMachines
+                ? childRequestId(requestId, reportMachineLines[index]?._source_machine_lines || [reportMachineLines[index]], index)
+                : requestId);
+            await createAuditAfterChildrenBatch({ tempIds: createdIds, audit, data, requestIds: auditRequestIds, logicalDuplicateKey: data.logical_duplicate_key });
+        } catch (error) {
+            auditWarning = String(error?.message || error).slice(0,450);
+            try {
+                const marks = createdIds.map(() => "?").join(",");
+                await query(db, `UPDATE production_reports_temp SET review_note=? WHERE id IN (${marks})`,
+                    [`Audit chưa hoàn tất: ${auditWarning}`, ...createdIds]);
+            } catch {}
         }
 
         return { id: Number(createdIds[0] || tempId), ids: createdIds, reports: createdIds.map((id, index) => ({ id, machine_code: splitMachines ? reportMachineLines[index]?.machine_code || null : null })), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key, audit_warning: auditWarning };

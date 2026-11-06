@@ -100,6 +100,20 @@ function createStandardResolver({query=defaultQuery}={}) {
         fallbackToProcessProduct=Boolean(selectedProduct);
       }
     }
+    // MAI worker forms may retain a legacy "-AUTO" product suffix even when
+    // the submitted execution method is NON_AUTO. If no explicit AUTO standard
+    // exists, resolve the base MAI product standard instead of rejecting the
+    // entire multi-machine report. Exact AUTO standards always keep priority.
+    if(!selectedProduct && pid===2 && /-AUTO$/i.test(product) && !requestedVersionId){
+      const baseProduct=product.replace(/-AUTO$/i,'').trim();
+      if(baseProduct){
+        selectedProduct=await selectProductRow(pid,baseProduct,date,{allowAutoAlias:false,workType:normalizedWorkType,includeInactive:false});
+        if(!selectedProduct && normalizedWorkType){
+          selectedProduct=await selectProductRow(pid,baseProduct,date,{allowAutoAlias:false,workType:null,includeInactive:false});
+        }
+        fallbackToProcessProduct=Boolean(selectedProduct);
+      }
+    }
     if(!selectedProduct&&normalizedWorkType){
       // Distinguish "product has no standard" from "product has standards, but stored under a
       // different work_type". Never fall back to another work type (fail closed).
@@ -156,7 +170,10 @@ function createStandardResolver({query=defaultQuery}={}) {
       // Legacy worker reports may store mode=MACHINE while the applicable machine standard
       // is named with an explicit -AUTO suffix. Try entered product and its AUTO variant
       // only after the canonical alias lookup found no usable machine standard.
-      const fallbackCodes=[requestedProduct, /-AUTO$/i.test(requestedProduct)?requestedProduct:(requestedProduct+'-AUTO')];
+      const fallbackCodes=[...new Set([
+        requestedProduct,
+        /-AUTO$/i.test(requestedProduct) ? requestedProduct.replace(/-AUTO$/i,'').trim() : requestedProduct+'-AUTO'
+      ].filter(Boolean))];
       const fallbackWarmKeys=fallbackCodes.map(code=>`${pid}|${Number(machine.id)}|${sqlTrim(code)}|${date}`);
       const fallbackRows=fallbackWarmKeys.every(key=>warmMachineStandards.has(key))
         ? fallbackWarmKeys.flatMap(key=>warmMachineStandards.get(key))

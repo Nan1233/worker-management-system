@@ -44,7 +44,7 @@ export function validateMachineLines(args: {
     // the source of truth for whether that product is valid without a machine.
     // Other machine workflows still fail here because their product validator
     // returns false for an empty machine.
-    if (["MAI", "DO"].includes(String(args.processCode || "").trim().toUpperCase())) {
+    if (["MAI", "DO", "CAN", "EP"].includes(String(args.processCode || "").trim().toUpperCase())) {
       const ng = Math.max(0, Math.trunc(Number(line.ngQuantity) || 0));
       // KQSX is derived from OK + NG; workers no longer enter it separately.
       const defectTotal = Object.values(line.defects || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0);

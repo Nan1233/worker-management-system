@@ -31,7 +31,7 @@ const CODE_BY_ID = new Map(Object.entries(PROCESS_IDS).map(([code, id]) => [Numb
 
 /**
  * Quy tắc máy theo thực tế xưởng KTC.
- * - Mài/Cán: có thể dùng nhiều máy, tối đa 4.
+ * - Mài: có thể ghi tối đa 10 dòng máy-sản phẩm; Cán tối đa 4 máy.
  * - Đo: tối đa 1 máy, có thể tra định mức theo sản phẩm khi không chọn máy.
  * - Ép: đúng 1 công nhân / 1 máy cho mỗi báo cáo.
  * - GC: manual hoặc smart-machine, tối đa 4 máy.
@@ -42,7 +42,7 @@ const getProcessMachinePolicy = (processId) => {
   const canonicalId = normalizeProcessId(processId);
   const code = CODE_BY_ID.get(canonicalId) || "";
   if (code === "MAI") {
-    return { code, mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 4 };
+    return { code, mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 6 };
   }
   if (code === "DO") {
     return { code, mode: "SINGLE_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 1 };

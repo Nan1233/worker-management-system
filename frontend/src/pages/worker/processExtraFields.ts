@@ -26,6 +26,7 @@ export const PROCESS_SPECIFIC_FIELDS: Record<string, ExtraFieldDefinition[]> = {
 
   can: [
     { key: "material_code", label: "Mã nguyên liệu", type: "text", required: true },
+    { key: "stop_reason", label: "Lý do dừng máy", type: "text" },
   ],
 
   ep: [

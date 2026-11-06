@@ -78,11 +78,40 @@ function getErrorDetail(error) {
   if (typeof error === "string") return error;
   const message = typeof error.message === "string" ? error.message.trim() : "";
   if (message) return message;
+  // The TiDB Serverless driver can throw Response-like objects without a
+  // message. Extract only diagnostic fields; never serialize headers/URLs
+  // that could contain credentials.
+  const diagnostic = {};
+  for (const key of ["name", "status", "statusCode", "code", "errno", "sqlState", "cause"]) {
+    const value = error[key];
+    if (value == null) continue;
+    diagnostic[key] = key === "cause"
+      ? (typeof value === "string" ? value : {
+          name: value.name || null,
+          message: value.message || null,
+          status: value.status ?? value.statusCode ?? null,
+          code: value.code ?? null,
+        })
+      : value;
+  }
   try {
-    const serialized = JSON.stringify(error);
+    const serialized = JSON.stringify(diagnostic);
     if (serialized && serialized !== "{}") return serialized;
   } catch {}
   return String(error);
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isRetryableRead(sql, error) {
+  const statement = String(sql || "").trim().toUpperCase();
+  if (!/^(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\b/.test(statement)) return false;
+  const status = Number(error?.status ?? error?.statusCode ?? error?.cause?.status ?? error?.cause?.statusCode);
+  const code = String(error?.code ?? error?.cause?.code ?? "").toUpperCase();
+  const message = getErrorDetail(error).toLowerCase();
+  return [408, 425, 429, 500, 502, 503, 504, 520, 522, 524].includes(status)
+    || ["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "ENETUNREACH", "UND_ERR_CONNECT_TIMEOUT"].includes(code)
+    || /network|fetch failed|connection reset|temporarily unavailable|timeout/.test(message);
 }
 
 function wrapCloudflareError(error, sql) {
@@ -188,8 +217,6 @@ function createCloudflareConnection() {
   async function executeRaw(sql, params = []) {
     if (closed) throw new Error("Database connection đã được đóng");
     try {
-      // TiDB Serverless HTTP execution accepts DQL/DML/DDL, not transaction-control SQL.
-      // Transactions are handled through beginTransaction/commit/rollback below.
       const control = String(sql || "").trim().replace(/;\s*$/, "").toUpperCase();
       if (["START TRANSACTION", "BEGIN", "COMMIT", "ROLLBACK"].includes(control)) {
         return { rowsAffected: 0, lastInsertId: 0 };
@@ -197,7 +224,22 @@ function createCloudflareConnection() {
       const notificationNormalized = normalizeNotificationBackfillQuery(sql, params);
       const normalized = normalizeApprovedMachineEventQuery(notificationNormalized.sql, notificationNormalized.params);
       const client = transaction || conn;
-      return await client.execute(normalized.sql, normalized.params, { fullResult: true });
+      // Replay only idempotent reads after transient TiDB/HTTP failures.
+      // Writes and transaction statements are never blindly retried.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          return await client.execute(normalized.sql, normalized.params, { fullResult: true });
+        } catch (error) {
+          if (attempt >= 2 || transaction || !isRetryableRead(sql, error)) throw error;
+          console.warn("[KTC][DB] retrying transient TiDB read", JSON.stringify({
+            attempt: attempt + 1,
+            status: error?.status ?? error?.statusCode ?? error?.cause?.status ?? error?.cause?.statusCode ?? null,
+            code: error?.code ?? error?.cause?.code ?? null,
+            sql: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 240),
+          }));
+          await sleep(150 * (attempt + 1));
+        }
+      }
     } catch (error) {
       throw wrapCloudflareError(error, sql);
     }
@@ -256,10 +298,13 @@ function createCloudflareConnection() {
         const current = transaction;
         try {
           await current.rollback();
-          if (transaction === current) transaction = null;
         } catch (error) {
-          // Do not discard the only handle to an open transaction when rollback fails.
           throw wrapCloudflareError(error, "ROLLBACK");
+        } finally {
+          // A failed HTTP rollback must not be replayed again during release().
+          // The transaction outcome is already unknown at this point; discard
+          // the local handle and surface the original rollback error to the caller.
+          if (transaction === current) transaction = null;
         }
       })();
       if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
