@@ -56,6 +56,58 @@ const incoming = isParallelMachineProcess && machineLines.length
 };
 
 module.exports = {
+    // Persist grouped machine reports with one multi-row INSERT and resolve all
+    // generated IDs with one indexed lookup by the existing idempotency keys.
+    // This avoids one INSERT + LAST_INSERT_ID() pair for every MAI product line.
+    async createMany(reports, executor = db) {
+        const items = Array.isArray(reports) ? reports : [];
+        if (!items.length) return [];
+        if (items.length === 1) return [await this.create(items[0], executor)];
+
+        // Daily-hours and worker locking are enforced exactly once for the group.
+        await enforceDailyHoursLocked(executor, items[0]);
+        const columns = [
+            "worker_id", "process_id", "work_date", "entry_date", "shift",
+            "operation_type", "operation_mode", "machine_no", "product_name",
+            "total_time", "actual_time", "deduction_time", "standard_output",
+            "standard_version_id", "machine_standard_id", "training_percent_snapshot",
+            "actual_output", "tt_ok", "tt_ng", "note", "extra_data",
+            "client_request_id", "logical_duplicate_key"
+        ];
+        const rowValues = (data) => [
+            data.worker_id, data.process_id, data.work_date,
+            data.entry_date || new Date().toISOString().slice(0, 10),
+            data.shift, data.operation_type ?? data.operationType ?? null,
+            data.operation_mode ?? data.operationMode ?? null,
+            data.machine_no || null, data.product_name || null,
+            Number(data.total_time) || 0, Number(data.actual_time) || 0,
+            Number(data.deduction_time) || 0, Number(data.standard_output) || 0,
+            Number(data.standard_version_id) || null, Number(data.machine_standard_id) || null,
+            data.training_percent_snapshot === null || data.training_percent_snapshot === undefined ? null : Number(data.training_percent_snapshot),
+            Number(data.actual_output) || 0, Number(data.tt_ok) || 0, Number(data.tt_ng) || 0,
+            data.note || "", JSON.stringify(data.extra_data || {}),
+            data.client_request_id || null, data.logical_duplicate_key || null
+        ];
+        const placeholders = items.map(() => `(${columns.map(() => "?").join(", ")}, 'pending')`).join(", ");
+        await query(executor,
+            `INSERT INTO production_reports_temp (${columns.join(", ")}, status) VALUES ${placeholders}`,
+            items.flatMap(rowValues)
+        );
+        const requestIds = items.map((item) => String(item.client_request_id || "").trim());
+        if (requestIds.some((id) => !id)) throw new Error("Grouped report is missing a client_request_id");
+        const rows = await query(executor,
+            `SELECT id, client_request_id FROM production_reports_temp
+              WHERE worker_id=? AND client_request_id IN (${requestIds.map(() => "?").join(", ")})`,
+            [Number(items[0].worker_id), ...requestIds]
+        );
+        const idByRequest = new Map(rows.map((row) => [String(row.client_request_id), Number(row.id)]));
+        const ids = requestIds.map((id) => idByRequest.get(id));
+        if (ids.some((id) => !Number.isInteger(id) || id <= 0)) {
+            throw new Error("Could not resolve every grouped production report ID after batch insert");
+        }
+        return ids;
+    },
+
     async create(data, executor = db) {
         await enforceDailyHoursLocked(executor, data);
 
