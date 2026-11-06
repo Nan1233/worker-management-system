@@ -363,14 +363,14 @@ async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
   // Remap the parts and their worksheet relationships in-memory so comments
   // and VML notes are parsed instead of dereferencing an undefined entry.
   for (const entryPath of Object.keys(zip.files)) {
-    let match = /^xl\\/comments\\/comment(\\d+)\\.xml$/.exec(entryPath);
+    let match = /^xl\/comments\/comment(\d+)\.xml$/.exec(entryPath);
     if (match) {
       const targetPath = `xl/comments${match[1]}.xml`;
       const data = await zip.file(entryPath).async('nodebuffer');
       zip.file(targetPath, data);
       zip.remove(entryPath);
     }
-    match = /^xl\\/drawings\\/commentsDrawing(\\d+)\\.vml$/.exec(entryPath);
+    match = /^xl\/drawings\/commentsDrawing(\d+)\.vml$/.exec(entryPath);
     if (match) {
       const targetPath = `xl/drawings/vmlDrawing${match[1]}.vml`;
       const data = await zip.file(entryPath).async('nodebuffer');
@@ -379,11 +379,11 @@ async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
     }
   }
   for (const relationshipPath of Object.keys(zip.files).filter((name) =>
-    /^xl\\/worksheets\\/_rels\\/sheet\\d+\\.xml\\.rels$/.test(name))) {
+    /^xl\/worksheets\/_rels\/sheet\d+\.xml\.rels$/.test(name))) {
     const xml = await zip.file(relationshipPath).async('string');
     const normalized = xml
-      .replace(/Target="\\.\\.\\/comments\\/comment(\\d+)\\.xml"/g, 'Target="../comments$1.xml"')
-      .replace(/Target="\\.\\.\\/drawings\\/commentsDrawing(\\d+)\\.vml"/g, 'Target="../drawings/vmlDrawing$1.vml"');
+      .replace(/Target="\.\.\/comments\/comment(\d+)\.xml"/g, 'Target="../comments$1.xml"')
+      .replace(/Target="\.\.\/drawings\/commentsDrawing(\d+)\.vml"/g, 'Target="../drawings/vmlDrawing$1.vml"');
     if (normalized !== xml) zip.file(relationshipPath, normalized);
   }
   // ExcelJS 4.4.0's DrawingXform matches prefixed xdr:* element names.
