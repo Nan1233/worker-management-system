@@ -14,11 +14,14 @@ async function exportAndRead(processCode, report) {
     appPath,
     date: exportDate,
     payload: {
+      dataSource: 'tidb.production_reports.approved',
       processes: {
         [processCode]: {
           processName: processCode,
           reports: [{
             id: 1,
+            dataSource: 'production_reports',
+            isApprovedDatabaseRecord: true,
             process_code: processCode,
             worker_code: `TEST-${processCode}`,
             full_name: 'Regression Test',
@@ -41,16 +44,22 @@ async function exportAndRead(processCode, report) {
     }
   });
 
-  assert.equal(result.mode, 'WORKER_REPORT_SINGLE_FILE');
-  assert.equal(result.processes.length, 1, 'v6 must produce one workbook, not a duplicate per process');
-  assert.equal(result.expectedFileCount, 1);
+  assert.equal(result.mode, 'PROCESS_WORKBOOKS');
+  assert.equal(result.processes.length, 10, 'must generate one workbook for each of the ten processes');
+  assert.equal(result.expectedFileCount, 11, 'ten process workbooks plus the monthly summary');
+  assert.ok(result.summary?.buffer, 'monthly summary workbook should also be generated');
+  assert.deepEqual(result.processes.map((item) => item.processCode), PROCESS_CODES);
+
+  const processWorkbook = result.processes.find((item) => item.processCode === processCode);
+  assert.ok(processWorkbook, `a separate ${processCode} workbook should be generated`);
+  assert.equal(processWorkbook.reportCount, 1);
 
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(result.processes[0].buffer));
+  await workbook.xlsx.load(Buffer.from(processWorkbook.buffer));
   const sheet = workbook.worksheets.find((item) => item.state !== 'hidden') || workbook.worksheets[0];
   assert.ok(sheet, 'exported workbook should contain a visible worksheet');
 
-  const cols = result.processes[0].columnContract?.cols || {};
+  const cols = processWorkbook.columnContract?.cols || {};
   const workerCodeColumn = Number(cols.workerCode);
   const productColumn = Number(cols.product);
   assert.ok(workerCodeColumn > 0, 'worker code column should be mapped');
@@ -62,15 +71,31 @@ async function exportAndRead(processCode, report) {
       matchedRow = row;
     }
   });
-  assert.ok(matchedRow, 'exported report row should be present after ExcelJS write/read round-trip');
+  assert.ok(matchedRow, 'report row should appear only in its own process workbook after ExcelJS round-trip');
   return {
     result,
     value: String(matchedRow.getCell(productColumn).value ?? '').trim()
   };
 }
 
-test('v6 includes CVK in its active process list', () => {
-  assert.ok(PROCESS_CODES.includes('CVK'));
+test('export contract creates ten distinct process workbooks plus monthly summary', async () => {
+  const result = await buildWorkerSplit({
+    appPath,
+    date: exportDate,
+    payload: { dataSource: 'tidb.production_reports.approved', processes: {} }
+  });
+  assert.equal(result.mode, 'PROCESS_WORKBOOKS');
+  assert.deepEqual(result.processes.map((item) => item.processCode), PROCESS_CODES);
+  assert.equal(new Set(result.processes.map((item => item.fileName))).size, 10);
+  assert.equal(result.expectedFileCount, 11);
+  assert.ok(result.summary?.buffer);
+});
+
+test('export rejects payloads that are not approved TiDB production reports', async () => {
+  await assert.rejects(
+    buildWorkerSplit({ appPath, date: exportDate, payload: { processes: {} } }),
+    /chỉ được xuất từ production_reports đã duyệt trong TiDB/
+  );
 });
 
 test('CVK exports extra_data.work_type into MSP after ExcelJS buffer round-trip', async () => {

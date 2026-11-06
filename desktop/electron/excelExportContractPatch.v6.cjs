@@ -273,9 +273,9 @@ function hydrateReportDetails(processData) {
   }
 }
 
-// VERSION B: one export = ONE worker-report workbook for the month.
-// All processes' approved reports go into the same sheet (grouped by work
-// date, STT restarting per day); no per-process files, no 00_TONG_HOP.
+// Legacy aggregation helper retained for compatibility with older callers.
+// The active monthly export below deliberately does not use it: each process
+// is built from its own payload and written to its own workbook.
 function mergeProcessData(rows) {
   const merged = { processName: 'Báo cáo công nhân', reports: [], deductionTypes: [], defectTypes: [] };
   const seenDeduction = new Set();
@@ -329,38 +329,36 @@ function mergeProcessData(rows) {
 }
 
 async function buildWorkerSplit({ appPath, date, payload }) {
+  if (!payload || payload.dataSource !== 'tidb.production_reports.approved') {
+    throw new Error('Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
+  }
   const sourceRows = processRows(payload);
-  const activeProcessCodes = sourceRows
-    .filter((item) => Array.isArray(item.data?.reports) && item.data.reports.length > 0)
-    .map((item) => item.processCode);
-  const isGcOnlyExport = activeProcessCodes.length > 0
-    && activeProcessCodes.every((code) => code === 'GC');
-  const exportProcessCode = isGcOnlyExport ? 'GC' : 'ALL';
-  const merged = mergeProcessData(sourceRows);
-  if (!merged.reports.length) {
-    return { mode: 'WORKER_REPORT_SINGLE_FILE', processes: [], summary: null, expectedFileCount: 0 };
+  const processes = [];
+  for (const item of sourceRows) {
+    const processData = item.data || {};
+    hydrateReportDetails(processData);
+    const reports = Array.isArray(processData.reports) ? processData.reports : [];
+    for (const report of reports) {
+      if (report?.dataSource !== 'production_reports' || report?.isApprovedDatabaseRecord !== true) {
+        throw new Error(`Báo cáo ${report?.id || '?'} của ${item.processCode} không phải dữ liệu đã duyệt từ TiDB.`);
+      }
+      report.process_code = report.process_code || item.processCode;
+    }
+    const built = await buildWorkerProcessWorkbook({
+      appPath,
+      processCode: item.processCode,
+      processName: processData.processName || processData.process_name || item.processCode,
+      date,
+      processData
+    });
+    built.processCode = item.processCode;
+    built.processName = processData.processName || processData.process_name || item.processCode;
+    built.reportCount = reports.length;
+    processes.push(built);
   }
-  // Apply the GC-specific header normalization only when this payload contains
-  // GC reports exclusively. A mixed-process workbook must retain its shared layout.
-  const built = await buildWorkerProcessWorkbook({
-    appPath,
-    processCode: exportProcessCode,
-    processName: merged.processName,
-    date,
-    processData: merged
-  });
-  const [year, month] = String(date).slice(0, 7).split('-');
-  // Same file name as the earlier export (and the Gia công mirror expects it).
-  built.fileName = `04_CAT_LONG_${month}-${year}.xlsx`;
-  built.processCode = exportProcessCode;
-  built.processName = merged.processName;
-  if (built.layout !== 'grouped-by-date') {
-    built.buffer = await repairWorkerRows(built.buffer, built, merged);
-    built.repairContract = 'multi-row-header-v1';
-  }
-  return { mode: 'WORKER_REPORT_SINGLE_FILE', processes: [built], summary: null, expectedFileCount: 1 };
+  const summary = await monthly.buildMonthlySummaryWorkbookLocal({ date, payload });
+  return { mode: 'PROCESS_WORKBOOKS', processes, summary, expectedFileCount: processes.length + 1 };
 }
-
 monthly.buildSplitMonthlyWorkbooksLocal = buildWorkerSplit;
 
 function cleanupLegacyMonthlyFilesSource() {
@@ -375,11 +373,7 @@ async function __ktcCleanupLegacyMonthlyLayout(root, date, keepFileNames = []) {
     const removed = [];
     for (const entry of entries) {
       const full = path.join(monthFolder, entry.name);
-      if (entry.isDirectory()) {
-        await fs.rm(full, { recursive: true, force: true });
-        removed.push(entry.name + '/');
-        continue;
-      }
+      if (entry.isDirectory()) continue;
       const lower = entry.name.toLowerCase();
       if (keep.has(lower)) continue;
       const legacySummary = /^00_TONG_HOP_SAN_XUAT_\\d{2}-\\d{4}\\.xlsx$/i.test(entry.name);
@@ -404,7 +398,8 @@ function patchMainSource(source) {
     next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);\n${next}`;
   }
 
-  // Replace the old ten-process validation by an explicit single-file contract.
+  // Keep the legacy single-file branch for compatibility, while the active
+  // PROCESS_WORKBOOKS contract continues through the ten-workbook path.
   const validationStart = next.indexOf('    const expectedProcessCodes = Object.keys(PROCESS_SHEETS);');
   const summaryStart = next.indexOf('    const summaryFilePath = path.join(', validationStart);
   const splitLogStart = next.indexOf("    await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', {", summaryStart);
