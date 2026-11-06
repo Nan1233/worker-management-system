@@ -654,7 +654,10 @@ const machineAutocompleteOptions =
                 force_create: true,
                 duplicate_confirmation_token: duplicatePrompt.confirmationToken,
             });
-            showToast("Đã tạo báo cáo trùng theo xác nhận.", "success");
+            const pendingPayloads = pendingSplitPayloadsRef.current;
+            pendingSplitPayloadsRef.current = [];
+            for (const payload of pendingPayloads) await createTempReport(payload);
+            showToast(pendingPayloads.length ? "Đã xác nhận báo cáo trùng và gửi các báo cáo còn lại." : "Đã tạo báo cáo trùng theo xác nhận.", "success");
             finishDuplicateAction();
         } catch (error: unknown) {
             showToast((error as any)?.response?.data?.message || "Không thể tạo báo cáo.", "error");
@@ -676,7 +679,10 @@ const machineAutocompleteOptions =
         try {
             setSubmitting(true);
             await updateTempReport(duplicatePrompt.reportId, { ...duplicatePrompt.payload, id: duplicatePrompt.reportId });
-            showToast("Đã cập nhật báo cáo hiện có.", "success");
+            const pendingPayloads = pendingSplitPayloadsRef.current;
+            pendingSplitPayloadsRef.current = [];
+            for (const payload of pendingPayloads) await createTempReport(payload);
+            showToast(pendingPayloads.length ? "Đã cập nhật báo cáo trùng và gửi các báo cáo còn lại." : "Đã cập nhật báo cáo hiện có.", "success");
             finishDuplicateAction();
         } catch (error: unknown) {
             showToast((error as any)?.response?.data?.message || "Không thể cập nhật báo cáo.", "error");
