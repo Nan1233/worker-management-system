@@ -577,6 +577,60 @@ module.exports = {
         );
     },
 
+    // Batch machine-line persistence across all child reports in one MAI/GC submission.
+    // temp_report_id is carried per row so multiple reports can share one INSERT safely.
+    async replaceMachineLinesBatch(reportGroups = [], executor = db) {
+        const lineRows = [];
+        const defectRows = [];
+        for (const group of (Array.isArray(reportGroups) ? reportGroups : [])) {
+            const reportId = Number(group?.tempReportId);
+            const machineLines = Array.isArray(group?.machineLines) ? group.machineLines : [];
+            if (!Number.isInteger(reportId) || reportId <= 0) continue;
+            for (let index = 0; index < Math.min(machineLines.length, 4); index += 1) {
+                const line = machineLines[index] || {};
+                lineRows.push([
+                    reportId, Number(line.machine_event_id) || null, Number(line.machine_id) || null,
+                    String(line.machine_code || "").trim(), Number(line.product_standard_id) || null,
+                    Number(line.standard_version_id) || null, Number(line.machine_standard_id) || null,
+                    String(line.product_code || "").trim(), Number(line.machine_time_hours) || 0,
+                    Number(line.standard_output) || 0, Number(line.standard_time_seconds) || null,
+                    storedStandardSource(line.standard_source),
+                    Math.max(0, Math.trunc(Number(line.ok_quantity) || 0)),
+                    Math.max(0, Math.trunc(Number(line.ng_quantity) || 0)),
+                    Number(line.maximum_output) || 0, Number(line.deduction_time_hours) || 0,
+                    JSON.stringify(Array.isArray(line.deductions) ? line.deductions : []),
+                    Number(line.counted_output) || 0, Number(line.earned_standard_hours) || 0,
+                    JSON.stringify(Array.isArray(line.defects) ? line.defects : []), index + 1
+                ]);
+                for (const item of (Array.isArray(line.defects) ? line.defects : [])) {
+                    const quantity = Math.trunc(Number(item?.quantity) || 0);
+                    if (quantity <= 0) continue;
+                    defectRows.push([
+                        reportId, index + 1, Number(item?.defect_type_id) || null,
+                        String(item?.defect_code || "").trim() || null,
+                        String(item?.defect_name || "").trim() || null, quantity
+                    ]);
+                }
+            }
+        }
+        if (!lineRows.length) return;
+        await query(executor, `INSERT INTO production_temp_machine_lines
+            (temp_report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
+             machine_time_hours, standard_output, standard_time_seconds, standard_source,
+             ok_quantity, ng_quantity, maximum_output, deduction_time_hours, deductions_json, counted_output, earned_standard_hours,
+             defects_json, sort_order)
+            VALUES ${lineRows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`, lineRows.flat());
+        if (!defectRows.length) return;
+        await query(executor,
+            `INSERT INTO production_temp_machine_defects
+             (machine_line_id, defect_type_id, defect_code, defect_name, quantity)
+             SELECT ml.id, v.defect_type_id, v.defect_code, v.defect_name, v.quantity
+               FROM production_temp_machine_lines ml
+               JOIN (${defectRows.map(() => "SELECT ? AS temp_report_id, ? AS sort_order, ? AS defect_type_id, ? AS defect_code, ? AS defect_name, ? AS quantity").join(" UNION ALL ")}) v
+                 ON v.temp_report_id = ml.temp_report_id AND v.sort_order = ml.sort_order
+        `, defectRows.flat());
+    },
+
     async createCompleteReport(...args) {
         return require("../services/productionTempSubmissionService").createCompleteReport(...args);
     },
