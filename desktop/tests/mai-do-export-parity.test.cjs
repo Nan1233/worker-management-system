@@ -33,7 +33,8 @@ function styleSnapshot(sheet, maxRow = 12, maxColumn = 49) {
 
 
 async function readRawWorkbook(fileOrBuffer) {
-  const zip = await JSZip.loadAsync(fileOrBuffer);
+  const input = typeof fileOrBuffer === 'string' ? fs.readFileSync(fileOrBuffer) : fileOrBuffer;
+  const zip = await JSZip.loadAsync(input);
   const workbookXml = await zip.file('xl/workbook.xml').async('string');
   const relsXml = await zip.file('xl/_rels/workbook.xml.rels').async('string');
   const relTargets = {};
