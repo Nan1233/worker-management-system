@@ -568,6 +568,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                         groupedChildren.map((item) => item.childData),
                         parentConnection
                     );
+                    const machineLineGroups = [];
                     for (let index = 0; index < groupedChildren.length; index += 1) {
                         const { childLines, childData } = groupedChildren[index];
                         tempId = groupedIds[index];
@@ -576,8 +577,11 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                         validateChildTotals(childData, resolved.defects, resolved.deductions);
                         await createModel.createDefects(tempId, data.process_id, resolved.defects, parentConnection);
                         await createModel.createDeductions(tempId, data.process_id, resolved.deductions, parentConnection);
-                        await createModel.replaceMachineLines(tempId, childLines, parentConnection, { isNewReport: true });
+                        machineLineGroups.push({ tempReportId: tempId, machineLines: childLines });
                     }
+                    // Persist every MAI machine/product line in one multi-row INSERT,
+                    // rather than spending one TiDB subrequest per child report.
+                    await createModel.replaceMachineLinesBatch(machineLineGroups, parentConnection);
                 } else {
                     tempId = await createModel.create(data, parentConnection);
                     createdIds.push(Number(tempId));
