@@ -105,7 +105,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isRetryableRead(sql, error) {
   const statement = String(sql || "").trim().toUpperCase();
-  if (!/^(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\\b/.test(statement)) return false;
+  if (!/^(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\b/.test(statement)) return false;
   const status = Number(error?.status ?? error?.statusCode ?? error?.cause?.status ?? error?.cause?.statusCode);
   const code = String(error?.code ?? error?.cause?.code ?? "").toUpperCase();
   const message = getErrorDetail(error).toLowerCase();
@@ -217,8 +217,6 @@ function createCloudflareConnection() {
   async function executeRaw(sql, params = []) {
     if (closed) throw new Error("Database connection đã được đóng");
     try {
-      // TiDB Serverless HTTP execution accepts DQL/DML/DDL, not transaction-control SQL.
-      // Transactions are handled through beginTransaction/commit/rollback below.
       const control = String(sql || "").trim().replace(/;\s*$/, "").toUpperCase();
       if (["START TRANSACTION", "BEGIN", "COMMIT", "ROLLBACK"].includes(control)) {
         return { rowsAffected: 0, lastInsertId: 0 };
@@ -226,7 +224,22 @@ function createCloudflareConnection() {
       const notificationNormalized = normalizeNotificationBackfillQuery(sql, params);
       const normalized = normalizeApprovedMachineEventQuery(notificationNormalized.sql, notificationNormalized.params);
       const client = transaction || conn;
-      return await client.execute(normalized.sql, normalized.params, { fullResult: true });
+      // Replay only idempotent reads after transient TiDB/HTTP failures.
+      // Writes and transaction statements are never blindly retried.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          return await client.execute(normalized.sql, normalized.params, { fullResult: true });
+        } catch (error) {
+          if (attempt >= 2 || transaction || !isRetryableRead(sql, error)) throw error;
+          console.warn("[KTC][DB] retrying transient TiDB read", JSON.stringify({
+            attempt: attempt + 1,
+            status: error?.status ?? error?.statusCode ?? error?.cause?.status ?? error?.cause?.statusCode ?? null,
+            code: error?.code ?? error?.cause?.code ?? null,
+            sql: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 240),
+          }));
+          await sleep(150 * (attempt + 1));
+        }
+      }
     } catch (error) {
       throw wrapCloudflareError(error, sql);
     }
