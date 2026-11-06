@@ -40,35 +40,58 @@ exports.checkSimilarReport = async (req, res) => {
             return res.status(422).json({ success: false, message: workDateError });
         }
 
-        const masterValidation = await validateMasterData({
-            workerId,
-            processId,
-            machineNo,
-            productName,
-            defects: [],
-            deductions: [],
-            workDate,
-            operationMode,
-            operationType: normalizeOperationType(req.body?.operation_type),
-            workType
-        });
+        const submittedLines = Array.isArray(req.body?.machine_lines) ? req.body.machine_lines : [];
+        const isMaiMachineGroup = Number(processId) === 2
+            && submittedLines.length > 1
+            && operationMode === "MACHINE";
 
-        if (!masterValidation.valid) {
-            return res.status(422).json({
-                success: false,
-                message: "Máy hoặc sản phẩm không khớp danh mục hệ thống",
-                errors: masterValidation.errors
+        let report = null;
+        if (isMaiMachineGroup) {
+            // Mài multi-machine payloads carry a display-only comma-separated parent product_name.
+            // Resolve each actual machine/product pair independently; never ask the standard resolver
+            // to find one historical standard for the aggregate display string.
+            for (const [index, line] of submittedLines.entries()) {
+                const lineMachine = String(line?.machine_code || "").trim();
+                const lineProduct = String(line?.product_code || "").trim();
+                const masterValidation = await validateMasterData({
+                    workerId, processId, machineNo: lineMachine, productName: lineProduct,
+                    defects: [], deductions: [], workDate, operationMode: "MACHINE",
+                    operationType: normalizeOperationType(req.body?.operation_type), workType
+                });
+                if (!masterValidation.valid) {
+                    return res.status(422).json({
+                        success: false,
+                        code: "MAI_MACHINE_LINE_MASTER_INVALID",
+                        message: `Máy/sản phẩm ở dòng ${index + 1} không hợp lệ`,
+                        errors: { machine_code: lineMachine, product_code: lineProduct, ...masterValidation.errors }
+                    });
+                }
+                const duplicate = await ProductionTemp.findSimilarReport({
+                    workerId, processId, workDate, shift,
+                    machineNo: masterValidation.machineCode,
+                    productName: masterValidation.productCode
+                });
+                if (duplicate && !report) report = duplicate;
+            }
+        } else {
+            const masterValidation = await validateMasterData({
+                workerId, processId, machineNo, productName, defects: [], deductions: [],
+                workDate, operationMode,
+                operationType: normalizeOperationType(req.body?.operation_type), workType
+            });
+            if (!masterValidation.valid) {
+                return res.status(422).json({
+                    success: false,
+                    message: "Máy hoặc sản phẩm không khớp danh mục hệ thống",
+                    errors: masterValidation.errors
+                });
+            }
+            report = await ProductionTemp.findSimilarReport({
+                workerId, processId, workDate, shift,
+                machineNo: masterValidation.machineCode,
+                productName: masterValidation.productCode
             });
         }
-
-        const report = await ProductionTemp.findSimilarReport({
-            workerId,
-            processId,
-            workDate,
-            shift,
-            machineNo: masterValidation.machineCode,
-            productName: masterValidation.productCode
-        });
 
         return res.status(200).json({
             success: true,
