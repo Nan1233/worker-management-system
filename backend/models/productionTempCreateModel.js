@@ -355,6 +355,36 @@ module.exports = {
         return rows[0] || null;
     },
 
+    async createDefectsBatch(groups = [], executor = db) {
+        const values = [];
+        for (const group of (Array.isArray(groups) ? groups : [])) {
+            const reportId = Number(group?.tempReportId);
+            if (!Number.isInteger(reportId) || reportId <= 0) continue;
+            for (const item of (Array.isArray(group?.items) ? group.items : [])) {
+                const quantity = Math.trunc(Number(item?.quantity) || 0);
+                const typeId = Number(item?.defect_type_id) || 0;
+                if (typeId > 0 && quantity > 0) values.push([reportId, typeId, quantity]);
+            }
+        }
+        if (!values.length) return;
+        await query(executor, `INSERT INTO production_temp_defects (temp_report_id, defect_type_id, quantity) VALUES ${values.map(() => "(?, ?, ?)").join(", ")}`, values.flat());
+    },
+
+    async createDeductionsBatch(groups = [], executor = db) {
+        const values = [];
+        for (const group of (Array.isArray(groups) ? groups : [])) {
+            const reportId = Number(group?.tempReportId);
+            if (!Number.isInteger(reportId) || reportId <= 0) continue;
+            for (const item of (Array.isArray(group?.items) ? group.items : [])) {
+                const hours = Number(item?.hours) || 0;
+                const typeId = Number(item?.deduction_type_id) || 0;
+                if (typeId > 0 && hours > 0) values.push([reportId, typeId, hours]);
+            }
+        }
+        if (!values.length) return;
+        await query(executor, `INSERT INTO production_temp_deductions (temp_report_id, deduction_type_id, hours) VALUES ${values.map(() => "(?, ?, ?)").join(", ")}`, values.flat());
+    },
+
     async createDefects(tempReportId, processId, defects, executor = db) {
         if (!Array.isArray(defects) || defects.length === 0) return;
 
