@@ -36,13 +36,13 @@ function styleSnapshot(sheet, maxRow = 12, maxColumn = 49) {
 async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
   const zip = await JSZip.loadAsync(inputBuffer);
   for (const relationshipPath of Object.keys(zip.files).filter((name) => name.endsWith('.rels'))) {
-    const match = /^(.*)\\/_rels\\/([^/]+)\\.rels$/.exec(relationshipPath);
+    const match = /^(.*)\/_rels\/([^/]+)\.rels$/.exec(relationshipPath);
     const sourcePart = relationshipPath === '_rels/.rels' ? '' : (match ? `${match[1]}/${match[2]}` : '');
     const sourceDirectory = path.posix.dirname(sourcePart);
     const xml = await zip.file(relationshipPath).async('string');
     const normalized = xml.replace(/Target="([^"]+)"/g, (whole, target) => {
       if (!target.startsWith('/')) return whole;
-      const absoluteTarget = target.replace(/^\\/+/, '').split(/[?#]/, 1)[0];
+      const absoluteTarget = target.replace(/^\/+/, '').split(/[?#]/, 1)[0];
       const relativeTarget = sourceDirectory === '.' ? absoluteTarget : path.posix.relative(sourceDirectory, absoluteTarget);
       return `Target="${relativeTarget}${target.slice(absoluteTarget.length + 1)}"`;
     });
