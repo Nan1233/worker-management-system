@@ -627,7 +627,10 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                         const resolved = preResolvedChildren[index];
                         defectGroups.push({ tempReportId: tempId, items: resolved.defects });
                         deductionGroups.push({ tempReportId: tempId, items: resolved.deductions });
-                        machineLineGroups.push({ tempReportId: tempId, machineLines: childLines });
+                        // Persist one detail row for each grouped machine+product pair.
+                        // The grouped line already contains summed quantities/time and merged
+                        // NG/deduction details from every duplicate input row.
+                        machineLineGroups.push({ tempReportId: tempId, machineLines: [groupedChildren[index].childData ? reportMachineLines[index] : childLines[0]] });
                     }
                     await createModel.createDefectsBatch(defectGroups, parentConnection);
                     await createModel.createDeductionsBatch(deductionGroups, parentConnection);
