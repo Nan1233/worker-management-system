@@ -392,7 +392,8 @@ const groupMaiMachineProductLines = (machineLines) => {
     const groups = new Map();
     const additiveFields = [
         "machine_time_hours", "actual_time_hours", "deduction_time_hours",
-        "standard_output", "counted_output", "ok_quantity", "ng_quantity"
+        "standard_output", "counted_output", "maximum_output", "earned_standard_hours",
+        "ok_quantity", "ng_quantity"
     ];
     for (const line of Array.isArray(machineLines) ? machineLines : []) {
         const machine = String(line?.machine_code || "").trim().toUpperCase();
