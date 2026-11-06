@@ -10,7 +10,7 @@ const GC_SHARED_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
 // - Các công đoạn khác giữ capacity theo DB, mặc định 1 người/máy.
 const MULTI_MACHINE_PROCESS_CODES = new Set(["GC", "MAI"]);
 const MAX_MACHINES_PER_WORKER = 4;
-const MAX_MAI_MACHINES_PER_WORKER = 10;
+const MAX_MAI_MACHINES_PER_WORKER = 6;
 const getMaxMachinesPerWorker = (code) => String(code || "").trim().toUpperCase() === "MAI" ? MAX_MAI_MACHINES_PER_WORKER : MAX_MACHINES_PER_WORKER;
 const DEFAULT_SHARED_WORKERS_PER_MACHINE = 4;
 
