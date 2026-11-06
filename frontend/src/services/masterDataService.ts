@@ -74,6 +74,17 @@ export interface ResolvedProductStandard {
 
 const processProductCache = new Map<number, { expiresAt: number; codes: Set<string> }>();
 
+const refreshProcessProductRows = async (processId: number): Promise<ProductStandardOption[]> => {
+    // A product standard may be added/activated outside this browser session.
+    // Bypass the short-lived client cache once before reporting that it is missing.
+    processProductRowsCache.delete(Number(processId));
+    const response = await api.get("/product-standards", { params: { process_id: processId } });
+    const payload = response.data?.data ?? response.data;
+    const rows = Array.isArray(payload) ? payload as ProductStandardOption[] : [];
+    processProductRowsCache.set(Number(processId), { expiresAt: Date.now() + PROCESS_PRODUCT_CACHE_TTL_MS, rows });
+    return rows;
+};
+
 const getCachedProcessProductRows = async (processId: number): Promise<ProductStandardOption[]> => {
     const now = Date.now();
     const rowsCache = processProductRowsCache.get(Number(processId));
@@ -182,7 +193,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
         };
     }
 
-    const rows = await getCachedProcessProductRows(processId);
+    let rows = await getCachedProcessProductRows(processId);
     const automaticVariant = await getAutomaticProductVariant(processId, normalizedMachine, normalizedProduct, rows);
     const lookupProduct = automaticVariant?.product_code ? String(automaticVariant.product_code).trim() : normalizedProduct;
     const productExistsInProcess = await hasExactProcessProduct(processId, normalizedProduct, normalizedMachine);
@@ -191,7 +202,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     const machineWorkType = normalizedMachine && Number(processId) === 1
         ? gcWorkTypeOfMachine(await getMachinesByProcess(processId).catch(() => []), normalizedMachine)
         : null;
-    const localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct, machineWorkType);
+    let localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct, machineWorkType);
 
     // Business rule:
     // 1) TAY/MANUAL: resolve by product code only; machine is ignored.
@@ -207,7 +218,27 @@ export const resolveProductStandard = async (processId: number, machineCode: str
             : candidates.length === 1
                 ? candidates[0]
                 : undefined;
-        if (!product) throw new Error(`Không xác định duy nhất định mức sản phẩm ${normalizedProduct} trong công đoạn`);
+        if (!product) {
+            // The server/client master-data cache can lag behind a newly activated
+            // DB standard. Refresh once before treating a valid product as missing.
+            rows = await refreshProcessProductRows(processId);
+            const refreshedCandidates = rows.filter((row) =>
+                String(row?.product_code || "").trim().toUpperCase() === normalizedProduct.toUpperCase()
+                || String(row?.product_code || "").trim().toUpperCase() === canonicalProduct.toUpperCase()
+            );
+            const refreshedPositive = refreshedCandidates.filter((row) =>
+                Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0
+            );
+            const refreshedProduct = refreshedPositive.length > 0
+                ? refreshedPositive.slice().sort((a, b) =>
+                    Number(b.standard_output) - Number(a.standard_output) || Number(a.id) - Number(b.id)
+                )[0]
+                : refreshedCandidates.length === 1 ? refreshedCandidates[0] : undefined;
+            if (!refreshedProduct) {
+                throw new Error(`Không xác định duy nhất định mức sản phẩm ${normalizedProduct} trong công đoạn`);
+            }
+            return toLocalResolvedStandard(refreshedProduct, processId, "", normalizedProduct);
+        }
         return toLocalResolvedStandard(product, processId, "", normalizedProduct);
     }
 
@@ -228,6 +259,16 @@ export const resolveProductStandard = async (processId: number, machineCode: str
         // Machine-specific standard is optional. If it is absent or zero, use the
         // product/process standard for the machine's inferred Cắt/Lồng type.
         if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
+
+        // If the cached product list was stale, re-read it before failing a machine
+        // lookup. Mài permits machine-optional reporting, so its process-level
+        // standard remains a valid fallback even when an old/invalid machine code
+        // is present in a saved draft.
+        rows = await refreshProcessProductRows(processId);
+        localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct, machineWorkType)
+            || findPositiveLocalStandard(rows, normalizedProduct.toUpperCase(), normalizedProduct, null);
+        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
+
         if (!productExistsInProcess) {
             throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn và không có định mức máy/phương án fallback`, { cause: error });
         }
