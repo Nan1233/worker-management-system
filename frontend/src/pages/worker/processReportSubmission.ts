@@ -228,3 +228,36 @@ export function buildProductionReportPayload(args: {
     note:args.form.note||"", extra_data:{...args.extraData, ...(isCvk && cvkWorkType ? { work_type: cvkWorkType, non_product_work: true, process_code: "CVK" } : {}), ...(isNonProductWorkWithinProcess ? { work_type: cvkWorkType || "CÔNG VIỆC KHÁC", non_product_work: true, parent_process_id: effectiveProcessId, process_code: args.processCode || args.extraData?.process_code } : {}), ...(Number(args.processId) === 4 && String(args.form.k1DeductionWork || "").trim() ? { k1_deduction_work: String(args.form.k1DeductionWork).trim() } : {}), adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod}, defects:(isCvk || isNonProductWorkWithinProcess || noStandardLongWork) ? [] : (isMaiWithoutMachine ? maiNoMachineDefects : defects), deductions:isMachineLineAccounting && !isMaiWithoutMachine ? [] : (isMaiWithoutMachine ? maiNoMachineDeductions : deductions), machine_lines:(isCvk || isNonProductWorkWithinProcess || isMaiWithoutMachine) ? [] : (useMachineLinesPayload?lines:[]), client_request_id:args.clientRequestId||undefined
   } as ProductionReport;
 }
+
+/**
+ * MAI may contain product runs done on a machine and product runs done by hand
+ * in the same form. They are separate production reports, not partially-filled
+ * machine lines in one MACHINE report.
+ */
+export function buildProductionReportPayloads(args: Parameters<typeof buildProductionReportPayload>[0]): ProductionReport[] {
+  const isMai = String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase() === "MAI";
+  const completedLines = args.machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim());
+  const machineLines = completedLines.filter((line) => Boolean(line.machineCode.trim()));
+  const manualLines = completedLines.filter((line) => !line.machineCode.trim() && Boolean(line.productCode.trim()));
+
+  if (!isMai || machineLines.length === 0 || manualLines.length === 0) {
+    return [buildProductionReportPayload(args)];
+  }
+
+  const baseRequestId = String(args.clientRequestId || "").trim();
+  const machinePayload = buildProductionReportPayload({
+    ...args,
+    clientRequestId: baseRequestId ? `${baseRequestId}-M` : null,
+    machineLines,
+  });
+  const manualPayload = buildProductionReportPayload({
+    ...args,
+    clientRequestId: baseRequestId ? `${baseRequestId}-H` : null,
+    machineLines: manualLines,
+    usesAnyMachine: false,
+    usesMultiMachineLines: false,
+    usesSingleMachine: false,
+  });
+
+  return [machinePayload, manualPayload];
+}
