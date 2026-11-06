@@ -147,7 +147,10 @@ const validateFactoryMachineRules = async ({
 
   if (MULTI_MACHINE_PROCESS_CODES.has(code)) {
     const maxMachines = getMaxMachinesPerWorker(code);
-    if (lines.length > maxMachines) {
+    const uniqueMachineCount = new Set(lines.map((line) =>
+      String(line?.machine_code || "").trim().toUpperCase()
+    ).filter(Boolean)).size;
+    if (uniqueMachineCount > maxMachines) {
       errors.machine_lines =
         `Công đoạn ${code} chỉ cho phép một công nhân chạy tối đa ${maxMachines} máy cùng lúc.`;
     }
