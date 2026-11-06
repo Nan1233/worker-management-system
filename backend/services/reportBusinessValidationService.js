@@ -55,6 +55,9 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     ]);
 
     const processCode = normalizeText(processRows?.[0]?.process_code).toUpperCase();
+    // Process ID 2 is the canonical MAI identity. Keep the manual multi-product
+    // resolver independent from optional/legacy process_code values in the DB row.
+    const isMaiProcess = Number(processId) === 2 || processCode === "MAI";
     const isStandaloneNonProductProcess = Number(processId) === 60006 || Number(processId) === 30002 || processCode === "CVK";
     const isNonProductWork = isStandaloneNonProductProcess || nonProductWork === true;
     const canonicalDefectsById = new Map(validDefectRows.map((row) => [Number(row.id), row]));
@@ -90,12 +93,12 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
         standardOutput = 0;
     } else if (!normalizedProductName) {
         errors.product_name = "Vui lòng chọn sản phẩm trong danh mục";
-    } else if (!products.length || (processCode === "MAI" && !normalizedMachineNo && requestedProductCodes.length > 1
+    } else if (!products.length || (isMaiProcess && !normalizedMachineNo && requestedProductCodes.length > 1
         && requestedProductCodes.some((code) => !products.some((row) => String(row.product_code || "").trim().toUpperCase() === code.toUpperCase())))) {
         errors.product_name = "Một hoặc nhiều sản phẩm không tồn tại hoặc không thuộc công đoạn đã chọn";
     } else {
         const normalizedOperationMode = String(operationMode || (normalizedMachineNo ? "MACHINE" : "MANUAL")).toUpperCase();
-        const isMaiManualMultiProduct = processCode === "MAI" && !normalizedMachineNo && requestedProductCodes.length > 1;
+        const isMaiManualMultiProduct = isMaiProcess && !normalizedMachineNo && requestedProductCodes.length > 1;
 
         if (isMaiManualMultiProduct) {
             const resolvedProducts = await Promise.all(requestedProductCodes.map((code) => resolveStandard({
