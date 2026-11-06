@@ -662,7 +662,7 @@ async function syncProcessReportsFirst({ date, files, processes, companyData }) 
       }
       continue;
     }
-    const reportGroup = code === 'GC' ? 'GC' : 'MAI_DO';
+    const reportGroup = code;
     if (completedReportGroups.has(reportGroup)) {
       await writeLog('INFO', 'PROCESS_REPORT_GROUP_ALREADY_BUILT', {
         date, processCode: code, reportGroup
@@ -672,7 +672,7 @@ async function syncProcessReportsFirst({ date, files, processes, companyData }) 
 
     // Luôn dựng file báo cáo mẫu đúng tháng, kể cả chưa có dữ liệu đã duyệt.
     // buildProcessExcelLocal sẽ làm sạch vùng dữ liệu và giữ nguyên template/công thức.
-    // Nhờ đó một lần cập nhật luôn tạo đủ Báo cáo công đoạn + hai file A+B.
+    // Nhờ đó mỗi công đoạn có báo cáo mẫu riêng; Mài và Đo không bị gộp.
     if (reportCount <= 0) {
       await writeLog('INFO', 'PROCESS_EXCEL_BUILD_EMPTY_PERIOD', {
         date,
