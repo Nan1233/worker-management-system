@@ -78,11 +78,40 @@ function getErrorDetail(error) {
   if (typeof error === "string") return error;
   const message = typeof error.message === "string" ? error.message.trim() : "";
   if (message) return message;
+  // The TiDB Serverless driver can throw Response-like objects without a
+  // message. Extract only diagnostic fields; never serialize headers/URLs
+  // that could contain credentials.
+  const diagnostic = {};
+  for (const key of ["name", "status", "statusCode", "code", "errno", "sqlState", "cause"]) {
+    const value = error[key];
+    if (value == null) continue;
+    diagnostic[key] = key === "cause"
+      ? (typeof value === "string" ? value : {
+          name: value.name || null,
+          message: value.message || null,
+          status: value.status ?? value.statusCode ?? null,
+          code: value.code ?? null,
+        })
+      : value;
+  }
   try {
-    const serialized = JSON.stringify(error);
+    const serialized = JSON.stringify(diagnostic);
     if (serialized && serialized !== "{}") return serialized;
   } catch {}
   return String(error);
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isRetryableRead(sql, error) {
+  const statement = String(sql || "").trim().toUpperCase();
+  if (!/^(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\\b/.test(statement)) return false;
+  const status = Number(error?.status ?? error?.statusCode ?? error?.cause?.status ?? error?.cause?.statusCode);
+  const code = String(error?.code ?? error?.cause?.code ?? "").toUpperCase();
+  const message = getErrorDetail(error).toLowerCase();
+  return [408, 425, 429, 500, 502, 503, 504, 520, 522, 524].includes(status)
+    || ["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "ENETUNREACH", "UND_ERR_CONNECT_TIMEOUT"].includes(code)
+    || /network|fetch failed|connection reset|temporarily unavailable|timeout/.test(message);
 }
 
 function wrapCloudflareError(error, sql) {
