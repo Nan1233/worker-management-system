@@ -5,6 +5,7 @@ import { getReportById, updateReport, updateTempReport } from "../../services/pr
 import { resolveProductStandard } from "../../services/masterDataService";
 import type { ProductionReport } from "../../types/production";
 import { getStoredUser } from "../../utils/authStorage";
+import { getCanonicalProcessId } from "../../utils/processAccess";
 import { getProcessCapabilities, usesMultiMachineLines as resolveMultiMachine, usesSingleMachine as resolveSingleMachine } from "./processPageDomain";
 import { getWorkerDeclaredDefects } from "../../utils/workerDeclaredDefects";
 import { detectIncompleteMachineData } from "../../utils/machineLinesIntegrity";
@@ -74,8 +75,7 @@ function WorkerReportEditV2() {
 
   const process = slug(report?.process_code);
   const capabilities = useMemo(() => getProcessCapabilities(process), [process]);
-  const PROCESS_ID_BY_CODE: Record<string, number> = { GC: 1, MAI: 2, DO: 3, K1: 4, K2: 5, CAN: 8, EP: 7, XLBV: 6, SX3: 9, CVK: 60006 };
-  const processId = Number(report?.process_id) > 0 ? Number(report.process_id) : (PROCESS_ID_BY_CODE[capabilities.processCode] || 0);
+  const processId = getCanonicalProcessId(Number(report?.process_id) || 0, capabilities.processCode);
   const { machineOptions, productOptions, activeNgOptions, activeDeductionOptions, loadingMasterData: masterLoading } = useProcessMasterData(processId, capabilities.processCode);
   useEffect(() => setLoadingMasterData(masterLoading), [masterLoading]);
 
