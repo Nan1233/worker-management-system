@@ -174,7 +174,9 @@ const setCell = (row, column, value, format) => {
   if (!column) return;
   const cell = row.getCell(column);
   cell.value = value;
-  if (format) cell.numFmt = format;
+  // Prefer the number format authored in the source template. The fallback
+  // format is applied only to genuinely unformatted cells.
+  if (format && (!cell.numFmt || cell.numFmt === 'General')) cell.numFmt = format;
 };
 
 const uniqueBy = (items, keyFn) => {
@@ -520,15 +522,21 @@ function assertWorkbookPeriod(workbook, year, month) {
 
 function clearReportRow(row, lastColumn) {
   for (let column = 1; column <= lastColumn; column += 1) {
-    row.getCell(column).value = null;
+    const cell = row.getCell(column);
+    const value = cell.value;
+    // Template formulas (including shared/array formulas) are part of the
+    // original workbook contract. Clear only input cells; never erase formulas.
+    if (value && typeof value === 'object' &&
+        (typeof value.formula === 'string' || typeof value.sharedFormula === 'string' ||
+         typeof value.ref === 'string' && value.shareType === 'array')) continue;
+    cell.value = null;
   }
 }
 
 function clearBlock(sheet, block, layout) {
   for (let rowNumber = block.startRow; rowNumber <= block.endRow; rowNumber += 1) {
-    const row = sheet.getRow(rowNumber);
-    clearReportRow(row, layout.lastReportColumn);
-    row.hidden = true;
+    // Keep the template's original row visibility and formatting unchanged.
+    clearReportRow(sheet.getRow(rowNumber), layout.lastReportColumn);
   }
 }
 
@@ -991,15 +999,38 @@ async function buildProcessExcelLocal({ appPath, date, processCode, payload }) {
     path.resolve(__dirname, '..', 'assets', 'templates', config.template),
     path.resolve(__dirname, '..', '..', 'backend', 'templates', config.template)
   ].filter(Boolean);
-  const templatePath = templateCandidates.find((candidate) => fs.existsSync(candidate));
-  if (!templatePath) {
+  const existingCandidates = [...new Set(templateCandidates)].filter((candidate) => fs.existsSync(candidate));
+  if (!existingCandidates.length) {
     throw new Error(`Không tìm thấy file báo cáo mẫu ${config.template}. Đã kiểm tra: ${templateCandidates.join(' | ')}`);
   }
 
-  assertDistinctMaiDoTemplates(templatePath, config);
+  // A stale packaged copy can have the same filename but be a completely
+  // different workbook. Accept a candidate only if its required process sheet
+  // and date-block structure match the selected process layout.
+  let templatePath = '';
+  let workbook = null;
+  const rejectedCandidates = [];
+  for (const candidate of existingCandidates) {
+    try {
+      const candidateWorkbook = new ExcelJS.Workbook();
+      await candidateWorkbook.xlsx.readFile(candidate);
+      const candidateSheet = candidateWorkbook.getWorksheet(config.sheets[0].sheetName);
+      if (!candidateSheet) throw new Error(`thiếu sheet ${config.sheets[0].sheetName}`);
+      const candidateLayout = LAYOUTS[config.sheets[0].layout];
+      const candidateBlocks = findBlocks(candidateSheet, candidateLayout);
+      if (!candidateBlocks.length) throw new Error('không nhận diện được vùng dữ liệu');
+      templatePath = candidate;
+      workbook = candidateWorkbook;
+      break;
+    } catch (error) {
+      rejectedCandidates.push(`${candidate}: ${error.message}`);
+    }
+  }
+  if (!workbook || !templatePath) {
+    throw new Error(`Không tìm được template ${config.template} đúng cấu trúc ${config.sheets[0].sheetName}. ${rejectedCandidates.join(' | ')}`);
+  }
 
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(templatePath);
+  assertDistinctMaiDoTemplates(templatePath, config);
   materializeSharedFormulas(workbook);
   const periodReplacementCount = updateWorkbookPeriod(workbook, year, month);
   workbook.calcProperties.fullCalcOnLoad = true;
@@ -1037,15 +1068,8 @@ async function buildProcessExcelLocal({ appPath, date, processCode, payload }) {
   meta.getCell('A7').value = 'PROCESS_GROUP';
   meta.getCell('B7').value = config.key;
 
-  // Each production process exports its own workbook. Keep the matching
-  // source sheet visible and preserve the other original sheet as hidden
-  // support/template content instead of combining Mài and Đo into one file.
-  const targetSheetNames = new Set(config.sheets.map((item) => item.sheetName));
-  for (const sheet of workbook.worksheets) {
-    if (sheet.name === '_KTC_META') continue;
-    if (!targetSheetNames.has(sheet.name)) sheet.state = 'hidden';
-    else sheet.state = 'visible';
-  }
+  // Preserve every source worksheet's original visibility/state. Only the
+  // matching process sheet receives data; do not mutate the workbook structure.
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return {
     buffer,
