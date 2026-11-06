@@ -390,7 +390,20 @@ function patchMainSource(source) {
       }
     }
 
-    if (!isWorkerSingleFile) {
+    if (isWorkerSingleFile) {
+      for (const processBuilt of built.processes || []) {
+        const filePath = path.join(folder, safeFileName(processBuilt.fileName, `BAO_CAO_CONG_NHAN_${month}-${year}.xlsx`));
+        const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date);
+        files.push({
+          category: 'MONTHLY_PROCESS', processId: -1, processCode: processBuilt.processCode || 'ALL',
+          processName: processBuilt.processName || 'Báo cáo công nhân', fileName: path.basename(filePath),
+          filePath, folder, size: processBuilt.buffer.length, saved: writeResult.saved,
+          pendingPath: writeResult.pendingPath, backupPath: writeResult.backupPath,
+          success: writeResult.saved === true, source: 'desktop-local', reportCount: processBuilt.reportCount
+        });
+        await writeLog('INFO', 'MONTHLY_WORKER_TEMPLATE_UPDATED', { date, filePath, saved: writeResult.saved, pendingPath: writeResult.pendingPath || null });
+      }
+    } else {
     // File tổng hợp:`);
   next = next.replace(/\n\s*const processFolder = path\.join\(folder, safeFolderName\(processBuilt\.processName \|\| processBuilt\.processCode\)\);\n\s*await fs\.mkdir\(processFolder, \{ recursive: true \}\);/g, '');
   next = next.replace(/path\.join\(\s*processFolder,\s*/g, 'path.join(\n        folder,\n        ');
