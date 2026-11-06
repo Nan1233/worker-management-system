@@ -20,9 +20,11 @@ const enforceDailyHoursLocked = async (executor, data) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
-    await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
-    // The facade may validate a complete multi-machine GC/Mài submission once, then persist its child reports atomically. Keep the worker lock but avoid counting the same group repeatedly.
+    // A grouped GC/Mài submission enforces the daily-hours limit on its first child
+    // while holding the worker row lock. Later children are in the same transaction:
+    // they must not reacquire the same lock or repeat the daily-hours read.
     if (data?._skip_daily_hours_enforcement === true) return;
+    await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
     // createCompleteReport already read processes.process_code inside this transaction; reuse it.
     const processRows = data?._resolved_process_code !== undefined
         ? [{ process_code: data._resolved_process_code }]
