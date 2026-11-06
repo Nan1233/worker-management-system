@@ -37,13 +37,13 @@ async function readRawWorkbook(fileOrBuffer) {
   const workbookXml = await zip.file('xl/workbook.xml').async('string');
   const relsXml = await zip.file('xl/_rels/workbook.xml.rels').async('string');
   const relTargets = {};
-  for (const match of relsXml.matchAll(/<Relationship\\b([^>]*)\\/?>/g)) {
-    const attrs = Object.fromEntries([...match[1].matchAll(/([\\w:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
-    if (attrs.Id && attrs.Target) relTargets[attrs.Id] = attrs.Target.replace(/^\\//, '').replace(/^xl\\//, '');
+  for (const match of relsXml.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
+    const attrs = Object.fromEntries([...match[1].matchAll(/([\w:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+    if (attrs.Id && attrs.Target) relTargets[attrs.Id] = attrs.Target.replace(/^\//, '').replace(/^xl\//, '');
   }
   const sheets = [];
-  for (const match of workbookXml.matchAll(/<sheet\\b([^>]*)\\/?>/g)) {
-    const attrs = Object.fromEntries([...match[1].matchAll(/([\\w:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+  for (const match of workbookXml.matchAll(/<sheet\b([^>]*)\/?>/g)) {
+    const attrs = Object.fromEntries([...match[1].matchAll(/([\w:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
     const target = relTargets[attrs['r:id']];
     if (!target) continue;
     const sheetPath = target.startsWith('worksheets/') ? `xl/${target}` : `xl/worksheets/${target}`;
@@ -54,14 +54,14 @@ async function readRawWorkbook(fileOrBuffer) {
 }
 
 function rawFormulaCount(xml) {
-  return (xml.match(/<f(?:\\s|>)/g) || []).length;
+  return (xml.match(/<f(?:\s|>)/g) || []).length;
 }
 
 function rawStyleSnapshot(xml, maxRow = 12, maxColumn = 49) {
   const result = {};
-  for (const match of xml.matchAll(/<c\\b([^>]*)\\/?>/g)) {
-    const attrs = Object.fromEntries([...match[1].matchAll(/([\\w:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
-    const cell = /^([A-Z]+)(\\d+)$/.exec(attrs.r || '');
+  for (const match of xml.matchAll(/<c\b([^>]*)\/?>/g)) {
+    const attrs = Object.fromEntries([...match[1].matchAll(/([\w:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+    const cell = /^([A-Z]+)(\d+)$/.exec(attrs.r || '');
     if (!cell || Number(cell[2]) > maxRow) continue;
     let column = 0;
     for (const char of cell[1]) column = column * 26 + char.charCodeAt(0) - 64;
