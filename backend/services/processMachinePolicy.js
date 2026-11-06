@@ -42,7 +42,7 @@ const getProcessMachinePolicy = (processId) => {
   const canonicalId = normalizeProcessId(processId);
   const code = CODE_BY_ID.get(canonicalId) || "";
   if (code === "MAI") {
-    return { code, mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 10 };
+    return { code, mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 6 };
   }
   if (code === "DO") {
     return { code, mode: "SINGLE_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 1 };
