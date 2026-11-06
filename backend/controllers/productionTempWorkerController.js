@@ -40,7 +40,22 @@ exports.checkSimilarReport = async (req, res) => {
             return res.status(422).json({ success: false, message: workDateError });
         }
 
-        const submittedLines = Array.isArray(req.body?.machine_lines) ? req.body.machine_lines : [];
+        // The frontend duplicate-check request historically sends the aggregate display
+        // fields (machine_no/product_name), while the final submit also sends machine_lines.
+        // Reconstruct aligned MAI pairs for this backward-compatible preflight path.
+        const submittedLines = Array.isArray(req.body?.machine_lines) && req.body.machine_lines.length
+            ? req.body.machine_lines
+            : (Number(processId) === 2 && operationMode === "MACHINE"
+                ? (() => {
+                    const machines = machineNo.split(",").map((value) => value.trim()).filter(Boolean);
+                    const products = productName.split(",").map((value) => value.trim()).filter(Boolean);
+                    if (machines.length < 2 || machines.length !== products.length) return [];
+                    return machines.map((machine_code, index) => ({
+                        machine_code,
+                        product_code: products[index]
+                    }));
+                })()
+                : []);
         const isMaiMachineGroup = Number(processId) === 2
             && submittedLines.length > 1
             && operationMode === "MACHINE";
