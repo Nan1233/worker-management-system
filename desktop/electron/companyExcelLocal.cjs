@@ -364,12 +364,12 @@ async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
   // Add the xdr prefix in-memory only; keep every anchor/chart and the
   // source template bytes intact.
   for (const drawingPath of Object.keys(zip.files)) {
-    if (!/^xl\\/drawings\\/drawing\\d+\\.xml$/.test(drawingPath)) continue;
+    if (!/^xl\/drawings\/drawing\d+\.xml$/.test(drawingPath)) continue;
     const xml = await zip.file(drawingPath).async('string');
     const prefixed = xml
-      .replace(/<wsDr\\b/, '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"')
-      .replace(/<\\/wsDr>/, '</xdr:wsDr>')
-      .replace(/(<\\/?)([A-Za-z_][\\w.-]*)(?=[\\s/>])/g, (whole, bracket, name) => `${bracket}xdr:${name}`);
+      .replace(/<wsDr\b/, '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"')
+      .replace(/<\/wsDr>/, '</xdr:wsDr>')
+      .replace(/(<\/?)([A-Za-z_][\w.-]*)(?=[\s/>])/g, (whole, bracket, name) => bracket + 'xdr:' + name);
     if (prefixed !== xml) zip.file(drawingPath, prefixed);
   }
   // ExcelJS 4.4.0 crashes in reconcile() when a drawing .rels part exists
