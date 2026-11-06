@@ -17,6 +17,20 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const rollbackOrThrow = async (connection, originalError) => {
     const result = await rollback(connection);
     if (result?.ok === false) {
+        const diagnostic = (value) => ({
+            name: value?.name || null,
+            message: String(value?.message || value || "Unknown error").slice(0, 500),
+            code: value?.code || null,
+            errno: value?.errno ?? null,
+            sqlState: value?.sqlState || null,
+            status: value?.status ?? value?.statusCode ?? null,
+        });
+        // Preserve both failures in logs. The rollback error is secondary and must
+        // not erase the SQL/transaction error that caused the rollback in the first place.
+        console.error("[KTC][REPORT] transaction rollback failed", JSON.stringify({
+            originalError: originalError ? diagnostic(originalError) : null,
+            rollbackError: diagnostic(result.error),
+        }));
         const error = new Error("Không thể rollback transaction sau lỗi ghi báo cáo");
         error.code = "TRANSACTION_ROLLBACK_FAILED";
         error.cause = result.error;
