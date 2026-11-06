@@ -294,21 +294,87 @@ const validateChildTotals = (data, defects, deductions) => {
     }
 };
 
-const createAuditAfterChildren = async ({ tempId, audit, data, requestId, logicalDuplicateKey }) => {
+const createAuditAfterChildrenBatch = async ({ tempIds, audit, data, requestIds, logicalDuplicateKey }) => {
+    const ids = [...new Set((tempIds || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+    if (!ids.length) return;
     const connection = await getConnection();
     try {
         await beginTransaction(connection);
-        const snapshot = await AuditService.loadTempReportSnapshot(tempId, connection);
-        if (snapshot) await AuditService.createReportVersion({ reportType: "temp", reportId: tempId, snapshot, reason: "Tạo báo cáo chờ duyệt", userId: Number(audit?.userId || 0) }, connection);
-        await createModel.logAction({ reportType: "temp", reportId: tempId, userId: Number(audit?.userId || 0), action: "CREATE", note: audit?.note || "Công nhân tạo báo cáo", ipAddress: audit?.ipAddress || null, userAgent: audit?.userAgent || null }, connection);
-        await query(connection,
-            `INSERT INTO activity_logs (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
-             VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
-            [Number(audit?.userId || 0), String(tempId), "Công nhân tạo báo cáo chờ duyệt",
-                JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift, clientRequestId: requestId, logicalDuplicateKey }), audit?.ipAddress || null, audit?.userAgent || null]);
+        const marks = ids.map(() => "?").join(",");
+        // Read all snapshot components in a fixed number of TiDB HTTP requests,
+        // rather than opening a transaction and issuing 5+ statements per report.
+        const reports = await query(connection, `SELECT * FROM production_reports_temp WHERE id IN (${marks}) ORDER BY id`, ids);
+        const defects = await query(connection,
+            `SELECT d.temp_report_id,d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity
+               FROM production_temp_defects d LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+              WHERE d.temp_report_id IN (${marks}) ORDER BY d.temp_report_id,d.id`, ids);
+        const deductions = await query(connection,
+            `SELECT d.temp_report_id,d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours
+               FROM production_temp_deductions d LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+              WHERE d.temp_report_id IN (${marks}) ORDER BY d.temp_report_id,d.id`, ids);
+        const machineLines = await query(connection,
+            `SELECT * FROM production_temp_machine_lines WHERE temp_report_id IN (${marks}) ORDER BY temp_report_id,sort_order,id`, ids);
+        const machineIds = machineLines.map((line) => Number(line.id)).filter(Boolean);
+        const machineDefects = machineIds.length
+            ? await query(connection, `SELECT * FROM production_temp_machine_defects WHERE machine_line_id IN (${machineIds.map(() => "?").join(",")}) ORDER BY machine_line_id,id`, machineIds)
+            : [];
+        const byReport = new Map(reports.map((report) => [Number(report.id), {
+            ...report, defects: [], deductions: [], machine_lines: []
+        }]));
+        for (const item of defects) byReport.get(Number(item.temp_report_id))?.defects.push(item);
+        for (const item of deductions) byReport.get(Number(item.temp_report_id))?.deductions.push(item);
+        const lineDefects = new Map();
+        for (const item of machineDefects) {
+            const key = Number(item.machine_line_id);
+            if (!lineDefects.has(key)) lineDefects.set(key, []);
+            lineDefects.get(key).push(item);
+        }
+        for (const line of machineLines) {
+            const report = byReport.get(Number(line.temp_report_id));
+            if (report) report.machine_lines.push({ ...line, defects: lineDefects.get(Number(line.id)) || [] });
+        }
+
+        const versionRows = await query(connection,
+            `SELECT report_id, COALESCE(MAX(version_no),0) AS max_version
+               FROM report_versions WHERE report_type='temp' AND report_id IN (${marks})
+              GROUP BY report_id`, ids);
+        const maxById = new Map(versionRows.map((row) => [Number(row.report_id), Number(row.max_version) || 0]));
+        const versionValues = [];
+        const actionValues = [];
+        const activityValues = [];
+        const actorId = Number(audit?.userId || 0) || null;
+        for (let index = 0; index < ids.length; index += 1) {
+            const id = ids[index];
+            const snapshot = byReport.get(id);
+            if (snapshot) versionValues.push(["temp", id, (maxById.get(id) || 0) + 1, JSON.stringify(snapshot), "Tạo báo cáo chờ duyệt", actorId]);
+            actionValues.push(["temp", id, actorId, "CREATE", audit?.note || "Công nhân tạo báo cáo", audit?.ipAddress || null, audit?.userAgent || null]);
+            activityValues.push([actorId, "CREATE_REPORT", "temp_report", String(id), "Công nhân tạo báo cáo chờ duyệt",
+                JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift,
+                    clientRequestId: requestIds?.[index] || null, logicalDuplicateKey }),
+                audit?.ipAddress || null, audit?.userAgent || null]);
+        }
+        if (versionValues.length) {
+            await query(connection,
+                `INSERT INTO report_versions (report_type,report_id,version_no,snapshot_json,change_reason,created_by) VALUES ${versionValues.map(() => "(?,?,?,?,?,?)").join(",")}`,
+                versionValues.flat());
+        }
+        if (actionValues.length) {
+            await query(connection,
+                `INSERT INTO report_action_logs (report_type,report_id,user_id,action,note,ip_address,user_agent) VALUES ${actionValues.map(() => "(?,?,?,?,?,?,?)").join(",")}`,
+                actionValues.flat());
+        }
+        if (activityValues.length) {
+            await query(connection,
+                `INSERT INTO activity_logs (user_id,action,entity_type,entity_id,description,metadata_json,ip_address,user_agent) VALUES ${activityValues.map(() => "(?,?,?,?,?,?,?,?)").join(",")}`,
+                activityValues.flat());
+        }
         await commit(connection);
-    } catch (error) { await rollbackOrThrow(connection, error); throw error; }
-    finally { connection.release(); }
+    } catch (error) {
+        await rollbackOrThrow(connection, error);
+        throw error;
+    } finally {
+        connection.release();
+    }
 };
 
 const processCodeOf = (data) => String(data?._resolved_process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
@@ -525,12 +591,18 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         // Audit/version work stays separate so an audit failure cannot undo an
         // already committed, complete report and its NG/trừ giờ/machine details.
         let auditWarning = null;
-        for (const createdId of createdIds) {
-            try { await createAuditAfterChildren({ tempId: createdId, audit, data, requestId: splitMachines ? childRequestId(requestId, reportMachineLines[createdIds.indexOf(createdId)]?._source_machine_lines || [reportMachineLines[createdIds.indexOf(createdId)]], createdIds.indexOf(createdId)) : requestId, logicalDuplicateKey: data.logical_duplicate_key }); }
-            catch (error) {
-                auditWarning = String(error?.message || error).slice(0,450);
-                try { await query(db, `UPDATE production_reports_temp SET review_note=? WHERE id=?`, [`Audit chưa hoàn tất: ${auditWarning}`, createdId]); } catch {}
-            }
+        try {
+            const auditRequestIds = createdIds.map((_, index) => splitMachines
+                ? childRequestId(requestId, reportMachineLines[index]?._source_machine_lines || [reportMachineLines[index]], index)
+                : requestId);
+            await createAuditAfterChildrenBatch({ tempIds: createdIds, audit, data, requestIds: auditRequestIds, logicalDuplicateKey: data.logical_duplicate_key });
+        } catch (error) {
+            auditWarning = String(error?.message || error).slice(0,450);
+            try {
+                const marks = createdIds.map(() => "?").join(",");
+                await query(db, `UPDATE production_reports_temp SET review_note=? WHERE id IN (${marks})`,
+                    [`Audit chưa hoàn tất: ${auditWarning}`, ...createdIds]);
+            } catch {}
         }
 
         return { id: Number(createdIds[0] || tempId), ids: createdIds, reports: createdIds.map((id, index) => ({ id, machine_code: splitMachines ? reportMachineLines[index]?.machine_code || null : null })), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key, audit_warning: auditWarning };
