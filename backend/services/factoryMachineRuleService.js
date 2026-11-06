@@ -6,10 +6,12 @@ const GC_SHARED_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
 
 // Business rule:
 // - Cắt/Lồng (GC): 1 worker tối đa 4 máy; 1 máy tối đa 2 workers.
-// - Mài (MAI): 1 worker tối đa 4 máy; 1 máy tối đa 2 workers.
+// - Mài (MAI): 1 worker tối đa 10 máy-sản phẩm; 1 máy tối đa 2 workers.
 // - Các công đoạn khác giữ capacity theo DB, mặc định 1 người/máy.
 const MULTI_MACHINE_PROCESS_CODES = new Set(["GC", "MAI"]);
 const MAX_MACHINES_PER_WORKER = 4;
+const MAX_MAI_MACHINES_PER_WORKER = 10;
+const getMaxMachinesPerWorker = (code) => String(code || "").trim().toUpperCase() === "MAI" ? MAX_MAI_MACHINES_PER_WORKER : MAX_MACHINES_PER_WORKER;
 const DEFAULT_SHARED_WORKERS_PER_MACHINE = 4;
 
 const canonicalMachineNumber = (value) => {
@@ -64,7 +66,7 @@ const getProcessMachineRule = (processCode, machineCode, dbRow = null) => {
 
   if (MULTI_MACHINE_PROCESS_CODES.has(code)) {
     return {
-      maxMachinesPerWorker: MAX_MACHINES_PER_WORKER,
+      maxMachinesPerWorker: getMaxMachinesPerWorker(code),
       // All machines in Gia công (GC) may be shared by workers in the same day/shift.
       // Keep the existing 4-worker cap consistently across C* and ML* machines.
       maxWorkersPerMachine: code === "GC"
@@ -193,11 +195,11 @@ const validateMachineWorkerCapacity = async ({
   )];
 
   if (MULTI_MACHINE_PROCESS_CODES.has(code) &&
-      uniqueCodes.length > MAX_MACHINES_PER_WORKER) {
+      uniqueCodes.length > getMaxMachinesPerWorker(code)) {
     return {
       valid: false,
       errors: {
-        machine_lines: `Một công nhân chỉ được chạy tối đa ${MAX_MACHINES_PER_WORKER} máy trong công đoạn ${code}.`
+        machine_lines: `Một công nhân chỉ được chạy tối đa ${getMaxMachinesPerWorker(code)} máy trong công đoạn ${code}.`
       }
     };
   }
@@ -420,7 +422,7 @@ module.exports = {
   GC_AUTOMATIC_MACHINE_NUMBERS,
   GC_SHARED_MACHINE_NUMBERS,
   MULTI_MACHINE_PROCESS_CODES,
-  MAX_MACHINES_PER_WORKER,
+  MAX_MACHINES_PER_WORKER,\n  MAX_MAI_MACHINES_PER_WORKER,
   DEFAULT_SHARED_WORKERS_PER_MACHINE,
   canonicalMachineNumber,
   getGcMachineRule,
