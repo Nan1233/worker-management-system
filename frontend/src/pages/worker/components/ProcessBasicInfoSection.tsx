@@ -25,6 +25,7 @@ export default function ProcessBasicInfoSection({ processCode, form, setForm, on
     const [openMachineDeductionIndex, setOpenMachineDeductionIndex] = useState<number | null>(null);
     const [openMachineNgIndex, setOpenMachineNgIndex] = useState<number | null>(null);
     const isMaiStyleProcess = ["MAI", "DO"].includes(String(processCode || "").trim().toUpperCase());
+    const isMachineNgEditableProcess = ["MAI", "DO", "CAN", "EP"].includes(String(processCode || "").trim().toUpperCase());
     useEffect(() => { if (!isCutLongProcess || operationType !== "CUT") return; if (operationMode !== "MACHINE") setOperationMode("MACHINE"); }, [isCutLongProcess, operationType, operationMode, setOperationMode]);
     useEffect(() => { if (operationType !== "LONG") return; setLongExecutionMode(operationMode === "MACHINE" ? "MACHINE" : "MANUAL"); }, [operationMode, operationType]);
 
@@ -154,9 +155,9 @@ export default function ProcessBasicInfoSection({ processCode, form, setForm, on
 
 <div className="machine-quantity-row machine-worker-quantity-row">
 <label className="machine-quantity-item machine-quantity-ok"><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} placeholder="0" /></label>
-<label className="machine-quantity-item machine-quantity-ng"><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly={!isMaiStyleProcess} aria-readonly={!isMaiStyleProcess} title={isMaiStyleProcess ? "Nhập số NG; chi tiết lỗi bên dưới phải khớp" : "Tự động tính từ chi tiết lỗi NG"} onChange={(event) => updateMachineLine(index, { ngQuantity: event.target.value.replace(/\D/g, "") })} placeholder="0" /></label>
+<label className="machine-quantity-item machine-quantity-ng"><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly={!isMachineNgEditableProcess} aria-readonly={!isMachineNgEditableProcess} title={isMachineNgEditableProcess ? "Nhập số NG; chi tiết lỗi bên dưới phải khớp" : "Tự động tính từ chi tiết lỗi NG"} onChange={(event) => updateMachineLine(index, { ngQuantity: event.target.value.replace(/\D/g, "") })} placeholder="0" /></label>
 </div>
-{isMaiStyleProcess && <small className="worker-field-hint">Sản lượng được tự động tính bằng OK + NG; tổng chi tiết lỗi phải bằng NG.</small>}
+{isMachineNgEditableProcess && <small className="worker-field-hint">Nhập NG theo báo cáo; tổng số lượng chi tiết lỗi bên dưới phải bằng NG.</small>}
 </div>
 <div className="machine-detail-dropdown-row"><div className="machine-detail-dropdown-item"><div className="worker-dropdown-box machine-worker-deduction-box">
 <button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineDeductionIndex((current) => current === index ? null : index)} aria-expanded={openMachineDeductionIndex === index}>
