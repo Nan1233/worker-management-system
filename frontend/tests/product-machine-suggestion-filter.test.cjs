@@ -159,7 +159,7 @@ test('worker process schema IDs match the live TiDB processes table', () => {
   const access = fs.readFileSync(path.join(root, 'src/utils/processAccess.ts'), 'utf8');
   const canonical = { GC: 1, MAI: 2, DO: 3, K1: 4, K2: 5, XLBV: 6, EP: 7, CAN: 8, SX3: 9 };
   for (const [code, id] of Object.entries(canonical)) {
-    const matches = [...schema.matchAll(new RegExp('processId: (\\\\d+),\\\\s*processCode: "' + code + '"', 'g'))];
+    const matches = [...schema.matchAll(new RegExp('processId: (\\d+),\\s*processCode: "' + code + '"', 'g'))];
     assert.equal(matches.length, 2, code + ' must be defined in selection and form schema');
     for (const match of matches) assert.equal(Number(match[1]), id, code + ' has wrong process ID');
     assert.ok(access.includes(code + ': ' + id + ','), code + ' must have canonical access mapping');
