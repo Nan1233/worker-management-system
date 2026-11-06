@@ -25,13 +25,13 @@ export type ProcessSelection = {
 export const PROCESS_SELECTIONS: ProcessSelection[] = [
   { slug: "cat-long", processId: 1, processCode: "GC", name: "Gia công (Cắt / Lồng)", icon: "GC", description: "Dành cho quy trình cắt và lồng" },
   { slug: "mai", processId: 2, processCode: "MAI", name: "Mài", icon: "MAI", description: "Quy trình mài bóng và hoàn thiện bề mặt" },
-  { slug: "do", processId: 60001, processCode: "DO", name: "Đo", icon: "DO", description: "Đo kiểm kích thước và ghi nhận kết quả" },
-  { slug: "kiem-1", processId: 3, processCode: "K1", name: "Kiểm 1", icon: "K1", description: "Kiểm tra chất lượng công đoạn đầu" },
-  { slug: "kiem-2", processId: 4, processCode: "K2", name: "Kiểm 2", icon: "K2", description: "Kiểm tra chất lượng công đoạn cuối" },
-  { slug: "can", processId: 60002, processCode: "CAN", name: "Cán", icon: "CAN", description: "Quy trình cán vật liệu" },
-  { slug: "ep", processId: 60003, processCode: "EP", name: "Ép", icon: "EP", description: "Quy trình ép khuôn và tạo hình" },
-  { slug: "bavia", processId: 60004, processCode: "XLBV", name: "Xử lý bavia", icon: "XLBV", description: "Xử lý bavia và làm sạch sản phẩm" },
-  { slug: "sx3", processId: 60005, processCode: "SX3", name: "Sản xuất 3 - Lắp ráp", icon: "SX3", description: "Lắp ráp và theo dõi lỗi máy / NG part" },
+  { slug: "do", processId: 3, processCode: "DO", name: "Đo", icon: "DO", description: "Đo kiểm kích thước và ghi nhận kết quả" },
+  { slug: "kiem-1", processId: 4, processCode: "K1", name: "Kiểm 1", icon: "K1", description: "Kiểm tra chất lượng công đoạn đầu" },
+  { slug: "kiem-2", processId: 5, processCode: "K2", name: "Kiểm 2", icon: "K2", description: "Kiểm tra chất lượng công đoạn cuối" },
+  { slug: "can", processId: 8, processCode: "CAN", name: "Cán", icon: "CAN", description: "Quy trình cán vật liệu" },
+  { slug: "ep", processId: 7, processCode: "EP", name: "Ép", icon: "EP", description: "Quy trình ép khuôn và tạo hình" },
+  { slug: "bavia", processId: 6, processCode: "XLBV", name: "Xử lý bavia", icon: "XLBV", description: "Xử lý bavia và làm sạch sản phẩm" },
+  { slug: "sx3", processId: 9, processCode: "SX3", name: "Sản xuất 3 - Lắp ráp", icon: "SX3", description: "Lắp ráp và theo dõi lỗi máy / NG part" },
 ];
 
 export type ProcessFormField = {
@@ -96,7 +96,7 @@ export const PROCESS_FORM_SCHEMAS: Record<string, ProcessFormSchema> = {
     ],
   },
   do: {
-    processId: 60001,
+    processId: 3,
     processCode: "DO",
     title: "Báo cáo Đo",
     machineLabel: "Số máy đo",
@@ -112,7 +112,7 @@ export const PROCESS_FORM_SCHEMAS: Record<string, ProcessFormSchema> = {
     ],
   },
   "kiem-1": {
-    processId: 3,
+    processId: 4,
     processCode: "K1",
     title: "Báo cáo Kiểm 1",
     machineLabel: "Số máy/vị trí kiểm",
@@ -133,7 +133,7 @@ export const PROCESS_FORM_SCHEMAS: Record<string, ProcessFormSchema> = {
     ],
   },
   "kiem-2": {
-    processId: 4,
+    processId: 5,
     processCode: "K2",
     title: "Báo cáo Kiểm 2",
     machineLabel: "Số máy/vị trí kiểm",
@@ -149,7 +149,7 @@ export const PROCESS_FORM_SCHEMAS: Record<string, ProcessFormSchema> = {
     ],
   },
   can: {
-    processId: 60002,
+    processId: 8,
     processCode: "CAN",
     title: "Báo cáo Cán",
     machineLabel: "Số máy cán",
@@ -165,7 +165,7 @@ export const PROCESS_FORM_SCHEMAS: Record<string, ProcessFormSchema> = {
     ],
   },
   ep: {
-    processId: 60003,
+    processId: 7,
     processCode: "EP",
     title: "Báo cáo Ép",
     machineLabel: "Số máy ép",
@@ -179,7 +179,7 @@ export const PROCESS_FORM_SCHEMAS: Record<string, ProcessFormSchema> = {
     ],
   },
   bavia: {
-    processId: 60004,
+    processId: 6,
     processCode: "XLBV",
     title: "Báo cáo Xử lý bavia",
     machineLabel: "Máy/vị trí xử lý bavia",
@@ -196,7 +196,7 @@ export const PROCESS_FORM_SCHEMAS: Record<string, ProcessFormSchema> = {
     ],
   },
   sx3: {
-    processId: 60005,
+    processId: 9,
     processCode: "SX3",
     title: "Báo cáo Sản xuất 3 - Lắp ráp",
     machineLabel: "Dây chuyền/vị trí",
