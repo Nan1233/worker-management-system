@@ -357,6 +357,35 @@ async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
     });
     if (normalized !== xml) zip.file(relationshipPath, normalized);
   }
+  // The source workbook stores legacy comments under nonstandard nested
+  // names (xl/comments/commentN.xml and commentsDrawingN.vml). ExcelJS 4.4.0
+  // only recognizes xl/commentsN.xml and xl/drawings/vmlDrawingN.vml.
+  // Remap the parts and their worksheet relationships in-memory so comments
+  // and VML notes are parsed instead of dereferencing an undefined entry.
+  for (const entryPath of Object.keys(zip.files)) {
+    let match = /^xl\\/comments\\/comment(\\d+)\\.xml$/.exec(entryPath);
+    if (match) {
+      const targetPath = `xl/comments${match[1]}.xml`;
+      const data = await zip.file(entryPath).async('nodebuffer');
+      zip.file(targetPath, data);
+      zip.remove(entryPath);
+    }
+    match = /^xl\\/drawings\\/commentsDrawing(\\d+)\\.vml$/.exec(entryPath);
+    if (match) {
+      const targetPath = `xl/drawings/vmlDrawing${match[1]}.vml`;
+      const data = await zip.file(entryPath).async('nodebuffer');
+      zip.file(targetPath, data);
+      zip.remove(entryPath);
+    }
+  }
+  for (const relationshipPath of Object.keys(zip.files).filter((name) =>
+    /^xl\\/worksheets\\/_rels\\/sheet\\d+\\.xml\\.rels$/.test(name))) {
+    const xml = await zip.file(relationshipPath).async('string');
+    const normalized = xml
+      .replace(/Target="\\.\\.\\/comments\\/comment(\\d+)\\.xml"/g, 'Target="../comments$1.xml"')
+      .replace(/Target="\\.\\.\\/drawings\\/commentsDrawing(\\d+)\\.vml"/g, 'Target="../drawings/vmlDrawing$1.vml"');
+    if (normalized !== xml) zip.file(relationshipPath, normalized);
+  }
   // ExcelJS 4.4.0's DrawingXform matches prefixed xdr:* element names.
   // The original Mài workbook uses the equivalent default namespace form
   // (<wsDr><twoCellAnchor>...), which ExcelJS parses as an empty drawing
