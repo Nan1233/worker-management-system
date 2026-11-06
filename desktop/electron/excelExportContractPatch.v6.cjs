@@ -366,14 +366,8 @@ async function __ktcCleanupLegacyMonthlyLayout(root, date, keepFileNames = []) {
 function patchMainSource(source) {
   let next = String(source);
   if (!next.includes('const PROCESS_CODES = Object.freeze([')) {
-    next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);\\n${next}`;
+    next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);\n${next}`;
   }
-
-  // Remove the obsolete comment that describes the old summary workbook contract.
-  next = next.replace(
-    /\\n\\s*\\/\\/ File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY\\.xlsx[\\s\\S]*?\\n\\s*\\/\\/ 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test\\./,
-    '\\n\\n    // Monthly export uses one approved worker-report workbook.'
-  );
 
   // Replace the old ten-process validation by an explicit single-file contract.
   const validationStart = next.indexOf('    const expectedProcessCodes = Object.keys(PROCESS_SHEETS);');
@@ -427,7 +421,7 @@ function patchMainSource(source) {
 
 `;
   next = next.slice(0, validationStart) + singleFileBlock + next.slice(summaryStart, splitLogStart) +
-    '    } // end legacy multi-workbook branch.\\n' + next.slice(splitLogStart);
+    '    } // end legacy multi-workbook branch.\n' + next.slice(splitLogStart);
 
   next = next.replace(
     'expectedFileCount: Object.keys(PROCESS_SHEETS).length + 1',
@@ -440,13 +434,13 @@ function patchMainSource(source) {
   next = next.replace(/mode: 'desktop-local-monthly-workbooks'/g, "mode: 'desktop-local-worker-template'");
 
   const cleanupFn = cleanupLegacyMonthlyFilesSource();
-  const marker = '\\nasync function syncAllProcessExcel';
+  const marker = '\nasync function syncAllProcessExcel';
   if (!next.includes('__ktcCleanupLegacyMonthlyLayout')) {
-    next = next.replace(marker, () => `\\n${cleanupFn}${marker}`);
+    next = next.replace(marker, () => `\n${cleanupFn}${marker}`);
   }
   const successMarker = 'const success = files.length === expectedFileCount && files.every((file) => file.success === true);';
   if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) {
-    next = next.replace(successMarker, `${successMarker}\\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean));`);
+    next = next.replace(successMarker, `${successMarker}\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean));`);
   }
   return next;
 }
