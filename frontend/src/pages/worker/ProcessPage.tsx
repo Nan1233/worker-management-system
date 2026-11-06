@@ -1577,10 +1577,10 @@ const updateDeductionValue = (
                 }
 
                 for (let index = 0; index < payloads.length; index += 1) {
-                    const currentPayload = payloads[index];
+                    const payload = payloads[index];
                     let response;
                     try {
-                        response = await createTempReport(currentPayload);
+                        response = await createTempReport(payload);
                     } catch (error: any) {
                         if (axios.isAxiosError(error) && error.response?.status === 429) {
                             showToast("Bạn thao tác quá nhanh. Dữ liệu trên form vẫn được giữ, vui lòng thử lại sau ít phút.", "warning");
@@ -1590,7 +1590,7 @@ const updateDeductionValue = (
                             const duplicateResponse = error.response;
                             const challengeToken = String(duplicateResponse.data?.duplicate_confirmation_token || "").trim();
                             if (challengeToken) {
-                                const prompt = toDuplicatePrompt(duplicateResponse.data, currentPayload);
+                                const prompt = toDuplicatePrompt(duplicateResponse.data, payload);
                                 if (prompt) {
                                     pendingSplitPayloadsRef.current = payloads.slice(index + 1);
                                     const reportType = duplicateResponse.data?.report_type === "approved" ? "approved" : "temp";
@@ -1612,7 +1612,7 @@ const updateDeductionValue = (
 
                     const submitOutcome = classifyProcessSubmitResponse(response);
                     if (submitOutcome === "similar_report" && response?.data?.id) {
-                        const prompt = toDuplicatePrompt(response, currentPayload);
+                        const prompt = toDuplicatePrompt(response, payload);
                         if (prompt) {
                             pendingSplitPayloadsRef.current = payloads.slice(index + 1);
                             setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
