@@ -298,10 +298,13 @@ function createCloudflareConnection() {
         const current = transaction;
         try {
           await current.rollback();
-          if (transaction === current) transaction = null;
         } catch (error) {
-          // Do not discard the only handle to an open transaction when rollback fails.
           throw wrapCloudflareError(error, "ROLLBACK");
+        } finally {
+          // A failed HTTP rollback must not be replayed again during release().
+          // The transaction outcome is already unknown at this point; discard
+          // the local handle and surface the original rollback error to the caller.
+          if (transaction === current) transaction = null;
         }
       })();
       if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
