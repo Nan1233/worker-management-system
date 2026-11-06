@@ -176,3 +176,17 @@ test('CAN material code is embedded in the main form without a duplicate extra s
   assert.ok(extra.includes('key: "material_code"'));
   assert.ok(section.includes('inline ? "worker-field-full worker-inline-extra-fields"'));
 });
+
+
+test('manager report tabs and worker edit use canonical TiDB process IDs', () => {
+  const manager = fs.readFileSync(path.join(root, 'src/pages/manager/ManagerReportGrid.tsx'), 'utf8');
+  const edit = fs.readFileSync(path.join(root, 'src/pages/worker/WorkerReportEditV2.tsx'), 'utf8');
+  const patch = fs.readFileSync(path.join(root, 'scripts/patchWorkerReportEdit.cjs'), 'utf8');
+  const expected = { CAN: 8, EP: 7, XLBV: 6, GC: 1, MAI: 2, DO: 3, K1: 4, K2: 5 };
+  for (const [code, id] of Object.entries(expected)) {
+    assert.ok(manager.includes('processId: ' + id + ', processCode: "' + code + '"'), code + ' manager tab must match TiDB');
+  }
+  assert.ok(edit.includes('getCanonicalProcessId(Number(report?.process_id) || 0, capabilities.processCode)'));
+  assert.ok(!edit.includes('const PROCESS_ID_BY_CODE: Record<string, number>'));
+  assert.ok(patch.includes('DO: 3, K1: 4, K2: 5, CAN: 8, EP: 7, XLBV: 6, SX3: 9'));
+});
