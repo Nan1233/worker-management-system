@@ -15,23 +15,27 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     const errors = {};
     const normalizedMachineNo = normalizeText(machineNo);
     const normalizedProductName = normalizeText(productName);
+    // Mài manual reports can contain several product runs without assigning a
+    // physical machine. The parent report stores these product codes as a
+    // comma-separated display value; resolve each code independently below.
+    const requestedProductCodes = [...new Set(normalizedProductName.split(",").map((code) => code.trim()).filter(Boolean))];
     const defectIds = uniquePositiveIds(defects, "defect_type_id");
     const deductionIds = uniquePositiveIds(deductions, "deduction_type_id");
 
     const [assignments, machines, products, validDefectRows, validDeductionRows, processRows] = await Promise.all([
         skipWorkerProcessAssignment ? Promise.resolve([{ assigned: 1 }]) : query(`SELECT 1 FROM worker_processes WHERE worker_id = ? AND process_id = ? LIMIT 1`, [workerId, processId]),
         normalizedMachineNo && !reuseValidatedMachine ? queryWithOptionalGcWorkType(query, (withType) => `SELECT id, machine_code${withType ? ', gc_work_type' : ''}, COALESCE(is_automatic, 0) AS is_automatic FROM machines WHERE process_id = ? AND status = 'active' AND machine_code = ? LIMIT 1`, [processId, normalizedMachineNo]) : Promise.resolve([]),
-        normalizedProductName && !reuseValidatedMachine ? query(
+        requestedProductCodes.length && !reuseValidatedMachine ? query(
             `SELECT ps.id, ps.product_code, ps.standard_output,
                     p.process_code,
                     EXISTS(SELECT 1 FROM product_machine_standards pms WHERE pms.process_id=ps.process_id AND pms.product_code=ps.product_code AND pms.is_active=1) AS has_machine_specific_standard
                FROM product_standards ps
                JOIN processes p ON p.id=ps.process_id
               WHERE ps.process_id = ? AND ps.status = 'active'
-                AND UPPER(TRIM(ps.product_code)) = UPPER(TRIM(?))
+                AND UPPER(TRIM(ps.product_code)) IN (${requestedProductCodes.map(() => "UPPER(TRIM(?))").join(", ")})
               ORDER BY ps.id
-              LIMIT 2`,
-            [processId, normalizedProductName]
+              ${requestedProductCodes.length === 1 ? "LIMIT 2" : ""}`,
+            [processId, ...requestedProductCodes]
         ) : Promise.resolve([]),
         defectIds.length ? query(`SELECT DISTINCT id, defect_code, defect_name FROM defect_types WHERE process_id = ? AND status = 'active' AND id IN (${defectIds.map(() => "?").join(",")})`, [processId, ...defectIds]) : Promise.resolve([]),
         deductionIds.length ? query(`SELECT DISTINCT d.id
@@ -86,11 +90,29 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
         standardOutput = 0;
     } else if (!normalizedProductName) {
         errors.product_name = "Vui lòng chọn sản phẩm trong danh mục";
-    } else if (!products.length) {
-        errors.product_name = "Sản phẩm không tồn tại hoặc không thuộc công đoạn đã chọn";
+    } else if (!products.length || (processCode === "MAI" && !normalizedMachineNo && requestedProductCodes.length > 1
+        && requestedProductCodes.some((code) => !products.some((row) => String(row.product_code || "").trim().toUpperCase() === code.toUpperCase())))) {
+        errors.product_name = "Một hoặc nhiều sản phẩm không tồn tại hoặc không thuộc công đoạn đã chọn";
     } else {
-        productCode = products[0].product_code;
         const normalizedOperationMode = String(operationMode || (normalizedMachineNo ? "MACHINE" : "MANUAL")).toUpperCase();
+        const isMaiManualMultiProduct = processCode === "MAI" && !normalizedMachineNo && requestedProductCodes.length > 1;
+
+        if (isMaiManualMultiProduct) {
+            const resolvedProducts = await Promise.all(requestedProductCodes.map((code) => resolveStandard({
+                processId,
+                productCode: code,
+                machineId: null,
+                machineCode: null,
+                workDate,
+                operationMode: "MANUAL"
+            })));
+            productCode = [...new Set(resolvedProducts.map((item) => item.productCode).filter(Boolean))].join(", ");
+            standardOutput = resolvedProducts.reduce((sum, item) => sum + Number(item.standardOutput || 0), 0);
+            standardVersionId = null;
+            machineStandardId = null;
+            productStandardId = null;
+        } else {
+        productCode = products[0].product_code;
         const isGcLongManualZeroStandard = processCode === "GC" && normalizedOperationMode === "MANUAL" && !normalizedMachineNo && ZERO_STANDARD_GC_LONG_MANUAL_CODES.has(String(productCode || "").trim().toUpperCase());
 
         if (isGcLongManualZeroStandard) {
@@ -130,6 +152,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             const { calculateActualOutput } = require("../utils/outputCalculation");
             const expected = calculateActualOutput({ ttOk, defects: authoritativeDefects });
             if (Math.abs(Number(actualOutput) - expected) > 0.02) errors.actual_output = "Sản lượng thực tế phải bằng TT OK cộng toàn bộ NG";
+        }
         }
     }
     }
