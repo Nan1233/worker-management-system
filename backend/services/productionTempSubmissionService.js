@@ -31,12 +31,14 @@ const rollbackOrThrow = async (connection, originalError) => {
             originalError: originalError ? diagnostic(originalError) : null,
             rollbackError: diagnostic(result.error),
         }));
-        const error = new Error("Không thể rollback transaction sau lỗi ghi báo cáo");
-        error.code = "TRANSACTION_ROLLBACK_FAILED";
-        error.cause = result.error;
-        error.originalError = originalError || null;
-        error.isPublic = false;
-        throw error;
+        // Rollback is secondary: retain the actual SQL/transaction failure so
+        // callers can distinguish a TiDB query error from a rollback transport error.
+        // The rollback failure remains attached for diagnostics and is never hidden.
+        if (originalError && typeof originalError === "object") {
+            originalError.rollbackFailed = true;
+            originalError.rollbackError = result.error;
+        }
+        return result;
     }
     return result;
 };
