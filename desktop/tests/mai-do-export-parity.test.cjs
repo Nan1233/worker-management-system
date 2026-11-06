@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'electron', 'companyExcelLocal.cjs'), 'utf8');
+const mainSource = fs.readFileSync(path.join(__dirname, '..', 'electron', 'main.cjs'), 'utf8');
 
 test('Mài export maps Giây mài to template column F', () => {
   assert.match(source, /grindingSeconds: 6/);
