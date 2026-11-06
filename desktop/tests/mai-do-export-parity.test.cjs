@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const ExcelJS = require('exceljs');
+const JSZip = require('jszip');
 const { buildProcessExcelLocal } = require('../electron/companyExcelLocal.cjs');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -30,6 +31,46 @@ function styleSnapshot(sheet, maxRow = 12, maxColumn = 49) {
   return result;
 }
 
+
+async function readRawWorkbook(fileOrBuffer) {
+  const zip = await JSZip.loadAsync(fileOrBuffer);
+  const workbookXml = await zip.file('xl/workbook.xml').async('string');
+  const relsXml = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+  const relTargets = {};
+  for (const match of relsXml.matchAll(/<Relationship\\b([^>]*)\\/?>/g)) {
+    const attrs = Object.fromEntries([...match[1].matchAll(/([\\w:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+    if (attrs.Id && attrs.Target) relTargets[attrs.Id] = attrs.Target.replace(/^\\//, '').replace(/^xl\\//, '');
+  }
+  const sheets = [];
+  for (const match of workbookXml.matchAll(/<sheet\\b([^>]*)\\/?>/g)) {
+    const attrs = Object.fromEntries([...match[1].matchAll(/([\\w:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+    const target = relTargets[attrs['r:id']];
+    if (!target) continue;
+    const sheetPath = target.startsWith('worksheets/') ? `xl/${target}` : `xl/worksheets/${target}`;
+    const xml = await zip.file(sheetPath).async('string');
+    sheets.push({ name: attrs.name, state: attrs.state || 'visible', xml });
+  }
+  return { sheets };
+}
+
+function rawFormulaCount(xml) {
+  return (xml.match(/<f(?:\\s|>)/g) || []).length;
+}
+
+function rawStyleSnapshot(xml, maxRow = 12, maxColumn = 49) {
+  const result = {};
+  for (const match of xml.matchAll(/<c\\b([^>]*)\\/?>/g)) {
+    const attrs = Object.fromEntries([...match[1].matchAll(/([\\w:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+    const cell = /^([A-Z]+)(\\d+)$/.exec(attrs.r || '');
+    if (!cell || Number(cell[2]) > maxRow) continue;
+    let column = 0;
+    for (const char of cell[1]) column = column * 26 + char.charCodeAt(0) - 64;
+    if (column > maxColumn) continue;
+    if (attrs.s !== undefined) result[attrs.r] = attrs.s;
+  }
+  return result;
+}
+
 const cases = [
   { code: 'MAI', file: 'TT_MAI_TEMPLATE.xlsx', sheet: 'TT Mài' },
   { code: 'DO', file: 'TT_DO_TEMPLATE.xlsx', sheet: 'TT Đo' }
@@ -40,13 +81,14 @@ for (const item of cases) {
     const sourcePath = path.join(templateRoot, item.file);
     assert.ok(fs.existsSync(sourcePath), `Thiếu template test: ${sourcePath}`);
 
-    const original = new ExcelJS.Workbook();
-    await original.xlsx.readFile(sourcePath);
-    const originalSheet = original.getWorksheet(item.sheet);
+    // Read the source template as ZIP/XML: ExcelJS 4.4.0 can throw while
+    // reconciling drawing relationships in these original workbooks.
+    const original = await readRawWorkbook(sourcePath);
+    const originalSheet = original.sheets.find((sheet) => sheet.name === item.sheet);
     assert.ok(originalSheet, `Template gốc thiếu sheet ${item.sheet}`);
-    const originalFormulaCount = formulaCount(originalSheet);
-    const originalStyles = styleSnapshot(originalSheet);
-    const originalSheetStates = original.worksheets.map((sheet) => [sheet.name, sheet.state]);
+    const originalFormulaCount = rawFormulaCount(originalSheet.xml);
+    const originalStyles = rawStyleSnapshot(originalSheet.xml);
+    const originalSheetStates = original.sheets.map((sheet) => [sheet.name, sheet.state]);
 
     const built = await buildProcessExcelLocal({
       appPath: path.join(repoRoot, 'desktop'),
@@ -63,15 +105,18 @@ for (const item of cases) {
     await output.xlsx.load(built.buffer);
     const outputSheet = output.getWorksheet(item.sheet);
     assert.ok(outputSheet, `Workbook xuất thiếu sheet ${item.sheet}`);
-    assert.deepEqual(output.worksheets.filter((sheet) => sheet.name !== '_KTC_META')
+    const outputRaw = await readRawWorkbook(built.buffer);
+    assert.deepEqual(outputRaw.sheets.filter((sheet) => sheet.name !== '_KTC_META')
       .map((sheet) => [sheet.name, sheet.state]), originalSheetStates,
       'Không được ẩn/hiện hoặc đổi trạng thái các sheet gốc');
-    assert.equal(formulaCount(outputSheet), originalFormulaCount,
+    const outputRawSheet = outputRaw.sheets.find((sheet) => sheet.name === item.sheet);
+    assert.ok(outputRawSheet, `Workbook xuất thiếu sheet ${item.sheet}`);
+    assert.equal(rawFormulaCount(outputRawSheet.xml), originalFormulaCount,
       'Không được xóa công thức trong vùng dữ liệu của template');
 
-    const outputStyles = styleSnapshot(outputSheet);
+    const outputStyles = rawStyleSnapshot(outputRawSheet.xml);
     for (const [address, style] of Object.entries(originalStyles)) {
-      assert.equal(outputStyles[address], style, `Style ô ${address} bị thay đổi so với template`);
+      assert.equal(outputStyles[address], style, `Style ID ô ${address} bị thay đổi so với template`);
     }
   });
 }
