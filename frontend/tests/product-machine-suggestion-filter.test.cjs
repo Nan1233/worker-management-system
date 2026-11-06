@@ -78,9 +78,9 @@ test('worker quality section runs hooks before mode-dependent early returns', ()
   assert.ok(!quality.includes('if (usesMultiMachineLines) return null;'));
 });
 
-test('DO and EP remain limited to one machine and mode helpers cannot both be true', () => {
+test('DO, EP and CAN remain limited to one machine and mode helpers cannot both be true', () => {
   const machineLines = fs.readFileSync(path.join(root, 'src/pages/worker/processMachineLines.ts'), 'utf8');
-  assert.ok(machineLines.includes('if (["DO", "EP"].includes(processCode)) return 1;'));
+  assert.ok(machineLines.includes('if (["DO", "EP", "CAN"].includes(processCode)) return 1;'));
   assert.ok(domain.includes('return !resolveUsesMultiMachineLines(c, mode);'));
 });
 
