@@ -107,7 +107,7 @@ export function buildProductionReportPayload(args: {
       actual_time_hours:lineActualTimeHours, machine_time_hours:lineActualTimeHours+lineDeductionHours, adjustment_minutes:lineDeductionHours*60, adjustment_count:num(l.adjustmentCount),
       deduction_time_hours:lineDeductionHours, deductions:lineDeductions,
       ok_quantity:num(l.okQuantity), ng_quantity:num(l.ngQuantity),
-      ...(["MAI", "EP"].includes(String(args.processCode || "").trim().toUpperCase()) ? { actual_quantity: num(l.okQuantity) + num(l.ngQuantity) } : {}),
+            ...(String(args.processCode || "").trim().toUpperCase() === "MAI" ? { actual_quantity: num(l.okQuantity) + num(l.ngQuantity) } : {}),
       standard_output:resolvePositiveStandardOutput(l.productCode, l.standardOutputPerHour),
       standard_time_seconds:l.standardTimeSeconds, standard_source:l.standardSource, defects:lineDefects
     };
