@@ -371,7 +371,7 @@ function patchMainSource(source) {
   next = next.replace(/\n\s*\/\/ File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY\.xlsx[\s\S]*?\n\s*\/\/ 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test\./, '\n\n    // 9 công đoạn: dùng cùng template báo cáo công nhân; không tạo file tổng hợp.');
   // v6 returns one combined worker-report workbook, not ten process workbooks.
   // Keep legacy validation for legacy builders; validate the single-file contract separately.
-  next = next.replace(/    const expectedProcessCodes = Object\.keys\(PROCESS_SHEETS\);[\s\S]*?\n    }\n\n    \/\/ File tổng hợp:/,
+  next = next.replace(/    const expectedProcessCodes = Object\\.keys\\(PROCESS_SHEETS\\);[\\s\\S]*?\\n\\s*(?=const summaryFilePath = path\\.join\\()/,
     `    const isWorkerSingleFile = built?.mode === 'WORKER_REPORT_SINGLE_FILE';
     if (isWorkerSingleFile) {
       const actualCount = Array.isArray(built.processes) ? built.processes.length : 0;
@@ -405,7 +405,7 @@ function patchMainSource(source) {
       }
     } else {
     // File tổng hợp:`);
-  next = next.replace(/\n\s*const processFolder = path\.join\(folder, safeFolderName\(processBuilt\.processName \|\| processBuilt\.processCode\)\);\n\s*await fs\.mkdir\(processFolder, \{ recursive: true \}\);/g, '');
+  if (!next.includes(\"const isWorkerSingleFile = built?.mode === 'WORKER_REPORT_SINGLE_FILE';\")) {\n    throw new Error('KTC Excel patch could not locate the monthly validation block; refusing to compile a partially patched main.cjs.');\n  }\n  next = next.replace(/\n\s*const processFolder = path\.join\(folder, safeFolderName\(processBuilt\.processName \|\| processBuilt\.processCode\)\);\n\s*await fs\.mkdir\(processFolder, \{ recursive: true \}\);/g, '');
   next = next.replace(/path\.join\(\s*processFolder,\s*/g, 'path.join(\n        folder,\n        ');
   next = next.replace(/folder: processFolder,/g, 'folder,');
   next = next.replace(/expectedFileCount: Object\.keys\(PROCESS_SHEETS\)\.length \+ 1/g, 'expectedFileCount: PROCESS_CODES.length');
