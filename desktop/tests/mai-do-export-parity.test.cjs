@@ -86,9 +86,9 @@ async function readRawWorkbook(fileOrBuffer) {
 }
 
 function rawCellXfs(stylesXml) {
-  const section = /<cellXfs\\b[^>]*>([\\s\\S]*?)<\\/cellXfs>/.exec(stylesXml)?.[1] || '';
-  return [...section.matchAll(/<xf\\b[^>]*(?:\\/>|>[\\s\\S]*?<\\/xf>)/g)]
-    .map((match) => match[0].replace(/\\s+/g, ' ').trim());
+  const section = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1] || '';
+  return [...section.matchAll(/<xf\b[^>]*(?:\/>|>[\s\S]*?<\/xf>)/g)]
+    .map((match) => match[0].replace(/\s+/g, ' ').trim());
 }
 
 function rawFormulaCount(xml) {
@@ -104,7 +104,8 @@ function rawStyleSnapshot(xml, cellXfs, maxRow = 12, maxColumn = 49) {
     let column = 0;
     for (const char of cell[1]) column = column * 26 + char.charCodeAt(0) - 64;
     if (column > maxColumn) continue;
-    const styleIndex = Number(attrs.s || 0);\n    result[attrs.r] = cellXfs[styleIndex] || cellXfs[0] || '';
+    const styleIndex = Number(attrs.s || 0);
+    result[attrs.r] = cellXfs[styleIndex] || cellXfs[0] || '';
   }
   return result;
 }
