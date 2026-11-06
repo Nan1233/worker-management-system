@@ -74,7 +74,7 @@ function WorkerReportEditV2() {
 
   const process = slug(report?.process_code);
   const capabilities = useMemo(() => getProcessCapabilities(process), [process]);
-  const PROCESS_ID_BY_CODE: Record<string, number> = { GC: 1, MAI: 2, DO: 60001, K1: 3, K2: 4, CAN: 60002, EP: 60003, XLBV: 60004, SX3: 60005, CVK: 60006 };
+  const PROCESS_ID_BY_CODE: Record<string, number> = { GC: 1, MAI: 2, DO: 3, K1: 4, K2: 5, CAN: 8, EP: 7, XLBV: 6, SX3: 9, CVK: 60006 };
   const processId = Number(report?.process_id) > 0 ? Number(report.process_id) : (PROCESS_ID_BY_CODE[capabilities.processCode] || 0);
   const { machineOptions, productOptions, activeNgOptions, activeDeductionOptions, loadingMasterData: masterLoading } = useProcessMasterData(processId, capabilities.processCode);
   useEffect(() => setLoadingMasterData(masterLoading), [masterLoading]);
