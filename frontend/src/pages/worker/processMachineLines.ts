@@ -39,7 +39,7 @@ export function getMaxMachineCount(processCodeOrLines: string | MachineLineState
   // currently loaded machine-master rows. Workers must be able to prepare
   // six (or more, up to ten) product/machine reports in one submission even
   // when machine selection is optional or the machine list is still loading.
-  if (processCode === "MAI") return 10;
+  if (processCode === "MAI") return 6;
 
   const optionCount = Array.isArray(machineOptions) ? machineOptions.length : 0;
   const requested = Math.max(lines.length, optionCount, 1);
