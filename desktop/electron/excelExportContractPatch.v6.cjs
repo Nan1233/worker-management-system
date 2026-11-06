@@ -392,7 +392,7 @@ function patchMainSource(source) {
 
     if (isWorkerSingleFile) {
       for (const processBuilt of built.processes || []) {
-        const filePath = path.join(folder, safeFileName(processBuilt.fileName, `BAO_CAO_CONG_NHAN_${month}-${year}.xlsx`));
+        const filePath = path.join(folder, safeFileName(processBuilt.fileName, 'BAO_CAO_CONG_NHAN_' + month + '-' + year + '.xlsx'));
         const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date);
         files.push({
           category: 'MONTHLY_PROCESS', processId: -1, processCode: processBuilt.processCode || 'ALL',
