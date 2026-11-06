@@ -205,11 +205,26 @@ function report(overrides = {}) {
     const split = await buildWorkerSplit({
       appPath: path.resolve(__dirname, '..'),
       date: '2026-08-01',
-      payload: { processes: { GC: processData } }
+      payload: {
+        dataSource: 'tidb.production_reports.approved',
+        processes: {
+          GC: {
+            ...processData,
+            reports: (processData.reports || []).map((report) => ({
+              ...report,
+              dataSource: 'production_reports',
+              isApprovedDatabaseRecord: true,
+              process_code: 'GC'
+            }))
+          }
+        }
+      }
     });
-    assert.equal(split.processes.length, 1, 'Xuất GC thực tế phải tạo đúng một workbook');
+    assert.equal(split.processes.length, 10, 'Xuất tháng phải tạo đủ mười workbook công đoạn');
+    const gcWorkbook = split.processes.find((item) => item.processCode === 'GC');
+    assert.ok(gcWorkbook, 'Phải có workbook riêng cho công đoạn GC');
     const actualWorkbook = new ExcelJS.Workbook();
-    await actualWorkbook.xlsx.load(split.processes[0].buffer);
+    await actualWorkbook.xlsx.load(gcWorkbook.buffer);
     const actualSheet = actualWorkbook.worksheets.find((item) => item.state !== 'hidden') || actualWorkbook.worksheets[0];
     assert.ok(actualSheet, 'Không mở được workbook từ luồng xuất thực tế');
     const actualHeaders = [];
