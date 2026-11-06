@@ -866,23 +866,29 @@ async function buildCompanyExcelLocal({ appPath, date, groupCode, payload, exist
 const PROCESS_REPORT_GROUPS = Object.freeze({
   GC: {
     key: 'GC', processCode: 'GC', processName: 'Gia công', slug: 'Gia-cong',
-    groupCode: 'GIA_CONG', processCodes: ['GC'], template: 'file-mau.xlsx',
-    sheets: [{ processCodes: ['GC'], sheetName: 'Cắt lồng', layout: 'GIA_CONG' }]
+    groupCode: 'GIA_CONG', processCodes: ['GC'], template: 'bao-cao-cat-long-export.xlsx',
+    sheets: [{ processCodes: ['GC'], sheetName: 'Cắt lồng', layout: 'GIA_CONG' }],
+    fileName: ({ month, year }) => `04_CAT_LONG_${month}-${year}.xlsx`
   },
-  MAI_DO: {
-    key: 'MAI_DO', processCode: 'MAI_DO', processName: 'Mài - Đo', slug: 'Mai-Do',
-    groupCode: 'MAI_DO', processCodes: ['MAI', 'DO'], template: 'file-mau.xlsx',
-    sheets: [
-      { processCodes: ['MAI'], sheetName: 'TT Mài', layout: 'MAI' },
-      { processCodes: ['DO'], sheetName: 'TT Đo', layout: 'DO' }
-    ]
+  MAI: {
+    key: 'MAI', processCode: 'MAI', processName: 'Mài', slug: 'Mai',
+    groupCode: 'MAI_DO', processCodes: ['MAI'], template: 'bao-cao-mai-do-export.xlsx',
+    sheets: [{ processCodes: ['MAI'], sheetName: 'TT Mài', layout: 'MAI' }],
+    fileName: ({ month, year }) => `05_MAI_${month}-${year}.xlsx`
+  },
+  DO: {
+    key: 'DO', processCode: 'DO', processName: 'Đo', slug: 'Do',
+    groupCode: 'MAI_DO', processCodes: ['DO'], template: 'bao-cao-mai-do-export.xlsx',
+    sheets: [{ processCodes: ['DO'], sheetName: 'TT Đo', layout: 'DO' }],
+    fileName: ({ month, year }) => `06_DO_${month}-${year}.xlsx`
   }
 });
 
 function resolveProcessReportGroup(processCode) {
   const code = safeText(processCode).toUpperCase();
   if (code === 'GC') return PROCESS_REPORT_GROUPS.GC;
-  if (code === 'MAI' || code === 'DO' || code === 'MAI_DO') return PROCESS_REPORT_GROUPS.MAI_DO;
+  if (code === 'MAI') return PROCESS_REPORT_GROUPS.MAI;
+  if (code === 'DO') return PROCESS_REPORT_GROUPS.DO;
   throw new Error(`Chưa có mẫu báo cáo công đoạn cho ${processCode}.`);
 }
 
@@ -1002,10 +1008,19 @@ async function buildProcessExcelLocal({ appPath, date, processCode, payload }) {
   meta.getCell('A7').value = 'PROCESS_GROUP';
   meta.getCell('B7').value = config.key;
 
+  // Each production process exports its own workbook. Keep the matching
+  // source sheet visible and preserve the other original sheet as hidden
+  // support/template content instead of combining Mài and Đo into one file.
+  const targetSheetNames = new Set(config.sheets.map((item) => item.sheetName));
+  for (const sheet of workbook.worksheets) {
+    if (sheet.name === '_KTC_META') continue;
+    if (!targetSheetNames.has(sheet.name)) sheet.state = 'hidden';
+    else sheet.state = 'visible';
+  }
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return {
     buffer,
-    fileName: `Bao-cao-${config.slug}-${month}-${year}.xlsx`,
+    fileName: config.fileName({ month, year }),
     processCode: config.processCode,
     processName: config.processName,
     reportGroup: config.key,
