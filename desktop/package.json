@@ -108,7 +108,9 @@
         "filter": [
           "Mau_Bao_Cao_Cong_Nhan_DB_day_du_chi_tiet_STT_FIX.xlsx",
           "bao-cao-cat-long-export.xlsx",
-          "bao-cao-mai-do-export.xlsx"
+          "bao-cao-mai-do-export.xlsx",
+          "TT_MAI_TEMPLATE.xlsx",
+          "TT_DO_TEMPLATE.xlsx"
         ]
       },
       {
