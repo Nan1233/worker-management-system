@@ -13,10 +13,10 @@ import "./ManagerExcelReports.css";
 type Preset = "today" | "yesterday" | "week" | "last-week" | "month" | "last-month" | "custom";
 type ProcessTab = { label: string; processId: number; processCode: string };
 const PROCESSES: ProcessTab[] = [
-  { label: "CÁN", processId: 60002, processCode: "CAN" }, { label: "ÉP", processId: 60003, processCode: "EP" },
-  { label: "XLBV", processId: 60004, processCode: "XLBV" }, { label: "Cắt lồng", processId: 1, processCode: "GC" },
-  { label: "TT Mài", processId: 2, processCode: "MAI" }, { label: "TT Đo", processId: 60001, processCode: "DO" },
-  { label: "TT Kiểm 1", processId: 3, processCode: "KIEM1" }, { label: "TT Kiểm 2", processId: 4, processCode: "KIEM2" },
+  { label: "CÁN", processId: 8, processCode: "CAN" }, { label: "ÉP", processId: 7, processCode: "EP" },
+  { label: "XLBV", processId: 6, processCode: "XLBV" }, { label: "Cắt lồng", processId: 1, processCode: "GC" },
+  { label: "TT Mài", processId: 2, processCode: "MAI" }, { label: "TT Đo", processId: 3, processCode: "DO" },
+  { label: "TT Kiểm 1", processId: 4, processCode: "K1" }, { label: "TT Kiểm 2", processId: 5, processCode: "K2" },
 ];
 const n=(v:unknown)=>Number(v||0),fmt=(v:unknown)=>n(v).toLocaleString("vi-VN",{maximumFractionDigits:2}),pct=(v:unknown)=>`${fmt(v)}%`,txt=(v:unknown)=>v===undefined||v===null||v===""?"—":String(v);
 const dateFmt=(v?:string)=>{if(!v)return "—";const s=String(v).trim();if(/^\d{2}\/\d{2}\/\d{4}$/.test(s))return s;const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1]}`:"—"};
