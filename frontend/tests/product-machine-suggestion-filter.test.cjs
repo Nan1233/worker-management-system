@@ -20,11 +20,11 @@ test('product suggestions are scoped by operation mode and selected machine', ()
   assert.ok(page.includes('filterProductsForSelection'));
   assert.ok(page.includes('getMachineProductOptions(line.machineCode)'));
   assert.ok(page.includes('useEncodedMachineSuffix: processCode === "GC"'));
-  assert.ok(page.includes('if (processCode === "MAI" && !String(form.machineNo || "").trim())'));
+  assert.ok(page.includes('if (["MAI", "DO"].includes(processCode) && !String(form.machineNo || "").trim())'));
   assert.ok(page.includes('return toProductAutocompleteOptions(scopedProductOptions);'));
-  assert.ok(page.includes('if (processCode === "MAI" && !String(machineCode || "").trim())'));
+  assert.ok(page.includes('if (["MAI", "DO"].includes(processCode) && !String(machineCode || "").trim())'));
   assert.ok(page.includes('return scopedProductOptions;'));
-  assert.ok(basic.includes('isMaiProcess ? getMachineProductAutocompleteOptions("") : []'));
+  assert.ok(basic.includes('isMaiStyleProcess ? getMachineProductAutocompleteOptions("") : []'));
 });
 
 test('autocomplete never clears a committed selection when focus moves outside', () => {
@@ -51,7 +51,7 @@ test('GC work type matching accepts canonical and business-language values', () 
 test('single-machine processes force machine selection before product search', () => {
   assert.ok(basic.includes('!usesMultiMachineLines && !usesSingleMachine'));
   assert.ok(basic.includes('"Chọn máy trước"'));
-  assert.ok(basic.includes('loadingMasterData || !form.machineNo.trim()'));
+  assert.ok(basic.includes('loadingMasterData || (!form.machineNo.trim() && processCode !== "DO")'));
 });
 
 test('changing a machine clears the previous product so stale machine products cannot survive', () => {
@@ -151,4 +151,28 @@ test('GC Cắt/Lồng classification never guesses from C-prefixed product or ma
   assert.ok(!rules.includes('selectedRawMachine.startsWith("C")'));
   assert.ok(!rules.includes('isGcLongMachine'));
   assert.ok(machineType.includes('return machine ? normalizeGcWorkType(machine.gc_work_type) : null'));
+});
+
+
+test('worker process schema IDs match the live TiDB processes table', () => {
+  const schema = fs.readFileSync(path.join(root, 'src/pages/worker/processFormSchemas.ts'), 'utf8');
+  const access = fs.readFileSync(path.join(root, 'src/utils/processAccess.ts'), 'utf8');
+  const canonical = { GC: 1, MAI: 2, DO: 3, K1: 4, K2: 5, XLBV: 6, EP: 7, CAN: 8, SX3: 9 };
+  for (const [code, id] of Object.entries(canonical)) {
+    const matches = [...schema.matchAll(new RegExp('processId: (\\\\d+),\\\\s*processCode: "' + code + '"', 'g'))];
+    assert.equal(matches.length, 2, code + ' must be defined in selection and form schema');
+    for (const match of matches) assert.equal(Number(match[1]), id, code + ' has wrong process ID');
+    assert.ok(access.includes(code + ': ' + id + ','), code + ' must have canonical access mapping');
+  }
+  assert.ok(page.includes('useProcessMasterData(processInfo.id, processCode)'));
+  assert.ok(page.includes('processId: processInfo.id'));
+});
+
+test('CAN material code is embedded in the main form without a duplicate extra section', () => {
+  const extra = fs.readFileSync(path.join(root, 'src/pages/worker/processExtraFields.ts'), 'utf8');
+  const section = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessExtraFieldsSection.tsx'), 'utf8');
+  assert.ok(page.includes('inlineExtraFields={processCode === "CAN"'));
+  assert.ok(page.includes('processCode !== "CAN" && <ProcessExtraFieldsSection'));
+  assert.ok(extra.includes('key: "material_code"'));
+  assert.ok(section.includes('inline ? "worker-field-full worker-inline-extra-fields"'));
 });
