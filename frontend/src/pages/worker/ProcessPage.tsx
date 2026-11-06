@@ -1778,6 +1778,16 @@ const updateDeductionValue = (
 
                 <ProcessBasicInfoSection
                     processCode={processCode}
+                    inlineExtraFields={processCode === "CAN" ? (
+                        <ProcessExtraFieldsSection
+                            inline
+                            fields={currentExtraFields.filter((field) => field.key === "material_code")}
+                            extraData={extraData}
+                            setExtraData={setExtraData}
+                            fieldOptions={extraFieldOptions}
+                            loadingFieldOptions={loadingRelatedMaiMachines}
+                        />
+                    ) : undefined}
                     form={form}
                     setForm={setForm}
                     onFormChange={handleChange}
@@ -1812,13 +1822,13 @@ const updateDeductionValue = (
                     updateMachineDefectValue={updateMachineDefectValue}
                 />
 
-                <ProcessExtraFieldsSection
+                {processCode !== "CAN" && <ProcessExtraFieldsSection
                     fields={currentExtraFields}
                     extraData={extraData}
                     setExtraData={setExtraData}
                     fieldOptions={extraFieldOptions}
                     loadingFieldOptions={loadingRelatedMaiMachines}
-                />
+                />}
 
                 {!usesMachineLineAccounting && (
                     <ProcessTimeDeductionSection
