@@ -37,7 +37,8 @@ export function getMaxMachineCount(processCodeOrLines: string | MachineLineState
   if (["DO", "EP"].includes(processCode)) return 1;
   const optionCount = Array.isArray(machineOptions) ? machineOptions.length : 0;
   const requested = Math.max(lines.length, optionCount, 1);
-  return Math.min(4, requested);
+  const maxLines = processCode === "MAI" ? 10 : 4;
+  return Math.min(maxLines, requested);
 }
 
 export function toggleMachineDefectLine(line: MachineLineState, key: string, checked?: boolean): MachineLineState {
