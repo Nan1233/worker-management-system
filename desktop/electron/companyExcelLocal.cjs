@@ -1018,6 +1018,7 @@ async function buildProcessExcelLocal({ appPath, date, processCode, payload }) {
     try {
       const candidateWorkbook = new ExcelJS.Workbook();
       await candidateWorkbook.xlsx.readFile(candidate);
+      materializeSharedFormulas(candidateWorkbook);
       const candidateSheet = candidateWorkbook.getWorksheet(config.sheets[0].sheetName);
       if (!candidateSheet) throw new Error(`thiếu sheet ${config.sheets[0].sheetName}`);
       const candidateLayout = LAYOUTS[config.sheets[0].layout];
