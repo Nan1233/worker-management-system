@@ -709,12 +709,14 @@ async function syncProcessReportsFirst({ date, files, processes, companyData }) 
         processName: built.processName || processInfo.processName,
         fileName: path.basename(target.filePath), filePath: target.filePath, folder: target.folder,
         size: built.buffer.length, saved: writeResult.saved, pendingPath: writeResult.pendingPath,
-        success: true, localBuild: true, reportCount: built.reportCount
+        success: true, localBuild: true, reportCount: built.reportCount,
+        templatePath: built.sourcePath || null, templateKind: built.templateKind || null
       });
       await writeLog('INFO', 'PROCESS_EXCEL_UPDATED_LOCAL', {
         processId: processInfo.id, processCode: code, filePath: target.filePath,
         saved: writeResult.saved, pendingPath: writeResult.pendingPath,
-        reportCount: built.reportCount
+        reportCount: built.reportCount, templatePath: built.sourcePath || null,
+        templateKind: built.templateKind || null
       });
     } catch (error) {
       files.push({
