@@ -357,6 +357,21 @@ async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
     });
     if (normalized !== xml) zip.file(relationshipPath, normalized);
   }
+  // ExcelJS 4.4.0's DrawingXform matches prefixed xdr:* element names.
+  // The original Mài workbook uses the equivalent default namespace form
+  // (<wsDr><twoCellAnchor>...), which ExcelJS parses as an empty drawing
+  // model and later crashes on drawing.anchors during reconcile().
+  // Add the xdr prefix in-memory only; keep every anchor/chart and the
+  // source template bytes intact.
+  for (const drawingPath of Object.keys(zip.files)) {
+    if (!/^xl\\/drawings\\/drawing\\d+\\.xml$/.test(drawingPath)) continue;
+    const xml = await zip.file(drawingPath).async('string');
+    const prefixed = xml
+      .replace(/<wsDr\\b/, '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"')
+      .replace(/<\\/wsDr>/, '</xdr:wsDr>')
+      .replace(/(<\\/?)([A-Za-z_][\\w.-]*)(?=[\\s/>])/g, (whole, bracket, name) => `${bracket}xdr:${name}`);
+    if (prefixed !== xml) zip.file(drawingPath, prefixed);
+  }
   // ExcelJS 4.4.0 crashes in reconcile() when a drawing .rels part exists
   // without its matching drawing XML. Such orphan relationships carry no
   // renderable drawing; remove only those orphan .rels entries in-memory.
