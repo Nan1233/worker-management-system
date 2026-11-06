@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type ChangeEvent, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import AutocompleteInput from "../../../components/common/AutocompleteInput";
 import type { AutocompleteOption } from "../../../components/common/AutocompleteInput";
 import type { ProductStandardOption } from "../../../services/masterDataService";
@@ -10,6 +10,7 @@ import { getVisibleGcMachineOptions } from "../cutExecutionMode.js";
 interface NgOption { key: NgKey; code: string; label: string; }
 interface DeductionOption { key: DeductionKey; label: string; id?: number; code?: string; deduction_type_id?: number; deduction_name?: string; }
 interface Props {
+    inlineExtraFields?: ReactNode;
     processCode: string;
     form: FormState; setForm: Dispatch<SetStateAction<FormState>>; onFormChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
     isCutLongProcess: boolean; isInspectionProcess: boolean; isCvkMode: boolean; setIsCvkMode: Dispatch<SetStateAction<boolean>>; operationType: OperationType; setOperationType: Dispatch<SetStateAction<OperationType>>; operationMode: OperationMode; setOperationMode: Dispatch<SetStateAction<OperationMode>>; cutExecutionMode: CutExecutionMode; setCutExecutionMode: Dispatch<SetStateAction<CutExecutionMode>>;
@@ -20,7 +21,7 @@ const normalizeDefectCode = (value: unknown): string => String(value ?? "").trim
 type CutExecutionMode = "AUTO" | "NON_AUTO";
 type LongExecutionMode = "MANUAL" | "MACHINE";
 
-export default function ProcessBasicInfoSection({ processCode, form, setForm, onFormChange, isCutLongProcess, isInspectionProcess, isCvkMode, setIsCvkMode, operationType, setOperationType, operationMode, setOperationMode, cutExecutionMode, setCutExecutionMode, usesMultiMachineLines, usesSingleMachine, productAutocompleteOptions, getMachineProductAutocompleteOptions, productOptions, machineAutocompleteOptions, machineOptions, loadingMasterData, machineCount, maxMachineCount, machineLines, resizeMachineLines, updateMachineLine, refreshMachineLineStandard, getMachineNgTotal, activeNgOptions, activeDeductionOptions, toggleMachineDefect, updateMachineDefectValue }: Props) {
+export default function ProcessBasicInfoSection({ inlineExtraFields, processCode, form, setForm, onFormChange, isCutLongProcess, isInspectionProcess, isCvkMode, setIsCvkMode, operationType, setOperationType, operationMode, setOperationMode, cutExecutionMode, setCutExecutionMode, usesMultiMachineLines, usesSingleMachine, productAutocompleteOptions, getMachineProductAutocompleteOptions, productOptions, machineAutocompleteOptions, machineOptions, loadingMasterData, machineCount, maxMachineCount, machineLines, resizeMachineLines, updateMachineLine, refreshMachineLineStandard, getMachineNgTotal, activeNgOptions, activeDeductionOptions, toggleMachineDefect, updateMachineDefectValue }: Props) {
     const [longExecutionMode, setLongExecutionMode] = useState<LongExecutionMode>(operationMode === "MACHINE" ? "MACHINE" : "MANUAL");
     const [openMachineDeductionIndex, setOpenMachineDeductionIndex] = useState<number | null>(null);
     const [openMachineNgIndex, setOpenMachineNgIndex] = useState<number | null>(null);
@@ -226,5 +227,6 @@ export default function ProcessBasicInfoSection({ processCode, form, setForm, on
 </div>
 </div></div></div></article>)}</div></div> : usesSingleMachine ? <div className="worker-machine-single worker-field-full"><div className="worker-selection-heading"><div><strong>Máy &amp; sản phẩm</strong></div></div><div className="worker-single-machine-grid"><AutocompleteInput id="machineNo" label="Mã máy" value={form.machineNo} options={visibleMachineOptions} placeholder={processCode === "DO" ? "Không bắt buộc chọn máy" : "Chọn mã máy"} required={processCode !== "DO"} disabled={loadingMasterData} emptyMessage="Không tìm thấy máy trong công đoạn" onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }))} onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }))} /><AutocompleteInput id="productName" label="Mã sản phẩm" value={form.productName} options={getMachineProductAutocompleteOptions(form.machineNo)} placeholder={form.machineNo.trim() ? "Nhập hoặc chọn mã sản phẩm" : (processCode === "DO" ? "Chọn mã sản phẩm" : "Chọn máy trước")} required disabled={loadingMasterData || (!form.machineNo.trim() && processCode !== "DO")} emptyMessage={form.machineNo.trim() ? "Không có mã sản phẩm phù hợp với máy này" : (processCode === "DO" ? "Chưa có danh mục sản phẩm" : "Chọn máy trước để xem mã sản phẩm")} onChange={setProduct} onSelect={(option) => setProduct(option.value)} /></div><div className="machine-quantity-section"><div className="machine-section-title">Sản lượng máy</div><div className="machine-quantity-row machine-worker-quantity-row"><label className="machine-quantity-item machine-quantity-ok"><span>OK</span><input id="machineOkQuantity" type="number" min="0" inputMode="numeric" value={form.ttOk} onChange={(event) => { const value = event.target.value.replace(/\D/g, ""); setForm((prev) => ({ ...prev, ttOk: value, actualOutput: String(Math.max(0, Number(value) || 0) + Math.max(0, Number(prev.ttNg) || 0)) })); }} placeholder="0" /></label><label className="machine-quantity-item machine-quantity-ng"><span>NG</span><input id="machineNgQuantity" type="number" min="0" inputMode="numeric" value={form.ttNg} readOnly aria-readonly="true" title="Tự động tính từ chi tiết lỗi NG" placeholder="0" /></label></div></div></div> : null}
         </div>
+        {inlineExtraFields}
     </section>;
 }
