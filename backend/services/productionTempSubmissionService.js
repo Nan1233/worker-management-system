@@ -384,6 +384,48 @@ const shouldSplitMachineReports = (data, machineLines) =>
     Array.isArray(machineLines) && machineLines.length > 1 && (isGiaCongProcess(data) || isMaiProcess(data));
 
 const sumLineNumber = (lines, field) => lines.reduce((sum, line) => sum + (Number(line?.[field]) || 0), 0);
+
+// Mài: duplicate entries for the exact same physical machine + product are
+// one production report. Keep the source lines so splitMachineLinePayload can
+// preserve and batch all their NG/deduction details without losing quantities.
+const groupMaiMachineProductLines = (machineLines) => {
+    const groups = new Map();
+    const additiveFields = [
+        "machine_time_hours", "actual_time_hours", "deduction_time_hours",
+        "standard_output", "counted_output", "ok_quantity", "ng_quantity"
+    ];
+    for (const line of Array.isArray(machineLines) ? machineLines : []) {
+        const machine = String(line?.machine_code || "").trim().toUpperCase();
+        const product = String(line?.product_code || "").trim().toUpperCase();
+        // Do not silently combine incomplete rows; normal validation handles them.
+        if (!machine || !product) {
+            const uniqueKey = `__UNMATCHED__:${groups.size}`;
+            groups.set(uniqueKey, { ...line, _source_machine_lines: [line] });
+            continue;
+        }
+        const key = `${machine}::${product}`;
+        const existing = groups.get(key);
+        if (!existing) {
+            const grouped = { ...line, _source_machine_lines: [line] };
+            for (const field of additiveFields) grouped[field] = Number(line?.[field]) || 0;
+            groups.set(key, grouped);
+            continue;
+        }
+        existing._source_machine_lines.push(line);
+        for (const field of additiveFields) {
+            existing[field] = (Number(existing[field]) || 0) + (Number(line?.[field]) || 0);
+        }
+        existing.defects = [
+            ...(Array.isArray(existing.defects) ? existing.defects : []),
+            ...(Array.isArray(line?.defects) ? line.defects : [])
+        ];
+        existing.deductions = [
+            ...(Array.isArray(existing.deductions) ? existing.deductions : []),
+            ...(Array.isArray(line?.deductions) ? line.deductions : [])
+        ];
+    }
+    return [...groups.values()];
+};
 // Stable child request IDs are keyed by physical machine, not product line.
 const childRequestId = (groupRequestId, lines, index) => {
     const line = Array.isArray(lines) ? (lines[0] || {}) : (lines || {});
@@ -460,9 +502,11 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
     await enforceDailyWorkerHours(data, db, machineLines);
     data._daily_hours_machine_lines = machineLines;
-    // Each product/machine line is an independent report. Never merge two
-    // products merely because they use the same physical machine.
-    const reportMachineLines = machineLines;
+    // MAI duplicate machine+product pairs are merged; different pairs remain
+    // independent reports. GC retains its existing per-line behavior.
+    const reportMachineLines = isMaiProcess(data)
+        ? groupMaiMachineProductLines(machineLines)
+        : machineLines;
     const splitMachines = shouldSplitMachineReports(data, reportMachineLines);
     return runSerialized(queueKey(data, machineLines), async () => {
         // No second pre-transaction idempotency lookup here: sequential retries already returned above,
