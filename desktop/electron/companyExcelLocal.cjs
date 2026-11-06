@@ -340,7 +340,7 @@ async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
   const zip = await JSZip.loadAsync(inputBuffer);
   const relationshipFiles = Object.keys(zip.files).filter((name) => name.endsWith('.rels'));
   for (const relationshipPath of relationshipFiles) {
-    const match = /^(.*)\\/_rels\\/([^/]+)\\.rels$/.exec(relationshipPath);
+    const match = /^(.*)\/_rels\/([^/]+)\.rels$/.exec(relationshipPath);
     const sourcePart = relationshipPath === '_rels/.rels'
       ? ''
       : (match ? `${match[1]}/${match[2]}` : '');
@@ -348,7 +348,7 @@ async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
     const xml = await zip.file(relationshipPath).async('string');
     const normalized = xml.replace(/Target="([^"]+)"/g, (whole, target) => {
       if (!target.startsWith('/')) return whole;
-      const absoluteTarget = target.replace(/^\\/+/, '').split(/[?#]/, 1)[0];
+      const absoluteTarget = target.replace(/^\/+/, '').split(/[?#]/, 1)[0];
       const relativeTarget = sourceDirectory === '.'
         ? absoluteTarget
         : path.posix.relative(sourceDirectory, absoluteTarget);
