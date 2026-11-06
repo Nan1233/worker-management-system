@@ -371,7 +371,7 @@ function patchMainSource(source) {
   next = next.replace(/\n\s*\/\/ File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY\.xlsx[\s\S]*?\n\s*\/\/ 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test\./, '\n\n    // 9 công đoạn: dùng cùng template báo cáo công nhân; không tạo file tổng hợp.');
   // v6 returns one combined worker-report workbook, not ten process workbooks.
   // Keep legacy validation for legacy builders; validate the single-file contract separately.
-  next = next.replace(/    const expectedProcessCodes = Object\\.keys\\(PROCESS_SHEETS\\);[\\s\\S]*?\\n    }\\n\\n    \/\/ File tổng hợp:/,
+  next = next.replace(/    const expectedProcessCodes = Object\.keys\(PROCESS_SHEETS\);[\s\S]*?\n    }\n\n    \/\/ File tổng hợp:/,
     `    const isWorkerSingleFile = built?.mode === 'WORKER_REPORT_SINGLE_FILE';
     if (isWorkerSingleFile) {
       const actualCount = Array.isArray(built.processes) ? built.processes.length : 0;
