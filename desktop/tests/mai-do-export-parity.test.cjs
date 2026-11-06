@@ -25,4 +25,6 @@ test('Mài and Đo export separate workbooks using their matching source sheet',
   assert.match(source, /06_DO_/);
   assert.match(source, /targetSheetNames/);
   assert.match(source, /async function buildProcessExcelLocal/);
+  assert.match(source, /assertDistinctMaiDoTemplates\(templatePath, config\)/);
+  assert.match(source, /Template Mài và Đo đang trùng nội dung/);
 });

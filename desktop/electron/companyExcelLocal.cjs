@@ -1,5 +1,6 @@
 const path = require('node:path');
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const ExcelJS = require('exceljs');
 
 const GROUPS = Object.freeze({
@@ -898,6 +899,20 @@ function resolveProcessReportGroup(processCode) {
   throw new Error(`Chưa có mẫu báo cáo công đoạn cho ${processCode}.`);
 }
 
+function assertDistinctMaiDoTemplates(templatePath, config) {
+  if (!['MAI', 'DO'].includes(config.key)) return;
+  const counterpart = PROCESS_REPORT_GROUPS[config.key === 'MAI' ? 'DO' : 'MAI'];
+  const counterpartPath = path.join(path.dirname(templatePath), counterpart.template);
+  if (!fs.existsSync(counterpartPath)) {
+    throw new Error(`Thiếu template riêng của công đoạn ${counterpart.processName}: ${counterpart.template}`);
+  }
+  const currentHash = crypto.createHash('sha256').update(fs.readFileSync(templatePath)).digest('hex');
+  const counterpartHash = crypto.createHash('sha256').update(fs.readFileSync(counterpartPath)).digest('hex');
+  if (currentHash === counterpartHash) {
+    throw new Error('Template Mài và Đo đang trùng nội dung. Không xuất báo cáo để tránh áp dụng sai màu sắc/định dạng của công đoạn.');
+  }
+}
+
 function selectProcessItems(payload, config, processCodes) {
   const sourceGroup = payload?.groups?.[config.groupCode];
   if (!sourceGroup) throw new Error(`Backend thiếu dữ liệu ${config.groupCode}.`);
@@ -980,6 +995,8 @@ async function buildProcessExcelLocal({ appPath, date, processCode, payload }) {
   if (!templatePath) {
     throw new Error(`Không tìm thấy file báo cáo mẫu ${config.template}. Đã kiểm tra: ${templateCandidates.join(' | ')}`);
   }
+
+  assertDistinctMaiDoTemplates(templatePath, config);
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(templatePath);
