@@ -265,8 +265,13 @@ export const resolveProductStandard = async (processId: number, machineCode: str
         // standard remains a valid fallback even when an old/invalid machine code
         // is present in a saved draft.
         rows = await refreshProcessProductRows(processId);
-        localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct, machineWorkType)
-            || findPositiveLocalStandard(rows, normalizedProduct.toUpperCase(), normalizedProduct, null);
+        localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct, machineWorkType);
+        if (!localStandard && Number(processId) === 2) {
+            // Mài does not require a machine. If a stale/legacy machine code is
+            // present in the draft, resolve by the active process-level product
+            // standard rather than blocking the worker's report.
+            localStandard = findPositiveLocalStandard(rows, normalizedProduct.toUpperCase(), normalizedProduct, null);
+        }
         if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
 
         if (!productExistsInProcess) {
