@@ -4,7 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const JSZip = require('jszip');
-const { buildProcessExcelLocal } = require('../electron/companyExcelLocal.cjs');
+const ExcelJS = require('exceljs');
+const { buildProcessExcelLocal, _private } = require('../electron/companyExcelLocal.cjs');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const templateRoot = path.join(repoRoot, 'backend', 'templates');
@@ -61,33 +62,38 @@ async function readRawWorkbook(fileOrBuffer) {
   return { sheets, stylesXml };
 }
 
-function rawCellXfs(stylesXml) {
-  const section = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1] || '';
-  // Handle self-closing xf records separately. The old [^>]* pattern swallowed
-  // the slash in "/>" and accidentally merged adjacent style records.
-  const xfPattern = /<xf\b(?:(?:"[^"]*"|'[^']*'|[^'">])*)\/>|<xf\b(?:(?:"[^"]*"|'[^']*'|[^'">])*)>[\s\S]*?<\/xf>/g;
-  return [...section.matchAll(xfPattern)].map((match) => match[0].replace(/\s+/g, ' ').trim());
-}
-
 function rawFormulaCount(xml) {
-  return (xml.match(/<f(?:\s|>)/g) || []).length;
+  return (xml.match(/<f(?:\\s|>)/g) || []).length;
 }
 
-function rawStyleSnapshot(xml, cellXfs, maxRow = 12, maxColumn = 49) {
+function columnName(number) {
+  let name = '';
+  while (number > 0) {
+    const remainder = (number - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    number = Math.floor((number - 1) / 26);
+  }
+  return name;
+}
+
+async function readExcelJsWorkbook(fileOrBuffer) {
+  const input = typeof fileOrBuffer === 'string' ? fs.readFileSync(fileOrBuffer) : fileOrBuffer;
+  const compatible = await _private.normalizeAbsoluteRelationshipTargets(input);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(compatible);
+  return workbook;
+}
+
+function styleSnapshot(sheet, maxRow = 12, maxColumn = 49) {
   const result = {};
-  for (const match of xml.matchAll(/<c\b([^>]*)\/?>/g)) {
-    const attrs = Object.fromEntries([...match[1].matchAll(/([\w:]+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
-    const cell = /^([A-Z]+)(\d+)$/.exec(attrs.r || '');
-    if (!cell || Number(cell[2]) > maxRow) continue;
-    let column = 0;
-    for (const char of cell[1]) column = column * 26 + char.charCodeAt(0) - 64;
-    if (column > maxColumn) continue;
-    const styleIndex = Number(attrs.s || 0);
-    result[attrs.r] = cellXfs[styleIndex] || cellXfs[0] || '';
+  for (let row = 1; row <= maxRow; row += 1) {
+    for (let column = 1; column <= maxColumn; column += 1) {
+      const address = `${columnName(column)}${row}`;
+      result[address] = JSON.parse(JSON.stringify(sheet.getCell(address).style || {}));
+    }
   }
   return result;
 }
-
 const cases = [
   { code: 'MAI', file: 'TT_MAI_TEMPLATE.xlsx', sheet: 'TT Mài' },
   { code: 'DO', file: 'TT_DO_TEMPLATE.xlsx', sheet: 'TT Đo' }
@@ -102,8 +108,6 @@ for (const item of cases) {
     const originalRawSheet = originalRaw.sheets.find((sheet) => sheet.name === item.sheet);
     assert.ok(originalRawSheet, `Template gốc thiếu sheet ${item.sheet}`);
     const originalSheetStates = originalRaw.sheets.map((sheet) => [sheet.name, sheet.state]);
-    const originalRawXfs = rawCellXfs(originalRaw.stylesXml);
-    const originalRawStyles = rawStyleSnapshot(originalRawSheet.xml, originalRawXfs);
 
     const built = await buildProcessExcelLocal({
       appPath: path.join(repoRoot, 'desktop'),
@@ -116,10 +120,8 @@ for (const item of cases) {
       'Không được lấy template cùng tên từ thư mục khác hoặc bản cũ');
     assert.equal(built.fileName, item.code === 'MAI' ? '05_MAI_10-2026.xlsx' : '06_DO_10-2026.xlsx');
 
-    // Inspect the generated OOXML directly. ExcelJS 4.4.0 cannot reliably
-    // re-open this legacy template's drawing relationships after its own
-    // writeBuffer() round-trip; this is a reader limitation, not an export
-    // failure. Raw XML checks avoid that second parser pass.
+    // Inspect OOXML for workbook structure/formulas, and use ExcelJS's effective
+    // style model for formatting parity after the same relationship normalization.
     const outputRaw = await readRawWorkbook(built.buffer);
     const outputRawSheet = outputRaw.sheets.find((sheet) => sheet.name === item.sheet);
     assert.ok(outputRawSheet, `Workbook xuất thiếu sheet ${item.sheet}`);
@@ -128,10 +130,20 @@ for (const item of cases) {
       'Không được ẩn/hiện hoặc đổi trạng thái các sheet gốc');
     assert.equal(rawFormulaCount(outputRawSheet.xml), rawFormulaCount(originalRawSheet.xml),
       'Không được xóa công thức trong sheet template');
-    const outputRawXfs = rawCellXfs(outputRaw.stylesXml);
-    const outputRawStyles = rawStyleSnapshot(outputRawSheet.xml, outputRawXfs);
-    for (const [address, style] of Object.entries(originalRawStyles)) {
-      assert.equal(outputRawStyles[address], style, `Style OOXML thực tế ô ${address} bị thay đổi so với template`);
+    // Compare ExcelJS's effective style objects after applying the same compatibility
+    // normalization to both workbooks. Raw OOXML IDs/attribute order are serializer
+    // details and can change during a valid ExcelJS round-trip.
+    const originalWorkbook = await readExcelJsWorkbook(sourcePath);
+    const outputWorkbook = await readExcelJsWorkbook(built.buffer);
+    const originalStyleSheet = originalWorkbook.getWorksheet(item.sheet);
+    const outputStyleSheet = outputWorkbook.getWorksheet(item.sheet);
+    assert.ok(originalStyleSheet, `ExcelJS không đọc được sheet gốc ${item.sheet}`);
+    assert.ok(outputStyleSheet, `ExcelJS không đọc được sheet xuất ${item.sheet}`);
+    const originalStyles = styleSnapshot(originalStyleSheet);
+    const outputStyles = styleSnapshot(outputStyleSheet);
+    for (const [address, style] of Object.entries(originalStyles)) {
+      assert.deepEqual(outputStyles[address], style,
+        `Định dạng hiệu lực ô ${address} bị thay đổi so với template`);
     }
   });
 }

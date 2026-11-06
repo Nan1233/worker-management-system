@@ -40,4 +40,5 @@ jobs:
       - run: node --test tests/production-calculation-engine.test.cjs
       - run: node --test tests/company-excel-shared-machine.test.cjs
       - run: npm run test:cvk-export
+      - run: node --test tests/mai-do-export-parity.test.cjs
       - run: node scripts/smokeExcel.cjs

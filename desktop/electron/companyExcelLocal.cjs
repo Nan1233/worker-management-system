@@ -1175,4 +1175,4 @@ async function buildProcessExcelLocal({ appPath, date, processCode, payload }) {
   };
 }
 
-module.exports = { buildCompanyExcelLocal, buildProcessExcelLocal, _private: { getMetrics } };
+module.exports = { buildCompanyExcelLocal, buildProcessExcelLocal, _private: { getMetrics, normalizeAbsoluteRelationshipTargets } };
