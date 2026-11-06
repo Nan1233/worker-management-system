@@ -5,18 +5,19 @@ type FieldOption = { value: string; label: string };
 
 interface Props {
     fields: ExtraFieldDefinition[];
+    inline?: boolean;
     fieldOptions?: Record<string, FieldOption[]>;
     loadingFieldOptions?: boolean;
     extraData: Record<string, string>;
     setExtraData: Dispatch<SetStateAction<Record<string, string>>>;
 }
 
-export default function ProcessExtraFieldsSection({ fields, extraData, setExtraData, fieldOptions = {}, loadingFieldOptions = false }: Props) {
+export default function ProcessExtraFieldsSection({ fields, inline = false, extraData, setExtraData, fieldOptions = {}, loadingFieldOptions = false }: Props) {
     if (fields.length === 0) return null;
 
     return (
-        <section className="worker-form-card">
-            <h2 className="worker-card-title"><span>▦</span> Thông tin riêng công đoạn</h2>
+        <div className={inline ? "worker-field-full worker-inline-extra-fields" : "worker-form-card"}>
+            {!inline && <h2 className="worker-card-title"><span>▦</span> Thông tin riêng công đoạn</h2>}
             <div className="worker-basic-grid">
                 {fields.map((field) => (
                     <div className="worker-field-block" key={field.key}>
@@ -62,6 +63,6 @@ export default function ProcessExtraFieldsSection({ fields, extraData, setExtraD
                     </div>
                 ))}
             </div>
-        </section>
+        </div>
     );
 }
