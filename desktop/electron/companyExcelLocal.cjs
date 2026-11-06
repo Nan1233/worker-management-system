@@ -357,6 +357,15 @@ async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
     });
     if (normalized !== xml) zip.file(relationshipPath, normalized);
   }
+  // ExcelJS 4.4.0 crashes in reconcile() when a drawing .rels part exists
+  // without its matching drawing XML. Such orphan relationships carry no
+  // renderable drawing; remove only those orphan .rels entries in-memory.
+  for (const relationshipPath of Object.keys(zip.files)) {
+    const drawingRels = /^xl\\/drawings\\/_rels\\/([^/]+)\\.xml\\.rels$/.exec(relationshipPath);
+    if (drawingRels && !zip.file(`xl/drawings/${drawingRels[1]}.xml`)) {
+      zip.remove(relationshipPath);
+    }
+  }
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
