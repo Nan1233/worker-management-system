@@ -170,9 +170,16 @@ const toExcelDate = (value) => {
   return new Date(year, month - 1, day);
 };
 
+const isFormulaValue = (value) => Boolean(value && typeof value === 'object' &&
+  (typeof value.formula === 'string' || typeof value.sharedFormula === 'string' ||
+   (typeof value.ref === 'string' && value.shareType === 'array')));
+
 const setCell = (row, column, value, format) => {
   if (!column) return;
   const cell = row.getCell(column);
+  // Formula cells belong to the template. Let Excel calculate them rather
+  // than replacing their formulas with static values from the exporter.
+  if (isFormulaValue(cell.value)) return;
   cell.value = value;
   // Prefer the number format authored in the source template. The fallback
   // format is applied only to genuinely unformatted cells.
@@ -526,9 +533,7 @@ function clearReportRow(row, lastColumn) {
     const value = cell.value;
     // Template formulas (including shared/array formulas) are part of the
     // original workbook contract. Clear only input cells; never erase formulas.
-    if (value && typeof value === 'object' &&
-        (typeof value.formula === 'string' || typeof value.sharedFormula === 'string' ||
-         typeof value.ref === 'string' && value.shareType === 'array')) continue;
+    if (isFormulaValue(value)) continue;
     cell.value = null;
   }
 }
