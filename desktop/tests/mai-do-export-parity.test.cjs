@@ -17,8 +17,8 @@ test('Đo export maps related Mài machine to template column F from extra_data'
 });
 
 test('Mài and Đo export separate workbooks using their matching source sheet', () => {
-  assert.match(source, /MAI:[\s\S]*processCodes: \['MAI'\], template: 'bao-cao-mai-do-export\.xlsx'/);
-  assert.match(source, /DO:[\s\S]*processCodes: \['DO'\], template: 'bao-cao-mai-do-export\.xlsx'/);
+  assert.match(source, /MAI:\s*\{[\s\S]*?processCodes: \['MAI'\], template: 'TT_MAI_TEMPLATE\.xlsx'/);
+  assert.match(source, /DO:\s*\{[\s\S]*?processCodes: \['DO'\], template: 'TT_DO_TEMPLATE\.xlsx'/);
   assert.match(source, /sheetName: 'TT Mài', layout: 'MAI'/);
   assert.match(source, /sheetName: 'TT Đo', layout: 'DO'/);
   assert.match(source, /05_MAI_/);
