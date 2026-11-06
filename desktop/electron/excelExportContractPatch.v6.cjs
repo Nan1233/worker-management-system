@@ -238,9 +238,9 @@ function hydrateReportDetails(processData) {
   }
 }
 
-// VERSION B: one export = ONE worker-report workbook for the month.
-// All processes' approved reports go into the same sheet (grouped by work
-// date, STT restarting per day); no per-process files, no 00_TONG_HOP.
+// Legacy aggregation helper retained for compatibility with older callers.
+// The active monthly export below deliberately does not use it: each process
+// is built from its own payload and written to its own workbook.
 function mergeProcessData(rows) {
   const merged = { processName: 'Báo cáo công nhân', reports: [], deductionTypes: [], defectTypes: [] };
   const seenDeduction = new Set();
@@ -363,7 +363,8 @@ function patchMainSource(source) {
     next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);\n${next}`;
   }
 
-  // Replace the old ten-process validation by an explicit single-file contract.
+  // Keep the legacy single-file branch for compatibility, while the active
+  // PROCESS_WORKBOOKS contract continues through the ten-workbook path.
   const validationStart = next.indexOf('    const expectedProcessCodes = Object.keys(PROCESS_SHEETS);');
   const summaryStart = next.indexOf('    const summaryFilePath = path.join(', validationStart);
   const splitLogStart = next.indexOf("    await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', {", summaryStart);
