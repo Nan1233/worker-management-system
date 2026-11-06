@@ -91,6 +91,15 @@ test('Cloudflare runtime requires TiDB connection material and a strong JWT secr
   }), { valid: true });
 });
 
+test('Cloudflare TEST Preview defers missing-secret failure to requests while production stays fail-fast', () => {
+  const worker = read('cloudflare-worker.js');
+  assert.match(worker, /deploymentProfile\.environment === "production"\) validateCloudflareRuntimeSecrets\(env\)/);
+  assert.match(worker, /deploymentProfile\.environment === "test"/);
+  assert.match(worker, /status: 503/);
+  assert.match(worker, /Preview backend chưa được cấu hình đầy đủ secrets/);
+  assert.match(worker, /validateCloudflareRuntimeSecrets\(envArg \|\| env\)/);
+});
+
 test('Cloudflare Worker CORS does not include the opposite environment or legacy Render frontend by default', () => {
   const worker = read('cloudflare-worker.js');
   const server = read('server.js');
