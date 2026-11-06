@@ -32,6 +32,25 @@ function styleSnapshot(sheet, maxRow = 12, maxColumn = 49) {
 }
 
 
+
+async function normalizeAbsoluteRelationshipTargets(inputBuffer) {
+  const zip = await JSZip.loadAsync(inputBuffer);
+  for (const relationshipPath of Object.keys(zip.files).filter((name) => name.endsWith('.rels'))) {
+    const match = /^(.*)\\/_rels\\/([^/]+)\\.rels$/.exec(relationshipPath);
+    const sourcePart = relationshipPath === '_rels/.rels' ? '' : (match ? `${match[1]}/${match[2]}` : '');
+    const sourceDirectory = path.posix.dirname(sourcePart);
+    const xml = await zip.file(relationshipPath).async('string');
+    const normalized = xml.replace(/Target="([^"]+)"/g, (whole, target) => {
+      if (!target.startsWith('/')) return whole;
+      const absoluteTarget = target.replace(/^\\/+/, '').split(/[?#]/, 1)[0];
+      const relativeTarget = sourceDirectory === '.' ? absoluteTarget : path.posix.relative(sourceDirectory, absoluteTarget);
+      return `Target="${relativeTarget}${target.slice(absoluteTarget.length + 1)}"`;
+    });
+    if (normalized !== xml) zip.file(relationshipPath, normalized);
+  }
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
 async function readRawWorkbook(fileOrBuffer) {
   const input = typeof fileOrBuffer === 'string' ? fs.readFileSync(fileOrBuffer) : fileOrBuffer;
   const zip = await JSZip.loadAsync(input);
@@ -82,14 +101,16 @@ for (const item of cases) {
     const sourcePath = path.join(templateRoot, item.file);
     assert.ok(fs.existsSync(sourcePath), `Thiếu template test: ${sourcePath}`);
 
-    // Read the source template as ZIP/XML: ExcelJS 4.4.0 can throw while
-    // reconciling drawing relationships in these original workbooks.
-    const original = await readRawWorkbook(sourcePath);
-    const originalSheet = original.sheets.find((sheet) => sheet.name === item.sheet);
+    // Normalize absolute OOXML relationship targets before loading the
+    // workbook. ExcelJS expects relationship targets relative to each part.
+    const normalizedSource = await normalizeAbsoluteRelationshipTargets(fs.readFileSync(sourcePath));
+    const original = new ExcelJS.Workbook();
+    await original.xlsx.load(normalizedSource);
+    const originalSheet = original.getWorksheet(item.sheet);
     assert.ok(originalSheet, `Template gốc thiếu sheet ${item.sheet}`);
-    const originalFormulaCount = rawFormulaCount(originalSheet.xml);
-    const originalStyles = rawStyleSnapshot(originalSheet.xml);
-    const originalSheetStates = original.sheets.map((sheet) => [sheet.name, sheet.state]);
+    const originalFormulaCount = formulaCount(originalSheet);
+    const originalStyles = styleSnapshot(originalSheet);
+    const originalSheetStates = original.worksheets.map((sheet) => [sheet.name, sheet.state]);
 
     const built = await buildProcessExcelLocal({
       appPath: path.join(repoRoot, 'desktop'),
@@ -106,18 +127,15 @@ for (const item of cases) {
     await output.xlsx.load(built.buffer);
     const outputSheet = output.getWorksheet(item.sheet);
     assert.ok(outputSheet, `Workbook xuất thiếu sheet ${item.sheet}`);
-    const outputRaw = await readRawWorkbook(built.buffer);
-    assert.deepEqual(outputRaw.sheets.filter((sheet) => sheet.name !== '_KTC_META')
+    assert.deepEqual(output.worksheets.filter((sheet) => sheet.name !== '_KTC_META')
       .map((sheet) => [sheet.name, sheet.state]), originalSheetStates,
       'Không được ẩn/hiện hoặc đổi trạng thái các sheet gốc');
-    const outputRawSheet = outputRaw.sheets.find((sheet) => sheet.name === item.sheet);
-    assert.ok(outputRawSheet, `Workbook xuất thiếu sheet ${item.sheet}`);
-    assert.equal(rawFormulaCount(outputRawSheet.xml), originalFormulaCount,
+    assert.equal(formulaCount(outputSheet), originalFormulaCount,
       'Không được xóa công thức trong vùng dữ liệu của template');
 
-    const outputStyles = rawStyleSnapshot(outputRawSheet.xml);
+    const outputStyles = styleSnapshot(outputSheet);
     for (const [address, style] of Object.entries(originalStyles)) {
-      assert.equal(outputStyles[address], style, `Style ID ô ${address} bị thay đổi so với template`);
+      assert.equal(outputStyles[address], style, `Định dạng thực tế ô ${address} bị thay đổi so với template`);
     }
   });
 }
