@@ -630,6 +630,7 @@ const machineAutocompleteOptions =
 
     const finishDuplicateAction = useCallback(() => {
         setDuplicatePrompt(null);
+        pendingSplitPayloadsRef.current = [];
         clientRequestIdRef.current = null;
         submitLockRef.current = false;
         setSubmitting(false);
@@ -1873,6 +1874,7 @@ const updateDeductionValue = (
                 loadingWorker={loadingWorker}
                 onCancelDuplicate={() => {
                     setDuplicatePrompt(null);
+                    pendingSplitPayloadsRef.current = [];
                     submitLockRef.current = false;
                 }}
                 onUpdateExisting={() => void handleUpdateExistingReport()}
