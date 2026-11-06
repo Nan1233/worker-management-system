@@ -366,13 +366,24 @@ async function __ktcCleanupLegacyMonthlyLayout(root, date, keepFileNames = []) {
 function patchMainSource(source) {
   let next = String(source);
   if (!next.includes('const PROCESS_CODES = Object.freeze([')) {
-    next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);\n${next}`;
+    next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);\\n${next}`;
   }
-  next = next.replace(/\n\s*\/\/ File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY\.xlsx[\s\S]*?\n\s*\/\/ 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test\./, '\n\n    // 9 công đoạn: dùng cùng template báo cáo công nhân; không tạo file tổng hợp.');
-  // v6 returns one combined worker-report workbook, not ten process workbooks.
-  // Keep legacy validation for legacy builders; validate the single-file contract separately.
-  next = next.replace(/    const expectedProcessCodes = Object\\.keys\\(PROCESS_SHEETS\\);[\\s\\S]*?\\n\\s*(?=const summaryFilePath = path\\.join\\()/,
-    `    const isWorkerSingleFile = built?.mode === 'WORKER_REPORT_SINGLE_FILE';
+
+  // Remove the obsolete comment that describes the old summary workbook contract.
+  next = next.replace(
+    /\\n\\s*\\/\\/ File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY\\.xlsx[\\s\\S]*?\\n\\s*\\/\\/ 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test\\./,
+    '\\n\\n    // Monthly export uses one approved worker-report workbook.'
+  );
+
+  // Replace the old ten-process validation by an explicit single-file contract.
+  const validationStart = next.indexOf('    const expectedProcessCodes = Object.keys(PROCESS_SHEETS);');
+  const summaryStart = next.indexOf('    const summaryFilePath = path.join(', validationStart);
+  const splitLogStart = next.indexOf("    await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', {", summaryStart);
+  if (validationStart < 0 || summaryStart < 0 || splitLogStart < 0) {
+    throw new Error('KTC monthly export patch could not locate the complete validation/write block; refusing to load main.cjs.');
+  }
+
+  const singleFileBlock = `    const isWorkerSingleFile = built?.mode === 'WORKER_REPORT_SINGLE_FILE';
     if (isWorkerSingleFile) {
       const actualCount = Array.isArray(built.processes) ? built.processes.length : 0;
       const expectedCount = Number.isFinite(Number(built.expectedFileCount)) ? Number(built.expectedFileCount) : actualCount;
@@ -380,44 +391,63 @@ function patchMainSource(source) {
         throw Object.assign(new Error('Số workbook không khớp: yêu cầu ' + expectedCount + ', tạo được ' + actualCount + '.'),
           { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' });
       }
+      for (const processBuilt of built.processes || []) {
+        const filePath = path.join(folder, safeFileName(processBuilt.fileName, 'BAO_CAO_CONG_NHAN_' + month + '-' + year + '.xlsx'));
+        const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date);
+        files.push({
+          category: 'MONTHLY_PROCESS',
+          processId: -1,
+          processCode: processBuilt.processCode || 'ALL',
+          processName: processBuilt.processName || 'Báo cáo công nhân',
+          fileName: path.basename(filePath),
+          filePath,
+          folder,
+          size: processBuilt.buffer.length,
+          saved: writeResult.saved,
+          pendingPath: writeResult.pendingPath,
+          backupPath: writeResult.backupPath,
+          success: writeResult.saved === true,
+          source: 'desktop-local',
+          reportCount: processBuilt.reportCount
+        });
+        await writeLog('INFO', 'MONTHLY_WORKER_TEMPLATE_UPDATED', {
+          date, filePath, saved: writeResult.saved, pendingPath: writeResult.pendingPath || null
+        });
+      }
     } else {
       const expectedProcessCodes = Object.keys(PROCESS_SHEETS);
       const builtProcessCodes = (built.processes || []).map((item) => String(item.processCode || '').toUpperCase());
       const missingProcessCodes = expectedProcessCodes.filter((code) => !builtProcessCodes.includes(code));
       if (missingProcessCodes.length || builtProcessCodes.length !== expectedProcessCodes.length) {
-        throw Object.assign(new Error('Thiếu workbook công đoạn: ' + (missingProcessCodes.join(', ') || 'danh sách công đoạn không khớp') + '.'),
-          { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' });
+        throw Object.assign(
+          new Error('Thiếu workbook công đoạn: ' + (missingProcessCodes.join(', ') || 'danh sách công đoạn không khớp') + '.'),
+          { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' }
+        );
       }
-    }
 
-    if (isWorkerSingleFile) {
-      for (const processBuilt of built.processes || []) {
-        const filePath = path.join(folder, safeFileName(processBuilt.fileName, 'BAO_CAO_CONG_NHAN_' + month + '-' + year + '.xlsx'));
-        const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date);
-        files.push({
-          category: 'MONTHLY_PROCESS', processId: -1, processCode: processBuilt.processCode || 'ALL',
-          processName: processBuilt.processName || 'Báo cáo công nhân', fileName: path.basename(filePath),
-          filePath, folder, size: processBuilt.buffer.length, saved: writeResult.saved,
-          pendingPath: writeResult.pendingPath, backupPath: writeResult.backupPath,
-          success: writeResult.saved === true, source: 'desktop-local', reportCount: processBuilt.reportCount
-        });
-        await writeLog('INFO', 'MONTHLY_WORKER_TEMPLATE_UPDATED', { date, filePath, saved: writeResult.saved, pendingPath: writeResult.pendingPath || null });
-      }
-    } else {
-    // File tổng hợp:`);
-  if (!next.includes(\"const isWorkerSingleFile = built?.mode === 'WORKER_REPORT_SINGLE_FILE';\")) {\n    throw new Error('KTC Excel patch could not locate the monthly validation block; refusing to compile a partially patched main.cjs.');\n  }\n  next = next.replace(/\n\s*const processFolder = path\.join\(folder, safeFolderName\(processBuilt\.processName \|\| processBuilt\.processCode\)\);\n\s*await fs\.mkdir\(processFolder, \{ recursive: true \}\);/g, '');
-  next = next.replace(/path\.join\(\s*processFolder,\s*/g, 'path.join(\n        folder,\n        ');
-  next = next.replace(/folder: processFolder,/g, 'folder,');
-  next = next.replace(/expectedFileCount: Object\.keys\(PROCESS_SHEETS\)\.length \+ 1/g, 'expectedFileCount: PROCESS_CODES.length');
-  next = next.replace(/const expectedFileCount = Object\.keys\(PROCESS_SHEETS\)\.length \+ 1;/g,
-    "const expectedFileCount = files.filter((file) => file.category === 'MONTHLY_PROCESS').length || PROCESS_CODES.length;");
+`;
+  next = next.slice(0, validationStart) + singleFileBlock + next.slice(summaryStart, splitLogStart) +
+    '    } // end legacy multi-workbook branch.\\n' + next.slice(splitLogStart);
+
+  next = next.replace(
+    'expectedFileCount: Object.keys(PROCESS_SHEETS).length + 1',
+    "expectedFileCount: built?.mode === 'WORKER_REPORT_SINGLE_FILE' ? Number(built.expectedFileCount || 0) : Object.keys(PROCESS_SHEETS).length + 1"
+  );
+  next = next.replace(
+    'const expectedFileCount = Object.keys(PROCESS_SHEETS).length + 1;',
+    "const expectedFileCount = files.some((file) => file.category === 'MONTHLY_PROCESS' && file.processCode === 'ALL') ? files.filter((file) => file.category === 'MONTHLY_PROCESS').length : Object.keys(PROCESS_SHEETS).length + 1;"
+  );
   next = next.replace(/mode: 'desktop-local-monthly-workbooks'/g, "mode: 'desktop-local-worker-template'");
+
   const cleanupFn = cleanupLegacyMonthlyFilesSource();
-  const marker = '\nasync function syncAllProcessExcel';
-  if (!next.includes('__ktcCleanupLegacyMonthlyLayout')) next = next.replace(marker, () => `\n${cleanupFn}${marker}`);
-  next = next.replace(/\n\s*await writeLog\('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', \{/g, '\n    } // end legacy summary branch; worker single-file skips summary.\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {');
+  const marker = '\\nasync function syncAllProcessExcel';
+  if (!next.includes('__ktcCleanupLegacyMonthlyLayout')) {
+    next = next.replace(marker, () => `\\n${cleanupFn}${marker}`);
+  }
   const successMarker = 'const success = files.length === expectedFileCount && files.every((file) => file.success === true);';
-  if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) next = next.replace(successMarker, `${successMarker}\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean));`);
+  if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) {
+    next = next.replace(successMarker, `${successMarker}\\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean));`);
+  }
   return next;
 }
 
