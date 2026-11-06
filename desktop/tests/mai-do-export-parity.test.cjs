@@ -63,8 +63,10 @@ async function readRawWorkbook(fileOrBuffer) {
 
 function rawCellXfs(stylesXml) {
   const section = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1] || '';
-  return [...section.matchAll(/<xf\b[^>]*(?:\/>|>[\s\S]*?<\/xf>)/g)]
-    .map((match) => match[0].replace(/\s+/g, ' ').trim());
+  // Handle self-closing xf records separately. The old [^>]* pattern swallowed
+  // the slash in "/>" and accidentally merged adjacent style records.
+  const xfPattern = /<xf\b(?:(?:"[^"]*"|'[^']*'|[^'">])*)\/>|<xf\b(?:(?:"[^"]*"|'[^']*'|[^'">])*)>[\s\S]*?<\/xf>/g;
+  return [...section.matchAll(xfPattern)].map((match) => match[0].replace(/\s+/g, ' ').trim());
 }
 
 function rawFormulaCount(xml) {
