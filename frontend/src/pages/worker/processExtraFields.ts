@@ -15,9 +15,7 @@ export type ExtraFieldDefinition = {
 export const PROCESS_SPECIFIC_FIELDS: Record<string, ExtraFieldDefinition[]> = {
   "cat-long": [],
   mai: [],
-  do: [
-    { key: "grinding_machine_no", label: "Máy mài liên quan", type: "select" },
-  ],
+  do: [],
 
   "kiem-1": [
     { key: "press_date", label: "Ngày tháng Ép", type: "date" },
