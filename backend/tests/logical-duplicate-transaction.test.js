@@ -31,6 +31,16 @@ function loadCreateModelHarness() {
       if (/SELECT id, status FROM production_reports_temp WHERE worker_id=\? AND client_request_id=\? LIMIT 1/i.test(normalized)) {
         return requestRows.has(`${params[0]}:${params[1]}`) ? [requestRows.get(`${params[0]}:${params[1]}`)] : [];
       }
+      // The current idempotency lookup returns exact request IDs and optional
+      // GC/MAI grouped-child IDs in one SELECT. The fixture must model that
+      // query, otherwise a valid retry falsely appears as a logical duplicate.
+      if (/FROM production_reports_temp/i.test(normalized)
+          && /client_request_id=\?/i.test(normalized)
+          && /gc_group_request_id/i.test(normalized)
+          && /machine_group_request_id/i.test(normalized)) {
+        const key = `${params[0]}:${params[1]}`;
+        return requestRows.has(key) ? [requestRows.get(key)] : [];
+      }
       if (/JSON_UNQUOTE\(JSON_EXTRACT\(extra_data, '\$\.gc_group_request_id'\)\)=\?/i.test(normalized)) return [];
       if (/SELECT process_code FROM processes/i.test(normalized)) return [{ process_code: 'EP' }];
       if (/SUM\(group_hours\)/i.test(normalized)) return [{ counted_hours: 0 }];
