@@ -29,8 +29,8 @@ jobs:
         run: node --test tests/source-patch-removal.contract.test.js tests/approved-edit-concurrency.test.js
       - name: GC physical-machine accounting and Excel export integrity regression
         run: node --test tests/gc-machine-time-remote-smoke.test.js tests/source-integrity.test.js
-      - name: Historical standard effective-date overlap regression
-        run: node --test tests/historical-standard-overlap-guard.test.js
+      - name: Historical standard and machine/product ambiguity regressions
+        run: node --test tests/historical-standard-overlap-guard.test.js tests/standard-ambiguity-fail-closed.test.js
       - name: Full backend tests (informational — existing failures outside this refactor)
         continue-on-error: true
         run: npm test
