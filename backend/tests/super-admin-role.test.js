@@ -73,13 +73,24 @@ test('permissions: super admin and admin both have every permission; overrides o
     if (/^SELECT id,role FROM users/i.test(sql)) return [[{ id: params[0], role: params[0] === 1 ? 'super_admin' : 'admin' }], []];
     return [[], []];
   } }) };
-  const [service] = withStubs({ 'config/db': fakeDb }, ['services/permissionService']);
-  const all = service.getPermissionList().map((p) => p.code).sort();
-  assert.deepEqual([...await service.getEffectivePermissions({ id: 1, role: 'super_admin' })].sort(), all);
-  assert.deepEqual([...await service.getEffectivePermissions({ id: 60002, role: 'admin' })].sort(), all, 'existing admins keep full permissions');
-  assert.equal(await service.hasPermission({ id: 1, role: 'super_admin' }, 'PERMISSION_MANAGE'), true);
-  await assert.rejects(() => service.setUserPermission(1, 'REPORT_EXPORT', false), (e) => e.code === 'PERMISSION_ADMIN_IMMUTABLE');
-  await assert.rejects(() => service.setRolePermission('super_admin', 'REPORT_EXPORT', false), (e) => e.code === 'PERMISSION_ADMIN_IMMUTABLE');
+  // The permission service deliberately lazy-loads config/db. Keep the fake
+  // module available until async permission calls finish, not just while
+  // importing the service. Restore the previous cache after this test.
+  const dbPath = require.resolve('../config/db');
+  const previousDb = require.cache[dbPath];
+  require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: fakeDb };
+  try {
+    const [service] = withStubs({}, ['services/permissionService']);
+    const all = service.getPermissionList().map((p) => p.code).sort();
+    assert.deepEqual([...await service.getEffectivePermissions({ id: 1, role: 'super_admin' })].sort(), all);
+    assert.deepEqual([...await service.getEffectivePermissions({ id: 60002, role: 'admin' })].sort(), all, 'existing admins keep full permissions');
+    assert.equal(await service.hasPermission({ id: 1, role: 'super_admin' }, 'PERMISSION_MANAGE'), true);
+    await assert.rejects(() => service.setUserPermission(1, 'REPORT_EXPORT', false), (e) => e.code === 'PERMISSION_ADMIN_IMMUTABLE');
+    await assert.rejects(() => service.setRolePermission('super_admin', 'REPORT_EXPORT', false), (e) => e.code === 'PERMISSION_ADMIN_IMMUTABLE');
+  } finally {
+    if (previousDb) require.cache[dbPath] = previousDb;
+    else delete require.cache[dbPath];
+  }
 });
 
 test('user management scope: only a super admin may manage admin / super_admin accounts', async () => {
