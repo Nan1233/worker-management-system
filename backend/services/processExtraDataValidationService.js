@@ -1,6 +1,7 @@
-const db = require("../config/db");
-
+// Open a DB connection only when the runtime validator actually queries data.
+// Injected query functions in unit tests must not bootstrap the TiDB pool.
 const defaultQuery = (sql, params = []) => new Promise((resolve, reject) => {
+    const db = require("../config/db");
     db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows || []));
 });
 
