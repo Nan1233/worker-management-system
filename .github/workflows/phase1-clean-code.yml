@@ -33,6 +33,8 @@ jobs:
         run: node --test tests/historical-standard-overlap-guard.test.js tests/standard-ambiguity-fail-closed.test.js
       - name: GC non-product work submission regression
         run: node --test tests/non-product-work-validation.test.js
+      - name: Report idempotency and logical duplicate regression
+        run: node --test tests/logical-duplicate-transaction.test.js
       - name: Full backend tests (informational — existing failures outside this refactor)
         continue-on-error: true
         run: npm test
