@@ -41,6 +41,8 @@ jobs:
         run: node --test tests/machine-line-validation.integration.test.js
       - name: GC authoritative product suggestion work-type regression
         run: node --test tests/product-suggestion-scope.test.js
+      - name: Mài-Đo process policy and extra-data regression
+        run: node --test tests/process-extra-data-validation.test.js tests/process-machine-policy.test.js
       - name: Full backend tests (informational — existing failures outside this refactor)
         continue-on-error: true
         run: npm test
