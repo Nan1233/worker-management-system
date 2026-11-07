@@ -52,7 +52,10 @@ test("FE and BE agree that Mài supports up to four machines and Đo requires on
     const domain = read("frontend/src/pages/worker/processPageDomain.ts");
     assert.match(domain, /return \["GC", "MAI", "CAN", "EP"\]\.includes\(c\.processCode\) && mode === "MACHINE"/);
     const fields = read("frontend/src/pages/worker/processExtraFields.ts");
-    assert.match(fields, /grinding_machine_no.*type: "select"/);
+    // Related grinding machine field was deliberately hidden from the worker form.
+    // Backend may still accept old extra_data for existing approved reports.
+    assert.match(fields, /do:\\s*\\[\\s*\\]/);
+    assert.doesNotMatch(fields, /key:\\s*"grinding_machine_no"/);
     const page = read("frontend/src/pages/worker/ProcessPage.tsx");
     assert.match(page, /getCachedMachines\(2\)/);
     assert.match(page, /Máy Mài liên quan không còn trong danh mục hoạt động/);
