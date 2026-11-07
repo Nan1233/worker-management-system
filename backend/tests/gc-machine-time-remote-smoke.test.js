@@ -19,7 +19,7 @@ test('remote smoke oracle counts a shared physical event once within one worker 
   assert.equal(result.source, 'MACHINE_EVENT');
 });
 
-test('remote smoke oracle supports legacy report-level deductions for one machine line', () => {
+test('remote smoke oracle never projects worker-level deductions into physical accounting, even with one machine line', () => {
   const result = expectedAccounting({
     operation_mode: 'MACHINE',
     deduction_time: 1,
@@ -31,8 +31,8 @@ test('remote smoke oracle supports legacy report-level deductions for one machin
   });
 
   assert.equal(result.grossHours, 8);
-  assert.equal(result.deductionHours, 1);
-  assert.equal(result.netHours, 7);
+  assert.equal(result.deductionHours, 0);
+  assert.equal(result.netHours, 8);
   assert.equal(result.source, 'MACHINE_LINE');
 });
 
