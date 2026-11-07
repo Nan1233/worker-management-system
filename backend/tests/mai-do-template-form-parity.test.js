@@ -8,8 +8,8 @@ const extraFields = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/p
 const exportService = fs.readFileSync(path.join(root, 'backend/services/companyMaiDoExcelService.js'), 'utf8');
 const payload = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/processReportSubmission.ts'), 'utf8');
 
-test('Đo form captures the related grinding machine in process extra_data', () => {
-  assert.match(extraFields, /do:\s*\[[\s\S]*grinding_machine_no[\s\S]*Máy mài liên quan/);
+test('Đo hides related grinding machine from worker form while preserving legacy extra_data compatibility', () => {
+  assert.match(extraFields, /do:\s*\[\s*\]/);
   assert.match(payload, /extra_data:\s*\{\.\.\.args\.extraData/);
 });
 
