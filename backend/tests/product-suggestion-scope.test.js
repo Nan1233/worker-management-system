@@ -39,4 +39,8 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   // The current master-data contract no longer depends on the obsolete
   // 2801-LT migration fixture. Lồng selection must remain source-driven.
   assert.doesNotMatch(rules, /2801-LT/);
+  // Product code prefixes are not authoritative for Cắt/Lồng. Trust the
+  // configured work_type, including master rows whose product code starts C.
+  assert.doesNotMatch(rules, /code\.startsWith\("C"\)/);
+  assert.match(rules, /normalizeWorkType\(product\.work_type\) === selectedMachineWorkType/);
 });
