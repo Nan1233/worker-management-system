@@ -34,7 +34,7 @@
     "ios:release:check": "node scripts/checkIosReleaseContract.cjs",
     "device:android:check": "node scripts/deviceSmoke.cjs android",
     "device:ios:check": "node scripts/deviceSmoke.cjs ios",
-    "prepare:source": "node scripts/patchWorkerReportEdit.cjs && node scripts/patchCvkWorkerEntryV3.cjs",
+    "prepare:source": "node scripts/patchWorkerReportEdit.cjs",
     "pretypecheck": "npm run prepare:source",
     "pretest": "npm run prepare:source",
     "build:cloudflare:test": "npm run prepare:source && npm run clean && tsc -b && vite build --mode test && node scripts/forceFrontendVersion.cjs && npm run check:bundle",
