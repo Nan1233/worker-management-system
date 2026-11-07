@@ -12,7 +12,7 @@ const {
     requestMeta,
 } = require("./productionTempControllerUtils");
 const { validateMasterData } = require("../services/reportBusinessValidationService");
-const { validateProductionReport } = require("../utils/reportValidation");
+const { validateProductionReport, isImplicitGcNonProductWork } = require("../utils/reportValidation");
 const { queuePostCreateSideEffects } = require("../services/productionReportSideEffectsService");
 const { calculateProductionOutput } = require("../../shared/productionOutput.cjs");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
@@ -157,8 +157,12 @@ exports.createTempReport = async (req, res) => {
         let extraDataInput = req.body?.extra_data && typeof req.body.extra_data === "object" && !Array.isArray(req.body.extra_data)
             ? { ...req.body.extra_data }
             : {};
-        const isNonProductWorkWithinProcess = extraDataInput.non_product_work === true
+        const implicitGcNonProductWork = isImplicitGcNonProductWork(req.body);
+        const isNonProductWorkWithinProcess = (extraDataInput.non_product_work === true || implicitGcNonProductWork)
             && processId !== 30002 && processId !== 60006;
+        // Persist the effective classification used by report validation and the
+        // master-data check. A valid Xuất nhập/KTCD/TAIPP entry may omit the flag.
+        if (implicitGcNonProductWork) extraDataInput.non_product_work = true;
 
 
         if (!workerId) {

@@ -31,6 +31,8 @@ jobs:
         run: node --test tests/gc-machine-time-remote-smoke.test.js tests/source-integrity.test.js
       - name: Historical standard and machine/product ambiguity regressions
         run: node --test tests/historical-standard-overlap-guard.test.js tests/standard-ambiguity-fail-closed.test.js
+      - name: GC non-product work submission regression
+        run: node --test tests/non-product-work-validation.test.js
       - name: Full backend tests (informational — existing failures outside this refactor)
         continue-on-error: true
         run: npm test

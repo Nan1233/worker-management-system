@@ -8,6 +8,21 @@ const EPSILON = 0.02;
 const MAX_TOTAL_TIME_HOURS = 12;
 const ZERO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
+const normalizeWorkCode = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+const isImplicitGcNonProductWork = (payload = {}) => {
+    // Require the canonical process identity, not a client-supplied process_code.
+    if (getProcessMachinePolicy(payload.process_id).code !== 'GC') return false;
+    const workType = normalizeWorkCode(payload.work_type || payload.workType || payload.extra_data?.work_type || payload.extra_data?.workType);
+    if (!ZERO_STANDARD_LONG_WORK_CODES.has(workType)) return false;
+    if (String(payload.product_name || '').trim() || String(payload.machine_no || '').trim()) return false;
+    if (String(payload.operation_mode || payload.execution_method || '').trim().toUpperCase() === 'MACHINE') return false;
+    if (Array.isArray(payload.machine_lines) && payload.machine_lines.length) return false;
+    if (Array.isArray(payload.machines) && payload.machines.length) return false;
+    return true;
+};
+
+
 const parseHoursValue = (value) => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : Number.NaN;
     const normalized = String(value ?? '').trim().toLowerCase().replace(',', '.');
@@ -94,15 +109,16 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const errors = {};
     const workDate = String(payload.work_date || '').slice(0, 10);
     const parsedDate = DATE_PATTERN.test(workDate) ? new Date(`${workDate}T00:00:00Z`) : null;
-    const isNonProductWork = Number(payload.process_id) === 60006 || Number(payload.process_id) === 30002 ||
-        String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK' ||
-        payload.extra_data?.non_product_work === true || payload.non_product_work === true;
     const productCodeForPolicy = String(payload.product_name || '').split(',')[0].trim().toUpperCase();
-    const normalizeWorkCode = (value) => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const processCodeForPolicy = String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase();
     const isGcProcessForPolicy = processCodeForPolicy === 'GC' || getProcessMachinePolicy(payload.process_id).code === 'GC';
     const workTypeForPolicy = normalizeWorkCode(payload.work_type || payload.workType || payload.extra_data?.work_type || payload.extra_data?.workType);
     const productWorkCode = normalizeWorkCode(productCodeForPolicy);
+    const isGcNonProductWork = isImplicitGcNonProductWork(payload);
+    const isNonProductWork = Number(payload.process_id) === 60006 || Number(payload.process_id) === 30002 ||
+        String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK' ||
+        payload.extra_data?.non_product_work === true || payload.non_product_work === true ||
+        isGcNonProductWork;
     // Non-product work such as Xuất nhập can be selected inside a parent
     // process (e.g. GC/Cắt-Lồng), so process_code may identify the parent
     // rather than CVK. Recognize the explicit work-type code independently
@@ -213,4 +229,4 @@ const validateProductionReport = (payload = {}, options = {}) => {
     };
 };
 
-module.exports = { validateProductionReport, EPSILON, MAX_TOTAL_TIME_HOURS };
+module.exports = { validateProductionReport, isImplicitGcNonProductWork, EPSILON, MAX_TOTAL_TIME_HOURS };
