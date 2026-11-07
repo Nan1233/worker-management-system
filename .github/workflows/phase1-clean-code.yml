@@ -45,6 +45,8 @@ jobs:
         run: node --test tests/process-extra-data-validation.test.js tests/process-machine-policy.test.js
       - name: Shared-machine grouping and temp audit snapshot regression
         run: node --test tests/shared-machine-accounting-flow.test.js tests/temp-report-version-lifecycle.test.js
+      - name: Super-admin permission and lazy DB regression
+        run: node --test tests/permission-service-lazy-import.test.js tests/super-admin-role-support.test.js
       - name: Full backend tests (informational — existing failures outside this refactor)
         continue-on-error: true
         run: npm test
