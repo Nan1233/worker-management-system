@@ -30,6 +30,16 @@ const products = [
     default_standard_output: 100,
     machine_standard_output: 100,
     standard_time_seconds: 36,
+  },
+  {
+    id: 203,
+    machine_id: 101,
+    process_id: 1,
+    product_code: 'QC5-1658',
+    status: 'active',
+    default_standard_output: 120,
+    machine_standard_output: 120,
+    standard_time_seconds: 30,
   }
 ];
 
