@@ -15,7 +15,9 @@ const preStartScripts = JSON.parse(fs.readFileSync(path.join(backend, 'package.j
 // The GC defect seed is manual now (not in `npm start`) but must still terminate on its own.
 if (!preStartScripts.includes('scripts/ensureGcDefectMasterData.js')) preStartScripts.push('scripts/ensureGcDefectMasterData.js');
 
-test('npm start has pre-start scripts to check', () => assert.ok(preStartScripts.length >= 2, preStartScripts.join(',')));
+test('npm start does not depend on legacy GC master-data scripts', () => {
+  assert.equal(preStartScripts.filter((script) => script !== 'scripts/ensureGcDefectMasterData.js').length, 0);
+});
 
 for (const script of preStartScripts) {
   test(`${script} terminates by itself (unreachable DB must fail fast, not hang)`, async () => {
