@@ -98,7 +98,7 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
         // master work type before rendering suggestions; never leak other-process-type products.
         if (selectedRawMachine) {
             if (!selectedMachineWorkType) return [];
-            canonicalProducts = canonicalProducts.filter(({ product, alias }) => {
+            canonicalProducts = canonicalProducts.filter(({ product }) => {
                 // KTC work type is an explicit master-data property. A product-code
                 // prefix (including "C") does not identify Cắt versus Lồng.
                 return normalizeWorkType(product.work_type) === selectedMachineWorkType;
