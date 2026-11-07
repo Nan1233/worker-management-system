@@ -4,6 +4,14 @@ const Module = require('node:module');
 const path = require('node:path');
 
 const BACKEND = path.join(__dirname, '..');
+const dbModulePath = require.resolve(path.join(BACKEND, 'config/db'));
+const originalDbCache = require.cache[dbModulePath];
+// The permission service now loads the pool only at the first SQL operation.
+// Keep the per-test mock in require.cache for async controller calls.
+test.after(() => {
+  if (originalDbCache) require.cache[dbModulePath] = originalDbCache;
+  else delete require.cache[dbModulePath];
+});
 
 // In-memory fake of the two override tables + users + activity_logs, speaking the mysql2/promise shape.
 function createFakeDb({ users = { 7: 'lead', 8: 'worker', 9: 'manager', 10: 'admin_ops', 1: 'admin' }, failAudit = false } = {}) {
@@ -50,6 +58,9 @@ function load(fake) {
     return original.call(this, request, parent, ...rest);
   };
   try {
+    require.cache[dbModulePath] = {
+      id: dbModulePath, filename: dbModulePath, loaded: true, exports: fake.db
+    };
     for (const rel of ['services/permissionService', 'services/auditService', 'controllers/permissionController']) delete require.cache[require.resolve(path.join(BACKEND, rel))];
     return { service: require(path.join(BACKEND, 'services/permissionService')), controller: require(path.join(BACKEND, 'controllers/permissionController')) };
   } finally { Module._load = original; }
