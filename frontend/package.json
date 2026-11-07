@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "npm run prepare:source",
     "build": "npm run clean && tsc -b && vite build && node scripts/forceFrontendVersion.cjs && npm run check:bundle",
-    "build:cloudflare": "npm run prepare:source && npm run clean && vite build --mode test && node scripts/forceFrontendVersion.cjs && npm run check:bundle",
+    "build:cloudflare": "npm run clean && vite build --mode test && node scripts/forceFrontendVersion.cjs && npm run check:bundle",
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
     "check": "npm run lint && npm run typecheck && npm test && npm run check:theme && npm run build",
@@ -34,11 +33,8 @@
     "ios:release:check": "node scripts/checkIosReleaseContract.cjs",
     "device:android:check": "node scripts/deviceSmoke.cjs android",
     "device:ios:check": "node scripts/deviceSmoke.cjs ios",
-    "prepare:source": "node scripts/patchWorkerReportEdit.cjs",
-    "pretypecheck": "npm run prepare:source",
-    "pretest": "npm run prepare:source",
-    "build:cloudflare:test": "npm run prepare:source && npm run clean && tsc -b && vite build --mode test && node scripts/forceFrontendVersion.cjs && npm run check:bundle",
-    "build:cloudflare:production": "npm run prepare:source && npm run clean && tsc -b && vite build --mode production && node scripts/forceFrontendVersion.cjs && npm run check:bundle"
+    "build:cloudflare:test": "npm run clean && tsc -b && vite build --mode test && node scripts/forceFrontendVersion.cjs && npm run check:bundle",
+    "build:cloudflare:production": "npm run clean && tsc -b && vite build --mode production && node scripts/forceFrontendVersion.cjs && npm run check:bundle"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",
