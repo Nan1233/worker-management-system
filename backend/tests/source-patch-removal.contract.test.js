@@ -31,8 +31,10 @@ test('approved-report concurrency is implemented in the service, not a startup p
   assert.doesNotMatch(scripts.start || '', /--require|approvedReportConcurrencyPatch/);
   assert.match(service, /const updateApprovedReportSafe = withApprovedEditConcurrency\(updateApprovedReport,/);
   assert.match(service, /const restoreApprovedReportVersionSafe = withApprovedEditConcurrency\(restoreApprovedReportVersion,/);
-  assert.match(service, /enqueueApprovedEdit/);
-  assert.match(service, /isRetryableApprovedEditError/);
+  assert.match(service, /createApprovedEditGuard/);
+  const guard = read('backend/services/approvedEditConcurrency.js');
+  assert.match(guard, /const enqueue = async/);
+  assert.match(guard, /isRetryableLockError/);
   assert.match(service, /SELECT \* FROM production_reports WHERE id=\? FOR UPDATE/);
   assert.match(service, /connection\.rollback\(\)/);
 });
