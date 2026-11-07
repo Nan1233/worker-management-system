@@ -478,56 +478,8 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
 }
 
 
-/**
- * Serialize edits to one approved report inside this API process. The parent
- * production_reports row is locked first in both transaction bodies above;
- * the database lock protects edits across API instances as well.
- */
-const approvedEditQueues = new Map();
-
-async function enqueueApprovedEdit(reportId, operation) {
-  const id = Number(reportId);
-  if (!Number.isInteger(id) || id <= 0) return operation();
-  const key = String(id);
-  const previous = approvedEditQueues.get(key) || Promise.resolve();
-  let release;
-  const current = new Promise((resolve) => { release = resolve; });
-  approvedEditQueues.set(key, current);
-  await previous.catch(() => {});
-  try {
-    return await operation();
-  } finally {
-    release();
-    if (approvedEditQueues.get(key) === current) approvedEditQueues.delete(key);
-  }
-}
-
-function isRetryableApprovedEditError(error) {
-  return Number(error?.errno) === 1205
-    || String(error?.code || '').toUpperCase() === 'ER_LOCK_WAIT_TIMEOUT'
-    || Number(error?.errno) === 1213
-    || String(error?.code || '').toUpperCase() === 'ER_LOCK_DEADLOCK';
-}
-
-async function executeApprovedEditWithRetry(operation) {
-  const delays = [250, 600, 1200];
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    try {
-      return await operation();
-    } catch (error) {
-      if (!isRetryableApprovedEditError(error) || attempt === 3) throw error;
-      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
-    }
-  }
-}
-
-function withApprovedEditConcurrency(operation, fallbackReason) {
-  return async (input) => {
-    const args = { ...input };
-    if (!String(args.reason || '').trim()) args.reason = fallbackReason;
-    return enqueueApprovedEdit(args.reportId, () => executeApprovedEditWithRetry(() => operation(args)));
-  };
-}
+const { createApprovedEditGuard } = require('./approvedEditConcurrency');
+const withApprovedEditConcurrency = createApprovedEditGuard();
 
 const updateApprovedReportSafe = withApprovedEditConcurrency(updateApprovedReport, 'Cập nhật báo cáo đã duyệt');
 const restoreApprovedReportVersionSafe = withApprovedEditConcurrency(restoreApprovedReportVersion, 'Khôi phục phiên bản báo cáo');
