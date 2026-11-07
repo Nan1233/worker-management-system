@@ -188,7 +188,7 @@ function WorkerReportEditV2() {
         setOperationMode(data.operation_mode === "MACHINE" || (Array.isArray(data.machine_lines) ? data.machine_lines.length : Array.isArray(data.machineLines) ? data.machineLines.length : 0) > 0 ? "MACHINE" : "MANUAL");
         const loadedWorkType = s(data.extra_data?.work_type || data.work_type || "");
         setWorkType(loadedWorkType || "XUATNHAP");
-        setForm((current) => ({ ...current, workType: loadedWorkType }));
+        setForm((current) => ({ ...current, workType: loadedWorkType || "XUATNHAP" }));
         setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).filter(([key]) => key !== "adjustment_count" && key !== "work_type").map(([key, value]) => [key, value == null ? "" : String(value)])));
         setReport({ ...data, __edit_machine_lines: editMachineLines });
       } catch (e: any) {
