@@ -98,12 +98,9 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
         // master work type before rendering suggestions; never leak other-process-type products.
         if (selectedRawMachine) {
             if (!selectedMachineWorkType) return [];
-            canonicalProducts = canonicalProducts.filter(({ product, alias }) => {
-                const codeFields = [product.product_code, alias].map((value) => normalize(value));
-                // Every GC product_code beginning with C is a cutting code.
-                // Never show it in a Lồng machine/manual selection, even if an
-                // older API payload still labels the row LONG.
-                if (selectedMachineWorkType === "LONG" && codeFields.some((code) => code.startsWith("C"))) return false;
+            canonicalProducts = canonicalProducts.filter(({ product }) => {
+                // KTC work type is an explicit master-data property. A product-code
+                // prefix (including "C") does not identify Cắt versus Lồng.
                 return normalizeWorkType(product.work_type) === selectedMachineWorkType;
             });
             canonicalProducts = filterC9149FamilyForMachine(canonicalProducts, selectedRawMachine, machineOptions);
