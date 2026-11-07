@@ -147,7 +147,7 @@ test('GC process code is resolved from the database when the client sends only p
   const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   assert.match(source, /const resolvedProcessCode = String\(processRows\?\.\[0\]\?\.process_code/);
   assert.match(source, /if \(resolvedProcessCode\) \{\s*data\.process_code = resolvedProcessCode;/);
-  assert.match(source, /const reportMachineLines = machineLines/);
+  assert.match(source, /const reportMachineLines = isMaiProcess\(data\)[\s\S]*groupMaiMachineProductLines\(machineLines\)[\s\S]*: machineLines/);
   assert.match(source, /const splitMachines = shouldSplitMachineReports\(data, reportMachineLines\)/);
   assert.match(source, /const isMaiProcess = \(data\) => processCodeOf\(data\) === "MAI"/);
   assert.match(source, /processCodeOf\(data\) === "DO" && machineLines\.length !== 1/);
@@ -265,10 +265,10 @@ test('machine report with no machine lines is explicitly marked as missing', () 
 });
 
 
-test('Mài creates one report per product line, even when several products use the same machine', () => {
+test('Mài merges only identical machine/product runs and splits distinct products into separate reports', () => {
   const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   assert.match(source, /const shouldSplitMachineReports = \(data, machineLines\) =>[\s\S]*isGiaCongProcess\(data\) \|\| isMaiProcess\(data\)/);
-  assert.match(source, /const reportMachineLines = machineLines/);
+  assert.match(source, /const reportMachineLines = isMaiProcess\(data\)[\s\S]*groupMaiMachineProductLines\(machineLines\)[\s\S]*: machineLines/);
   assert.match(source, /DO_SINGLE_MACHINE_REQUIRED/);
   assert.match(source, /line\.product_code/);
   assert.match(source, /:line:/);
