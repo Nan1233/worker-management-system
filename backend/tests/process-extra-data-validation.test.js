@@ -69,7 +69,7 @@ test("Create and edit endpoints both validate the DO related Mài machine", () =
 test("Mài KQSX is sent by FE and checked again by BE", () => {
     const payload = read("frontend/src/pages/worker/processReportSubmission.ts");
     const validator = read("backend/services/machineLineValidationService.js");
-    assert.match(payload, /actual_quantity: num\(l\.actualQuantity\)/);
+    assert.match(payload, /actual_quantity:\s*num\(l\.okQuantity\)\s*\+\s*num\(l\.ngQuantity\)/);
     assert.match(validator, /line\.actual_quantity !== undefined/);
     assert.match(validator, /actualQuantity !== okQuantity \+ ngQuantity/);
 });
