@@ -37,7 +37,6 @@ test('approved-report concurrency is implemented in the service, not a startup p
   assert.match(service, /connection\.rollback\(\)/);
 });
 
-test('Excel source is never rewritten by the approved-report preload', () => {
-  const preload = read('backend/scripts/approvedReportConcurrencyPatch.cjs');
-  assert.doesNotMatch(preload, /patchExcelAchievementFormula|writeFileSync|consolidatedExcelExportService/);
+test('runtime does not carry a source-rewriting approved-report preload', () => {
+  assert.equal(fs.existsSync(path.join(backendRoot, 'scripts/approvedReportConcurrencyPatch.cjs')), false);
 });
