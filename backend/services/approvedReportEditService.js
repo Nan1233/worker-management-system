@@ -477,4 +477,11 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
   }
 }
 
-module.exports = { updateApprovedReport, loadApprovedSnapshot, restoreApprovedReportVersion, normalizeVersionSnapshot, validateRestoreEventLinks, replaceApprovedChildrenFromSnapshot };
+
+const { createApprovedEditGuard } = require('./approvedEditConcurrency');
+const withApprovedEditConcurrency = createApprovedEditGuard();
+
+const updateApprovedReportSafe = withApprovedEditConcurrency(updateApprovedReport, 'Cập nhật báo cáo đã duyệt');
+const restoreApprovedReportVersionSafe = withApprovedEditConcurrency(restoreApprovedReportVersion, 'Khôi phục phiên bản báo cáo');
+
+module.exports = { updateApprovedReport: updateApprovedReportSafe, loadApprovedSnapshot, restoreApprovedReportVersion: restoreApprovedReportVersionSafe, normalizeVersionSnapshot, validateRestoreEventLinks, replaceApprovedChildrenFromSnapshot };

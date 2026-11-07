@@ -34,6 +34,7 @@ const PROCESS_PRODUCT_CACHE_TTL_MS = 30_000;
 const processProductRowsCache = new Map<number, { expiresAt: number; rows: ProductStandardOption[] }>();
 
 export const getProductStandardsByProcess = async (processId: number, _processCode?: string): Promise<ProductStandardOption[]> => {
+    void _processCode; // Retain the public call signature; process ID is authoritative.
     // The process ID is the canonical selector. Do not merge process_id and
     // process_code responses: that can duplicate rows and silently replace a
     // product's real standard with the highest value from another row.
@@ -161,6 +162,7 @@ const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProd
 };
 
 const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string, requestedProductCode?: string): ResolvedProductStandard => {
+    void requestedProductCode; // Kept for existing callers; canonical row already supplies product_code.
     const output = Number(row.standard_output);
     return {
         product_standard_id: Number(row.id), process_id: Number(row.process_id || processId), product_code: String(row.product_code),
