@@ -25,10 +25,19 @@ test('backend install and startup do not run legacy source patch scripts', () =>
   assert.doesNotMatch(scripts.start || '', /ensureGcLong2801Lt/);
 });
 
-test('approved report preload retains concurrency guard but never rewrites Excel source', () => {
+test('approved-report concurrency is implemented in the service, not a startup preload', () => {
+  const service = read('backend/services/approvedReportEditService.js');
+  const scripts = JSON.parse(read('backend/package.json')).scripts;
+  assert.doesNotMatch(scripts.start || '', /--require|approvedReportConcurrencyPatch/);
+  assert.match(service, /const updateApprovedReportSafe = withApprovedEditConcurrency\(updateApprovedReport,/);
+  assert.match(service, /const restoreApprovedReportVersionSafe = withApprovedEditConcurrency\(restoreApprovedReportVersion,/);
+  assert.match(service, /enqueueApprovedEdit/);
+  assert.match(service, /isRetryableApprovedEditError/);
+  assert.match(service, /SELECT \* FROM production_reports WHERE id=\? FOR UPDATE/);
+  assert.match(service, /connection\.rollback\(\)/);
+});
+
+test('Excel source is never rewritten by the approved-report preload', () => {
   const preload = read('backend/scripts/approvedReportConcurrencyPatch.cjs');
-  assert.match(preload, /wrapTransactionalOperation\('updateApprovedReport'/);
-  assert.match(preload, /wrapTransactionalOperation\('restoreApprovedReportVersion'/);
-  assert.match(preload, /patchPromisePool/);
   assert.doesNotMatch(preload, /patchExcelAchievementFormula|writeFileSync|consolidatedExcelExportService/);
 });
