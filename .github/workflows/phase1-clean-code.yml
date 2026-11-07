@@ -27,6 +27,8 @@ jobs:
       - run: npm run check
       - name: Approved edit concurrency and source-patch removal contract
         run: node --test tests/source-patch-removal.contract.test.js tests/approved-edit-concurrency.test.js
+      - name: GC physical-machine accounting and Excel export integrity regression
+        run: node --test tests/gc-machine-time-remote-smoke.test.js tests/source-integrity.test.js
       - name: Full backend tests (informational — existing failures outside this refactor)
         continue-on-error: true
         run: npm test

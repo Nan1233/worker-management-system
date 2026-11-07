@@ -111,7 +111,7 @@ test('monthly workbook keeps time details beside time and NG beside result', () 
 
 test('bulk company payload marks approved TiDB rows for Desktop export', () => {
   const service = read('services/bulkCompanyExcelDataService.js');
-  assert.match(service, /LOWER\\(TRIM\\(COALESCE\\(pr\\.status, ''\\)\\)\\) = 'approved'/);
+  assert.match(service, /LOWER\(TRIM\(COALESCE\(pr\.status, ''\)\)\) = 'approved'/);
   assert.match(service, /dataSource: 'production_reports'/);
   assert.match(service, /isApprovedDatabaseRecord: true/);
 });
