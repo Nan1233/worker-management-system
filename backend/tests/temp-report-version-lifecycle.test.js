@@ -12,8 +12,14 @@ test('temp report lifecycle creates immutable versions at create/update/reject/a
   const update = read('models/productionTempUpdateModel.js');
   const approval = read('models/productionTempApprovalModel.js');
 
-  assert.match(create, /loadTempReportSnapshot\(tempId, connection\)/);
-  assert.match(create, /reportType:\s*["']temp["']/);
+  // Creation snapshots are written in a single batched audit transaction.
+  // The old per-report loadTempReportSnapshot/createReportVersion calls were removed.
+  assert.match(create, /const createAuditAfterChildrenBatch = async/);
+  assert.match(create, /SELECT \* FROM production_reports_temp WHERE id IN/);
+  assert.match(create, /production_temp_machine_defects/);
+  assert.match(create, /INSERT INTO report_versions \(report_type,report_id,version_no,snapshot_json,change_reason,created_by\)/);
+  assert.match(create, /versionValues\.push\(\["temp", id,/);
+  assert.match(create, /await createAuditAfterChildrenBatch\(/);
   assert.match(create, /Tạo báo cáo chờ duyệt/);
 
   assert.match(update, /oldSnapshot\s*=\s*await AuditService\.loadTempReportSnapshot/);
