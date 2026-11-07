@@ -37,6 +37,8 @@ jobs:
         run: node --test tests/logical-duplicate-transaction.test.js
       - name: MAI-DO template form and Excel parity
         run: node --test tests/mai-do-template-form-parity.test.js
+      - name: GC multi-product machine-line validation regression
+        run: node --test tests/machine-line-validation.integration.test.js
       - name: Full backend tests (informational — existing failures outside this refactor)
         continue-on-error: true
         run: npm test
