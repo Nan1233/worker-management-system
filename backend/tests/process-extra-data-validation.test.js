@@ -46,11 +46,11 @@ test("Empty related Mài machine remains optional for Đo", async () => {
     assert.equal(result.valid, true);
 });
 
-test("FE and BE agree that Mài supports up to four machines and Đo requires one", () => {
-    assert.deepEqual(getProcessMachinePolicy(2), { code: "MAI", mode: "MULTI_MACHINE_REQUIRED", minMachines: 1, maxMachines: 4 });
-    assert.deepEqual(getProcessMachinePolicy(3), { code: "DO", mode: "SINGLE_MACHINE_REQUIRED", minMachines: 1, maxMachines: 1 });
+test("FE and BE agree on Mài multi-run and Đo optional single-machine policy", () => {
+    assert.deepEqual(getProcessMachinePolicy(2), { code: "MAI", mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 6 });
+    assert.deepEqual(getProcessMachinePolicy(3), { code: "DO", mode: "SINGLE_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 1 });
     const domain = read("frontend/src/pages/worker/processPageDomain.ts");
-    assert.match(domain, /return \["GC", "MAI", "CAN", "EP"\]\.includes\(c\.processCode\) && mode === "MACHINE"/);
+    assert.match(domain, /return \["GC", "MAI", "DO", "CAN", "EP"\]\.includes\(c\.processCode\) && mode === "MACHINE"/);
     const fields = read("frontend/src/pages/worker/processExtraFields.ts");
     // Related grinding machine field was deliberately hidden from the worker form.
     // Backend may still accept old extra_data for existing approved reports.
