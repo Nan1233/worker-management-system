@@ -128,9 +128,13 @@ function withMachineStandard(base, machineStandards) {
   const seen = [];
   const query = async (sql, params = []) => {
     if (/from product_machine_standards/i.test(String(sql))) {
-      const [pid, machineId, product, date] = params;
-      seen.push({ product, date });
-      return machineStandards.filter((m) => m.product_code === String(product).trim() && m.machine_id === machineId
+      // Exact and fallback machine-standard queries have different product
+      // placeholder counts. The effective-date inputs are always the LAST two.
+      const machineId = Number(params[1]);
+      const products = params.slice(2, -2).map((code) => String(code).trim());
+      const date = String(params.at(-2));
+      seen.push({ product: products[0], date });
+      return machineStandards.filter((m) => products.includes(String(m.product_code).trim()) && Number(m.machine_id) === machineId
         && (!m.effective_from || m.effective_from <= date) && (!m.effective_to || m.effective_to >= date));
     }
     return base(sql, params);
