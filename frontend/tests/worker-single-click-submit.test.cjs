@@ -124,3 +124,22 @@ test('duplicate confirmation signature covers the full worker form snapshot, inc
   assert.match(signature, /\[\s*processInfo\.id[\s\S]*selectedNg[\s\S]*\]/);
   assert.doesNotMatch(signature, /resolvedReportKqdPolicy/);
 });
+
+test('successful duplicate creation/update clears the draft and invalidates pending autosave', () => {
+  const page = read('src/pages/worker/ProcessPage.tsx');
+  const start = page.indexOf('const finishDuplicateAction = useCallback(');
+  const end = page.indexOf('const handleCreateDuplicateAnyway', start);
+  assert.ok(start >= 0 && end > start);
+  const finish = page.slice(start, end);
+  assert.match(finish, /resetVersionRef\.current \+= 1/);
+  assert.match(finish, /clearTimeout\(draftSaveTimerRef\.current\)/);
+  assert.match(finish, /clearProcessDraft\(process\)/);
+  assert.ok(finish.indexOf('clearProcessDraft(process)') < finish.indexOf('navigate("/worker"'));
+  assert.match(finish, /\[navigate, process, setDuplicatePrompt\]/);
+  const create = page.slice(end, page.indexOf('const handleUpdateExistingReport', end));
+  const update = page.slice(page.indexOf('const handleUpdateExistingReport', end), page.indexOf('// Separate-run duplicate creation', end));
+  assert.match(create, /showToast\([\s\S]*?finishDuplicateAction\(\)/);
+  assert.match(update, /showToast\([\s\S]*?finishDuplicateAction\(\)/);
+  assert.doesNotMatch(create.slice(create.indexOf('catch (error: unknown)')), /clearProcessDraft\(process\)/);
+  assert.doesNotMatch(update.slice(update.indexOf('catch (error: unknown)')), /clearProcessDraft\(process\)/);
+});
