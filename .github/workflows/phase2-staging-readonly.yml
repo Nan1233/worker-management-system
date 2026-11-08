@@ -1,0 +1,52 @@
+name: Phase 2 staging database read-only audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type READ_ONLY_STAGING to confirm this targets a dedicated staging database"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  staging-read-only:
+    name: Staging TiDB read-only integrity checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    if: ${{ inputs.confirmation == 'READ_ONLY_STAGING' }}
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      KTC_PHASE2_READ_ONLY: '1'
+      KTC_PHASE2_TARGET: staging
+      DB_HOST: ${{ secrets.KTC_STAGING_DB_HOST }}
+      DB_PORT: ${{ secrets.KTC_STAGING_DB_PORT }}
+      DB_USER: ${{ secrets.KTC_STAGING_DB_READONLY_USER }}
+      DB_PASSWORD: ${{ secrets.KTC_STAGING_DB_READONLY_PASSWORD }}
+      DB_NAME: ${{ secrets.KTC_STAGING_DB_NAME }}
+      DB_SSL: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Verify staging audit query and environment guards
+        run: node --test tests/phase2-read-only-audit.test.js
+      - name: Check staging credentials are provided (never print secrets)
+        run: |
+          for key in DB_HOST DB_USER DB_PASSWORD DB_NAME; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing $key. Configure KTC_STAGING_DB_* secrets using a SELECT-only staging database account."
+              exit 1
+            fi
+          done
+        shell: bash
+      - name: Read-only staging integrity audit (SELECT statements only)
+        run: node scripts/phase2ReadOnlyAudit.cjs
