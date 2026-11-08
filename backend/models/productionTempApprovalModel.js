@@ -608,7 +608,8 @@ module.exports = {
           WHERE temp.id IN (${placeholders})
             AND temp.status IN ('pending','need_fix')
             ${scopeWhere}
-          ORDER BY temp.id ASC`,
+          ORDER BY temp.id ASC
+          FOR UPDATE`,
         params,
       );
       if (rows.length !== reportIds.length) {
@@ -619,6 +620,7 @@ module.exports = {
         );
         error.status = 409;
         error.code = "APPROVAL_SELECTION_STALE";
+        error.isPublic = true;
         error.details = { requested_ids: reportIds, missing_ids: missingIds };
         throw error;
       }
@@ -628,6 +630,7 @@ module.exports = {
           const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
           error.status = 409;
           error.code = "TEMP_REPORT_VERSION_CONFLICT";
+          error.isPublic = true;
           throw error;
         }
       }
@@ -648,6 +651,7 @@ module.exports = {
           const error = new Error(`Báo cáo #${row.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
           error.status = 409;
           error.code = "TEMP_REPORT_VERSION_CONFLICT";
+          error.isPublic = true;
           throw error;
         }
         const rejectedSnapshot = await AuditService.loadTempReportSnapshot(row.id, connection);
