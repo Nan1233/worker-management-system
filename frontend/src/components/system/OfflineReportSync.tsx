@@ -48,8 +48,12 @@ export default function OfflineReportSync() {
             const queue = getCurrentOfflineQueueItems();
             setItems(queue);
             const blocked = queue.filter((item) => item.status === "blocked").length;
+            const waiting = queue.length - blocked;
             if (result.sent > 0) {
-                showToast(`Đã đồng bộ ${result.sent} báo cáo chờ gửi${result.remaining ? `, còn ${result.remaining} báo cáo` : ""}.`, result.remaining ? "warning" : "success");
+                const remainingText = blocked && waiting
+                    ? `, còn ${waiting} chờ đồng bộ và ${blocked} cần kiểm tra`
+                    : blocked ? `, còn ${blocked} cần kiểm tra` : waiting ? `, còn ${waiting} chờ đồng bộ` : "";
+                showToast(`Đã đồng bộ ${result.sent} báo cáo${remainingText}.`, queue.length ? "warning" : "success");
             } else if (blocked > 0 && manual) {
                 showToast(`${blocked} báo cáo cần kiểm tra trước khi gửi lại. Dữ liệu vẫn được giữ trên thiết bị.`, "warning");
             } else if (manual && result.remaining > 0) {
@@ -96,6 +100,10 @@ export default function OfflineReportSync() {
     }, [refreshItems, sync]);
 
     const blocked = useMemo(() => items.filter(item => item.status === "blocked").length, [items]);
+    const waiting = items.length - blocked;
+    const statusSummary = blocked && waiting
+        ? `${waiting} chờ đồng bộ · ${blocked} cần kiểm tra`
+        : blocked ? `${blocked} cần kiểm tra trước khi gửi lại` : `${waiting} chờ đồng bộ`;
     if (!items.length) return null;
 
     return (
@@ -107,7 +115,7 @@ export default function OfflineReportSync() {
         >
             <button type="button" className="offline-sync__summary" onClick={() => setOpen(value => !value)} aria-expanded={open}>
                 <span className="offline-sync__dot" />
-                <span><strong>{items.length} báo cáo chưa đồng bộ</strong>{blocked ? ` · ${blocked} cần kiểm tra` : " · đang kiểm tra kết nối máy chủ"}</span>
+                <span><strong>{items.length} báo cáo chưa đồng bộ</strong> · {statusSummary}</span>
                 <span aria-hidden="true">{open ? "▴" : "▾"}</span>
             </button>
             {open && <div className="offline-sync__panel" style={{ position: "relative", zIndex: 10001 }}>
