@@ -148,7 +148,14 @@ export async function serverAlreadyHasQueuedReport(payload: ProductionReport): P
             work_type: payload.work_type,
             operation_type: payload.operation_type,
         });
-        return result?.duplicate && result?.data?.id ? "exists" : "absent";
+        // A similar report is not proof that THIS client_request_id was saved.
+        // Never discard a worker's unsent payload because another report has
+        // the same date, shift, machine and product.
+        const existingRequestId = String((result?.data as { client_request_id?: string } | null)?.client_request_id || "").trim();
+        const submittedRequestId = String(payload.client_request_id || "").trim();
+        return result?.duplicate && result?.data?.id
+            && existingRequestId && submittedRequestId && existingRequestId === submittedRequestId
+            ? "exists" : "absent";
     } catch (error) {
         return isTransientNetworkFailure(error) ? "unknown-transient" : "unknown-business";
     }
