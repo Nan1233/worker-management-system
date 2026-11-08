@@ -173,6 +173,7 @@ export function getCurrentOfflineQueueItems(): OfflineReportQueueItem[] {
 }
 
 let activeFlushPromise: Promise<{ sent: number; remaining: number }> | null = null;
+let activeFlushOwner: QueueOwner | null = null;
 
 export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQueueItem {
     const owner = currentOwner();
@@ -246,12 +247,18 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
 
     const all = readAll();
     const mine = all.filter((item) => ownerMatches(item.owner, owner));
-    const others = all.filter((item) => !ownerMatches(item.owner, owner));
     const remaining: OfflineReportQueueItem[] = [];
+    const sameSignedInWorker = () => {
+        const current = currentOwner();
+        return current !== null && ownerMatches(current, owner);
+    };
     let sent = 0;
     const now = Date.now();
 
     for (let index = 0; index < mine.length; index += 1) {
+        // The login may have changed while a previous request was pending.
+        // Never send the next worker's payload under another account's token.
+        if (!sameSignedInWorker()) return { sent, remaining: getCurrentOfflineQueueCount() };
         const item = mine[index];
         if ((!force && item.status === "blocked") || (!force && Number(item.nextRetryAt || 0) > now)) {
             remaining.push(item);
@@ -259,11 +266,13 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
         }
         try {
             const result = await createTempReport(item.payload);
+            if (!sameSignedInWorker()) return { sent, remaining: getCurrentOfflineQueueCount() };
             if (result?.success === false) {
                 throw new Error(result.message || "Backend từ chối báo cáo chưa đồng bộ.");
             }
             sent += 1;
         } catch (error) {
+            if (!sameSignedInWorker()) return { sent, remaining: getCurrentOfflineQueueCount() };
             if (isAlreadyCreatedDuplicate(error, item.payload)) {
                 sent += 1;
                 continue;
@@ -275,6 +284,7 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
             let similarCheck: OfflineReportQueueItem["similarCheck"];
             if (status === 422) {
                 const outcome = await serverAlreadyHasQueuedReport(item.payload);
+                if (!sameSignedInWorker()) return { sent, remaining: getCurrentOfflineQueueCount() };
                 if (outcome === "exists") {
                     sent += 1;
                     continue;
@@ -323,14 +333,45 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
         }
     }
 
-    writeAll([...others, ...remaining]);
-    return { sent, remaining: remaining.length };
+    if (!sameSignedInWorker()) return { sent, remaining: getCurrentOfflineQueueCount() };
+
+    // Merge against CURRENT storage, not the snapshot taken before API awaits.
+    // Otherwise a new submission, another owner's queue or a manual removal
+    // during the flush can be silently overwritten or resurrected.
+    const originalIds = new Set(mine.map((item) => item.id));
+    const pendingById = new Map(remaining.map((item) => [item.id, item]));
+    const latest = readAll();
+    const merged: OfflineReportQueueItem[] = [];
+    for (const item of latest) {
+        if (!originalIds.has(item.id) || !ownerMatches(item.owner, owner)) {
+            merged.push(item);
+            continue;
+        }
+        const pending = pendingById.get(item.id);
+        if (pending) merged.push(pending);
+        // No pending entry means this exact request was confirmed by the API.
+    }
+    // Read/write stays synchronous after this account check; preserve records
+    // added while the original network request was in flight.
+    if (JSON.stringify(latest) !== JSON.stringify(merged)) writeAll(merged);
+    return { sent, remaining: merged.filter((item) => ownerMatches(item.owner, owner)).length };
 }
 
 export function flushOfflineReportQueue(options: { force?: boolean } = {}): Promise<{ sent: number; remaining: number }> {
-    if (activeFlushPromise) return activeFlushPromise;
+    const requestedOwner = currentOwner();
+    if (activeFlushPromise) {
+        // A new session must never receive A's in-flight result as if it were
+        // B's completed flush. Queue B's flush after the old session settles.
+        if (requestedOwner && activeFlushOwner && !ownerMatches(requestedOwner, activeFlushOwner)) {
+            return activeFlushPromise.catch(() => ({ sent: 0, remaining: 0 }))
+                .then(() => flushOfflineReportQueue(options));
+        }
+        return activeFlushPromise;
+    }
+    activeFlushOwner = requestedOwner;
     activeFlushPromise = flushOfflineReportQueueInternal(options).finally(() => {
         activeFlushPromise = null;
+        activeFlushOwner = null;
     });
     return activeFlushPromise;
 }
