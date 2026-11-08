@@ -79,5 +79,7 @@ jobs:
       - run: npm run build
       - name: Worker report journal account isolation regression
         run: node --test tests/reliable-report-owner-isolation.test.cjs
+      - name: Offline report flush session and storage race regression
+        run: node --test tests/offline-queue-flush-races.test.cjs
       - name: Full frontend regression suite (required)
         run: npm test
