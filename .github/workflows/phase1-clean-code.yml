@@ -55,6 +55,8 @@ jobs:
         run: node --test tests/phase2-read-only-audit.test.js
       - name: Phase 2 offline GC Excel API payload audit
         run: node --test tests/phase2-gc-excel-payload-audit.test.js
+      - name: Monthly Excel submission timestamp batching regression
+        run: node --test tests/company-submission-timestamps.test.js
       - name: Full backend regression suite (required)
         run: npm test
 
