@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { loadBulkCompanyReports, PROCESS_CODES } = require('../services/bulkCompanyExcelDataService');
 const { getSettingsMap } = require('../services/formulaSettingsService');
+const { attachSubmissionTimestamps: enrichCompanySubmissionTimestamps } = require('../services/companySubmissionTimestamps');
 const { assertProcessesScope, getActorProcessScope } = require('../services/processAuthorizationService');
 
 const inFlightByScope = new Map();
@@ -42,28 +43,9 @@ function scopeCacheKey(yearMonth, actor, scope) {
 }
 
 async function attachSubmissionTimestamps(processData) {
-  const sourceTempIds = [...new Set(
-    PROCESS_CODES.flatMap((code) => (processData[code]?.reports || [])
-      .map((report) => Number(report.source_temp_id))
-      .filter((id) => Number.isInteger(id) && id > 0))
-  )];
-  if (!sourceTempIds.length) return;
-
-  const placeholders = sourceTempIds.map(() => '?').join(',');
-  const [rows] = await db.promise().query(
-    `SELECT id, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS submitted_at
-       FROM production_reports_temp
-      WHERE id IN (${placeholders})`,
-    sourceTempIds,
+  return enrichCompanySubmissionTimestamps(
+    processData, PROCESS_CODES, (sql, params) => db.promise().query(sql, params)
   );
-  const byId = new Map((rows || []).map((row) => [Number(row.id), row.submitted_at]));
-
-  for (const code of PROCESS_CODES) {
-    for (const report of processData[code]?.reports || []) {
-      const sourceTempId = Number(report.source_temp_id);
-      report.submitted_at = byId.has(sourceTempId) ? byId.get(sourceTempId) : null;
-    }
-  }
 }
 
 async function buildCompanyData(yearMonth, actor) {
