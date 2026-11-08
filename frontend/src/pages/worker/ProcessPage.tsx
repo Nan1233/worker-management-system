@@ -637,13 +637,22 @@ const machineAutocompleteOptions =
     ]);
 
     const finishDuplicateAction = useCallback(() => {
+        // A confirmed duplicate creation/update is a successful submission.
+        // Cancel any pending autosave and invalidate its snapshot before
+        // clearing, otherwise navigating back can restore an already-sent form.
+        resetVersionRef.current += 1;
+        if (draftSaveTimerRef.current !== null) {
+            window.clearTimeout(draftSaveTimerRef.current);
+            draftSaveTimerRef.current = null;
+        }
+        clearProcessDraft(process);
         setDuplicatePrompt(null);
         pendingSplitPayloadsRef.current = [];
         clientRequestIdRef.current = null;
         submitLockRef.current = false;
         setSubmitting(false);
         navigate("/worker", { replace: true });
-    }, [navigate, setDuplicatePrompt]);
+    }, [navigate, process, setDuplicatePrompt]);
 
     const handleCreateDuplicateAnyway = async () => {
         if (submitLockRef.current || !duplicatePrompt) return;
