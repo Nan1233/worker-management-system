@@ -1,4 +1,5 @@
 import { handleProcessSubmitClick } from "../processSubmitClickLogic";
+import { getStoredUser } from "../../../utils/authStorage";
 
 interface DuplicatePrompt { reportId: number; }
 interface Props {
@@ -27,6 +28,11 @@ const normalize = (value: unknown): string => String(value ?? "").trim().toLower
  */
 const syncVisibleMachineLinesToDraft = (): void => {
     try {
+        const user = getStoredUser();
+        if (!user || user.role !== "worker") return;
+        const workerId = user.worker_id == null ? null : Number(user.worker_id);
+        const workerCode = String(user.worker_code || "").trim().toUpperCase();
+        if (workerId == null && !workerCode) return;
         const workDate = readWorkDate();
         const shift = normalize(readShift());
         if (!workDate) return;
@@ -60,6 +66,12 @@ const syncVisibleMachineLinesToDraft = (): void => {
             if (!raw) continue;
             try {
                 const draft = JSON.parse(raw);
+                // Shared tablets may contain drafts from multiple workers.
+                // Never modify a draft that is not explicitly owned by the
+                // currently authenticated worker, even when date/shift match.
+                if (draft?.ownerWorkerId == null && !draft?.ownerWorkerCode) continue;
+                if (workerId != null && Number(draft.ownerWorkerId) !== workerId) continue;
+                if (workerCode && String(draft.ownerWorkerCode || "").trim().toUpperCase() !== workerCode) continue;
                 if (normalize(draft?.form?.workDate) !== normalize(workDate)) continue;
                 if (shift && normalize(draft?.form?.shift) !== shift) continue;
 
