@@ -44,7 +44,7 @@ function scopeCacheKey(yearMonth, actor, scope) {
 
 async function attachSubmissionTimestamps(processData) {
   return enrichCompanySubmissionTimestamps(
-    processData, PROCESS_CODES, (sql, params) => db.promise().query(sql, params)
+    processData, PROCESS_CODES, (sql, params) => db.promise().query(sql, params).then(([rows]) => rows)
   );
 }
 
