@@ -51,8 +51,7 @@ jobs:
         run: node --test tests/database-first-no-migrations.test.js tests/production-temp-audit-import.test.js tests/gc-machine-work-type-standard-resolution.test.js tests/gc-product-standard-work-type-match.test.js tests/standard-resolver-warmup.test.js
       - name: Worker form contract and Cloudflare create subrequest budget
         run: node --test tests/process-form-template-schema.test.js tests/production-temp-create-subrequest-budget.test.js
-      - name: Full backend tests (informational — existing failures outside this refactor)
-        continue-on-error: true
+      - name: Full backend regression suite (required)
         run: npm test
 
   frontend:
@@ -72,6 +71,5 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
-      - name: Full frontend tests (informational — existing failures outside this refactor)
-        continue-on-error: true
+      - name: Full frontend regression suite (required)
         run: npm test
