@@ -47,6 +47,8 @@ jobs:
         run: node --test tests/shared-machine-accounting-flow.test.js tests/temp-report-version-lifecycle.test.js
       - name: Super-admin permission and lazy DB regression
         run: node --test tests/permission-service-lazy-import.test.js tests/super-admin-role-support.test.js tests/super-admin-role.test.js tests/permission-override-api.test.js
+      - name: Database archive, audit, GC and warmup contracts
+        run: node --test tests/database-first-no-migrations.test.js tests/production-temp-audit-import.test.js tests/gc-machine-work-type-standard-resolution.test.js tests/standard-resolver-warmup.test.js
       - name: Full backend tests (informational — existing failures outside this refactor)
         continue-on-error: true
         run: npm test
