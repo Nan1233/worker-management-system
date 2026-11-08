@@ -18,7 +18,7 @@ test('monthly Excel timestamps query at most 400 source IDs per TiDB request', a
     assert.match(sql, /DATE_FORMAT\(created_at, '%Y-%m-%d %H:%i:%s'\)/);
     assert.ok(params.length <= DEFAULT_BATCH_SIZE);
     assert.equal((sql.match(/\?/g) || []).length, params.length);
-    return [params.map((id) => ({ id, submitted_at: '2026-10-30 08:09:10' }))];
+    return params.map((id) => ({ id, submitted_at: '2026-10-30 08:09:10' }));
   });
 
   assert.deepEqual(calls.map((x) => x.params.length), [400, 400, 101]);
