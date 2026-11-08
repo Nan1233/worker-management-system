@@ -143,3 +143,17 @@ test('successful duplicate creation/update clears the draft and invalidates pend
   assert.doesNotMatch(create.slice(create.indexOf('catch (error: unknown)')), /clearProcessDraft\(process\)/);
   assert.doesNotMatch(update.slice(update.indexOf('catch (error: unknown)')), /clearProcessDraft\(process\)/);
 });
+
+test('duplicate resume only updates drafts explicitly owned by the signed-in worker', () => {
+  const actions = read('src/pages/worker/components/ProcessSubmitActions.tsx');
+  const start = actions.indexOf('const syncVisibleMachineLinesToDraft');
+  const end = actions.indexOf('export default function ProcessSubmitActions', start);
+  assert.ok(start >= 0 && end > start);
+  const body = actions.slice(start, end);
+  assert.match(actions, /import \{ getStoredUser \} from "\.\.\/\.\.\/\.\.\/utils\/authStorage"/);
+  assert.match(body, /if \(!user \|\| user\.role !== "worker"\) return/);
+  assert.match(body, /draft\?\.ownerWorkerId == null && !draft\?\.ownerWorkerCode/);
+  assert.match(body, /Number\(draft\.ownerWorkerId\) !== workerId/);
+  assert.match(body, /String\(draft\.ownerWorkerCode \|\| ""\)\.trim\(\)\.toUpperCase\(\) !== workerCode/);
+  assert.ok(body.indexOf('ownerWorkerId == null') < body.indexOf('bestDraft = draft'));
+});
