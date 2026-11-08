@@ -89,10 +89,10 @@ test('machine-line payload does not duplicate worker-level time and OK/NG totals
   const submission = fs.readFileSync(path.join(root, 'src/pages/worker/processReportSubmission.ts'), 'utf8');
   assert.match(submission, /const isGcMachineLineAccounting = isMachineLineAccounting\s*&& String\(args\.processCode/);
   assert.match(submission, /total_time:\s*isGcMachineLineAccounting\s*\?\s*0\s*:/);
-  assert.match(submission, /actual_time:\s*isGcMachineLineAccounting\s*\?\s*0\s*:\s*actualTime/);
-  assert.match(submission, /deduction_time:\s*isGcMachineLineAccounting\s*\?\s*0\s*:\s*deductionTime/);
-  assert.match(submission, /tt_ok:\s*\(isCvk\s*\|\|\s*isNonProductWorkWithinProcess\s*\|\|\s*noStandardLongWork\s*\|\|\s*isMachineLineAccounting\)\s*\?\s*0\s*:\s*num\(args\.form\.ttOk\)/);
-  assert.match(submission, /machine_lines:\s*\(isCvk \|\| isNonProductWorkWithinProcess\) \? \[\] : \(useMachineLinesPayload\s*\?\s*lines\s*:\s*\[\]\)/);
+  assert.match(submission, /actual_time:\s*isGcMachineLineAccounting\s*\?\s*0\s*:\s*\(isMaiWithoutMachine \? maiNoMachineActual : actualTime\)/);
+  assert.match(submission, /deduction_time:\s*isGcMachineLineAccounting\s*\?\s*0\s*:\s*\(isMaiWithoutMachine \? maiNoMachineDeduction : deductionTime\)/);
+  assert.match(submission, /tt_ok:\(isCvk \|\| isNonProductWorkWithinProcess \|\| noStandardLongWork \|\| \(isMachineLineAccounting && !isMaiWithoutMachine\)\) \? 0 : \(isMaiWithoutMachine \? maiNoMachineOk : num\(args\.form\.ttOk\)\)/);
+  assert.match(submission, /machine_lines:\(isCvk \|\| isNonProductWorkWithinProcess \|\| isMaiWithoutMachine\) \? \[\] : \(useMachineLinesPayload\?lines:\[\]\)/);
 });
 
 test('basic info section destructures machineOptions before rendering machine labels', () => {
