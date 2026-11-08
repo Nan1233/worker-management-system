@@ -67,7 +67,13 @@ function writeAll(items: JournalItem[]): boolean {
 function removeJournalItem(clientRequestId: string): void {
     const next = readAll().filter((item) => item.clientRequestId !== clientRequestId);
     if (next.length) writeAll(next);
-    else localStorage.removeItem(STORAGE_KEY);
+    else {
+        try { localStorage.removeItem(STORAGE_KEY); }
+        catch {
+            // Storage may be blocked after the request succeeded. Never turn
+            // a successful production submission into a client-side failure.
+        }
+    }
 }
 
 function payloadFromConfig(config?: InternalAxiosRequestConfig | null): ProductionReport | null {
