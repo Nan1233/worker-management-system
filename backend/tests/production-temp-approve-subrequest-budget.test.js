@@ -64,6 +64,7 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
     if (/FROM product_standard_versions/.test(sql)) return [{ id: 9, process_id: 1, product_code: params[1] || 'X', standard_output: 500, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null, status: 'active' }];
     if (/SELECT \* FROM production_reports WHERE id=\?/.test(sql)) return [{ id: 5001, source_temp_id: 900001, worker_id: 7, process_id: 1, work_date: '2026-10-19', shift: 'DAY', status: 'approved', operation_mode: 'MACHINE', total_time: 8, actual_time: 8, standard_output: 0, actual_output: 1000, tt_ok: 990, tt_ng: 10, extra_data: '{}' }];
     if (/production_report_machine_lines/.test(sql) && /^SELECT/i.test(sql) && !/production_report_machine_defects/.test(sql)) return tempLines.map((l) => ({ ...l, id: l.id + 1000, report_id: 5001, machine_code: tamperApproved ? 'ZZ' : l.machine_code }));
+    if (/^UPDATE production_reports_temp SET status='approved'/.test(sql)) return { affectedRows: 1 };
     if (/^INSERT/i.test(sql)) { nextId += 1; return { insertId: nextId, affectedRows: 1 }; }
     return [];
   };
