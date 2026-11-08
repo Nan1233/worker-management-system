@@ -34,7 +34,7 @@ test('duplicate source links are queried only once without dropping approved rep
   const calls = [];
   await attachSubmissionTimestamps(data, ['GC', 'DO'], async (_, params) => {
     calls.push(params);
-    return [params.map((id) => ({ id, submitted_at: String(id) }))];
+    return params.map((id) => ({ id, submitted_at: String(id) }));
   });
   assert.deepEqual(calls, [[51, 52]]);
   assert.equal(data.GC.reports[0].submitted_at, '51');
@@ -60,7 +60,7 @@ test('reports without a source link retain previous valid timestamp and do not c
 test('missing source row never wipes an existing historical timestamp', async () => {
   const report = { source_temp_id: 77, submitted_at: '2026-09-01 08:00:00' };
   const data = { GC: { reports: [report] } };
-  await attachSubmissionTimestamps(data, ['GC'], async () => [[]]);
+  await attachSubmissionTimestamps(data, ['GC'], async () => []);
   assert.equal(report.submitted_at, '2026-09-01 08:00:00');
 });
 
@@ -72,7 +72,7 @@ test('query errors fail closed; company Excel is never silently returned partial
   await assert.rejects(
     attachSubmissionTimestamps({ GC: { reports } }, ['GC'], async () => {
       if (++calls === 2) throw new Error('connection temporarily unavailable');
-      return [[]];
+      return [];
     }),
     /connection temporarily unavailable/
   );
@@ -83,7 +83,7 @@ test('query errors fail closed; company Excel is never silently returned partial
 test('query chunk sizes must remain within safe deterministic bounds', async () => {
   for (const batchSize of [0, -1, 501, NaN, 1.5]) {
     await assert.rejects(
-      attachSubmissionTimestamps({}, [], async () => [[]], { batchSize }),
+      attachSubmissionTimestamps({}, [], async () => [], { batchSize }),
       /invalid submission timestamp batch size/
     );
   }
