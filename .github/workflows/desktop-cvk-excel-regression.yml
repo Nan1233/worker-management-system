@@ -5,12 +5,21 @@ on:
     branches: [test]
     paths:
       - 'desktop/electron/**'
+      - 'desktop/scripts/**'
+      - 'shared/**'
       - 'desktop/tests/**'
       - 'desktop/package.json'
       - 'desktop/package-lock.json'
       - 'backend/templates/Mau_Bao_Cao_Cong_Nhan_DB_day_du_chi_tiet_STT_FIX.xlsx'
       - '.github/workflows/desktop-cvk-excel-regression.yml'
       - 'build-exe.bat'
+  pull_request:
+    branches: [test]
+    paths:
+      - 'desktop/**'
+      - 'shared/**'
+      - 'backend/templates/**'
+      - '.github/workflows/desktop-cvk-excel-regression.yml'
   workflow_dispatch:
 
 permissions:
@@ -37,6 +46,8 @@ jobs:
       - run: node --check electron/excelExportContractPatch.v6.cjs
       - run: npm run test:machine-time
       - run: node --test tests/monthly-workbook-physical-events.test.cjs
+      - name: Phase 2 actual XLSX round-trip shared-machine contract
+        run: node --test tests/phase2-gc-xlsx-roundtrip.test.cjs
       - run: node --test tests/production-calculation-engine.test.cjs
       - run: node --test tests/company-excel-shared-machine.test.cjs
       - run: npm run test:cvk-export
