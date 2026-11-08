@@ -33,6 +33,7 @@ test('all clean staging integrity counters pass without exposing sensitive recor
   const result = await runAudit(async (sql) => {
     if (/status IN \('pending','need_fix'\)/.test(sql)) return [{ total: 6 }];
     if (/FROM production_reports WHERE status='approved'/.test(sql)) return [{ total: 12 }];
+    if (/GROUP BY a.id HAVING COUNT\(l.id\)=0/.test(sql)) return [];
     return [{ total: 0 }];
   });
   assert.equal(result.passed, true);
