@@ -17,7 +17,8 @@ test('durable journal protects every production-temp POST before network send', 
   const journal = read('services/reliableReportJournal.ts');
   assert.match(journal, /method === "post"/);
   assert.match(journal, /production-temp/);
-  assert.match(journal, /saveBeforeSend\(payload\)/);
+  assert.match(journal, /saveBeforeSend\(payload, owner\)/);
+  assert.match(journal, /_ktcReportOwner = owner/);
   assert.match(journal, /localStorage/);
 });
 
@@ -25,6 +26,7 @@ test('failed production reports are handed to the existing offline queue', () =>
   const journal = read('services/reliableReportJournal.ts');
   assert.match(journal, /import\("\.\/offlineReportQueue"\)/);
   assert.match(journal, /enqueueOfflineReport\(payload\)/);
+  assert.match(journal, /ownerMatches\(currentOwner\(\), owner\)/);
   assert.match(journal, /client_request_id/);
 });
 

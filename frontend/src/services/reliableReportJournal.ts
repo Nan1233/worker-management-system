@@ -20,6 +20,7 @@ interface JournalItem {
 
 interface ReliableRequestConfig extends InternalAxiosRequestConfig {
     _ktcReportJournaled?: boolean;
+    _ktcReportOwner?: JournalItem["owner"] | null;
 }
 
 function isProductionTempCreate(config?: InternalAxiosRequestConfig | null): boolean {
@@ -37,6 +38,15 @@ function currentOwner(): JournalItem["owner"] | null {
         workerId: user.worker_id == null ? null : Number(user.worker_id),
         workerCode: String(user.worker_code || "").trim().toUpperCase(),
     };
+}
+
+function ownerMatches(a: JournalItem["owner"] | null | undefined, b: JournalItem["owner"] | null | undefined): boolean {
+    return Boolean(a && b
+        && Number.isSafeInteger(a.userId) && a.userId > 0
+        && Number.isSafeInteger(b.userId) && b.userId > 0
+        && a.userId === b.userId
+        && a.workerId === b.workerId
+        && a.workerCode === b.workerCode);
 }
 
 function readAll(): JournalItem[] {
@@ -64,16 +74,14 @@ function writeAll(items: JournalItem[]): boolean {
     }
 }
 
-function removeJournalItem(clientRequestId: string): void {
-    const next = readAll().filter((item) => item.clientRequestId !== clientRequestId);
-    if (next.length) writeAll(next);
-    else {
-        try { localStorage.removeItem(STORAGE_KEY); }
-        catch {
-            // Storage may be blocked after the request succeeded. Never turn
-            // a successful production submission into a client-side failure.
-        }
-    }
+function removeJournalItem(clientRequestId: string, owner: JournalItem["owner"] | null): void {
+    if (!owner || !clientRequestId) return;
+    const all = readAll();
+    const next = all.filter((item) => item.clientRequestId !== clientRequestId || !ownerMatches(item.owner, owner));
+    if (next.length === all.length) return;
+    // Use the same safe storage wrapper as additions. An unavailable browser
+    // storage API must never turn a successful server response into a failure.
+    writeAll(next);
 }
 
 function payloadFromConfig(config?: InternalAxiosRequestConfig | null): ProductionReport | null {
@@ -93,13 +101,12 @@ function isReplayRequest(config: InternalAxiosRequestConfig): boolean {
     return String(headers.get(REPLAY_HEADER) || "") === "1";
 }
 
-function saveBeforeSend(payload: ProductionReport): void {
-    const owner = currentOwner();
+function saveBeforeSend(payload: ProductionReport, owner: JournalItem["owner"] | null): void {
     const clientRequestId = String(payload.client_request_id || "").trim();
     if (!owner || !clientRequestId) return;
 
     const all = readAll();
-    if (all.some((item) => item.clientRequestId === clientRequestId)) return;
+    if (all.some((item) => item.clientRequestId === clientRequestId && ownerMatches(item.owner, owner))) return;
     if (all.length >= MAX_ITEMS) {
         throw new Error("Thiết bị đang giữ quá nhiều báo cáo chưa xác nhận gửi thành công. Hãy đồng bộ các báo cáo đang chờ trước khi gửi thêm.");
     }
@@ -114,14 +121,18 @@ function saveBeforeSend(payload: ProductionReport): void {
     }]);
 }
 
-async function moveFailedRequestToOfflineQueue(payload: ProductionReport): Promise<void> {
+async function moveFailedRequestToOfflineQueue(payload: ProductionReport, owner: JournalItem["owner"] | null): Promise<void> {
+    // A shared browser can change accounts while the request or dynamic import
+    // is in flight. Never move A's report into B's account-owned offline queue.
+    if (!ownerMatches(currentOwner(), owner)) return;
     try {
         const queue = await import("./offlineReportQueue");
+        if (!ownerMatches(currentOwner(), owner)) return;
         queue.enqueueOfflineReport(payload);
-        removeJournalItem(String(payload.client_request_id || ""));
+        removeJournalItem(String(payload.client_request_id || ""), owner);
     } catch {
         // Keep the journal when queue storage/import fails. The journal is the
-        // last-resort crash/network recovery layer and will be retried on startup.
+        // last-resort crash/network recovery layer and will be retried by its owner.
     }
 }
 
@@ -145,10 +156,14 @@ function isRetryableNetworkFailure(error: AxiosError): boolean {
 }
 
 export function recoverReliableReportJournal(): void {
-    const items = readAll();
-    if (!items.length) return;
-    for (const item of items) {
-        void moveFailedRequestToOfflineQueue(item.payload);
+    const owner = currentOwner();
+    if (!owner) return;
+    // Do not replay another worker's pending report when devices are shared,
+    // and do not delete it: the original worker can recover it after login.
+    for (const item of readAll()) {
+        if (ownerMatches(item.owner, owner)) {
+            void moveFailedRequestToOfflineQueue(item.payload, item.owner);
+        }
     }
 }
 
@@ -161,8 +176,10 @@ export function initializeReliableReportRecovery(): void {
         const payload = payloadFromConfig(config);
         if (!payload) return config;
 
-        saveBeforeSend(payload);
+        const owner = currentOwner();
+        saveBeforeSend(payload, owner);
         (config as ReliableRequestConfig)._ktcReportJournaled = true;
+        (config as ReliableRequestConfig)._ktcReportOwner = owner;
         return config;
     });
 
@@ -171,7 +188,7 @@ export function initializeReliableReportRecovery(): void {
             if (isProductionTempCreate(response.config)) {
                 const payload = payloadFromConfig(response.config);
                 if (payload?.client_request_id) {
-                    removeJournalItem(String(payload.client_request_id));
+                    removeJournalItem(String(payload.client_request_id), (response.config as ReliableRequestConfig)._ktcReportOwner || null);
                 }
             }
             return response;
@@ -185,7 +202,7 @@ export function initializeReliableReportRecovery(): void {
             // Validation/business errors must stay with the form so the worker can
             // correct and resubmit them. They are not offline reports.
             if (isValidationFailure(error)) {
-                removeJournalItem(String(payload.client_request_id));
+                removeJournalItem(String(payload.client_request_id), config?._ktcReportOwner || null);
                 return Promise.reject(error);
             }
 
@@ -193,14 +210,14 @@ export function initializeReliableReportRecovery(): void {
             // are real server responses, not network failures. Keep them in the
             // normal submit flow so the UI can ask for confirmation; never enqueue.
             if (!isRetryableNetworkFailure(error)) {
-                removeJournalItem(String(payload.client_request_id));
+                removeJournalItem(String(payload.client_request_id), config?._ktcReportOwner || null);
                 return Promise.reject(error);
             }
 
             // Only genuine transport/transient failures enter the offline queue.
             // client_request_id makes this recovery idempotent if the backend
             // received the request before the connection died.
-            await moveFailedRequestToOfflineQueue(payload);
+            await moveFailedRequestToOfflineQueue(payload, config?._ktcReportOwner || null);
             return Promise.reject(error);
         }
     );
@@ -215,5 +232,5 @@ export function initializeReliableReportRecovery(): void {
 }
 
 export function clearReliableReportJournal(clientRequestId: string): void {
-    removeJournalItem(String(clientRequestId || ""));
+    removeJournalItem(String(clientRequestId || ""), currentOwner());
 }
