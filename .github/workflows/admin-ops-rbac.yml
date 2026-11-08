@@ -56,10 +56,9 @@ jobs:
         run: npm audit --audit-level=high
 
   backend-full-suite:
-    name: Backend full test suite (informational — no live TiDB in CI)
+    name: Backend full test suite (required — no live TiDB in CI)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
     defaults:
       run:
         working-directory: backend
@@ -74,7 +73,7 @@ jobs:
         run: npm test
 
   frontend-full-suite-and-build:
-    name: Frontend full tests (informational) + production build (blocking)
+    name: Frontend full tests and production build (required)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -85,8 +84,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --no-audit --no-fund
-      - name: Full frontend test suite (informational — known pre-existing failures tracked outside this PR)
-        continue-on-error: true
+      - name: Full frontend test suite (required)
         run: npm test
       - name: Production build (must pass)
         run: npm run build

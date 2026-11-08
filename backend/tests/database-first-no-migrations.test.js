@@ -10,7 +10,14 @@ test('database-first setup may retain historical SQL files but has no migration 
   // Historical/manual SQL is retained for auditability; runtime and build must not execute it.
   const migrationsDir = path.join(backend, 'migrations');
   if (fs.existsSync(migrationsDir)) {
-    assert.ok(fs.readdirSync(migrationsDir).every((name) => name.endsWith('.sql')), 'migration directory contains only archived SQL files');
+    // Archived migrations include a historical JSON manifest for reference.
+    // Neither SQL files nor the manifest can execute as part of npm start/build.
+    const entries = fs.readdirSync(migrationsDir);
+    assert.ok(entries.every((name) => name.endsWith('.sql') || name === 'manifest.json'), 'migration directory contains only SQL archives and their historical manifest');
+    if (entries.includes('manifest.json')) {
+      const manifest = JSON.parse(fs.readFileSync(path.join(migrationsDir, 'manifest.json'), 'utf8'));
+      assert.ok(Array.isArray(manifest.migrations), 'archived manifest remains valid JSON');
+    }
   }
   for (const file of [
     'scripts/runPendingMigrations.js',

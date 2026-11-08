@@ -39,5 +39,6 @@ test('localStorage quota failure never blocks the production report request', ()
   const journal = read('services/reliableReportJournal.ts');
   assert.match(journal, /function writeAll\(items: JournalItem\[\]\): boolean/);
   assert.match(journal, /catch \(error\)[\s\S]*Reliable report journal storage is full/);
-  assert.match(journal, /must never prevent an online production report from reaching the backend/);
+  assert.match(journal, /A full browser quota must[\s\S]*never prevent an online production report from reaching the backend/);
+  assert.match(journal, /writeAll\(\[\.\.\.all,/);
 });

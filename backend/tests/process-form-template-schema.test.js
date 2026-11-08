@@ -13,17 +13,21 @@ const submission = fs.readFileSync(path.join(__dirname, '../../frontend/src/page
 const payload = fs.readFileSync(path.join(__dirname, '../../frontend/src/pages/worker/processReportPayload.ts'), 'utf8');
 const pageUi = `${page}\n${timeSection}`;
 
-test('worker forms keep process-specific fields from file-mau.xlsx', () => {
-  assert.match(schema, /Số giờ hâm khuôn/);
-  assert.match(schema, /Số giờ sửa khuôn/);
-  assert.match(schema, /Số giờ sửa máy/);
-  assert.match(schema, /Số giờ dừng máy/);
-  assert.match(schema, /Lý do dừng máy/);
+test('worker schemas preserve process-specific input and database-managed deduction groups', () => {
+  // Ép's hâm/sửa/dừng machine deductions are dynamic master data, not fixed
+  // independent inputs in the worker form. Keep the actual process-specific
+  // fields while avoiding a duplicate static entry for each deduction type.
+  assert.match(schema, /Hâm khuôn, Sửa khuôn, Sửa máy, Dừng máy, Lý do dừng máy/);
+  assert.match(schema, /kind: "deduction-list"/);
   assert.match(schema, /Ngày tháng Ép/);
   assert.match(schema, /Công việc trừ giờ/);
   assert.match(schema, /Trừ giờ XLBV \(người làm\)/);
   assert.match(schema, /Thời gian dừng thao tác/);
-  assert.match(schema, /SỐ THAU|Số thau\/thời gian liên quan/);
+  assert.match(schema, /Số thau\/thời gian liên quan/);
+  // User decision: DO does NOT expose "Máy mài liên quan" in worker input.
+  const extraFields = fs.readFileSync(path.join(__dirname, '../../frontend/src/pages/worker/processExtraFields.ts'), 'utf8');
+  assert.match(extraFields, /do:\s*\[\s*\]/);
+  assert.doesNotMatch(extraFields, /key:\s*"grinding_machine_no"/);
 });
 
 test('worker deduction catalogue remains process scoped through cache and API contract', () => {

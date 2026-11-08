@@ -27,10 +27,10 @@ test('Master Control route is declared once at /admin/master-control behind Priv
   assert.equal(nav.MASTER_CONTROL_BASE, '/admin/master-control');
 });
 
-test('every sidebar module has a real route and the sidebar lists the four requested groups', () => {
+test('every sidebar module has a real route and all five governance groups are visible', () => {
   const router = read('frontend/src/routes/AppRouter.tsx');
   const block = router.slice(router.indexOf('path="/admin/master-control"'), router.indexOf('<Route path="/manager"'));
-  assert.deepEqual(nav.MASTER_CONTROL_GROUPS.map((g) => g.label), ['OVERVIEW', 'MANAGEMENT', 'SYSTEM', 'OPERATIONS']);
+  assert.deepEqual(nav.MASTER_CONTROL_GROUPS.map((g) => g.label), ['OVERVIEW', 'MANAGEMENT', 'SECURITY & GOVERNANCE', 'SYSTEM', 'OPERATIONS']);
   for (const module of nav.MASTER_CONTROL_MODULES) {
     if (module.path === '') assert.match(block, /<Route index element=/);
     else assert.match(block, new RegExp(`<Route path="${module.path}" element=`), module.path);
