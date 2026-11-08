@@ -77,10 +77,10 @@ test('check-similar says "absent": item stays blocked with the original error (n
   assert.equal(items(store)[0].status, 'blocked');
 });
 
-test('check-similar confirms the report already exists: item is removed as sent', async () => {
+test('check-similar with same client_request_id confirms the exact report already exists', async () => {
   const { mod, store } = await loadQueue({
     create: async () => { throw httpError(422, { message: 'x' }); },
-    check: async () => ({ success: true, duplicate: true, data: { id: 5 } })
+    check: async () => ({ success: true, duplicate: true, data: { id: 5, client_request_id: 'c1' } })
   });
   mod.enqueueOfflineReport(payload);
   const res = await mod.flushOfflineReportQueue({ force: true });
@@ -131,4 +131,30 @@ test('persistently failing duplicate check stops retrying after the cap and bloc
   assert.equal(it.similarCheck, 'failed-transient');
   assert.equal(it.lastError, 'Dữ liệu không khớp danh mục hệ thống');
   assert.ok(creates <= 6, `create attempts bounded, got ${creates}`);
+});
+
+test('422 + similar report with different client request ID never discards unsent worker report', async () => {
+  const { mod, store } = await loadQueue({
+    create: async () => { throw httpError(422, { message: 'Định mức không hợp lệ', code: 'STANDARD_WORK_TYPE_MISMATCH' }); },
+    check: async () => ({ success: true, duplicate: true, data: { id: 5, client_request_id: 'other-worker-submission' } })
+  });
+  mod.enqueueOfflineReport(payload);
+  const res = await mod.flushOfflineReportQueue({ force: true });
+  assert.equal(res.sent, 0);
+  assert.equal(res.remaining, 1);
+  assert.equal(items(store)[0].status, 'blocked');
+  assert.equal(items(store)[0].payload.client_request_id, 'c1');
+  assert.equal(items(store)[0].lastErrorCode, 'STANDARD_WORK_TYPE_MISMATCH');
+});
+
+test('422 + similar report without exact request ID never marks original report as sent', async () => {
+  const { mod, store } = await loadQueue({
+    create: async () => { throw httpError(422, { message: 'Dữ liệu sai' }); },
+    check: async () => ({ success: true, duplicate: true, data: { id: 5 } })
+  });
+  mod.enqueueOfflineReport(payload);
+  const res = await mod.flushOfflineReportQueue({ force: true });
+  assert.equal(res.sent, 0);
+  assert.equal(items(store).length, 1);
+  assert.equal(items(store)[0].status, 'blocked');
 });
