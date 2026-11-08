@@ -53,6 +53,8 @@ jobs:
         run: node --test tests/process-form-template-schema.test.js tests/production-temp-create-subrequest-budget.test.js
       - name: Phase 2 staging audit safety contracts
         run: node --test tests/phase2-read-only-audit.test.js
+      - name: Phase 2 offline GC Excel API payload audit
+        run: node --test tests/phase2-gc-excel-payload-audit.test.js
       - name: Full backend regression suite (required)
         run: npm test
 
