@@ -87,7 +87,8 @@ test('DO, EP and CAN remain limited to one machine and mode helpers cannot both 
 // Only GC accounts time per machine line; Mài/Đo/Ép keep the worker-level time (audit BUG-01: zeroing it made those workers' reports fail with 422).
 test('machine-line payload does not duplicate worker-level time and OK/NG totals', () => {
   const submission = fs.readFileSync(path.join(root, 'src/pages/worker/processReportSubmission.ts'), 'utf8');
-  assert.match(submission, /total_time:\s*isGcMachineLineAccounting\s*\?\s*0\s*:\s*totalTime/);
+  assert.match(submission, /const isGcMachineLineAccounting = isMachineLineAccounting\s*&& String\(args\.processCode/);
+  assert.match(submission, /total_time:\s*isGcMachineLineAccounting\s*\?\s*0\s*:/);
   assert.match(submission, /actual_time:\s*isGcMachineLineAccounting\s*\?\s*0\s*:\s*actualTime/);
   assert.match(submission, /deduction_time:\s*isGcMachineLineAccounting\s*\?\s*0\s*:\s*deductionTime/);
   assert.match(submission, /tt_ok:\s*\(isCvk\s*\|\|\s*isNonProductWorkWithinProcess\s*\|\|\s*noStandardLongWork\s*\|\|\s*isMachineLineAccounting\)\s*\?\s*0\s*:\s*num\(args\.form\.ttOk\)/);
@@ -116,14 +117,18 @@ test('Mài worker master only exposes the approved time deductions and NG types'
   assert.ok(!mai.deductions.includes('Thiếu sản lượng'));
   assert.ok(!mai.deductions.includes('Bảo dưỡng máy'));
   assert.ok(!mai.deductions.includes('Mất điện'));
-  assert.ok(hook.includes('MAI_ALLOWED_DEDUCTION_NAMES'));
+  // Mài deductions come from active process-scoped DB rows; hard-coded lists
+  // made the dropdown empty when master labels changed.
+  assert.ok(!hook.includes('MAI_ALLOWED_DEDUCTION_NAMES'));
+  assert.ok(hook.includes('dedupeMaiDeductionOptions'));
   assert.ok(hook.includes('MAI_ALLOWED_DEFECT_NAMES'));
   assert.ok(hook.includes('MAI_DISPLAY_LABELS'));
   assert.ok(hook.includes('PPCM Mất điện'));
   assert.ok(hook.includes('normalizeDefectOptions(defects.value, resolvedProcessId)'));
   assert.ok(hook.includes('filterMaiMasterOptions(normalized, processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES'));
   assert.ok(hook.includes('normalizeDeductionOptions(deductions.value, resolvedProcessId)'));
-  assert.ok(hook.includes('filterMaiMasterOptions(normalizeDeductionOptions(deductions.value, resolvedProcessId)'));
+  assert.ok(hook.includes('normalizeDeductionOptions(deductions.value, resolvedProcessId)'));
+  assert.ok(hook.includes('dedupeMaiDeductionOptions('));
 });
 
 test('production bundle version replacement matches the frontend and service-worker version', () => {
