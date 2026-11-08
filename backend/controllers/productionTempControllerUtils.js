@@ -61,13 +61,28 @@ const normalizeIds = (ids) => [
 const normalizeReviewTargets = (body = {}) => {
     const targets = Array.isArray(body?.targets) ? body.targets : [];
     if (targets.length) {
-        const seen = new Set();
-        return targets
-            .map((item) => ({
-                id: toPositiveInteger(item?.id),
-                expected_updated_at: item?.expected_updated_at ? String(item.expected_updated_at) : null,
-            }))
-            .filter((item) => item.id && !seen.has(item.id) && seen.add(item.id));
+        const seen = new Map();
+        const normalized = [];
+        for (const item of targets) {
+            const id = toPositiveInteger(item?.id);
+            if (!id) continue;
+            const expected_updated_at = item?.expected_updated_at ? String(item.expected_updated_at) : null;
+            if (seen.has(id)) {
+                // Never silently discard a conflicting optimistic-lock token:
+                // the same report was selected from two different snapshots.
+                if (seen.get(id) !== expected_updated_at) {
+                    const error = new Error("Danh sách báo cáo chứa phiên bản không thống nhất. Hãy tải lại danh sách rồi chọn lại.");
+                    error.status = 409;
+                    error.code = "REVIEW_TARGET_VERSION_CONFLICT";
+                    error.isPublic = true;
+                    throw error;
+                }
+                continue;
+            }
+            seen.set(id, expected_updated_at);
+            normalized.push({ id, expected_updated_at });
+        }
+        return normalized;
     }
     const ids = normalizeIds(body?.ids);
     // Legacy single-report review clients call POST /approve with { id }.
