@@ -518,13 +518,23 @@ module.exports = {
           },
         );
 
-        await query(
+        // The final temp transition must succeed before committing the
+        // approved report, copied lines, snapshots and audit records.
+        // A lost status race must roll back the entire transaction.
+        const statusUpdate = await query(
           connection,
           `UPDATE production_reports_temp
               SET status='approved',reviewed_by=?,approved_at=NOW(),updated_at=NOW()
-            WHERE id=?`,
+            WHERE id=? AND status IN ('pending','need_fix')`,
           [reviewerId,item.id],
         );
+        if (Number(statusUpdate?.affectedRows || 0) !== 1) {
+          const error = new Error(`Báo cáo #${item.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
+          error.status = 409;
+          error.code = "APPROVAL_SELECTION_STALE";
+          error.isPublic = true;
+          throw error;
+        }
 
         const approvedTempSnapshot = await AuditService.loadTempReportSnapshot(
           item.id,
