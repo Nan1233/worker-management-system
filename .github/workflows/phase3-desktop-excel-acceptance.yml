@@ -1,0 +1,45 @@
+name: Phase 3 Desktop Excel Acceptance
+
+on:
+  pull_request:
+    branches: [test]
+    paths:
+      - 'desktop/**'
+      - 'backend/domain/productionCalculationEngine.cjs'
+      - 'backend/services/**'
+      - 'shared/**'
+      - '.github/workflows/phase3-desktop-excel-acceptance.yml'
+  push:
+    branches: [test]
+    paths:
+      - 'desktop/**'
+      - 'backend/domain/productionCalculationEngine.cjs'
+      - 'backend/services/**'
+      - 'shared/**'
+      - '.github/workflows/phase3-desktop-excel-acceptance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-excel-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Desktop Excel smoke and export regression
+        run: npm run smoke:excel
+      - name: Shared-machine physical event XLSX round trip
+        run: node --test tests/phase2-gc-xlsx-roundtrip.test.cjs tests/monthly-workbook-physical-events.test.cjs tests/company-excel-shared-machine.test.cjs
+      - name: Calculation engine parity
+        run: node --test tests/production-calculation-engine.test.cjs
