@@ -251,15 +251,19 @@ function buildStandardSnapshotConsistencyInput(saved, resolved) {
 }
 
 // Validate machine report snapshots before any approval copy occurs.
+function createMissingMachineSnapshotError(reportId) {
+  const error = new Error(`Báo cáo máy #${reportId} không có dòng máy để xác minh định mức`);
+  error.status = 422;
+  error.code = "STANDARD_SNAPSHOT_MISSING";
+  error.isPublic = true;
+  return error;
+}
+
 async function validateMachineApprovalSnapshot(item, connection, standardResolver, tempLinesCache) {
   const tempLines = await getTempMachineLines(item.id, connection);
   if (tempLinesCache) tempLinesCache.set(Number(item.id), tempLines);
   if (!tempLines.length) {
-    const error = new Error(`Báo cáo máy #${item.id} không có dòng máy để xác minh định mức`);
-    error.status = 422;
-    error.code = "STANDARD_SNAPSHOT_MISSING";
-    error.isPublic = true;
-    throw error;
+    throw createMissingMachineSnapshotError(item.id);
   }
   const eventContext = await prepareApprovedEventContext(connection, { report: item, lines: tempLines });
   await standardResolver.warmUp({
