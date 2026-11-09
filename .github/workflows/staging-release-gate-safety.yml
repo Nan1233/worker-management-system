@@ -22,6 +22,9 @@ on:
       - 'scripts/zero-cost/http.cjs'
       - 'backend/scripts/e2e-db-guard.cjs'
       - 'tests/staging-release-gate-guard.test.cjs'
+      - 'tests/staging-e2e-api-target.test.cjs'
+      - 'tests/critical-e2e-direct-guard.test.cjs'
+      - 'tests/zero-cost-http-redirect.test.cjs'
       - '.github/workflows/staging-release-gate-safety.yml'
 permissions:
   contents: read
