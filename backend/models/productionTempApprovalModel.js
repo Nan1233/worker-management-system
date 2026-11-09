@@ -165,13 +165,16 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, ap
     const magnitude = whole + (decimal ? "." + decimal : "");
     return (negative && magnitude !== "0" ? "-" : "") + magnitude;
   };
-  const quantityColumns = ["machine_time_hours", "standard_output", "ok_quantity", "ng_quantity",
-    "maximum_output", "deduction_time_hours", "counted_output", "earned_standard_hours"];
+  const quantityColumns = ["machine_time_hours", "standard_output", "standard_time_seconds",
+    "ok_quantity", "ng_quantity", "maximum_output", "deduction_time_hours",
+    "counted_output", "earned_standard_hours"];
   const quantityMismatch = (persisted, source) => quantityColumns.some((column) => {
     if (!Object.prototype.hasOwnProperty.call(persisted, column)
       || !Object.prototype.hasOwnProperty.call(source, column)) return false;
     const saved = ["deduction_time_hours", "counted_output", "earned_standard_hours"].includes(column)
       ? source[column] || 0 : source[column];
+    // The approved INSERT stores absent standard_time_seconds as SQL NULL.
+    if (column === "standard_time_seconds" && !saved && persisted[column] == null) return false;
     const actual = canonicalDecimal(persisted[column]);
     const expected = canonicalDecimal(saved);
     return actual === null || expected === null || actual !== expected;
