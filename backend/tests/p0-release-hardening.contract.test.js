@@ -42,8 +42,9 @@ test('P0 approval preserves machine graph, historical snapshot and canonical ver
   assert.match(source, /production_report_machine_defects/);
   assert.match(source, /createLegacyApprovedSnapshot\(item, approvedReportId, reviewerId, connection,/);
   assert.match(source, /await createApprovedReportVersion\(/);
-  assert.match(source, /AuditService\\.createReportVersion\\(buildApprovedTempReportVersion\\(/);
-  assert.match(source, /function buildApprovedTempReportVersion\\([\\s\\S]*?reportType:"temp"/);
+  assert.ok(source.includes('AuditService.createReportVersion(buildApprovedTempReportVersion('));
+  assert.ok(source.includes('function buildApprovedTempReportVersion('));
+  assert.ok(source.includes('reportType:"temp"'));
 });
 
 test('P0 runtime schema verifier uses a minimum structural contract and keeps full drift diagnostics non-blocking', () => {
