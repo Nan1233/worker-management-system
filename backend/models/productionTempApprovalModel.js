@@ -275,6 +275,19 @@ async function validateMachineApprovalSnapshot(item, connection, standardResolve
     return;
 }
 
+// Resolve the report-level saved standard, including the manual GC Cắt/Lồng choice.
+function buildReportStandardResolutionInput(item) {
+  return {
+    processId: item.process_id,
+    productCode: item.product_name,
+    workDate: item.work_date,
+    standardVersionId: item.standard_version_id,
+    machineStandardId: item.machine_standard_id,
+    // GC manual (no machine): the report's saved Cắt/Lồng choice; null for every other process.
+    workType: explicitGcWorkType({ isGc: Number(item.process_id) === 1, operationType: item.operation_type }),
+  };
+}
+
 async function validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache = null) {
   const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
   if (!isMachineReport && isParentProcessNonProductWork(item)) {
@@ -286,15 +299,7 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
     return;
   }
 
-  const resolved = await standardResolver.resolveStandard({
-    processId: item.process_id,
-    productCode: item.product_name,
-    workDate: item.work_date,
-    standardVersionId: item.standard_version_id,
-    machineStandardId: item.machine_standard_id,
-    // GC manual (no machine): the report's saved Cắt/Lồng choice; null for every other process.
-    workType: explicitGcWorkType({ isGc: Number(item.process_id) === 1, operationType: item.operation_type }),
-  });
+  const resolved = await standardResolver.resolveStandard(buildReportStandardResolutionInput(item));
   // CVK "Công việc khác" reports intentionally have no product standard.
   // Their valid snapshot is zero output with no product/machine standard IDs.
   if (resolved?.nonProductWork) {
