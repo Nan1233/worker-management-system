@@ -30,7 +30,7 @@ function setup({ approved, failAt = null }) {
     query: async (conn, sql, params) => {
       assert.strictEqual(conn, connection);
       calls.push({ sql, params: Array.from(params) });
-      if (failAt === sql) throw new Error('SQL failure: ' + sql);
+      if (failAt && sql.includes(failAt)) throw new Error('SQL failure: ' + failAt);
     },
     qRows: async (conn, sql, params) => {
       assert.strictEqual(conn, connection);
@@ -87,8 +87,7 @@ test('real verifier rejects swapped product code before writing defects', async 
 
 test('NG defect insert failure propagates to caller for transaction rollback', async () => {
   const { copy, calls, connection } = setup({ approved, failAt: 'INSERT INTO production_report_machine_defects' });
-  // The SQL is multiline, so fail based on the actual insert query rather than a prefix.
-  const original = calls;
-  await copy(45, 100, connection, lines);
-  assert.equal(original.length, 3);
+  await assert.rejects(copy(45, 100, connection, lines), /SQL failure: INSERT INTO production_report_machine_defects/);
+  assert.equal(calls.length, 3);
+  assert.match(calls[2].sql, /INSERT INTO production_report_machine_defects/);
 });
