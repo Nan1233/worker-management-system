@@ -65,15 +65,8 @@ async function getTempMachineLines(tempReportId, connection) {
   );
   if (!lines.length) return [];
 
-  const ids = lines.map((line) => Number(line.id)).filter(Boolean);
-  const defects = await qRows(
-    connection,
-    `SELECT *
-       FROM production_temp_machine_defects
-      WHERE machine_line_id IN (${ids.map(() => "?").join(",")})
-      ORDER BY machine_line_id ASC, id ASC`,
-    ids,
-  );
+  const { sql: defectSql, params: defectParams } = buildTempMachineLineDefectsQuery(lines);
+  const defects = await qRows(connection, defectSql, defectParams);
   return attachMachineLineDefects(lines, defects);
 }
 
@@ -171,14 +164,8 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
   const pendingDefects = buildApprovedMachineDefectRows(tempLines, byInsertOrder);
 
   if (pendingDefects.length) {
-    const placeholders = pendingDefects.map(() => "(?,?,?,?,?)").join(",");
-    await query(
-      connection,
-      `INSERT INTO production_report_machine_defects
-       (machine_line_id,defect_type_id,defect_code,defect_name,quantity)
-       VALUES ${placeholders}`,
-      pendingDefects.flat(),
-    );
+    const { sql: defectInsertSql, params: defectInsertParams } = buildApprovedMachineDefectsInsert(pendingDefects);
+    await query(connection, defectInsertSql, defectInsertParams);
   }
 
   return { ids: byInsertOrder.map((row) => Number(row.id)), rows: approvedRows };
@@ -669,6 +656,26 @@ function buildRejectionScopeQuery(reportIds, reviewerId, isAdmin) {
           ORDER BY temp.id ASC
           FOR UPDATE`,
     params,
+  };
+}
+
+function buildTempMachineLineDefectsQuery(lines) {
+  const ids = lines.map((line) => Number(line.id)).filter(Boolean);
+  return {
+    sql: `SELECT *
+       FROM production_temp_machine_defects
+      WHERE machine_line_id IN (${ids.map(() => "?").join(",")})
+      ORDER BY machine_line_id ASC, id ASC`,
+    params: ids,
+  };
+}
+
+function buildApprovedMachineDefectsInsert(pendingDefects) {
+  return {
+    sql: `INSERT INTO production_report_machine_defects
+       (machine_line_id,defect_type_id,defect_code,defect_name,quantity)
+       VALUES ${pendingDefects.map(() => "(?,?,?,?,?)").join(",")}`,
+    params: pendingDefects.flat(),
   };
 }
 
