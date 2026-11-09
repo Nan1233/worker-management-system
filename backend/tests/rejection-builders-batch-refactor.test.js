@@ -76,13 +76,13 @@ test('rejection retains transactional ordering, guarded status update and post-c
     'FOR UPDATE',
     'buildRejectedReportUpdate(row, expected, cleanReason, reviewerId)',
     'const updateResult = await query(connection,updateSql,updateParams)',
-    'Number(updateResult?.affectedRows || 0) !== 1',
+    'assertRejectedTempTransition(updateResult, row)',
     'AuditService.loadTempReportSnapshot(row.id, connection)',
     'buildRejectedReportVersion(row, rejectedSnapshot, cleanReason, reviewerId)',
     'buildRejectedReportActivity(row, cleanReason, reviewerId)',
     'postCommitNotifications.push(buildRejectedReportNotification(row, cleanReason))',
     'await commit(connection)',
-    'AuditService.notifyUsers(notification.userIds,notification.payload)',
+    'await deliverRejectedPostCommitNotifications(postCommitNotifications)',
   ].map((marker) => reject.indexOf(marker));
   assert.ok(positions.every((n) => n >= 0), 'all transaction markers remain');
   assert.ok(positions.every((n, i) => i === 0 || positions[i - 1] < n), 'transaction order unchanged');

@@ -23,7 +23,8 @@ test('rejection keeps status-conditional updates and aborts entire batch on lost
   assert.match(reject, /buildRejectedReportUpdate\(row, expected, cleanReason, reviewerId\)/);
   assert.match(updateBuilder, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
   assert.match(updateBuilder, /WHERE id=\? AND status IN \('pending','need_fix'\)`/);
-  assert.match(reject, /Number\(updateResult\?\.affectedRows \|\| 0\) !== 1/);
+  assert.match(reject, /assertRejectedTempTransition\(updateResult, row\)/);
+  assert.match(source, /Number\(updateResult\?\.affectedRows \|\| 0\) !== 1/);
   assert.match(reject, /await rollback\(connection\)/);
   assert.match(reject, /await commit\(connection\)/);
 });
@@ -35,5 +36,6 @@ test('stale rejection selections return public 409 so manager can reload', () =>
   assert.match(reject, /assertApprovalSelectionVersions\(rows, expectedById\)/);
   assert.match(visible, /error\.code = "APPROVAL_SELECTION_STALE";\s*error\.isPublic = true/);
   assert.match(versions, /error\.code = "TEMP_REPORT_VERSION_CONFLICT";\s*error\.isPublic = true/);
-  assert.match(reject, /error\.code = "TEMP_REPORT_VERSION_CONFLICT";\s*error\.isPublic = true/);
+  assert.match(reject, /assertRejectedTempTransition\(updateResult, row\)/);
+  assert.match(source, /error\.code = "TEMP_REPORT_VERSION_CONFLICT";\s*error\.isPublic = true/);
 });
