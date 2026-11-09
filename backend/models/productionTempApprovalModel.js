@@ -141,22 +141,11 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
   const tempLines = preloadedTempLines || await getTempMachineLines(tempReportId, connection);
   if (!tempLines.length) return { ids: [], rows: [] };
 
-  const columns = `report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
-        machine_time_hours,standard_output,standard_time_seconds,standard_source,ok_quantity,ng_quantity,
-        maximum_output,deduction_time_hours,deductions_json,counted_output,earned_standard_hours,defects_json,sort_order`;
-  const rowPlaceholder = `(${new Array(21).fill("?").join(",")})`;
-  const values = buildApprovedMachineLineValues(tempLines, approvedReportId);
-  await query(
-    connection,
-    `INSERT INTO production_report_machine_lines (${columns}) VALUES ${tempLines.map(() => rowPlaceholder).join(",")}`,
-    values,
-  );
+  const { sql: machineInsertSql, params: machineInsertParams } = buildApprovedMachineLinesInsert(tempLines, approvedReportId);
+  await query(connection, machineInsertSql, machineInsertParams);
 
-  const approvedRows = await qRows(
-    connection,
-    `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
-    [approvedReportId],
-  );
+  const { sql: approvedLinesSql, params: approvedLinesParams } = buildApprovedMachineLinesRead(approvedReportId);
+  const approvedRows = await qRows(connection, approvedLinesSql, approvedLinesParams);
   // AUTO_INCREMENT hands out ascending ids in row order inside one statement, so the n-th inserted row is the
   // n-th lowest id. Verify that assumption against machine_code/product_code and fail closed (rollback) if not.
   const byInsertOrder = verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId);
@@ -676,6 +665,24 @@ function buildApprovedMachineDefectsInsert(pendingDefects) {
        (machine_line_id,defect_type_id,defect_code,defect_name,quantity)
        VALUES ${pendingDefects.map(() => "(?,?,?,?,?)").join(",")}`,
     params: pendingDefects.flat(),
+  };
+}
+
+function buildApprovedMachineLinesInsert(tempLines, approvedReportId) {
+  const columns = `report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
+        machine_time_hours,standard_output,standard_time_seconds,standard_source,ok_quantity,ng_quantity,
+        maximum_output,deduction_time_hours,deductions_json,counted_output,earned_standard_hours,defects_json,sort_order`;
+  const rowPlaceholder = `(${new Array(21).fill("?").join(",")})`;
+  return {
+    sql: `INSERT INTO production_report_machine_lines (${columns}) VALUES ${tempLines.map(() => rowPlaceholder).join(",")}`,
+    params: buildApprovedMachineLineValues(tempLines, approvedReportId),
+  };
+}
+
+function buildApprovedMachineLinesRead(approvedReportId) {
+  return {
+    sql: `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
+    params: [approvedReportId],
   };
 }
 
