@@ -86,5 +86,5 @@ test('rejection retains transactional ordering, guarded status update and post-c
   ].map((marker) => reject.indexOf(marker));
   assert.ok(positions.every((n) => n >= 0), 'all transaction markers remain');
   assert.ok(positions.every((n, i) => i === 0 || positions[i - 1] < n), 'transaction order unchanged');
-  assert.match(reject, /await rollback\(connection\)/);
+  assert.match(reject, /await rollbackReviewTransaction\(connection, error\)/);
 });
