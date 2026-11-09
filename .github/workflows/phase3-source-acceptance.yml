@@ -73,6 +73,16 @@ jobs:
       - run: npm run smoke:excel
       - run: node --test tests/phase2-gc-xlsx-roundtrip.test.cjs tests/monthly-workbook-physical-events.test.cjs tests/company-excel-shared-machine.test.cjs tests/production-calculation-engine.test.cjs
       - run: npm audit --omit=dev --audit-level=high
+      - name: Prepare non-breaking dependency remediation lockfile for review
+        if: failure()
+        run: npm audit fix --package-lock-only --omit=dev --no-audit --no-fund
+      - name: Upload proposed lockfile (not applied automatically)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-remediation-lockfile
+          path: desktop/package-lock.json
+          if-no-files-found: error
   source-acceptance:
     needs: [backend, frontend, desktop]
     runs-on: ubuntu-latest
