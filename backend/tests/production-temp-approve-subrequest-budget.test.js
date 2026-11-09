@@ -64,7 +64,7 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
     }
     if (/FROM product_standard_versions/.test(sql)) return [{ id: 9, process_id: 1, product_code: params[1] || 'X', standard_output: 500, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null, status: 'active' }];
     if (/SELECT \* FROM production_reports WHERE id=\?/.test(sql)) return [{ id: 5001, source_temp_id: 900001, worker_id: 7, process_id: 1, work_date: '2026-10-19', shift: 'DAY', status: 'approved', operation_mode: 'MACHINE', total_time: 8, actual_time: 8, standard_output: 0, actual_output: 1000, tt_ok: 990, tt_ng: 10, extra_data: '{}' }];
-    if (/production_report_machine_lines/.test(sql) && /^SELECT/i.test(sql) && !/production_report_machine_defects/.test(sql)) return tempLines.map((l, i) => ({ ...l, id: l.id + 1000, report_id: 5001, machine_event_id: l.machine_event_id || (noEventRows ? null : 300 + i), machine_code: tamperApproved ? 'ZZ' : l.machine_code }));
+    if (/production_report_machine_lines/.test(sql) && /^SELECT/i.test(sql) && !/production_report_machine_defects/.test(sql)) return tempLines.map((l, i) => ({ ...l, id: l.id + 1000, report_id: 5001, machine_event_id: l.machine_event_id || (noEventRows ? null : 300 + i), machine_code: tamperApproved ? 'ZZ' : l.machine_code, standard_source: 'PROD_VERSION_MACH_FB' }));
     if (/^UPDATE production_reports_temp SET status='approved'/.test(sql)) {
       if (staleFinalTransition || editBeforeFinal || sharedApprovalState?.approved || sharedApprovalState?.claimed) return { affectedRows: 0 };
       if (sharedApprovalState) { sharedApprovalState.claimed = true; ownsApprovalClaim = true; }
