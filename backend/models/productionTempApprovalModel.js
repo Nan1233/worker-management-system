@@ -403,6 +403,19 @@ async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, 
   );
 }
 
+// Preserve the positional values of the approved-report INSERT (approved_at remains NOW()).
+function buildApprovedReportInsertValues(item, reviewerId) {
+  return [
+            item.id,item.worker_id,item.process_id,item.work_date,item.entry_date || item.work_date,item.shift,
+            item.operation_type ?? null,item.operation_mode ?? null,item.machine_no,item.product_name,
+            item.total_time,item.actual_time,item.deduction_time,item.standard_output,item.standard_version_id || null,
+            item.machine_standard_id || null,item.training_percent_snapshot ?? null,
+            item.actual_output,item.tt_ok,item.tt_ng,item.kqd_dap_lai,item.kqd_tuot,item.vo_do_long,item.xuoc_do_long,
+            item.cong_gay,item.xoay,item.khong_dut,item.bavia_hut,item.ppcm,item.loi_cao_su,item.ng_kich_thuoc,
+            item.cat_lem,item.note,serializeExtraData(item.extra_data),"approved",item.review_note,reviewerId,
+  ];
+}
+
 module.exports = {
   async approveSelected(targets, reviewerId, isAdmin = false) {
     assertReviewBatchSize(targets);
@@ -479,15 +492,7 @@ module.exports = {
             vo_do_long,xuoc_do_long,cong_gay,xoay,khong_dut,bavia_hut,ppcm,loi_cao_su,ng_kich_thuoc,cat_lem,note,
             extra_data,status,review_note,reviewed_by,approved_at)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
-          [
-            item.id,item.worker_id,item.process_id,item.work_date,item.entry_date || item.work_date,item.shift,
-            item.operation_type ?? null,item.operation_mode ?? null,item.machine_no,item.product_name,
-            item.total_time,item.actual_time,item.deduction_time,item.standard_output,item.standard_version_id || null,
-            item.machine_standard_id || null,item.training_percent_snapshot ?? null,
-            item.actual_output,item.tt_ok,item.tt_ng,item.kqd_dap_lai,item.kqd_tuot,item.vo_do_long,item.xuoc_do_long,
-            item.cong_gay,item.xoay,item.khong_dut,item.bavia_hut,item.ppcm,item.loi_cao_su,item.ng_kich_thuoc,
-            item.cat_lem,item.note,serializeExtraData(item.extra_data),"approved",item.review_note,reviewerId,
-          ],
+          buildApprovedReportInsertValues(item, reviewerId),
         );
         const approvedReportId = Number(insertResult.insertId);
         approvedIds.push(approvedReportId);
