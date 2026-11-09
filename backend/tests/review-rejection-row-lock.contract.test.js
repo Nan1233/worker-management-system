@@ -27,7 +27,7 @@ test('rejection keeps status-conditional updates and aborts entire batch on lost
   assert.match(reject, /assertRejectedTempTransition\(updateResult, row\)/);
   assert.match(source, /!hasExactlyOneAffectedRow\(updateResult\)/);
   assert.match(source, /Number\(result\?\.affectedRows \|\| 0\) === 1/);
-  assert.match(reject, /await rollback\(connection\)/);
+  assert.match(reject, /await rollbackReviewTransaction\(connection, error\)/);
   assert.match(reject, /await commit\(connection\)/);
 });
 
