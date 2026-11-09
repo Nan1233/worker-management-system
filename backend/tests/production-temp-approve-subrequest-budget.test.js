@@ -12,7 +12,7 @@ const BACKEND = path.join(__dirname, '..');
 const MACHINE_CODES = ['M05', 'M06', 'M07', 'M11'];
 const PRODUCTS = ['CGYX-AUTO', 'C5770-AUTO'];
 
-function build({ lines = 4, withEvents = true, failOn = null, existingApproved = false, noEventRows = false, lineStandardOutput = 500, defectsByLine = {}, tamperApproved = false, reportRows = null, staleFinalTransition = false } = {}) {
+function build({ lines = 4, withEvents = true, failOn = null, existingApproved = false, noEventRows = false, lineStandardOutput = 500, defectsByLine = {}, tamperApproved = false, reportRows = null, staleFinalTransition = false, sharedApprovalState = null } = {}) {
   const log = [];
   const calls = [];
   let nextId = 5000;
@@ -42,7 +42,7 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
     if (failOn && failOn.test(sql)) throw Object.assign(new Error('boom'), { code: 'ER_FAKE' });
     if (/FROM production_reports WHERE source_temp_id IN/.test(sql) || /SELECT id,source_temp_id,work_date FROM production_reports/.test(sql)) return existingApproved ? [{ id: 1, source_temp_id: 900001 }] : [];
     if (/FROM production_reports_temp t WHERE t.id IN/.test(sql)) return [];
-    if (/SELECT DISTINCT temp\.\*/.test(sql)) return reportRows || [report];
+    if (/SELECT DISTINCT temp\.\*/.test(sql)) return sharedApprovalState?.approved ? [] : (reportRows || [report]);
     if (/SELECT \* FROM production_reports_temp WHERE id=\? LIMIT 1 FOR UPDATE/.test(sql)) return [report];
     if (/FROM production_temp_machine_lines ml JOIN production_reports_temp r/.test(sql)) return tempLines.map((l) => ({ ...l, process_id: 1, work_date: report.work_date, shift: 'DAY', machine_no: report.machine_no, product_name: report.product_name, process_code: 'GC' }));
     if (/FROM production_temp_machine_lines WHERE temp_report_id=\?/.test(sql)) return tempLines.map((l) => ({ ...l }));
@@ -64,7 +64,7 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
     if (/FROM product_standard_versions/.test(sql)) return [{ id: 9, process_id: 1, product_code: params[1] || 'X', standard_output: 500, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null, status: 'active' }];
     if (/SELECT \* FROM production_reports WHERE id=\?/.test(sql)) return [{ id: 5001, source_temp_id: 900001, worker_id: 7, process_id: 1, work_date: '2026-10-19', shift: 'DAY', status: 'approved', operation_mode: 'MACHINE', total_time: 8, actual_time: 8, standard_output: 0, actual_output: 1000, tt_ok: 990, tt_ng: 10, extra_data: '{}' }];
     if (/production_report_machine_lines/.test(sql) && /^SELECT/i.test(sql) && !/production_report_machine_defects/.test(sql)) return tempLines.map((l) => ({ ...l, id: l.id + 1000, report_id: 5001, machine_code: tamperApproved ? 'ZZ' : l.machine_code }));
-    if (/^UPDATE production_reports_temp SET status='approved'/.test(sql)) return { affectedRows: staleFinalTransition ? 0 : 1 };
+    if (/^UPDATE production_reports_temp SET status='approved'/.test(sql)) return { affectedRows: (staleFinalTransition || sharedApprovalState?.approved) ? 0 : 1 };
     if (/^INSERT/i.test(sql)) { nextId += 1; return { insertId: nextId, affectedRows: 1 }; }
     return [];
   };
@@ -80,7 +80,7 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
       setImmediate(() => cb(err, r, []));
     },
     beginTransaction(a, b) { const cb = typeof a === 'function' ? a : b; record('BEGIN'); setImmediate(() => cb(null)); },
-    commit(cb) { record('COMMIT'); setImmediate(() => cb(null)); },
+    commit(cb) { record('COMMIT'); if (sharedApprovalState) sharedApprovalState.approved = true; setImmediate(() => cb(null)); },
     rollback(cb) { record('ROLLBACK'); setImmediate(() => cb(null)); },
     release() {},
   };
@@ -269,4 +269,24 @@ test('mid-transaction approval write failures roll back without committing', asy
       assert.ok(log.indexOf('ROLLBACK') > log.findIndex((entry) => failOn.test(entry)), `Rollback must follow failed SQL: ${stage}`);
     });
   }
+});
+
+// Sequential replay is a deterministic mock of a later request observing a
+// committed approval. It is NOT a parallel-transaction or live TiDB race test.
+test('replaying approval after another reviewer committed returns 409 without duplicate writes', async () => {
+  const sharedApprovalState = { approved: false };
+  const first = await approve({ lines: 4, sharedApprovalState });
+  assert.ifError(first.error);
+  assert.equal(first.result.count, 1);
+  assert.equal(first.log.filter((entry) => entry === 'COMMIT').length, 1);
+  assert.equal(sharedApprovalState.approved, true);
+
+  const second = await approve({ lines: 4, sharedApprovalState });
+  assert.ok(second.error);
+  assert.equal(second.error.status, 409);
+  assert.equal(second.error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(second.log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(second.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.equal(second.log.filter((entry) => /^INSERT INTO production_reports /.test(entry)).length, 0);
+  assert.equal(second.log.filter((entry) => /^INSERT INTO production_report_machine_lines/.test(entry)).length, 0);
 });
