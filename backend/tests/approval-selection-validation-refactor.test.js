@@ -67,7 +67,7 @@ test('falsy expected timestamps and invalid-date comparisons remain unchanged', 
 
 test('transaction approval calls checks in original order after SELECT FOR UPDATE', () => {
   const approval = source.slice(source.indexOf('async approveSelected('));
-  const select = approval.indexOf('FOR UPDATE');
+  const select = approval.indexOf('await query(connection, selectionSql, selectionParams)');
   const visibleCall = approval.indexOf('assertApprovalSelectionVisible(rows, reportIds)');
   const versionCall = approval.indexOf('assertApprovalSelectionVersions(rows, expectedById)');
   const standard = approval.indexOf('const standardResolver = createStandardResolver(');
