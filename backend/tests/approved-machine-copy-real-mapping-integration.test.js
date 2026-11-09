@@ -17,7 +17,7 @@ const helpers = [
   extract('function buildApprovedMachineLinesRead(', 'function buildApprovedDetailCopyQuery('),
   extract('function verifyApprovedMachineLineCopy(', '// Copies the temp machine lines'),
   extract('function buildApprovedMachineDefectRows(', '// Keep the approved machine-line INSERT'),
-  extract('async function copyMachineLinesToApproved(', 'function buildApprovedMachineDefectRows('),
+  extract('async function copyMachineLinesToApproved(', 'function getExtraDataObject('),
 ].join('\n');
 
 function setup({ approved, failAt = null }) {
