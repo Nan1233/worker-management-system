@@ -573,6 +573,14 @@ function buildApprovedPostCommitNotification(item, approvedReportId, workDate) {
   };
 }
 
+async function rollbackReviewTransaction(connection, error) {
+  const rollbackResult = await rollback(connection);
+  if (rollbackResult?.ok === false) {
+    error.rollbackError = rollbackResult.error;
+    console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackResult.error?.message || rollbackResult.error}`);
+  }
+}
+
 function createReviewTransitionConflictError(reportId, code) {
   const error = new Error(`Báo cáo #${reportId} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
   error.status = 409;
@@ -871,11 +879,7 @@ module.exports = {
       await deliverApprovedPostCommitNotifications(postCommitNotifications);
       return buildApprovalBatchResult(rows, approvedIds, dates);
     } catch (error) {
-      const rollbackResult = await rollback(connection);
-      if (rollbackResult?.ok === false) {
-        error.rollbackError = rollbackResult.error;
-        console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackResult.error?.message || rollbackResult.error}`);
-      }
+      await rollbackReviewTransaction(connection, error);
       throw error;
     } finally {
       connection.release();
@@ -912,11 +916,7 @@ module.exports = {
       await deliverRejectedPostCommitNotifications(postCommitNotifications);
       return buildRejectionBatchResult(rows);
     } catch (error) {
-      const rollbackResult = await rollback(connection);
-      if (rollbackResult?.ok === false) {
-        error.rollbackError = rollbackResult.error;
-        console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackResult.error?.message || rollbackResult.error}`);
-      }
+      await rollbackReviewTransaction(connection, error);
       throw error;
     } finally {
       connection.release();
