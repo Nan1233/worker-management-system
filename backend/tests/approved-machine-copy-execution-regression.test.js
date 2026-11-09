@@ -65,7 +65,7 @@ test('no machine lines skips all database writes', async () => {
   const result = await copy(9, 100, connection, []);
   assert.deepEqual(Array.from(result.ids), []);
   assert.deepEqual(Array.from(result.rows), []);
-  assert.deepEqual(calls.map((c) => c[0]), ['load']);
+  assert.deepEqual(calls.map((c) => c[0]), []);
 });
 
 test('verified lines without defects skip defect insert', async () => {
