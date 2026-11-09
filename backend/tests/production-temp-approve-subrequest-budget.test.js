@@ -104,8 +104,8 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
   return { Review, log, calls };
 }
 
-async function approve(opts) {
-  const ctx = build(opts);
+async function approve(opts, prebuiltContext = null) {
+  const ctx = prebuiltContext || build(opts);
   const logOrig = console.log; const warnOrig = console.warn; const errOrig = console.error;
   console.log = () => {}; console.warn = () => {}; console.error = () => {};
   try {
@@ -301,9 +301,16 @@ test('replaying approval after another reviewer committed returns 409 without du
 // NOT a verification of TiDB transaction isolation or row locking.
 test('overlapping reviewer approvals allow only one guarded transition and commit', async () => {
   const sharedApprovalState = { approved: false, claimed: false };
+  // Build both dependency graphs before either async request starts. Building
+  // inside Promise.all would mutate Node's require.cache while the other
+  // request is already running, potentially reusing the wrong fake DB.
+  const firstContext = build({ lines: 4, sharedApprovalState });
+  const secondContext = build({ lines: 4, sharedApprovalState });
+  assert.notStrictEqual(firstContext.Review, secondContext.Review);
+  assert.notStrictEqual(firstContext.calls, secondContext.calls);
   const [first, second] = await Promise.all([
-    approve({ lines: 4, sharedApprovalState }),
-    approve({ lines: 4, sharedApprovalState }),
+    approve(null, firstContext),
+    approve(null, secondContext),
   ]);
   const outcomes = [first, second];
   const winners = outcomes.filter((entry) => !entry.error);
@@ -311,6 +318,9 @@ test('overlapping reviewer approvals allow only one guarded transition and commi
   assert.equal(winners.length, 1, 'exactly one reviewer must succeed');
   assert.equal(losers.length, 1, 'the other reviewer must be rejected');
   assert.equal(winners[0].result.count, 1);
+  assert.ok(first.calls.some((entry) => entry.sql === 'BEGIN'));
+  assert.ok(second.calls.some((entry) => entry.sql === 'BEGIN'));
+  assert.notStrictEqual(first.calls, second.calls);
   assert.equal(losers[0].error.status, 409);
   assert.equal(losers[0].error.code, 'APPROVAL_SELECTION_STALE');
   assert.equal(outcomes.reduce((sum, entry) => sum + entry.log.filter((line) => line === 'COMMIT').length, 0), 1);
