@@ -42,6 +42,8 @@ async function cleanupRun(db){
   if(errors.length)throw new Error(`E2E cleanup failed for ${errors.length} table(s): ${errors.join('; ')}`);
 }
 async function main(){const db=await mysql.createConnection(dbCfg);
+ let executionError=null;
+ try {
  await tc(1,'Worker login',async()=>{const r=await w.req('POST','/api/auth/login',{username:fixture.worker.code,access_type:'worker'});return {ok:r.status===200,status:r.status}});
  const oldCookie=w.cookies; await tc(2,'Refresh',async()=>{const r=await w.req('POST','/api/auth/refresh',{});return {ok:r.status===200&&w.cookies!==oldCookie,status:r.status}});
  await tc(3,'Logout + relogin',async()=>{const a=await w.req('POST','/api/auth/logout',{});const old=w.token;w.token='';w.cookies='';const b=await w.req('POST','/api/auth/login',{username:fixture.worker.code,access_type:'worker'});return {ok:[200,204].includes(a.status)&&b.status===200&&w.token!==old,status:b.status}});
@@ -64,5 +66,20 @@ async function main(){const db=await mysql.createConnection(dbCfg);
  await tc(22,'Excel import real-diff',async()=>{if(!approvedId)return {ok:false,status:0};const g=await m.req('GET',`/api/production/${approvedId}`);const unchanged=await m.req('POST','/api/production/excel-sync',{changes:[]});const changed=await m.req('POST','/api/production/excel-sync',{changes:[{id:approvedId,expected_updated_at:g.data?.data?.updated_at,patch:{note:`${runId} excel-diff`},source:{file:'KTC_E2E.xlsx'}}]});return {ok:[200,204,422].includes(unchanged.status)&&changed.status===200,status:changed.status}});
  await tc(23,'Final logout cleanup',async()=>{const a=await w.req('POST','/api/auth/logout',{});w.token='';w.cookies='';const b=await w.req('GET','/api/production-temp/my');return {ok:[200,204].includes(a.status)&&[401,403].includes(b.status),status:b.status}});
  await tc(24,'All selectable products have standards',async()=>{const [tables]=await db.query(`SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('product_standards','processes')`);if(Number(tables[0]?.n)!==2)return {ok:false,evidence:'required tables missing'};const [rows]=await db.query(`SELECT ps.process_id, ps.work_type, ps.product_code, ps.standard_output FROM product_standards ps WHERE LOWER(COALESCE(ps.status,'active'))='active' AND (ps.standard_output IS NULL OR ps.standard_output<=0)`);return {ok:rows.length===0,status:rows.length,evidence:rows.length?JSON.stringify(rows.slice(0,20)):'no active standard with null/zero output'}});
- await cleanupRun(db);await db.end();fs.writeFileSync(path.join(outDir,'critical-e2e.json'),JSON.stringify({runId,rows,artifacts},null,2));console.table(rows.map(({n,name,result,status,code,recordId})=>({n,name,result,status,code,recordId})));console.log(`KTC_CRITICAL_E2E=${rows.every(x=>x.result==='PASS')?'PASS':'FAIL'}`)}
+ } catch(error) {
+   executionError=error;
+ } finally {
+   const cleanupErrors=[];
+   try { await cleanupRun(db); } catch(error) { cleanupErrors.push(error); }
+   try { await db.end(); } catch(error) { cleanupErrors.push(error); }
+   try {
+     fs.writeFileSync(path.join(outDir,'critical-e2e.json'),JSON.stringify({runId,rows,artifacts,executionError:executionError?.message||null,cleanupErrors:cleanupErrors.map(e=>e.message)},null,2));
+   } catch(error) { cleanupErrors.push(error); }
+   console.table(rows.map(({n,name,result,status,code,recordId})=>({n,name,result,status,code,recordId})));
+   const success=!executionError&&cleanupErrors.length===0&&rows.length===24&&rows.every(x=>x.result==='PASS');
+   console.log(`KTC_CRITICAL_E2E=${success?'PASS':'FAIL'}`);
+   if(!success)process.exitCode=1;
+   if(executionError||cleanupErrors.length)throw new AggregateError([...(executionError?[executionError]:[]),...cleanupErrors],'E2E execution or cleanup failed');
+ }
+}
 main().catch(e=>{console.error('KTC_CRITICAL_E2E_FATAL',e.stack||e);process.exit(1)});
