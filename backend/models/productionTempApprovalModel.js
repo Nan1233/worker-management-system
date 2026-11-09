@@ -156,7 +156,7 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, ap
   // Normalize textually to avoid losing DECIMAL(18,6) precision through Number().
   const canonicalDecimal = (value) => {
     const raw = String(value ?? "").trim();
-    if (!/^[+-]?(?:[0-9]+)(?:\\.[0-9]+)?$/.test(raw)) return null;
+    if (!/^[+-]?(?:[0-9]+)(?:[.][0-9]+)?$/.test(raw)) return null;
     const negative = raw.startsWith("-");
     const unsigned = raw.replace(/^[+-]/, "");
     const [integer, fraction = ""] = unsigned.split(".");
