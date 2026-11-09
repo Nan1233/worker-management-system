@@ -59,8 +59,7 @@ test('rejection maintains guarded update, snapshot, audit, commit, notification 
   const markers=[
     'const updateResult = await query(connection,updateSql,updateParams)',
     'assertRejectedTempTransition(updateResult, row)',
-    'AuditService.loadTempReportSnapshot(row.id, connection)',
-    'AuditService.createReportVersion(buildRejectedReportVersion(',
+    'recordRejectedTempVersion(row, cleanReason, reviewerId, connection)',
     'AuditService.logActivity(buildRejectedReportActivity(',
     'await commit(connection)',
     'await deliverRejectedPostCommitNotifications(postCommitNotifications)',
