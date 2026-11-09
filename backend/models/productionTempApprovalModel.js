@@ -252,27 +252,27 @@ function buildStandardSnapshotConsistencyInput(saved, resolved) {
 
 // Validate machine report snapshots before any approval copy occurs.
 async function validateMachineApprovalSnapshot(item, connection, standardResolver, tempLinesCache) {
-    const tempLines = await getTempMachineLines(item.id, connection);
-    if (tempLinesCache) tempLinesCache.set(Number(item.id), tempLines);
-    if (!tempLines.length) {
-      const error = new Error(`Báo cáo máy #${item.id} không có dòng máy để xác minh định mức`);
-      error.status = 422;
-      error.code = "STANDARD_SNAPSHOT_MISSING";
-      error.isPublic = true;
-      throw error;
-    }
-    const eventContext = await prepareApprovedEventContext(connection, { report: item, lines: tempLines });
-    await standardResolver.warmUp({
-      processId: item.process_id,
-      workDate: item.work_date,
-      items: buildMachineStandardWarmUpItems(tempLines),
-    });
-    for (const line of tempLines) {
-      await assertApprovedEventForTempLine(connection, { report: item, line, context: eventContext });
-      const resolved = await standardResolver.resolveStandard(buildMachineStandardResolutionInput(item, line));
-      assertStandardSnapshotConsistency(buildStandardSnapshotConsistencyInput(line, resolved));
-    }
-    return;
+  const tempLines = await getTempMachineLines(item.id, connection);
+  if (tempLinesCache) tempLinesCache.set(Number(item.id), tempLines);
+  if (!tempLines.length) {
+    const error = new Error(`Báo cáo máy #${item.id} không có dòng máy để xác minh định mức`);
+    error.status = 422;
+    error.code = "STANDARD_SNAPSHOT_MISSING";
+    error.isPublic = true;
+    throw error;
+  }
+  const eventContext = await prepareApprovedEventContext(connection, { report: item, lines: tempLines });
+  await standardResolver.warmUp({
+    processId: item.process_id,
+    workDate: item.work_date,
+    items: buildMachineStandardWarmUpItems(tempLines),
+  });
+  for (const line of tempLines) {
+    await assertApprovedEventForTempLine(connection, { report: item, line, context: eventContext });
+    const resolved = await standardResolver.resolveStandard(buildMachineStandardResolutionInput(item, line));
+    assertStandardSnapshotConsistency(buildStandardSnapshotConsistencyInput(line, resolved));
+  }
+  return;
 }
 
 // Resolve the report-level saved standard, including the manual GC Cắt/Lồng choice.
