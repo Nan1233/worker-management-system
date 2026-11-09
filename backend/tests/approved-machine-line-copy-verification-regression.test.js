@@ -173,3 +173,19 @@ test('approved report lineage rejects numeric coercion and unsafe values', () =>
       error => error.code === 'APPROVED_MACHINE_LINES_COPY_MISMATCH');
   }
 });
+
+test('approved sort order rejects numeric coercion and fractional positions', () => {
+  const original = [{ machine_code: 'M1', product_code: 'P1', sort_order: 2 }];
+  const valid = { id: 101, machine_code: 'M1', product_code: 'P1', sort_order: '002' };
+  assert.equal(verify([valid], original, 9).length, 1);
+  for (const sort_order of [true, '2.0', '2e0', ' 2', '+2', 2.5, -2, 0, [], {}, null]) {
+    fails([{ ...valid, sort_order }], original);
+  }
+});
+
+test('invalid source sort order cannot be silently normalized to a persisted integer', () => {
+  const row = { id: 101, machine_code: 'M1', product_code: 'P1', sort_order: 2 };
+  for (const sort_order of ['2.0', true, '2e0', -2]) {
+    fails([row], [{ machine_code: 'M1', product_code: 'P1', sort_order }]);
+  }
+});

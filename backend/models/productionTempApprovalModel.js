@@ -152,10 +152,15 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, ap
       && String(persisted[column] || "") !== String(source[column] || ""));
   // sort_order is copied with a legacy default of 1. It distinguishes otherwise
   // identical machine/product runs and must survive the bulk INSERT unchanged.
-  const sortOrderMismatch = (persisted, source) =>
-    Object.prototype.hasOwnProperty.call(persisted, "sort_order")
-      && Object.prototype.hasOwnProperty.call(source, "sort_order")
-      && String(persisted.sort_order || 1) !== String(source.sort_order || 1);
+  const sortOrderMismatch = (persisted, source) => {
+    if (!Object.prototype.hasOwnProperty.call(persisted, "sort_order")
+      || !Object.prototype.hasOwnProperty.call(source, "sort_order")) return false;
+    // The INSERT uses source.sort_order || 1; the persisted value must still be
+    // a positive safe integer, not a coerced boolean, exponent or fractional ID.
+    const expected = parseStrictId(source.sort_order || 1);
+    const actual = parseStrictId(persisted.sort_order);
+    return expected === null || actual === null || actual !== expected;
+  };
   // Decimal values may be returned as strings with trailing zeros by TiDB.
   // Normalize textually to avoid losing DECIMAL(18,6) precision through Number().
   const canonicalDecimal = (value) => {
