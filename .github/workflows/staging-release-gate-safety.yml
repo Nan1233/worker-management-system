@@ -11,6 +11,7 @@ on:
       - 'tests/staging-release-gate-guard.test.cjs'
       - 'tests/staging-e2e-api-target.test.cjs'
       - 'tests/critical-e2e-direct-guard.test.cjs'
+      - 'tests/critical-e2e-cleanup-contract.test.cjs'
       - 'tests/zero-cost-http-redirect.test.cjs'
       - '.github/workflows/staging-release-gate-safety.yml'
   push:
@@ -24,6 +25,7 @@ on:
       - 'tests/staging-release-gate-guard.test.cjs'
       - 'tests/staging-e2e-api-target.test.cjs'
       - 'tests/critical-e2e-direct-guard.test.cjs'
+      - 'tests/critical-e2e-cleanup-contract.test.cjs'
       - 'tests/zero-cost-http-redirect.test.cjs'
       - '.github/workflows/staging-release-gate-safety.yml'
 permissions:
@@ -40,4 +42,4 @@ jobs:
       - run: node --check scripts/stagingReleaseGate.cjs
       - run: node --check scripts/stagingE2E.cjs
       - run: node --check scripts/zero-cost/critical-e2e.cjs
-      - run: node --test tests/staging-release-gate-guard.test.cjs tests/staging-e2e-api-target.test.cjs tests/critical-e2e-direct-guard.test.cjs tests/zero-cost-http-redirect.test.cjs
+      - run: node --test tests/staging-release-gate-guard.test.cjs tests/staging-e2e-api-target.test.cjs tests/critical-e2e-direct-guard.test.cjs tests/critical-e2e-cleanup-contract.test.cjs tests/zero-cost-http-redirect.test.cjs
