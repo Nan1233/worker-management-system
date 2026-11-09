@@ -6,9 +6,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-const start = source.indexOf('async function validateMachineApprovalSnapshot(');
+const start = source.indexOf('function createMissingMachineSnapshotError(');
 const end = source.indexOf('async function validateApprovalSnapshot(', start);
-assert.ok(start >= 0 && end > start, 'machine snapshot validation helper exists');
+assert.ok(start >= 0 && end > start, 'machine snapshot validation and error helpers exist');
 
 function makeValidator(lines, events) {
   const standardResolver = {
@@ -63,4 +63,17 @@ test('parent approval dispatcher calls machine validator and returns', () => {
   assert.match(dispatcher, /await validateMachineApprovalSnapshot\(item, connection, standardResolver, tempLinesCache\)/);
   assert.match(dispatcher, /if \(!isMachineReport && isParentProcessNonProductWork\(item\)\)/);
   assert.match(dispatcher, /assertStandardSnapshotConsistency\(buildStandardSnapshotConsistencyInput\(item, resolved\)\)/);
+});
+
+test('missing machine snapshot error factory preserves public 422 contract', () => {
+  const begin = source.indexOf('function createMissingMachineSnapshotError(');
+  const end = source.indexOf('async function validateMachineApprovalSnapshot(', begin);
+  const factory = vm.runInNewContext(source.slice(begin, end) + '\ncreateMissingMachineSnapshotError;', {});
+  for (const id of [0, '41', null, undefined]) {
+    const error = factory(id);
+    assert.equal(error.message, `Báo cáo máy #${id} không có dòng máy để xác minh định mức`);
+    assert.equal(error.status, 422);
+    assert.equal(error.code, 'STANDARD_SNAPSHOT_MISSING');
+    assert.equal(error.isPublic, true);
+  }
 });
