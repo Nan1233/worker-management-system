@@ -41,7 +41,7 @@ test('report snapshot retains null, undefined, zero and string identities', () =
 });
 
 test('both approval snapshot paths call the shared consistency mapper', () => {
-  const a = source.indexOf('async function validateApprovalSnapshot(');
+  const a = source.indexOf('async function validateMachineApprovalSnapshot(');
   const b = source.indexOf('async function createLegacyApprovedSnapshot(', a);
   const validate = source.slice(a, b);
   assert.match(validate, /assertStandardSnapshotConsistency\(buildStandardSnapshotConsistencyInput\(line, resolved\)\)/);
