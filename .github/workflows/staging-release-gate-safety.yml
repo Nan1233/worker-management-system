@@ -5,15 +5,18 @@ on:
     paths:
       - 'scripts/stagingReleaseGate.cjs'
       - 'scripts/stagingE2E.cjs'
+      - 'scripts/zero-cost/critical-e2e.cjs'
       - 'backend/scripts/e2e-db-guard.cjs'
       - 'tests/staging-release-gate-guard.test.cjs'
       - 'tests/staging-e2e-api-target.test.cjs'
+      - 'tests/critical-e2e-direct-guard.test.cjs'
       - '.github/workflows/staging-release-gate-safety.yml'
   push:
     branches: [test]
     paths:
       - 'scripts/stagingReleaseGate.cjs'
       - 'scripts/stagingE2E.cjs'
+      - 'scripts/zero-cost/critical-e2e.cjs'
       - 'backend/scripts/e2e-db-guard.cjs'
       - 'tests/staging-release-gate-guard.test.cjs'
       - '.github/workflows/staging-release-gate-safety.yml'
@@ -30,4 +33,5 @@ jobs:
       - run: npm ci --prefix backend --no-audit --no-fund
       - run: node --check scripts/stagingReleaseGate.cjs
       - run: node --check scripts/stagingE2E.cjs
-      - run: node --test tests/staging-release-gate-guard.test.cjs tests/staging-e2e-api-target.test.cjs
+      - run: node --check scripts/zero-cost/critical-e2e.cjs
+      - run: node --test tests/staging-release-gate-guard.test.cjs tests/staging-e2e-api-target.test.cjs tests/critical-e2e-direct-guard.test.cjs
