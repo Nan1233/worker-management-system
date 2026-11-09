@@ -39,3 +39,23 @@ test('empty input retains an empty parameter list for caller-side empty guard', 
   const result = build([]);
   assert.deepEqual(Array.from(result.params), []);
 });
+
+test('duplicate numeric machine IDs fail closed before defect SQL', () => {
+  for (const lines of [
+    [{ id: 12 }, { id: 12 }],
+    [{ id: '12' }, { id: 12 }],
+    [{ id: '012' }, { id: 12 }],
+  ]) {
+    assert.throws(() => build(lines), (error) => {
+      assert.equal(error.status, 500);
+      assert.equal(error.code, 'TEMP_MACHINE_LINE_DUPLICATE_ID');
+      assert.equal(error.isPublic, true);
+      return true;
+    });
+  }
+});
+
+test('distinct IDs retain their original query order', () => {
+  const result = build([{ id: 14 }, { id: '12' }, { id: 13 }]);
+  assert.deepEqual(Array.from(result.params), [14, 12, 13]);
+});
