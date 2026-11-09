@@ -391,11 +391,7 @@ async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, 
     : await readLegacySnapshotRows(connection, buildLegacySnapshotDeductionsRead(approvedReportId));
   const machineLines = Array.isArray(preloadedMachineLines)
     ? preloadedMachineLines
-    : await qRows(
-      connection,
-      `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
-      [approvedReportId],
-    );
+    : await readLegacySnapshotRows(connection, buildApprovedMachineLinesRead(approvedReportId));
   const snapshotData = JSON.stringify(buildLegacyApprovedSnapshotPayload(item, approvedReportId, snapshotDefects, snapshotDeductions, machineLines));
   const { sql: snapshotSql, params: snapshotParams } = buildLegacySnapshotInsert(item, approvedReportId, reviewerId, snapshotData);
   await query(connection, snapshotSql, snapshotParams);
