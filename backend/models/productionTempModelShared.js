@@ -69,11 +69,11 @@ const queryWithLockRetry = async (executor, sql, params = []) => {
 // The explicit duplicate-lock check is retained to preserve the existing rule.
 const shouldRecoverInsertId = (sql, result) => {
     const statement = String(sql || "");
-    const isInsert = /^\\s*INSERT\\s+/i.test(statement);
+    const isInsert = /^\s*INSERT\s+/i.test(statement);
     const currentInsertId = Number(result?.insertId || 0);
-    const hasNoAutoIncrementId = /^\\s*INSERT\\s+INTO\\s+`?production_report_duplicate_locks\\b/i.test(statement);
+    const hasNoAutoIncrementId = /^\s*INSERT\s+INTO\s+`?production_report_duplicate_locks\b/i.test(statement);
     const idNeverReadTable = /KTC_BATCH_ID_LOOKUP/i.test(statement)
-        || /^\\s*INSERT\\s+INTO\\s+`?(?:production_report_duplicate_locks|production_temp_machine_lines|production_temp_machine_defects|production_temp_defects|production_temp_deductions|report_edit_logs|report_action_logs|activity_logs|report_versions)\\b/i.test(statement);
+        || /^\s*INSERT\s+INTO\s+`?(?:production_report_duplicate_locks|production_temp_machine_lines|production_temp_machine_defects|production_temp_defects|production_temp_deductions|report_edit_logs|report_action_logs|activity_logs|report_versions)\b/i.test(statement);
     return isInsert && currentInsertId <= 0 && !hasNoAutoIncrementId && !idNeverReadTable;
 };
 
