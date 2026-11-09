@@ -152,10 +152,21 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, ap
       && String(persisted[column] || "") !== String(source[column] || ""));
   // sort_order is copied with a legacy default of 1. It distinguishes otherwise
   // identical machine/product runs and must survive the bulk INSERT unchanged.
-  const sortOrderMismatch = (persisted, source) =>
-    Object.prototype.hasOwnProperty.call(persisted, "sort_order")
-      && Object.prototype.hasOwnProperty.call(source, "sort_order")
-      && String(persisted.sort_order || 1) !== String(source.sort_order || 1);
+  const sortOrderMismatch = (persisted, source) => {
+    if (!Object.prototype.hasOwnProperty.call(persisted, "sort_order")
+      || !Object.prototype.hasOwnProperty.call(source, "sort_order")) return false;
+    const parseOrder = (value) => {
+      // The INSERT uses sort_order || 1; TiDB can return digit strings with padding.
+      const effective = value || 1;
+      if (typeof effective !== "number"
+        && (typeof effective !== "string" || !/^[0-9]+$/.test(effective))) return null;
+      const parsed = Number(effective);
+      return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+    };
+    const expected = parseOrder(source.sort_order);
+    const actual = parseOrder(persisted.sort_order);
+    return expected === null || actual === null || expected !== actual;
+  };
   // Decimal values may be returned as strings with trailing zeros by TiDB.
   // Normalize textually to avoid losing DECIMAL(18,6) precision through Number().
   const canonicalDecimal = (value) => {
