@@ -96,19 +96,9 @@ function buildApprovedMachineDefectRows(tempLines, approvedLinesByInsertOrder) {
   return rows;
 }
 
-// Copies the temp machine lines (and their defects) into the approved report.
-// Subrequest budget: one multi-row INSERT for all lines + one SELECT to learn the new ids (the caller
-// reuses those rows for the legacy snapshot and the approved version) + one INSERT for all defects,
-// instead of one INSERT per machine line.
-async function copyMachineLinesToApproved(tempReportId, approvedReportId, connection, preloadedTempLines = null) {
-  const tempLines = preloadedTempLines || await getTempMachineLines(tempReportId, connection);
-  if (!tempLines.length) return { ids: [], rows: [] };
-
-  const columns = `report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
-        machine_time_hours,standard_output,standard_time_seconds,standard_source,ok_quantity,ng_quantity,
-        maximum_output,deduction_time_hours,deductions_json,counted_output,earned_standard_hours,defects_json,sort_order`;
-  const rowPlaceholder = `(${new Array(21).fill("?").join(",")})`;
-  const values = tempLines.flatMap((line) => [
+// Keep the approved machine-line INSERT column order and legacy defaults stable.
+function buildApprovedMachineLineValues(tempLines, approvedReportId) {
+  return tempLines.flatMap((line) => [
     approvedReportId,
     line.machine_event_id || null,
     line.machine_id || null,
@@ -131,6 +121,21 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
     serializeExtraData(line.defects_json),
     line.sort_order || 1,
   ]);
+}
+
+// Copies the temp machine lines (and their defects) into the approved report.
+// Subrequest budget: one multi-row INSERT for all lines + one SELECT to learn the new ids (the caller
+// reuses those rows for the legacy snapshot and the approved version) + one INSERT for all defects,
+// instead of one INSERT per machine line.
+async function copyMachineLinesToApproved(tempReportId, approvedReportId, connection, preloadedTempLines = null) {
+  const tempLines = preloadedTempLines || await getTempMachineLines(tempReportId, connection);
+  if (!tempLines.length) return { ids: [], rows: [] };
+
+  const columns = `report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
+        machine_time_hours,standard_output,standard_time_seconds,standard_source,ok_quantity,ng_quantity,
+        maximum_output,deduction_time_hours,deductions_json,counted_output,earned_standard_hours,defects_json,sort_order`;
+  const rowPlaceholder = `(${new Array(21).fill("?").join(",")})`;
+  const values = buildApprovedMachineLineValues(tempLines, approvedReportId);
   await query(
     connection,
     `INSERT INTO production_report_machine_lines (${columns}) VALUES ${tempLines.map(() => rowPlaceholder).join(",")}`,
