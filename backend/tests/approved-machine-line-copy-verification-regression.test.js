@@ -139,3 +139,19 @@ test('machine quantity verification rejects fractional changes without floating-
   fails([{ id: 101, machine_code: 'M1', product_code: 'P1', ok_quantity: '9007199254740993.000002' }], source);
   fails([{ id: 101, machine_code: 'M1', product_code: 'P1', ok_quantity: 'invalid' }], source);
 });
+
+test('approved machine copy verifies standard time seconds with exact decimal precision', () => {
+  const original = [{ machine_code: 'M1', product_code: 'P1', standard_time_seconds: '12.345678' }];
+  const row = { id: 101, machine_code: 'M1', product_code: 'P1', standard_time_seconds: '12.3456780' };
+  assert.equal(verify([row], original, 9).length, 1);
+  fails([{ ...row, standard_time_seconds: '12.345679' }], original);
+  fails([{ ...row, standard_time_seconds: null }], original);
+});
+
+test('missing standard time seconds uses SQL NULL default without a false mismatch', () => {
+  const original = [{ machine_code: 'M1', product_code: 'P1', standard_time_seconds: 0 }];
+  const row = { id: 101, machine_code: 'M1', product_code: 'P1', standard_time_seconds: null };
+  assert.equal(verify([row], original, 9).length, 1);
+  assert.equal(verify([{ ...row, standard_time_seconds: undefined }], original, 9).length, 1);
+  fails([{ ...row, standard_time_seconds: '1.000000' }], original);
+});
