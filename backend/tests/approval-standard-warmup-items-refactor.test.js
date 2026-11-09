@@ -36,7 +36,7 @@ test('machine standard warm-up preserves empty input', () => {
 });
 
 test('approval validation uses extracted mapping exactly once without new SQL', () => {
-  const startValidate = source.indexOf('async function validateApprovalSnapshot(');
+  const startValidate = source.indexOf('async function validateMachineApprovalSnapshot(');
   const endValidate = source.indexOf('async function createLegacyApprovedSnapshot(', startValidate);
   const validate = source.slice(startValidate, endValidate);
   assert.match(validate, /items: buildMachineStandardWarmUpItems\(tempLines\)/);
