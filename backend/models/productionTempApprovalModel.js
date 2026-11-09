@@ -324,6 +324,38 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
   assertStandardSnapshotConsistency(buildStandardSnapshotConsistencyInput(item, resolved));
 }
 
+// Keep the approved v1 legacy snapshot payload stable for exports and audit history.
+function buildLegacyApprovedSnapshotPayload(item, approvedReportId, snapshotDefects, snapshotDeductions, machineLines) {
+  return {
+    report: {
+      id: approvedReportId,
+      source_temp_id: item.id,
+      worker_id: item.worker_id,
+      process_id: item.process_id,
+      work_date: item.work_date,
+      entry_date: item.entry_date || item.work_date,
+      shift: item.shift,
+      operation_type: item.operation_type ?? null,
+      operation_mode: item.operation_mode ?? null,
+      machine_no: item.machine_no,
+      product_code: item.product_name,
+      total_time: Number(item.total_time || 0),
+      actual_time: Number(item.actual_time || 0),
+      deduction_time: Number(item.deduction_time || 0),
+      standard_output: Number(item.standard_output || 0),
+      actual_output: Number(item.actual_output || 0),
+      tt_ok: Number(item.tt_ok || 0),
+      tt_ng: Number(item.tt_ng || 0),
+      standard_version_id: item.standard_version_id || null,
+      machine_standard_id: item.machine_standard_id || null,
+      training_percent_snapshot: item.training_percent_snapshot ?? null,
+    },
+    defects: snapshotDefects,
+    deductions: snapshotDeductions,
+    machineLines,
+  };
+}
+
 async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection, preloaded = {}) {
   const preloadedMachineLines = preloaded.machineLines || null;
   // TiDB Serverless transaction connections must not run concurrent queries.
@@ -355,34 +387,7 @@ async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, 
       `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
       [approvedReportId],
     );
-  const snapshotData = JSON.stringify({
-    report: {
-      id: approvedReportId,
-      source_temp_id: item.id,
-      worker_id: item.worker_id,
-      process_id: item.process_id,
-      work_date: item.work_date,
-      entry_date: item.entry_date || item.work_date,
-      shift: item.shift,
-      operation_type: item.operation_type ?? null,
-      operation_mode: item.operation_mode ?? null,
-      machine_no: item.machine_no,
-      product_code: item.product_name,
-      total_time: Number(item.total_time || 0),
-      actual_time: Number(item.actual_time || 0),
-      deduction_time: Number(item.deduction_time || 0),
-      standard_output: Number(item.standard_output || 0),
-      actual_output: Number(item.actual_output || 0),
-      tt_ok: Number(item.tt_ok || 0),
-      tt_ng: Number(item.tt_ng || 0),
-      standard_version_id: item.standard_version_id || null,
-      machine_standard_id: item.machine_standard_id || null,
-      training_percent_snapshot: item.training_percent_snapshot ?? null,
-    },
-    defects: snapshotDefects,
-    deductions: snapshotDeductions,
-    machineLines,
-  });
+  const snapshotData = JSON.stringify(buildLegacyApprovedSnapshotPayload(item, approvedReportId, snapshotDefects, snapshotDeductions, machineLines));
 
   await query(
     connection,
@@ -396,6 +401,19 @@ async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, 
        created_at=CURRENT_TIMESTAMP`,
     [approvedReportId, item.standard_version_id || null, snapshotData, reviewerId],
   );
+}
+
+// Preserve the positional values of the approved-report INSERT (approved_at remains NOW()).
+function buildApprovedReportInsertValues(item, reviewerId) {
+  return [
+            item.id,item.worker_id,item.process_id,item.work_date,item.entry_date || item.work_date,item.shift,
+            item.operation_type ?? null,item.operation_mode ?? null,item.machine_no,item.product_name,
+            item.total_time,item.actual_time,item.deduction_time,item.standard_output,item.standard_version_id || null,
+            item.machine_standard_id || null,item.training_percent_snapshot ?? null,
+            item.actual_output,item.tt_ok,item.tt_ng,item.kqd_dap_lai,item.kqd_tuot,item.vo_do_long,item.xuoc_do_long,
+            item.cong_gay,item.xoay,item.khong_dut,item.bavia_hut,item.ppcm,item.loi_cao_su,item.ng_kich_thuoc,
+            item.cat_lem,item.note,serializeExtraData(item.extra_data),"approved",item.review_note,reviewerId,
+  ];
 }
 
 module.exports = {
@@ -474,15 +492,7 @@ module.exports = {
             vo_do_long,xuoc_do_long,cong_gay,xoay,khong_dut,bavia_hut,ppcm,loi_cao_su,ng_kich_thuoc,cat_lem,note,
             extra_data,status,review_note,reviewed_by,approved_at)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
-          [
-            item.id,item.worker_id,item.process_id,item.work_date,item.entry_date || item.work_date,item.shift,
-            item.operation_type ?? null,item.operation_mode ?? null,item.machine_no,item.product_name,
-            item.total_time,item.actual_time,item.deduction_time,item.standard_output,item.standard_version_id || null,
-            item.machine_standard_id || null,item.training_percent_snapshot ?? null,
-            item.actual_output,item.tt_ok,item.tt_ng,item.kqd_dap_lai,item.kqd_tuot,item.vo_do_long,item.xuoc_do_long,
-            item.cong_gay,item.xoay,item.khong_dut,item.bavia_hut,item.ppcm,item.loi_cao_su,item.ng_kich_thuoc,
-            item.cat_lem,item.note,serializeExtraData(item.extra_data),"approved",item.review_note,reviewerId,
-          ],
+          buildApprovedReportInsertValues(item, reviewerId),
         );
         const approvedReportId = Number(insertResult.insertId);
         approvedIds.push(approvedReportId);
