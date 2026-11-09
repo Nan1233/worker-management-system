@@ -29,7 +29,7 @@ test('temp defect query rejects invalid IDs rather than silently filtering',()=>
 test('empty temp defect input preserves empty placeholder query',()=>{
   const result=read([]);
   assert.deepEqual(Array.from(result.params),[]);
-  assert.ok(result.sql.includes('machine_line_id IN (?,?,?)'));
+  assert.ok(result.sql.includes('machine_line_id IN ()'));
 });
 test('bulk approved defect insert preserves five-column order and flattened values',()=>{
   const rows=[[1,2,'NG','Defect',0],[3,null,null,null,5]];
