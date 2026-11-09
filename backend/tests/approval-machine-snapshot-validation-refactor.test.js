@@ -68,7 +68,7 @@ test('parent approval dispatcher calls machine validator and returns', () => {
 test('missing machine snapshot error factory preserves public 422 contract', () => {
   const begin = source.indexOf('function createMissingMachineSnapshotError(');
   const end = source.indexOf('async function validateMachineApprovalSnapshot(', begin);
-  const factory = vm.runInNewContext(source.slice(begin, end) + '\\ncreateMissingMachineSnapshotError;', {});
+  const factory = vm.runInNewContext(source.slice(begin, end) + '\ncreateMissingMachineSnapshotError;', {});
   for (const id of [0, '41', null, undefined]) {
     const error = factory(id);
     assert.equal(error.message, `Báo cáo máy #${id} không có dòng máy để xác minh định mức`);
