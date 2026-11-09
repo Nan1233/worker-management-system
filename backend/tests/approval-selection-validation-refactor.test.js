@@ -42,9 +42,15 @@ test('stale selection preserves public 409 error, requested and missing IDs', ()
   assert.doesNotThrow(() => visible([{ id: 2 }, { id: 3 }], [2, 3]));
 });
 
-test('visibility check preserves length-only acceptance and fail-closed mismatch', () => {
-  assert.doesNotThrow(() => visible([{ id: 99 }], [1]));
+test('visibility check rejects same-length wrong IDs and duplicate rows', () => {
+  assert.throws(() => visible([{ id: 99 }], [1]), (error) =>
+    error.code === 'APPROVAL_SELECTION_STALE'
+    && Array.from(error.details.missing_ids).join(',') === '1');
+  assert.throws(() => visible([{ id: 1 }, { id: 1 }], [1, 2]), (error) =>
+    error.code === 'APPROVAL_SELECTION_STALE'
+    && Array.from(error.details.missing_ids).join(',') === '2');
   assert.throws(() => visible([], [1]), (error) => error.code === 'APPROVAL_SELECTION_STALE');
+  assert.doesNotThrow(() => visible([{ id: '2' }, { id: 1 }], [1, 2]));
 });
 
 test('optimistic concurrency preserves exact timestamp comparison and error', () => {

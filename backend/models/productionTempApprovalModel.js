@@ -449,9 +449,9 @@ function createTempReportVersionConflictError(reportId) {
 }
 
 function assertApprovalSelectionVisible(rows, reportIds) {
-  if (rows.length !== reportIds.length) {
-    const visibleIds = new Set(rows.map((row) => Number(row.id)));
-    const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
+  const visibleIds = new Set(rows.map((row) => Number(row.id)));
+  const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
+  if (rows.length !== reportIds.length || visibleIds.size !== rows.length || missingIds.length) {
     throw createApprovalSelectionStaleError(reportIds, missingIds);
   }
 }
