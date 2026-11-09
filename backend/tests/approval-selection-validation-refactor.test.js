@@ -40,6 +40,21 @@ test('conflicting duplicate timestamps fail closed before acquiring a connection
   ]));
 });
 
+test('invalid expected timestamps fail closed with a public version conflict', () => {
+  for (const expected of ['not-a-date', '2026-99-99', 'invalid', Infinity]) {
+    assert.throws(() => build([{ id: 7, expected_updated_at: expected }]),
+      (error) => error.code === 'TEMP_REPORT_VERSION_CONFLICT' && error.status === 409 && error.isPublic === true);
+  }
+});
+
+test('invalid stored updated_at cannot pass an expected version check', () => {
+  const selection = build([{ id: 7, expected_updated_at: '2026-10-30T01:00:00Z' }]);
+  for (const actual of [null, undefined, 'not-a-date']) {
+    assert.throws(() => versions([{ id: 7, updated_at: actual }], selection.expectedById),
+      (error) => error.code === 'TEMP_REPORT_VERSION_CONFLICT' && error.status === 409);
+  }
+});
+
 test('invalid selections keep existing message', () => {
   for (const value of [null, {}, [], [0], ['bad'], [null], [undefined], [null, undefined]]) {
     assert.throws(() => build(value), (error) => error.message === 'Danh sách báo cáo không hợp lệ');
