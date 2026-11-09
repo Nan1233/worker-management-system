@@ -38,6 +38,9 @@ test('empty projections and preloaded snapshot callsites retain order and SQL fa
   const legacy = source.slice(source.indexOf('async function createLegacyApprovedSnapshot('), source.indexOf('function buildApprovedReportInsertValues('));
   assert.match(legacy, /preloaded\.defects\s*\?\s*buildLegacySnapshotDefects\(preloaded\.defects\)/);
   assert.match(legacy, /preloaded\.deductions\s*\?\s*buildLegacySnapshotDeductions\(preloaded\.deductions\)/);
-  assert.match(legacy, /FROM production_report_defects/);
-  assert.match(legacy, /FROM production_report_deductions/);
+  const readBuilders = source.slice(source.indexOf('function buildLegacySnapshotDefectsRead('), source.indexOf('async function createLegacyApprovedSnapshot('));
+  assert.match(legacy, /buildLegacySnapshotDefectsRead\(approvedReportId\)/);
+  assert.match(legacy, /buildLegacySnapshotDeductionsRead\(approvedReportId\)/);
+  assert.match(readBuilders, /FROM production_report_defects/);
+  assert.match(readBuilders, /FROM production_report_deductions/);
 });
