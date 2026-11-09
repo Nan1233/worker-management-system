@@ -1,5 +1,20 @@
 #!/usr/bin/env node
 const fs=require('fs'),path=require('path'),crypto=require('crypto'); const {Client}=require('./http.cjs');
+const {spawnSync}=require('node:child_process');
+const target=String(process.env.LOCAL_BACKEND_URL||'http://127.0.0.1:19080');
+let parsed;
+try { parsed=new URL(target); } catch { console.error('KTC_CRITICAL_E2E_BLOCKED: invalid API URL'); process.exit(2); }
+if (!['http:','https:'].includes(parsed.protocol) ||
+    !['localhost','127.0.0.1','[::1]'].includes(parsed.hostname.toLowerCase()) ||
+    parsed.username || parsed.password || parsed.pathname!=='/' || parsed.search || parsed.hash) {
+  console.error('KTC_CRITICAL_E2E_BLOCKED: only loopback API allowed');
+  process.exit(2);
+}
+const guard=spawnSync(process.execPath,[path.resolve(__dirname,'../../backend/scripts/e2e-db-guard.cjs')],{env:process.env,stdio:'inherit'});
+if (guard.error || guard.status!==0) {
+  console.error('KTC_CRITICAL_E2E_BLOCKED: isolated E2E DB guard failed');
+  process.exit(2);
+}
 const mysql=require('../../backend/node_modules/mysql2/promise');
 const fixture=JSON.parse(fs.readFileSync(path.resolve(process.env.KTC_ZERO_COST_FIXTURE||'validation-artifacts/fixture.json'),'utf8'));
 const outDir=path.resolve(process.env.KTC_VALIDATION_DIR||'validation-artifacts'); fs.mkdirSync(outDir,{recursive:true});
