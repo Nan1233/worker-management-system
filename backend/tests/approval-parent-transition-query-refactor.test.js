@@ -40,7 +40,7 @@ test('null updated_at is passed through unchanged rather than coerced',()=>{
 });
 test('parent insert precedes child copies, version snapshots and final temp transition',()=>{
  const flow=source.slice(source.indexOf('async approveSelected('),source.indexOf('async rejectSelected('));
- const markers=['buildApprovedParentInsertQuery(item, reviewerId)','await query(connection, parentInsertSql, parentInsertParams)','buildApprovedDetailCopyQuery("defects"','buildApprovedDetailCopyQuery("deductions"','copyMachineLinesToApproved(item.id','createLegacyApprovedSnapshot(item','createApprovedReportVersion(','buildApprovedTempTransitionQuery(item, reviewerId)','await query(connection, statusSql, statusParams)','assertApprovedTempTransition(statusUpdate, item)','await commit(connection)'];
+ const markers=['buildApprovedParentInsertQuery(item, reviewerId)','await query(connection, parentInsertSql, parentInsertParams)','copyApprovedReportDetails(connection, approvedReportId, item.id)','copyMachineLinesToApproved(item.id','createLegacyApprovedSnapshot(item','createApprovedReportVersion(','buildApprovedTempTransitionQuery(item, reviewerId)','await query(connection, statusSql, statusParams)','assertApprovedTempTransition(statusUpdate, item)','await commit(connection)'];
  const positions=markers.map(x=>flow.indexOf(x));
  assert.ok(positions.every(x=>x>=0),JSON.stringify(positions));
  assert.ok(positions.every((x,i)=>i===0||positions[i-1]<x));
