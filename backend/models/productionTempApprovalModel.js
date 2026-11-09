@@ -123,6 +123,23 @@ function buildApprovedMachineLineValues(tempLines, approvedReportId) {
   ]);
 }
 
+// Verify the bulk INSERT's assumed id ordering before associating defects.
+// This check intentionally fails closed if the database returns unexpected rows.
+function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId) {
+  const byInsertOrder = [...approvedRows].sort((a, b) => Number(a.id) - Number(b.id));
+  if (byInsertOrder.length !== tempLines.length
+    || byInsertOrder.some((row, index) => String(row.machine_code) !== String(tempLines[index].machine_code)
+      || String(row.product_code) !== String(tempLines[index].product_code))) {
+    const error = new Error(`Không xác nhận được dòng máy đã sao chép cho báo cáo tạm #${tempReportId}; đã hủy duyệt để bảo vệ dữ liệu`);
+    error.status = 500;
+    error.code = "APPROVED_MACHINE_LINES_COPY_MISMATCH";
+    error.isPublic = true;
+    throw error;
+  }
+
+  return byInsertOrder;
+}
+
 // Copies the temp machine lines (and their defects) into the approved report.
 // Subrequest budget: one multi-row INSERT for all lines + one SELECT to learn the new ids (the caller
 // reuses those rows for the legacy snapshot and the approved version) + one INSERT for all defects,
@@ -149,16 +166,7 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
   );
   // AUTO_INCREMENT hands out ascending ids in row order inside one statement, so the n-th inserted row is the
   // n-th lowest id. Verify that assumption against machine_code/product_code and fail closed (rollback) if not.
-  const byInsertOrder = [...approvedRows].sort((a, b) => Number(a.id) - Number(b.id));
-  if (byInsertOrder.length !== tempLines.length
-    || byInsertOrder.some((row, index) => String(row.machine_code) !== String(tempLines[index].machine_code)
-      || String(row.product_code) !== String(tempLines[index].product_code))) {
-    const error = new Error(`Không xác nhận được dòng máy đã sao chép cho báo cáo tạm #${tempReportId}; đã hủy duyệt để bảo vệ dữ liệu`);
-    error.status = 500;
-    error.code = "APPROVED_MACHINE_LINES_COPY_MISMATCH";
-    error.isPublic = true;
-    throw error;
-  }
+  const byInsertOrder = verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId);
 
   const pendingDefects = buildApprovedMachineDefectRows(tempLines, byInsertOrder);
 
