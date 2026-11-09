@@ -155,3 +155,21 @@ test('missing standard time seconds uses SQL NULL default without a false mismat
   assert.equal(verify([{ ...row, standard_time_seconds: undefined }], original, 9).length, 1);
   fails([{ ...row, standard_time_seconds: '1.000000' }], original);
 });
+
+test('approved machine ID rejects numeric coercion and accepts canonical digit strings', () => {
+  const valid = [{ ...approved[0], id: '00101' }, { ...approved[1], id: '102' }];
+  assert.deepEqual(Array.from(verify(valid, temp, 9), row => row.id), ['00101', '102']);
+  for (const id of [true, false, '1e2', '101.0', ' 101 ', '+101', '0x65', [], {}, null]) {
+    fails([{ ...approved[0], id }, approved[1]]);
+  }
+});
+
+test('approved report lineage rejects numeric coercion and unsafe values', () => {
+  const source = [{ machine_code: 'M1', product_code: 'P1' }];
+  const row = { id: 101, report_id: '005001', machine_code: 'M1', product_code: 'P1' };
+  assert.equal(verify([row], source, 9, 5001).length, 1);
+  for (const report_id of [true, '5.001e3', '5001.0', ' 5001', '+5001', [], {}, '9007199254740993']) {
+    assert.throws(() => verify([{ ...row, report_id }], source, 9, 5001),
+      error => error.code === 'APPROVED_MACHINE_LINES_COPY_MISMATCH');
+  }
+});
