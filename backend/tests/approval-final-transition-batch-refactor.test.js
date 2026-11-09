@@ -63,7 +63,7 @@ test('approval batch result retains input ordering and original approved IDs', (
 test('final transition, snapshot version, notification and commit keep original order', () => {
   const flow = source.slice(source.indexOf('async approveSelected('),source.indexOf('async rejectSelected('));
   const markers = [
-    'const statusUpdate = await query(',
+    'const statusUpdate = await query(connection, statusSql, statusParams)',
     'assertApprovedTempTransition(statusUpdate, item)',
     'AuditService.loadTempReportSnapshot(',
     'buildApprovedTempSnapshotOptions(item, tempLinesCache)',

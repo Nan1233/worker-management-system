@@ -79,7 +79,9 @@ test('approval uses extracted payload and INSERT without changing SQL', () => {
   const legacy = source.slice(source.indexOf('async function createLegacyApprovedSnapshot('), source.indexOf('module.exports = {'));
   assert.match(legacy, /JSON\.stringify\(buildLegacyApprovedSnapshotPayload\(item, approvedReportId, snapshotDefects, snapshotDeductions, machineLines\)\)/);
   const approval = source.slice(source.indexOf('async approveSelected('));
-  assert.match(approval, /buildApprovedReportInsertValues\(item, reviewerId\)/);
-  assert.match(approval, /INSERT INTO production_reports/);
-  assert.match(approval, /NOW\(\)/);
+  const parentQuery = source.slice(source.indexOf('function buildApprovedParentInsertQuery('), source.indexOf('function buildApprovedTempTransitionQuery('));
+  assert.match(approval, /buildApprovedParentInsertQuery\(item, reviewerId\)/);
+  assert.match(parentQuery, /buildApprovedReportInsertValues\(item, reviewerId\)/);
+  assert.match(parentQuery, /INSERT INTO production_reports/);
+  assert.match(parentQuery, /NOW\(\)/);
 });

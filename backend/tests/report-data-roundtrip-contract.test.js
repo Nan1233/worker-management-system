@@ -15,11 +15,15 @@ test('approval copies all persisted child collections before marking the temp re
 
   const flow = approval.slice(approval.indexOf('async approveSelected('), approval.indexOf('async rejectSelected('));
   const builders = approval.slice(approval.indexOf('function buildApprovedDetailCopyQuery('), approval.indexOf('function buildApprovedDetailReadQuery('));
-  const mainInsert = flow.indexOf('INSERT INTO production_reports');
+  const parentQuery = approval.slice(approval.indexOf('function buildApprovedParentInsertQuery('), approval.indexOf('function buildApprovedTempTransitionQuery('));
+  const transitionQuery = approval.slice(approval.indexOf('function buildApprovedTempTransitionQuery('), approval.indexOf('module.exports = {'));
+  const mainInsert = flow.indexOf('buildApprovedParentInsertQuery(item, reviewerId)');
   const defectsCopy = flow.indexOf('buildApprovedDetailCopyQuery("defects"');
   const deductionsCopy = flow.indexOf('buildApprovedDetailCopyQuery("deductions"');
   const machineCopy = flow.indexOf('copyMachineLinesToApproved(item.id, approvedReportId');
-  const tempApproved = flow.indexOf("SET status='approved',reviewed_by=?,approved_at=NOW(),updated_at=NOW()");
+  const tempApproved = flow.indexOf('buildApprovedTempTransitionQuery(item, reviewerId)');
+  assert.match(parentQuery, /INSERT INTO production_reports/);
+  assert.match(transitionQuery, /SET status='approved',reviewed_by=\?,approved_at=NOW\(\),updated_at=NOW\(\)/);
   const commit = flow.indexOf('await commit(connection)', tempApproved);
 
   assert.match(builders, /INSERT INTO production_report_defects/);
