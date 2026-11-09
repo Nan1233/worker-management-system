@@ -45,5 +45,7 @@ test('approval copy verifies rows before inserting defects without extra SELECT'
   const copy = source.slice(a, b);
   assert.match(copy, /verifyApprovedMachineLineCopy\(approvedRows, tempLines, tempReportId\)/);
   assert.ok(copy.indexOf('verifyApprovedMachineLineCopy(') < copy.indexOf('buildApprovedMachineDefectRows('));
-  assert.equal((copy.match(/SELECT \* FROM production_report_machine_lines/g) || []).length, 1);
+  const readBuilder = source.slice(source.indexOf('function buildApprovedMachineLinesRead('), source.indexOf('module.exports = {'));
+  assert.match(copy, /buildApprovedMachineLinesRead\(approvedReportId\)/);
+  assert.equal((readBuilder.match(/SELECT \* FROM production_report_machine_lines/g) || []).length, 1);
 });
