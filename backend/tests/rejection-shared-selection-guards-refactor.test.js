@@ -35,6 +35,6 @@ test('rejection keeps distinct scope and SQL conditions for manager vs admin', (
   assert.match(scoped, /isAdmin \? "" : "AND mp\.manager_id=\?"/);
   assert.match(scoped, /isAdmin \? \[\.\.\.reportIds\] : \[\.\.\.reportIds,reviewerId\]/);
   assert.match(scoped, /ORDER BY temp\.id ASC\s+FOR UPDATE/);
-  assert.match(rejection, /await rollback\(connection\)/);
+  assert.match(rejection, /await rollbackReviewTransaction\(connection, error\)/);
   assert.match(rejection, /connection\.release\(\)/);
 });
