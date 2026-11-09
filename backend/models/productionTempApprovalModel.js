@@ -218,6 +218,15 @@ function assertNonProductWorkSnapshot(item) {
   }
 }
 
+// Keep standard resolver warm-up input aligned with each saved machine line.
+function buildMachineStandardWarmUpItems(tempLines) {
+  return tempLines.map((line) => ({
+    machineId: line.machine_id,
+    machineCode: line.machine_code,
+    productCode: line.product_code,
+  }));
+}
+
 async function validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache = null) {
   const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
   if (!isMachineReport && isParentProcessNonProductWork(item)) {
@@ -238,7 +247,7 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
     await standardResolver.warmUp({
       processId: item.process_id,
       workDate: item.work_date,
-      items: tempLines.map((line) => ({ machineId: line.machine_id, machineCode: line.machine_code, productCode: line.product_code })),
+      items: buildMachineStandardWarmUpItems(tempLines),
     });
     for (const line of tempLines) {
       await assertApprovedEventForTempLine(connection, { report: item, line, context: eventContext });
