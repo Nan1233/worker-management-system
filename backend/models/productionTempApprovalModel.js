@@ -578,10 +578,16 @@ function buildApprovedPostCommitNotification(item, approvedReportId, workDate) {
 }
 
 async function rollbackReviewTransaction(connection, error) {
-  const rollbackResult = await rollback(connection);
-  if (rollbackResult?.ok === false) {
-    error.rollbackError = rollbackResult.error;
-    console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackResult.error?.message || rollbackResult.error}`);
+  try {
+    const rollbackResult = await rollback(connection);
+    if (rollbackResult?.ok === false) {
+      error.rollbackError = rollbackResult.error;
+      console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackResult.error?.message || rollbackResult.error}`);
+    }
+  } catch (rollbackError) {
+    // Never replace the original approval/rejection failure with a rollback failure.
+    error.rollbackError = rollbackError;
+    console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackError?.message || rollbackError}`);
   }
 }
 
