@@ -573,13 +573,21 @@ function buildApprovedPostCommitNotification(item, approvedReportId, workDate) {
   };
 }
 
+function createReviewTransitionConflictError(reportId, code) {
+  const error = new Error(`Báo cáo #${reportId} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
+  error.status = 409;
+  error.code = code;
+  error.isPublic = true;
+  return error;
+}
+
+function hasExactlyOneAffectedRow(result) {
+  return Number(result?.affectedRows || 0) === 1;
+}
+
 function assertApprovedTempTransition(statusUpdate, item) {
-  if (Number(statusUpdate?.affectedRows || 0) !== 1) {
-    const error = new Error(`Báo cáo #${item.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
-    error.status = 409;
-    error.code = "APPROVAL_SELECTION_STALE";
-    error.isPublic = true;
-    throw error;
+  if (!hasExactlyOneAffectedRow(statusUpdate)) {
+    throw createReviewTransitionConflictError(item.id, "APPROVAL_SELECTION_STALE");
   }
 }
 
@@ -609,12 +617,8 @@ function buildApprovalBatchResult(rows, approvedIds, dates) {
 }
 
 function assertRejectedTempTransition(updateResult, row) {
-  if (Number(updateResult?.affectedRows || 0) !== 1) {
-    const error = new Error(`Báo cáo #${row.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
-    error.status = 409;
-    error.code = "TEMP_REPORT_VERSION_CONFLICT";
-    error.isPublic = true;
-    throw error;
+  if (!hasExactlyOneAffectedRow(updateResult)) {
+    throw createReviewTransitionConflictError(row.id, "TEMP_REPORT_VERSION_CONFLICT");
   }
 }
 
