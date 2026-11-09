@@ -77,6 +77,25 @@ async function getTempMachineLines(tempReportId, connection) {
   return attachMachineLineDefects(lines, defects);
 }
 
+// Build approved defect rows in machine-line order, preserving the legacy
+// null/default conversions and each line's defect order.
+function buildApprovedMachineDefectRows(tempLines, approvedLinesByInsertOrder) {
+  const rows = [];
+  tempLines.forEach((line, index) => {
+    const approvedLineId = Number(approvedLinesByInsertOrder[index].id);
+    for (const defect of line.defects || []) {
+      rows.push([
+        approvedLineId,
+        defect.defect_type_id || null,
+        defect.defect_code || null,
+        defect.defect_name || null,
+        defect.quantity || 0,
+      ]);
+    }
+  });
+  return rows;
+}
+
 // Copies the temp machine lines (and their defects) into the approved report.
 // Subrequest budget: one multi-row INSERT for all lines + one SELECT to learn the new ids (the caller
 // reuses those rows for the legacy snapshot and the approved version) + one INSERT for all defects,
@@ -136,19 +155,7 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
     throw error;
   }
 
-  const pendingDefects = [];
-  tempLines.forEach((line, index) => {
-    const approvedLineId = Number(byInsertOrder[index].id);
-    for (const defect of line.defects || []) {
-      pendingDefects.push([
-        approvedLineId,
-        defect.defect_type_id || null,
-        defect.defect_code || null,
-        defect.defect_name || null,
-        defect.quantity || 0,
-      ]);
-    }
-  });
+  const pendingDefects = buildApprovedMachineDefectRows(tempLines, byInsertOrder);
 
   if (pendingDefects.length) {
     const placeholders = pendingDefects.map(() => "(?,?,?,?,?)").join(",");
