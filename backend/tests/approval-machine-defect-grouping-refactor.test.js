@@ -30,7 +30,6 @@ test('machine defect grouping matches previous mapping for mixed ids and orderin
     { id: 3, machine_line_id: '101', quantity: 2 },
     { id: 1, machine_line_id: 102, quantity: 4 },
     { id: 2, machine_line_id: 101, quantity: 5 },
-    { id: 4, machine_line_id: 999, quantity: 7 },
   ];
   assert.deepEqual(JSON.parse(JSON.stringify(attachMachineLineDefects(lines, defects))), originalMapping(lines, defects));
   assert.deepEqual(attachMachineLineDefects(lines, defects)[1].defects.map((d) => d.id).join(','), '3,2');
@@ -39,13 +38,24 @@ test('machine defect grouping matches previous mapping for mixed ids and orderin
 
 test('machine defect grouping preserves empty inputs and duplicate line ids', () => {
   const samples = [
-    { lines: [], defects: [{ machine_line_id: 1 }] },
+    { lines: [], defects: [] },
     { lines: [{ id: 1 }], defects: [] },
     { lines: [{ id: 1 }, { id: '1' }], defects: [{ machine_line_id: '1', quantity: 3 }] },
   ];
   for (const { lines, defects } of samples) {
     assert.deepEqual(JSON.parse(JSON.stringify(attachMachineLineDefects(lines, defects))), originalMapping(lines, defects));
   }
+});
+
+test('orphan defects now fail closed rather than being silently discarded', () => {
+  assert.throws(
+    () => attachMachineLineDefects([{ id: 1 }], [{ machine_line_id: 999 }]),
+    (error) => error.code === 'TEMP_MACHINE_DEFECT_LINEAGE_MISMATCH',
+  );
+  assert.throws(
+    () => attachMachineLineDefects([], [{ machine_line_id: 1 }]),
+    (error) => error.code === 'TEMP_MACHINE_DEFECT_LINEAGE_MISMATCH',
+  );
 });
 
 test('approval loader uses the pure grouping helper without additional SQL', () => {
