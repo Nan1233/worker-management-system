@@ -240,3 +240,33 @@ test('failed final approval transition rolls back inserted approved report and m
   assert.ok(log.some((entry) => /^INSERT INTO production_reports /.test(entry)));
   assert.ok(log.some((entry) => /^INSERT INTO production_report_machine_lines/.test(entry)));
 });
+
+
+// Phase 2.2: fault-injection coverage for each approval write stage.
+// The mocked SQL connection tracks command order; this is not a live TiDB test.
+test('mid-transaction approval write failures roll back without committing', async (t) => {
+  const defectsByLine = {
+    100: [{ defect_type_id: 1, defect_code: 'NG-A', defect_name: 'NG A', quantity: 1 }],
+  };
+  const stages = [
+    ['official report', /^INSERT INTO production_reports\s*\(/],
+    ['report NG', /^INSERT INTO production_report_defects\s*\(/],
+    ['report deductions', /^INSERT INTO production_report_deductions\s*\(/],
+    ['machine lines', /^INSERT INTO production_report_machine_lines\s*\(/],
+    ['machine NG', /^INSERT INTO production_report_machine_defects\s*\(/],
+    ['legacy approved snapshot', /^INSERT INTO production_report_snapshots\s*\(/],
+    ['approved version/audit snapshot', /^INSERT INTO report_versions\s*\(/],
+    ['final temp status', /^UPDATE production_reports_temp SET status='approved'/],
+    ['approval activity log', /^INSERT INTO activity_logs\s*\(/],
+  ];
+  for (const [stage, failOn] of stages) {
+    await t.test(stage, async () => {
+      const { error, log, calls } = await approve({ lines: 4, defectsByLine, failOn });
+      assert.ok(calls.some((entry) => failOn.test(entry.sql)), `Fault target not reached: ${stage}`);
+      assert.ok(error, `Approval should fail: ${stage}`);
+      assert.equal(log.filter((entry) => entry === 'COMMIT').length, 0, `Unexpected commit: ${stage}`);
+      assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1, `Missing rollback: ${stage}`);
+      assert.ok(log.indexOf('ROLLBACK') > log.findIndex((entry) => failOn.test(entry)), `Rollback must follow failed SQL: ${stage}`);
+    });
+  }
+});
