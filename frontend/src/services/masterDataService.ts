@@ -160,7 +160,7 @@ const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProd
     return undefined;
 };
 
-const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string, requestedProductCode?: string): ResolvedProductStandard => {
+const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string): ResolvedProductStandard => {
     const output = Number(row.standard_output);
     return {
         product_standard_id: Number(row.id), process_id: Number(row.process_id || processId), product_code: String(row.product_code),
@@ -237,9 +237,9 @@ export const resolveProductStandard = async (processId: number, machineCode: str
             if (!refreshedProduct) {
                 throw new Error(`Không xác định duy nhất định mức sản phẩm ${normalizedProduct} trong công đoạn`);
             }
-            return toLocalResolvedStandard(refreshedProduct, processId, "", normalizedProduct);
+            return toLocalResolvedStandard(refreshedProduct, processId, "");
         }
-        return toLocalResolvedStandard(product, processId, "", normalizedProduct);
+        return toLocalResolvedStandard(product, processId, "");
     }
 
     try {
@@ -258,7 +258,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     } catch (error: any) {
         // Machine-specific standard is optional. If it is absent or zero, use the
         // product/process standard for the machine's inferred Cắt/Lồng type.
-        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
+        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine);
 
         // If the cached product list was stale, re-read it before failing a machine
         // lookup. Mài permits machine-optional reporting, so its process-level
@@ -272,7 +272,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
             // standard rather than blocking the worker's report.
             localStandard = findPositiveLocalStandard(rows, normalizedProduct.toUpperCase(), normalizedProduct, null);
         }
-        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
+        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine);
 
         if (!productExistsInProcess) {
             throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn và không có định mức máy/phương án fallback`, { cause: error });
