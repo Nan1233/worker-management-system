@@ -7,9 +7,10 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
 const approval = source.slice(source.indexOf('async approveSelected('), source.indexOf('async rejectSelected('));
 const transition = source.slice(source.indexOf('function assertApprovedTempTransition('), source.indexOf('function buildApprovedTempSnapshotOptions('));
+const transitionQuery = source.slice(source.indexOf('function buildApprovedTempTransitionQuery('), source.indexOf('module.exports = {'));
 
 test('approval final transition requires pending state and exactly one affected row', () => {
-  assert.match(approval, /UPDATE production_reports_temp\s+SET status='approved'[\s\S]*?WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
+  assert.match(transitionQuery, /UPDATE production_reports_temp\s+SET status='approved'[\s\S]*?WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
   assert.match(approval, /assertApprovedTempTransition\(statusUpdate, item\)/);
   assert.match(transition, /Number\(statusUpdate\?\.affectedRows \|\| 0\) !== 1/);
   assert.match(transition, /error\.status = 409;\s*error\.code = "APPROVAL_SELECTION_STALE";\s*error\.isPublic = true/);
@@ -37,7 +38,7 @@ test('approval selection is ordered, but its FOR UPDATE is stripped by the query
 });
 
 test('approval uses a guarded final status transition rather than relying on a pessimistic selection lock', () => {
-  assert.match(approval, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
+  assert.match(transitionQuery, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
   assert.match(approval, /assertApprovedTempTransition\(statusUpdate, item\)/);
   assert.match(transition, /Number\(statusUpdate\?\.affectedRows \|\| 0\) !== 1/);
   assert.match(transition, /error\.code = "APPROVAL_SELECTION_STALE"/);
@@ -45,6 +46,7 @@ test('approval uses a guarded final status transition rather than relying on a p
 });
 
 test('approval compares final transition against the row version selected in this transaction', () => {
-  assert.match(approval, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
-  assert.match(approval, /\[reviewerId,item\.id,item\.updated_at\]/);
+  assert.match(transitionQuery, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
+  assert.match(transitionQuery, /\[reviewerId, item\.id, item\.updated_at\]/);
+  assert.match(approval, /buildApprovedTempTransitionQuery\(item, reviewerId\)/);
 });
