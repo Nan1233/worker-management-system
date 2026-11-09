@@ -77,3 +77,34 @@ test('loader retains empty defect arrays for machines without defects', async ()
   assert.deepEqual(Array.from(result[1].defects), []);
   assert.deepEqual(Array.from(result[0].defects, (row) => row.id), [2]);
 });
+
+test('loader rejects orphan defect from database before returning any machine lines', async () => {
+  const { load, calls, connection } = createLoader({
+    lines: [{ id: 9 }, { id: 10 }],
+    defects: [{ id: 33, machine_line_id: 999, quantity: 4 }],
+  });
+  await assert.rejects(load(45, connection), error =>
+    error.code === 'TEMP_MACHINE_DEFECT_LINEAGE_MISMATCH' && error.status === 500);
+  assert.equal(calls.length, 2);
+});
+
+test('loader rejects normalized duplicate machine-line IDs before defect query', async () => {
+  const { load, calls, connection } = createLoader({
+    lines: [{ id: '009' }, { id: 9 }],
+  });
+  await assert.rejects(load(45, connection), error =>
+    error.code === 'TEMP_MACHINE_LINE_DUPLICATE_ID' && error.status === 500);
+  assert.equal(calls.length, 1);
+});
+
+test('loader preserves decimal defect quantities and does not modify database rows', async () => {
+  const lines = [{ id: 9, machine_code: 'M9' }, { id: 10, machine_code: 'M10' }];
+  const defects = [{ id: 1, machine_line_id: 9, quantity: '2.000000' },
+    { id: 2, machine_line_id: 10, quantity: '0.250000' }];
+  const { load, connection } = createLoader({ lines, defects });
+  const result = await load(45, connection);
+  assert.equal(result[0].defects[0].quantity, '2.000000');
+  assert.equal(result[1].defects[0].quantity, '0.250000');
+  assert.equal(lines[0].defects, undefined);
+  assert.strictEqual(result[0].defects[0], defects[0]);
+});
