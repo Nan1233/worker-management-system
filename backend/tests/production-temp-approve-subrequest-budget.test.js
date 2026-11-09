@@ -16,6 +16,7 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
   const log = [];
   const calls = [];
   let nextId = 5000;
+  let ownsApprovalClaim = false;
   const machineCodes = Array.from({ length: lines }, (_, i) => MACHINE_CODES[i] || `M${20 + i}`);
   const productOf = (i) => PRODUCTS[i % PRODUCTS.length];
   const report = {
@@ -64,7 +65,11 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
     if (/FROM product_standard_versions/.test(sql)) return [{ id: 9, process_id: 1, product_code: params[1] || 'X', standard_output: 500, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null, status: 'active' }];
     if (/SELECT \* FROM production_reports WHERE id=\?/.test(sql)) return [{ id: 5001, source_temp_id: 900001, worker_id: 7, process_id: 1, work_date: '2026-10-19', shift: 'DAY', status: 'approved', operation_mode: 'MACHINE', total_time: 8, actual_time: 8, standard_output: 0, actual_output: 1000, tt_ok: 990, tt_ng: 10, extra_data: '{}' }];
     if (/production_report_machine_lines/.test(sql) && /^SELECT/i.test(sql) && !/production_report_machine_defects/.test(sql)) return tempLines.map((l) => ({ ...l, id: l.id + 1000, report_id: 5001, machine_code: tamperApproved ? 'ZZ' : l.machine_code }));
-    if (/^UPDATE production_reports_temp SET status='approved'/.test(sql)) return { affectedRows: (staleFinalTransition || sharedApprovalState?.approved) ? 0 : 1 };
+    if (/^UPDATE production_reports_temp SET status='approved'/.test(sql)) {
+      if (staleFinalTransition || sharedApprovalState?.approved || sharedApprovalState?.claimed) return { affectedRows: 0 };
+      if (sharedApprovalState) { sharedApprovalState.claimed = true; ownsApprovalClaim = true; }
+      return { affectedRows: 1 };
+    }
     if (/^INSERT/i.test(sql)) { nextId += 1; return { insertId: nextId, affectedRows: 1 }; }
     return [];
   };
@@ -80,8 +85,8 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
       setImmediate(() => cb(err, r, []));
     },
     beginTransaction(a, b) { const cb = typeof a === 'function' ? a : b; record('BEGIN'); setImmediate(() => cb(null)); },
-    commit(cb) { record('COMMIT'); if (sharedApprovalState) sharedApprovalState.approved = true; setImmediate(() => cb(null)); },
-    rollback(cb) { record('ROLLBACK'); setImmediate(() => cb(null)); },
+    commit(cb) { record('COMMIT'); if (sharedApprovalState && ownsApprovalClaim) { sharedApprovalState.approved = true; sharedApprovalState.claimed = false; ownsApprovalClaim = false; } setImmediate(() => cb(null)); },
+    rollback(cb) { record('ROLLBACK'); if (sharedApprovalState && ownsApprovalClaim) { sharedApprovalState.claimed = false; ownsApprovalClaim = false; } setImmediate(() => cb(null)); },
     release() {},
   };
   const fakeDb = {
@@ -289,4 +294,27 @@ test('replaying approval after another reviewer committed returns 409 without du
   assert.equal(second.log.filter((entry) => entry === 'ROLLBACK').length, 1);
   assert.equal(second.log.filter((entry) => /^INSERT INTO production_reports /.test(entry)).length, 0);
   assert.equal(second.log.filter((entry) => /^INSERT INTO production_report_machine_lines/.test(entry)).length, 0);
+});
+
+// Two approval requests use independent mock connections but contend for the
+// same atomic status-transition claim. This is an in-memory CAS simulation,
+// NOT a verification of TiDB transaction isolation or row locking.
+test('overlapping reviewer approvals allow only one guarded transition and commit', async () => {
+  const sharedApprovalState = { approved: false, claimed: false };
+  const [first, second] = await Promise.all([
+    approve({ lines: 4, sharedApprovalState }),
+    approve({ lines: 4, sharedApprovalState }),
+  ]);
+  const outcomes = [first, second];
+  const winners = outcomes.filter((entry) => !entry.error);
+  const losers = outcomes.filter((entry) => entry.error);
+  assert.equal(winners.length, 1, 'exactly one reviewer must succeed');
+  assert.equal(losers.length, 1, 'the other reviewer must be rejected');
+  assert.equal(winners[0].result.count, 1);
+  assert.equal(losers[0].error.status, 409);
+  assert.equal(losers[0].error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(outcomes.reduce((sum, entry) => sum + entry.log.filter((line) => line === 'COMMIT').length, 0), 1);
+  assert.equal(losers[0].log.filter((line) => line === 'ROLLBACK').length, 1);
+  assert.equal(sharedApprovalState.approved, true);
+  assert.equal(sharedApprovalState.claimed, false);
 });
