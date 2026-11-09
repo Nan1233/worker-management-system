@@ -798,6 +798,37 @@ function buildApprovedTempTransitionQuery(item, reviewerId) {
   };
 }
 
+async function copyApprovedReportDetails(connection, approvedReportId, tempReportId) {
+  const { sql: defectsCopySql, params: defectsCopyParams } = buildApprovedDetailCopyQuery("defects", approvedReportId, tempReportId);
+  await query(connection, defectsCopySql, defectsCopyParams);
+  const { sql: deductionsCopySql, params: deductionsCopyParams } = buildApprovedDetailCopyQuery("deductions", approvedReportId, tempReportId);
+  await query(connection, deductionsCopySql, deductionsCopyParams);
+  // Sequential reads share the same TiDB transaction connection and serve both snapshot formats.
+  const { sql: defectsReadSql, params: defectsReadParams } = buildApprovedDetailReadQuery("defects", approvedReportId);
+  const approvedDefects = await qRows(connection, defectsReadSql, defectsReadParams);
+  const { sql: deductionsReadSql, params: deductionsReadParams } = buildApprovedDetailReadQuery("deductions", approvedReportId);
+  const approvedDeductions = await qRows(connection, deductionsReadSql, deductionsReadParams);
+  return { approvedDefects, approvedDeductions };
+}
+
+async function recordApprovedTempVersion(item, approvedReportId, reviewerId, connection, tempLinesCache) {
+  const approvedTempSnapshot = await AuditService.loadTempReportSnapshot(
+    item.id,
+    connection,
+    buildApprovedTempSnapshotOptions(item, tempLinesCache),
+  );
+  if (approvedTempSnapshot) {
+    await AuditService.createReportVersion(buildApprovedTempReportVersion(item, approvedReportId, reviewerId, approvedTempSnapshot), connection);
+  }
+}
+
+async function recordRejectedTempVersion(row, cleanReason, reviewerId, connection) {
+  const rejectedSnapshot = await AuditService.loadTempReportSnapshot(row.id, connection);
+  if (rejectedSnapshot) {
+    await AuditService.createReportVersion(buildRejectedReportVersion(row, rejectedSnapshot, cleanReason, reviewerId), connection);
+  }
+}
+
 module.exports = {
   async approveSelected(targets, reviewerId, isAdmin = false) {
     assertReviewBatchSize(targets);
@@ -831,15 +862,7 @@ module.exports = {
         const workDate = getApprovedWorkDate(item);
         dates.add(workDate);
 
-        const { sql: defectsCopySql, params: defectsCopyParams } = buildApprovedDetailCopyQuery("defects", approvedReportId, item.id);
-        await query(connection, defectsCopySql, defectsCopyParams);
-        const { sql: deductionsCopySql, params: deductionsCopyParams } = buildApprovedDetailCopyQuery("deductions", approvedReportId, item.id);
-        await query(connection, deductionsCopySql, deductionsCopyParams);
-        // Sequential reads share the same transaction connection and serve both snapshot formats.
-        const { sql: defectsReadSql, params: defectsReadParams } = buildApprovedDetailReadQuery("defects", approvedReportId);
-        const approvedDefects = await qRows(connection, defectsReadSql, defectsReadParams);
-        const { sql: deductionsReadSql, params: deductionsReadParams } = buildApprovedDetailReadQuery("deductions", approvedReportId);
-        const approvedDeductions = await qRows(connection, deductionsReadSql, deductionsReadParams);
+        const { approvedDefects, approvedDeductions } = await copyApprovedReportDetails(connection, approvedReportId, item.id);
         const copied = await copyMachineLinesToApproved(item.id, approvedReportId, connection, tempLinesCache.get(Number(item.id)) || null);
         // Without machine lines nothing was inserted, so an empty array is the correct "just read" result.
         const approvedMachineLines = copied.rows;
@@ -862,14 +885,7 @@ module.exports = {
         const statusUpdate = await query(connection, statusSql, statusParams);
         assertApprovedTempTransition(statusUpdate, item);
 
-        const approvedTempSnapshot = await AuditService.loadTempReportSnapshot(
-          item.id,
-          connection,
-          buildApprovedTempSnapshotOptions(item, tempLinesCache),
-        );
-        if (approvedTempSnapshot) {
-          await AuditService.createReportVersion(buildApprovedTempReportVersion(item, approvedReportId, reviewerId, approvedTempSnapshot), connection);
-        }
+        await recordApprovedTempVersion(item, approvedReportId, reviewerId, connection, tempLinesCache);
 
         postCommitNotifications.push(buildApprovedPostCommitNotification(item, approvedReportId, workDate));
       }
@@ -905,10 +921,7 @@ module.exports = {
         const { sql: updateSql, params: updateParams } = buildRejectedReportUpdate(row, expected, cleanReason, reviewerId);
         const updateResult = await query(connection,updateSql,updateParams);
         assertRejectedTempTransition(updateResult, row);
-        const rejectedSnapshot = await AuditService.loadTempReportSnapshot(row.id, connection);
-        if (rejectedSnapshot) {
-          await AuditService.createReportVersion(buildRejectedReportVersion(row, rejectedSnapshot, cleanReason, reviewerId),connection);
-        }
+        await recordRejectedTempVersion(row, cleanReason, reviewerId, connection);
         await AuditService.logActivity(buildRejectedReportActivity(row, cleanReason, reviewerId), connection);
         postCommitNotifications.push(buildRejectedReportNotification(row, cleanReason));
       }

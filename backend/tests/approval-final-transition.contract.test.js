@@ -21,7 +21,7 @@ test('approval final transition requires pending state and exactly one affected 
 
 test('approval checks final transition before temp snapshot, commit and postcommit notifications', () => {
   const guard = approval.indexOf('assertApprovedTempTransition(statusUpdate, item)');
-  const snapshot = approval.indexOf('const approvedTempSnapshot =');
+  const snapshot = approval.indexOf('await recordApprovedTempVersion(');
   const commit = approval.indexOf('await commit(connection)');
   const notify = approval.indexOf('await deliverApprovedPostCommitNotifications(');
   assert.ok(guard > 0 && guard < snapshot && snapshot < commit && commit < notify);

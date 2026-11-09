@@ -66,9 +66,7 @@ test('final transition, snapshot version, notification and commit keep original 
   const markers = [
     'const statusUpdate = await query(connection, statusSql, statusParams)',
     'assertApprovedTempTransition(statusUpdate, item)',
-    'AuditService.loadTempReportSnapshot(',
-    'buildApprovedTempSnapshotOptions(item, tempLinesCache)',
-    'buildApprovedTempReportVersion(item, approvedReportId, reviewerId, approvedTempSnapshot)',
+    'recordApprovedTempVersion(item, approvedReportId, reviewerId, connection, tempLinesCache)',
     'postCommitNotifications.push(buildApprovedPostCommitNotification(item, approvedReportId, workDate))',
     'await AuditService.logActivities(postCommitActivities, connection)',
     'await commit(connection)',
