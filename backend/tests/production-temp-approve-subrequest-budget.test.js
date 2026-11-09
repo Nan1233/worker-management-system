@@ -12,7 +12,7 @@ const BACKEND = path.join(__dirname, '..');
 const MACHINE_CODES = ['M05', 'M06', 'M07', 'M11'];
 const PRODUCTS = ['CGYX-AUTO', 'C5770-AUTO'];
 
-function build({ lines = 4, withEvents = true, failOn = null, existingApproved = false, noEventRows = false, lineStandardOutput = 500, defectsByLine = {}, tamperApproved = false, reportRows = null, staleFinalTransition = false, sharedApprovalState = null } = {}) {
+function build({ lines = 4, withEvents = true, failOn = null, existingApproved = false, noEventRows = false, lineStandardOutput = 500, defectsByLine = {}, tamperApproved = false, reportRows = null, staleFinalTransition = false, sharedApprovalState = null, commitError = null, rollbackError = null } = {}) {
   const log = [];
   const calls = [];
   let nextId = 5000;
@@ -85,8 +85,8 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
       setImmediate(() => cb(err, r, []));
     },
     beginTransaction(a, b) { const cb = typeof a === 'function' ? a : b; record('BEGIN'); setImmediate(() => cb(null)); },
-    commit(cb) { record('COMMIT'); if (sharedApprovalState && ownsApprovalClaim) { sharedApprovalState.approved = true; sharedApprovalState.claimed = false; ownsApprovalClaim = false; } setImmediate(() => cb(null)); },
-    rollback(cb) { record('ROLLBACK'); if (sharedApprovalState && ownsApprovalClaim) { sharedApprovalState.claimed = false; ownsApprovalClaim = false; } setImmediate(() => cb(null)); },
+    commit(cb) { record('COMMIT'); if (commitError) return setImmediate(() => cb(commitError)); if (sharedApprovalState && ownsApprovalClaim) { sharedApprovalState.approved = true; sharedApprovalState.claimed = false; ownsApprovalClaim = false; } setImmediate(() => cb(null)); },
+    rollback(cb) { record('ROLLBACK'); if (rollbackError) return setImmediate(() => cb(rollbackError)); if (sharedApprovalState && ownsApprovalClaim) { sharedApprovalState.claimed = false; ownsApprovalClaim = false; } setImmediate(() => cb(null)); },
     release() {},
   };
   const fakeDb = {
@@ -440,4 +440,30 @@ test('approval write-stage rollback permits exactly one later successful retry',
       assert.equal(duplicate.log.filter((entry) => /^INSERT INTO production_reports /.test(entry)).length, 0);
     });
   }
+});
+
+test('commit callback failure is surfaced and triggers rollback without reporting success', async () => {
+  const sharedApprovalState = { approved: false, claimed: false };
+  const commitError = Object.assign(new Error('simulated commit rejection'), { code: 'ER_COMMIT_FAKE' });
+  const { error, log, calls } = await approve({ lines: 4, sharedApprovalState, commitError });
+  assert.equal(error, commitError);
+  assert.equal(log.filter((entry) => entry === 'COMMIT').length, 1);
+  assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.ok(calls.some((entry) => /^UPDATE production_reports_temp SET status='approved'/.test(entry.sql)));
+  assert.deepEqual(sharedApprovalState, { approved: false, claimed: false });
+});
+
+test('rollback callback failure preserves original approval error and attaches rollbackError', async () => {
+  const rollbackError = Object.assign(new Error('simulated rollback failure'), { code: 'ER_ROLLBACK_FAKE' });
+  const { error, log } = await approve({
+    lines: 4,
+    failOn: /^INSERT INTO production_reports\s*\(/,
+    rollbackError,
+  });
+  assert.ok(error);
+  assert.equal(error.message, 'boom');
+  assert.equal(error.code, 'ER_FAKE');
+  assert.equal(error.rollbackError, rollbackError);
+  assert.equal(log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1);
 });
