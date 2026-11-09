@@ -73,7 +73,7 @@ test('rejection retains transactional ordering, guarded status update and post-c
   const reject = source.slice(source.indexOf('async rejectSelected('));
   const positions = [
     'await beginTransaction(connection)',
-    'FOR UPDATE',
+    'await query(connection, selectionSql, selectionParams)',
     'buildRejectedReportUpdate(row, expected, cleanReason, reviewerId)',
     'const updateResult = await query(connection,updateSql,updateParams)',
     'assertRejectedTempTransition(updateResult, row)',

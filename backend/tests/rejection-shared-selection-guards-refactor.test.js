@@ -12,7 +12,7 @@ test('approval and rejection use identical selection, stale visibility and versi
     assert.match(flow, /const \{ reportIds, expectedById \} = buildApprovalSelection\(targets\)/);
     assert.match(flow, /assertApprovalSelectionVisible\(rows, reportIds\)/);
     assert.match(flow, /assertApprovalSelectionVersions\(rows, expectedById\)/);
-    const lock = flow.indexOf('FOR UPDATE');
+    const lock = flow.indexOf('await query(connection, selectionSql, selectionParams)');
     const visible = flow.indexOf('assertApprovalSelectionVisible(rows, reportIds)');
     const versions = flow.indexOf('assertApprovalSelectionVersions(rows, expectedById)');
     assert.ok(lock >= 0 && lock < visible && visible < versions);
@@ -29,10 +29,12 @@ test('rejection validates batch size and reason before acquiring connection', ()
 });
 
 test('rejection keeps distinct scope and SQL conditions for manager vs admin', () => {
-  assert.match(rejection, /isAdmin \? "" : "JOIN manager_processes mp ON mp\.process_id=temp\.process_id"/);
-  assert.match(rejection, /isAdmin \? "" : "AND mp\.manager_id=\?"/);
-  assert.match(rejection, /isAdmin \? \[\.\.\.reportIds\] : \[\.\.\.reportIds,reviewerId\]/);
-  assert.match(rejection, /ORDER BY temp\.id ASC\s+FOR UPDATE/);
+  const scoped = source.slice(source.indexOf('function buildRejectionScopeQuery('), source.indexOf('module.exports = {'));
+  assert.match(rejection, /buildRejectionScopeQuery\(reportIds, reviewerId, isAdmin\)/);
+  assert.match(scoped, /isAdmin \? "" : "JOIN manager_processes mp ON mp\.process_id=temp\.process_id"/);
+  assert.match(scoped, /isAdmin \? "" : "AND mp\.manager_id=\?"/);
+  assert.match(scoped, /isAdmin \? \[\.\.\.reportIds\] : \[\.\.\.reportIds,reviewerId\]/);
+  assert.match(scoped, /ORDER BY temp\.id ASC\s+FOR UPDATE/);
   assert.match(rejection, /await rollback\(connection\)/);
   assert.match(rejection, /connection\.release\(\)/);
 });

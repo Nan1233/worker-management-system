@@ -10,11 +10,12 @@ const reject = source.slice(source.indexOf('async rejectSelected('));
 
 test('approval and rejection both lock selected pending reports in ascending ID order', () => {
   for (const [name, body] of [['approval', approve], ['rejection', reject]]) {
-    assert.match(body, /AND temp\.status IN \('pending','need_fix'\)[\s\S]*?ORDER BY temp\.id ASC\s+FOR UPDATE`/, name);
+    const builder = source.slice(source.indexOf(name === 'approval' ? 'function buildApprovalScopeQuery(' : 'function buildRejectionScopeQuery('), source.indexOf(name === 'approval' ? 'function buildRejectionScopeQuery(' : 'module.exports = {'));
+    assert.match(builder, /AND temp\.status IN \('pending','need_fix'\)[\s\S]*?ORDER BY temp\.id ASC\s+FOR UPDATE`/, name);
     const visibilityGuard = 'assertApprovalSelectionVisible(rows, reportIds)';
-    assert.ok(body.indexOf('FOR UPDATE') < body.indexOf(visibilityGuard), name);
+    assert.ok(body.indexOf('await query(connection, selectionSql, selectionParams)') < body.indexOf(visibilityGuard), name);
     const versionGuard = 'assertApprovalSelectionVersions(rows, expectedById)';
-    assert.ok(body.indexOf('FOR UPDATE') < body.indexOf(versionGuard), name);
+    assert.ok(body.indexOf('await query(connection, selectionSql, selectionParams)') < body.indexOf(versionGuard), name);
   }
 });
 
