@@ -40,6 +40,15 @@ test('conflicting duplicate timestamps fail closed before acquiring a connection
   ]));
 });
 
+test('supplied version timestamps reject coercible non-date values', () => {
+  for (const expected of [0, false, true, 123456789, ['2026-10-30'], {}, []]) {
+    assert.throws(() => build([{ id: 7, expected_updated_at: expected }]),
+      (error) => error.code === 'TEMP_REPORT_VERSION_CONFLICT' && error.status === 409 && error.isPublic === true);
+  }
+  assert.equal(build([{ id: 7, expected_updated_at: null }]).expectedById.get(7), null);
+  assert.equal(build([{ id: 7, expected_updated_at: '' }]).expectedById.get(7), null);
+});
+
 test('invalid expected timestamps fail closed with a public version conflict', () => {
   for (const expected of ['not-a-date', '2026-99-99', 'invalid', Infinity]) {
     assert.throws(() => build([{ id: 7, expected_updated_at: expected }]),
