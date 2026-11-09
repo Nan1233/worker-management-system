@@ -360,11 +360,11 @@ test('failure after claiming temp status releases mock claim and a later retry s
   const failed = await approve({
     lines: 4,
     sharedApprovalState,
-    failOn: /^INSERT INTO activity_logs\\s*\\(/,
+    failOn: /^INSERT INTO activity_logs\s*\(/,
   });
   assert.ok(failed.error);
   assert.ok(failed.calls.some((entry) => /^UPDATE production_reports_temp SET status='approved'/.test(entry.sql)));
-  assert.ok(failed.calls.some((entry) => /^INSERT INTO activity_logs\\s*\\(/.test(entry.sql)));
+  assert.ok(failed.calls.some((entry) => /^INSERT INTO activity_logs\s*\(/.test(entry.sql)));
   assert.equal(failed.log.filter((entry) => entry === 'COMMIT').length, 0);
   assert.equal(failed.log.filter((entry) => entry === 'ROLLBACK').length, 1);
   assert.deepEqual(sharedApprovalState, { approved: false, claimed: false });
