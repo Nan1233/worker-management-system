@@ -292,8 +292,12 @@ function buildReportStandardResolutionInput(item) {
   };
 }
 
+function isMachineApprovalReport(item) {
+  return String(item.operation_mode || "").toUpperCase() === "MACHINE";
+}
+
 async function validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache = null) {
-  const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
+  const isMachineReport = isMachineApprovalReport(item);
   if (!isMachineReport && isParentProcessNonProductWork(item)) {
     assertNonProductWorkSnapshot(item);
     return;
