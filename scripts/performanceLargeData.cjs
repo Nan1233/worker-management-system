@@ -16,9 +16,12 @@ if (!Number.isInteger(iterations) || iterations < 20 || iterations > 5000) throw
 async function main() {
   if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME) throw new Error('DB_HOST, DB_USER and DB_NAME are required');
   const db = await mysql.createConnection({host:process.env.DB_HOST,port:Number(process.env.DB_PORT||3306),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME,ssl:{rejectUnauthorized:true}});
+  let executionError=null;
+  let counts=null;
+  const timings={};
+  try {
   const [identityRows]=await db.query('SELECT DATABASE() AS database_name');
   if(String(identityRows?.[0]?.database_name||'').trim()!=='worker_management_e2e'){
-    await db.end();
     throw new Error('KTC_PERFORMANCE_LARGE_DATA_BLOCKED: wrong active database');
   }
   const queries={
@@ -27,7 +30,6 @@ async function main() {
     workers:`SELECT id, worker_code, full_name FROM workers ORDER BY id DESC LIMIT 100`,
     standards:`SELECT id, process_id, product_code, machine_code FROM product_standards ORDER BY id DESC LIMIT 100`
   };
-  const timings={};
   for(const [name,sql] of Object.entries(queries)){
     const samples=[];
     for(let i=0;i<iterations;i++){const t=performance.now();const [rows]=await db.query(sql);samples.push(performance.now()-t);if(!Array.isArray(rows))throw new Error(`${name} did not return rows`)}
@@ -35,10 +37,22 @@ async function main() {
     timings[name]={p50Ms:+p50.toFixed(2),p95Ms:+p95.toFixed(2),maxMs:+Math.max(...samples).toFixed(2)};
     if(p95>budgetMs)throw new Error(`${name} p95 ${p95.toFixed(2)}ms exceeds ${budgetMs}ms`);
   }
-  const [[counts]]=await db.query(`SELECT (SELECT COUNT(*) FROM workers) workers,(SELECT COUNT(*) FROM production_reports_temp) pending_reports,(SELECT COUNT(*) FROM production_reports) approved_reports,(SELECT COUNT(*) FROM product_standards) product_standards`);
-  await db.end();
+  [[counts]]=await db.query(`SELECT (SELECT COUNT(*) FROM workers) workers,(SELECT COUNT(*) FROM production_reports_temp) pending_reports,(SELECT COUNT(*) FROM production_reports) approved_reports,(SELECT COUNT(*) FROM product_standards) product_standards`);
+  } catch(error) {
+    executionError=error;
+  }
+  try {
+    await db.end();
+  } catch(error) {
+    executionError=executionError
+      ? new AggregateError([executionError,error],'Performance query and connection close failed')
+      : error;
+  }
   const outDir=path.resolve(process.env.KTC_VALIDATION_DIR||'validation-artifacts');fs.mkdirSync(outDir,{recursive:true});
-  const result={iterations,budgetMs,counts,timings,result:'PASS',generatedAt:new Date().toISOString()};fs.writeFileSync(path.join(outDir,'performance-large-data.json'),JSON.stringify(result,null,2));
-  console.log(JSON.stringify(result,null,2));console.log('KTC_PERFORMANCE_LARGE_DATA=PASS');
+  const result={iterations,budgetMs,counts,timings,result:executionError?'FAIL':'PASS',error:executionError?.message||null,generatedAt:new Date().toISOString()};
+  fs.writeFileSync(path.join(outDir,'performance-large-data.json'),JSON.stringify(result,null,2));
+  console.log(JSON.stringify(result,null,2));
+  if(executionError)throw executionError;
+  console.log('KTC_PERFORMANCE_LARGE_DATA=PASS');
 }
 main().catch(e=>{console.error('KTC_PERFORMANCE_LARGE_DATA_FAIL',e.stack||e.message);process.exit(1)});
