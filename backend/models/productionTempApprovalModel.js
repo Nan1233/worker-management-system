@@ -192,6 +192,12 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, ap
     const expected = canonicalDecimal(saved);
     return actual === null || expected === null || actual !== expected;
   });
+  // A changed standard source can silently alter historical rate/audit lineage.
+  // Compare the exact normalized code written by buildApprovedMachineLineValues.
+  const standardSourceMismatch = (persisted, source) =>
+    Object.prototype.hasOwnProperty.call(persisted, "standard_source")
+      && Object.prototype.hasOwnProperty.call(source, "standard_source")
+      && String(persisted.standard_source) !== storedStandardSource(source.standard_source);
   const wrongReportLineage = approvedReportId != null && byInsertOrder.some((row) =>
     !Object.prototype.hasOwnProperty.call(row, "report_id")
       || parseStrictId(row.report_id) === null
@@ -204,7 +210,8 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, ap
       || String(row.product_code) !== String(tempLines[index].product_code)
       || identityMismatch(row, tempLines[index])
       || sortOrderMismatch(row, tempLines[index])
-      || quantityMismatch(row, tempLines[index]))) {
+      || quantityMismatch(row, tempLines[index])
+      || standardSourceMismatch(row, tempLines[index]))) {
     const error = new Error(`Không xác nhận được dòng máy đã sao chép cho báo cáo tạm #${tempReportId}; đã hủy duyệt để bảo vệ dữ liệu`);
     error.status = 500;
     error.code = "APPROVED_MACHINE_LINES_COPY_MISMATCH";
