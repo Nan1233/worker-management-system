@@ -144,7 +144,7 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId) {
   const identityMismatch = (persisted, source) => identityColumns.some((column) =>
     Object.prototype.hasOwnProperty.call(persisted, column)
       && Object.prototype.hasOwnProperty.call(source, column)
-      && String(persisted[column] ?? "") !== String(source[column] ?? ""));
+      && String(persisted[column] || "") !== String(source[column] || ""));
   if (byInsertOrder.length !== tempLines.length
     || hasInvalidIds
     || byInsertOrder.some((row, index) => String(row.machine_code) !== String(tempLines[index].machine_code)
