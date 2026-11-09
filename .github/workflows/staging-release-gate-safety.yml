@@ -1,0 +1,31 @@
+name: Staging Release Gate Safety
+on:
+  pull_request:
+    branches: [test]
+    paths:
+      - 'scripts/stagingReleaseGate.cjs'
+      - 'scripts/stagingE2E.cjs'
+      - 'backend/scripts/e2e-db-guard.cjs'
+      - 'tests/staging-release-gate-guard.test.cjs'
+      - '.github/workflows/staging-release-gate-safety.yml'
+  push:
+    branches: [test]
+    paths:
+      - 'scripts/stagingReleaseGate.cjs'
+      - 'scripts/stagingE2E.cjs'
+      - 'backend/scripts/e2e-db-guard.cjs'
+      - 'tests/staging-release-gate-guard.test.cjs'
+      - '.github/workflows/staging-release-gate-safety.yml'
+permissions:
+  contents: read
+jobs:
+  safety-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check scripts/stagingReleaseGate.cjs
+      - run: node --check scripts/stagingE2E.cjs
+      - run: node --test tests/staging-release-gate-guard.test.cjs
