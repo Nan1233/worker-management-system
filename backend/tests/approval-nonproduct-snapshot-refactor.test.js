@@ -42,5 +42,7 @@ test('CVK non-product branch reuses predicate and keeps distinct error message',
   const validate = source.slice(source.indexOf('async function validateApprovalSnapshot('), source.indexOf('async function createLegacyApprovedSnapshot('));
   assert.match(validate, /if \(hasNonProductSnapshotMismatch\(item\)\)/);
   assert.match(validate, /Ảnh chụp công việc khác không hợp lệ/);
-  assert.match(validate, /NON_PRODUCT_WORK_SNAPSHOT_MISMATCH/);
+  assert.match(validate, /createNonProductSnapshotMismatchError\(/);
+  const helper = source.slice(source.indexOf('function createNonProductSnapshotMismatchError('), source.indexOf('function assertNonProductWorkSnapshot('));
+  assert.match(helper, /NON_PRODUCT_WORK_SNAPSHOT_MISMATCH/);
 });
