@@ -173,3 +173,17 @@ test('approved report lineage rejects numeric coercion and unsafe values', () =>
       error => error.code === 'APPROVED_MACHINE_LINES_COPY_MISMATCH');
   }
 });
+
+test('malformed approved query rows fail closed with public mismatch error', () => {
+  for (const rows of [null, undefined, {}, 'invalid', [null], [undefined], [42], ['row'], [[]]]) {
+    assert.throws(() => verify(rows, [{ machine_code: 'M1', product_code: 'P1' }], 9),
+      error => error.code === 'APPROVED_MACHINE_LINES_COPY_MISMATCH'
+        && error.status === 500 && error.isPublic === true,
+      'malformed rows: ' + String(rows));
+  }
+});
+
+test('malformed extra approved rows are rejected even when other rows match', () => {
+  fails([approved[0], null], [temp[0], temp[1]]);
+  fails([approved[0], { id: 102, machine_code: 'C2556-8', product_code: 'P-B' }, undefined]);
+});

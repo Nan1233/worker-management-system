@@ -133,7 +133,13 @@ function buildApprovedMachineLineValues(tempLines, approvedReportId) {
 // Verify the bulk INSERT's assumed id ordering before associating defects.
 // This check intentionally fails closed if the database returns unexpected rows.
 function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, approvedReportId = null) {
-  const byInsertOrder = [...approvedRows].sort((a, b) => Number(a.id) - Number(b.id));
+  // Reject malformed DB results before sorting or accessing row properties.
+  // A null row must trigger the same fail-closed copy mismatch as any other bad row.
+  const validRows = Array.isArray(approvedRows)
+    && approvedRows.every((row) => row !== null && typeof row === "object" && !Array.isArray(row));
+  const byInsertOrder = validRows
+    ? [...approvedRows].sort((a, b) => Number(a.id) - Number(b.id))
+    : [];
   const parseStrictId = (value) => {
     if (typeof value !== "number" && (typeof value !== "string" || !/^[0-9]+$/.test(value))) return null;
     const parsed = Number(value);
@@ -187,7 +193,8 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, ap
     !Object.prototype.hasOwnProperty.call(row, "report_id")
       || parseStrictId(row.report_id) === null
       || parseStrictId(row.report_id) !== parseStrictId(approvedReportId));
-  if (byInsertOrder.length !== tempLines.length
+  if (!validRows
+    || byInsertOrder.length !== tempLines.length
     || hasInvalidIds
     || wrongReportLineage
     || byInsertOrder.some((row, index) => String(row.machine_code) !== String(tempLines[index].machine_code)
