@@ -27,7 +27,9 @@ test('approval selection is ordered, but its FOR UPDATE is stripped by the query
   assert.match(approval, /ORDER BY temp\.id ASC\s+FOR UPDATE/);
   assert.match(shared, /const effectiveSql = isTempReportApprovalSelect\(sql\)\s*\? removeApprovalRowLock\(sql\)\s*:\s*sql/);
   assert.match(shared, /replace\(\/\\s\+FOR\\s\+UPDATE\\b\/gi, ""\)/);
-  assert.match(approval, /rows\.length !== reportIds\.length/);
+  assert.match(approval, /assertApprovalSelectionVisible\(rows, reportIds\)/);
+  const guard = source.slice(source.indexOf('function assertApprovalSelectionVisible('), source.indexOf('function assertApprovalSelectionVersions('));
+  assert.match(guard, /rows\.length !== reportIds\.length/);
 });
 
 test('approval uses a guarded final status transition rather than relying on a pessimistic selection lock', () => {

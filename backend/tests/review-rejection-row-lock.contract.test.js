@@ -11,8 +11,10 @@ const reject = source.slice(source.indexOf('async rejectSelected('));
 test('approval and rejection both lock selected pending reports in ascending ID order', () => {
   for (const [name, body] of [['approval', approve], ['rejection', reject]]) {
     assert.match(body, /AND temp\.status IN \('pending','need_fix'\)[\s\S]*?ORDER BY temp\.id ASC\s+FOR UPDATE`/, name);
-    assert.ok(body.indexOf('FOR UPDATE') < body.indexOf('if (rows.length !== reportIds.length)'), name);
-    assert.ok(body.indexOf('FOR UPDATE') < body.indexOf('for (const row of rows)'), name);
+    const visibilityGuard = name === 'approval' ? 'assertApprovalSelectionVisible(rows, reportIds)' : 'if (rows.length !== reportIds.length)';
+    assert.ok(body.indexOf('FOR UPDATE') < body.indexOf(visibilityGuard), name);
+    const versionGuard = name === 'approval' ? 'assertApprovalSelectionVersions(rows, expectedById)' : 'for (const row of rows)';
+    assert.ok(body.indexOf('FOR UPDATE') < body.indexOf(versionGuard), name);
   }
 });
 
