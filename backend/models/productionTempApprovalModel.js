@@ -42,6 +42,18 @@ const qRows = async (executor, sql, params = []) => {
   }
 };
 
+// Preserve the database's defect order and attach only matching machine-line defects.
+// Keep this mapping pure so approval snapshots can be regression-tested without a DB.
+function attachMachineLineDefects(lines, defects) {
+  const byLine = new Map();
+  for (const defect of defects) {
+    const key = Number(defect.machine_line_id);
+    if (!byLine.has(key)) byLine.set(key, []);
+    byLine.get(key).push(defect);
+  }
+  return lines.map((line) => ({ ...line, defects: byLine.get(Number(line.id)) || [] }));
+}
+
 async function getTempMachineLines(tempReportId, connection) {
   const lines = await qRows(
     connection,
@@ -62,13 +74,7 @@ async function getTempMachineLines(tempReportId, connection) {
       ORDER BY machine_line_id ASC, id ASC`,
     ids,
   );
-  const byLine = new Map();
-  for (const defect of defects) {
-    const key = Number(defect.machine_line_id);
-    if (!byLine.has(key)) byLine.set(key, []);
-    byLine.get(key).push(defect);
-  }
-  return lines.map((line) => ({ ...line, defects: byLine.get(Number(line.id)) || [] }));
+  return attachMachineLineDefects(lines, defects);
 }
 
 // Copies the temp machine lines (and their defects) into the approved report.
