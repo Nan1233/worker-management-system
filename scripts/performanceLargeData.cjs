@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 'use strict';
+const {spawnSync}=require('node:child_process');
+const guard=spawnSync(process.execPath,[require('node:path').resolve(__dirname,'../backend/scripts/e2e-db-guard.cjs')],{env:process.env,stdio:'inherit'});
+if(guard.error||guard.status!==0){
+  console.error('KTC_PERFORMANCE_LARGE_DATA_BLOCKED: isolated database guard failed');
+  process.exit(2);
+}
 const mysql = require('../backend/node_modules/mysql2/promise');
 const { performance } = require('node:perf_hooks');
 const fs = require('node:fs');
@@ -9,7 +15,12 @@ const budgetMs = Number(process.env.KTC_PERF_DB_P95_MS || 500);
 if (!Number.isInteger(iterations) || iterations < 20 || iterations > 5000) throw new Error('KTC_PERF_DB_ITERATIONS must be 20..5000');
 async function main() {
   if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME) throw new Error('DB_HOST, DB_USER and DB_NAME are required');
-  const db = await mysql.createConnection({host:process.env.DB_HOST,port:Number(process.env.DB_PORT||4000),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME,ssl:String(process.env.DB_SSL||'true').toLowerCase()!=='false'?{}:undefined});
+  const db = await mysql.createConnection({host:process.env.DB_HOST,port:Number(process.env.DB_PORT||3306),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME,ssl:{rejectUnauthorized:true}});
+  const [identityRows]=await db.query('SELECT DATABASE() AS database_name');
+  if(String(identityRows?.[0]?.database_name||'').trim()!=='worker_management_e2e'){
+    await db.end();
+    throw new Error('KTC_PERFORMANCE_LARGE_DATA_BLOCKED: wrong active database');
+  }
   const queries={
     pending:`SELECT id, work_date, process_id, status FROM production_reports_temp WHERE status='pending' ORDER BY work_date DESC, id DESC LIMIT 100`,
     approved:`SELECT id, work_date, process_id, status FROM production_reports WHERE status <> 'deleted' ORDER BY work_date DESC, id DESC LIMIT 100`,
