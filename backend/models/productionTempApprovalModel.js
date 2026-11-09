@@ -508,6 +508,74 @@ function buildRejectedReportNotification(row, cleanReason) {
   };
 }
 
+function getApprovedWorkDate(item) {
+  return item.work_date instanceof Date
+    ? `${item.work_date.getFullYear()}-${String(item.work_date.getMonth()+1).padStart(2,"0")}-${String(item.work_date.getDate()).padStart(2,"0")}`
+    : String(item.work_date).slice(0,10);
+}
+
+function byApprovedTypeThenId(key) {
+  return (a, b) => (Number(a[key] ?? -Infinity) - Number(b[key] ?? -Infinity)) || (Number(a.id) - Number(b.id));
+}
+
+function buildApprovedVersionPreloaded(machineLines, defects, deductions) {
+  return {
+    machineLines,
+    defects: [...defects].sort(byApprovedTypeThenId("defect_type_id")).map((row) => ({ defect_type_id: row.defect_type_id, quantity: row.quantity })),
+    deductions: [...deductions].sort(byApprovedTypeThenId("deduction_type_id")).map((row) => ({ deduction_type_id: row.deduction_type_id, hours: row.hours })),
+  };
+}
+
+function buildApprovedPostCommitActivities(item, approvedReportId, reviewerId) {
+  return [
+    {
+      userId: reviewerId,
+      action: "REPORT_APPROVED",
+      entityType: "temp_report",
+      entityId: item.id,
+      description: `Duyệt báo cáo thành công #${approvedReportId}`,
+      metadata: { approved_report_id: approvedReportId },
+    },
+    {
+      userId: reviewerId,
+      action: "REPORT_CREATED",
+      entityType: "approved_report",
+      entityId: approvedReportId,
+      description: `Tạo báo cáo đã duyệt từ #${item.id}`,
+      metadata: { temp_report_id: item.id },
+    },
+    {
+      userId: reviewerId,
+      action: "REPORT_APPROVED",
+      entityType: "approved_report",
+      entityId: approvedReportId,
+      description: `Duyệt báo cáo #${item.id} thành báo cáo đã duyệt #${approvedReportId}`,
+      metadata: {
+        temp_report_id: item.id,
+        approved_report_id: approvedReportId,
+        worker_id: item.worker_id,
+        process_id: item.process_id,
+        work_date: item.work_date,
+        shift: item.shift,
+      },
+    },
+  ];
+}
+
+function buildApprovedPostCommitNotification(item, approvedReportId, workDate) {
+  return {
+    userIds:[item.worker_user_id],
+    payload:{
+      type:"report_approved",
+      title:"Báo cáo đã được duyệt",
+      message:`Báo cáo ngày ${workDate}, ca ${item.shift || "-"}, sản phẩm ${item.product_name || "-"} đã được duyệt.`,
+      linkUrl:`/worker/history/${approvedReportId}?source=approved`,
+      entityType:"approved_report",
+      entityId:approvedReportId,
+    },
+  };
+}
+
 module.exports = {
   async approveSelected(targets, reviewerId, isAdmin = false) {
     assertReviewBatchSize(targets);
@@ -563,9 +631,7 @@ module.exports = {
         const approvedReportId = Number(insertResult.insertId);
         approvedIds.push(approvedReportId);
 
-        const workDate = item.work_date instanceof Date
-          ? `${item.work_date.getFullYear()}-${String(item.work_date.getMonth()+1).padStart(2,"0")}-${String(item.work_date.getDate()).padStart(2,"0")}`
-          : String(item.work_date).slice(0,10);
+        const workDate = getApprovedWorkDate(item);
         dates.add(workDate);
 
         await query(
@@ -601,7 +667,6 @@ module.exports = {
         const copied = await copyMachineLinesToApproved(item.id, approvedReportId, connection, tempLinesCache.get(Number(item.id)) || null);
         // Without machine lines nothing was inserted, so an empty array is the correct "just read" result.
         const approvedMachineLines = copied.rows;
-        const byTypeThenId = (key) => (a, b) => (Number(a[key] ?? -Infinity) - Number(b[key] ?? -Infinity)) || (Number(a.id) - Number(b.id));
         await createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection, {
           machineLines: approvedMachineLines,
           defects: approvedDefects,
@@ -612,48 +677,12 @@ module.exports = {
             reportId: approvedReportId,
             reason: `Tạo từ báo cáo tạm #${item.id}`,
             userId: reviewerId,
-            preloaded: {
-              machineLines: approvedMachineLines,
-              defects: [...approvedDefects].sort(byTypeThenId("defect_type_id")).map((row) => ({ defect_type_id: row.defect_type_id, quantity: row.quantity })),
-              deductions: [...approvedDeductions].sort(byTypeThenId("deduction_type_id")).map((row) => ({ deduction_type_id: row.deduction_type_id, hours: row.hours })),
-            },
+            preloaded: buildApprovedVersionPreloaded(approvedMachineLines, approvedDefects, approvedDeductions),
           },
           connection,
         );
 
-        postCommitActivities.push(
-          {
-            userId: reviewerId,
-            action: "REPORT_APPROVED",
-            entityType: "temp_report",
-            entityId: item.id,
-            description: `Duyệt báo cáo thành công #${approvedReportId}`,
-            metadata: { approved_report_id: approvedReportId },
-          },
-          {
-            userId: reviewerId,
-            action: "REPORT_CREATED",
-            entityType: "approved_report",
-            entityId: approvedReportId,
-            description: `Tạo báo cáo đã duyệt từ #${item.id}`,
-            metadata: { temp_report_id: item.id },
-          },
-          {
-            userId: reviewerId,
-            action: "REPORT_APPROVED",
-            entityType: "approved_report",
-            entityId: approvedReportId,
-            description: `Duyệt báo cáo #${item.id} thành báo cáo đã duyệt #${approvedReportId}`,
-            metadata: {
-              temp_report_id: item.id,
-              approved_report_id: approvedReportId,
-              worker_id: item.worker_id,
-              process_id: item.process_id,
-              work_date: item.work_date,
-              shift: item.shift,
-            },
-          },
-        );
+        postCommitActivities.push(...buildApprovedPostCommitActivities(item, approvedReportId, reviewerId));
 
         // The final temp transition must succeed before committing the
         // approved report, copied lines, snapshots and audit records.
@@ -688,17 +717,7 @@ module.exports = {
           }, connection);
         }
 
-        postCommitNotifications.push({
-          userIds:[item.worker_user_id],
-          payload:{
-            type:"report_approved",
-            title:"Báo cáo đã được duyệt",
-            message:`Báo cáo ngày ${workDate}, ca ${item.shift || "-"}, sản phẩm ${item.product_name || "-"} đã được duyệt.`,
-            linkUrl:`/worker/history/${approvedReportId}?source=approved`,
-            entityType:"approved_report",
-            entityId:approvedReportId,
-          },
-        });
+        postCommitNotifications.push(buildApprovedPostCommitNotification(item, approvedReportId, workDate));
       }
 
       await AuditService.logActivities(postCommitActivities, connection);
