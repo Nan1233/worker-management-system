@@ -33,6 +33,18 @@ test('rollback failure with non Error value preserves legacy fallback',async()=>
  assert.equal(error.rollbackError,'network unavailable');
  assert.deepEqual(h.logs,['[KTC][APPROVAL_ROLLBACK_FAILED] network unavailable']);
 });
+test('rollback throwing preserves original error and attaches rollback cause',async()=>{
+ const rollbackError=new Error('rollback rejected'),original=new Error('approval failed');
+ const logs=[],connection={};
+ const ctx={rollback:async c=>{assert.strictEqual(c,connection);throw rollbackError;},console:{error:x=>logs.push(x)}};
+ vm.runInNewContext(source.slice(start,end),ctx);
+ const run=vm.runInNewContext('rollbackReviewTransaction',ctx);
+ await assert.doesNotReject(run(connection,original));
+ assert.strictEqual(original.rollbackError,rollbackError);
+ assert.equal(original.message,'approval failed');
+ assert.deepEqual(logs,['[KTC][APPROVAL_ROLLBACK_FAILED] rollback rejected']);
+});
+
 test('both review paths call rollback helper, rethrow and release connection',()=>{
  for(const method of ['async approveSelected(','async rejectSelected(']){
   const start=source.indexOf(method),end=source.indexOf('async ',start+10);
