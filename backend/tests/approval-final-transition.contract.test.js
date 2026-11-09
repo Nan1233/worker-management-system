@@ -26,7 +26,9 @@ test('approval checks final transition before temp snapshot, commit and postcomm
 
 test('approval selection is ordered, but its FOR UPDATE is stripped by the query adapter', () => {
   const shared = fs.readFileSync(path.join(__dirname, '../models/productionTempModelShared.js'), 'utf8');
-  assert.match(approval, /ORDER BY temp\.id ASC\s+FOR UPDATE/);
+  const scoped = source.slice(source.indexOf('function buildApprovalScopeQuery('), source.indexOf('function buildRejectionScopeQuery('));
+  assert.match(approval, /buildApprovalScopeQuery\(reportIds, reviewerId, isAdmin\)/);
+  assert.match(scoped, /ORDER BY temp\.id ASC\s+FOR UPDATE/);
   assert.match(shared, /const effectiveSql = isTempReportApprovalSelect\(sql\)\s*\? removeApprovalRowLock\(sql\)\s*:\s*sql/);
   assert.match(shared, /replace\(\/\\s\+FOR\\s\+UPDATE\\b\/gi, ""\)/);
   assert.match(approval, /assertApprovalSelectionVisible\(rows, reportIds\)/);
