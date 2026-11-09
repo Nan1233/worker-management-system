@@ -25,7 +25,7 @@ test('approval checks final transition before temp snapshot, commit and postcomm
   const commit = approval.indexOf('await commit(connection)');
   const notify = approval.indexOf('await deliverApprovedPostCommitNotifications(');
   assert.ok(guard > 0 && guard < snapshot && snapshot < commit && commit < notify);
-  assert.match(approval, /catch \(error\) \{\s*const rollbackResult = await rollback\(connection\)/);
+  assert.match(approval, /catch \(error\) \{\s*await rollbackReviewTransaction\(connection, error\)/);
 });
 
 test('approval selection is ordered, but its FOR UPDATE is stripped by the query adapter', () => {
@@ -46,7 +46,7 @@ test('approval uses a guarded final status transition rather than relying on a p
   assert.match(transition, /!hasExactlyOneAffectedRow\(statusUpdate\)/);
   assert.match(transitionHelpers, /Number\(result\?\.affectedRows \|\| 0\) === 1/);
   assert.match(transition, /createReviewTransitionConflictError\(item\.id, "APPROVAL_SELECTION_STALE"\)/);
-  assert.match(approval, /await rollback\(connection\)/);
+  assert.match(approval, /await rollbackReviewTransaction\(connection, error\)/);
 });
 
 test('approval compares final transition against the row version selected in this transaction', () => {
