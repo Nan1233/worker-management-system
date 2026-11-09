@@ -227,6 +227,19 @@ function buildMachineStandardWarmUpItems(tempLines) {
   }));
 }
 
+// Preserve the saved machine-line standard identity used for approval checks.
+function buildMachineStandardResolutionInput(item, line) {
+  return {
+    processId: item.process_id,
+    productCode: line.product_code,
+    machineId: line.machine_id,
+    machineCode: line.machine_code,
+    workDate: item.work_date,
+    standardVersionId: line.standard_version_id,
+    machineStandardId: line.machine_standard_id,
+  };
+}
+
 async function validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache = null) {
   const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
   if (!isMachineReport && isParentProcessNonProductWork(item)) {
@@ -251,15 +264,7 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
     });
     for (const line of tempLines) {
       await assertApprovedEventForTempLine(connection, { report: item, line, context: eventContext });
-      const resolved = await standardResolver.resolveStandard({
-        processId: item.process_id,
-        productCode: line.product_code,
-        machineId: line.machine_id,
-        machineCode: line.machine_code,
-        workDate: item.work_date,
-        standardVersionId: line.standard_version_id,
-        machineStandardId: line.machine_standard_id,
-      });
+      const resolved = await standardResolver.resolveStandard(buildMachineStandardResolutionInput(item, line));
       assertStandardSnapshotConsistency({
         resolved,
         standardOutput: line.standard_output,
