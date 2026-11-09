@@ -375,16 +375,20 @@ function buildLegacySnapshotInsert(item, approvedReportId, reviewerId, snapshotD
   };
 }
 
+async function readLegacySnapshotRows(connection, { sql, params }) {
+  return qRows(connection, sql, params);
+}
+
 async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection, preloaded = {}) {
   const preloadedMachineLines = preloaded.machineLines || null;
   // TiDB Serverless transaction connections must not run concurrent queries.
   // Keep these snapshot reads sequential on the same transaction connection.
   const snapshotDefects = preloaded.defects
     ? buildLegacySnapshotDefects(preloaded.defects)
-    : await qRows(connection, ...Object.values(buildLegacySnapshotDefectsRead(approvedReportId)));
+    : await readLegacySnapshotRows(connection, buildLegacySnapshotDefectsRead(approvedReportId));
   const snapshotDeductions = preloaded.deductions
     ? buildLegacySnapshotDeductions(preloaded.deductions)
-    : await qRows(connection, ...Object.values(buildLegacySnapshotDeductionsRead(approvedReportId)));
+    : await readLegacySnapshotRows(connection, buildLegacySnapshotDeductionsRead(approvedReportId));
   const machineLines = Array.isArray(preloadedMachineLines)
     ? preloadedMachineLines
     : await qRows(
