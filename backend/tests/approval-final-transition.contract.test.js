@@ -7,13 +7,16 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
 const approval = source.slice(source.indexOf('async approveSelected('), source.indexOf('async rejectSelected('));
 const transition = source.slice(source.indexOf('function assertApprovedTempTransition('), source.indexOf('function buildApprovedTempSnapshotOptions('));
+const transitionHelpers = source.slice(source.indexOf('function createReviewTransitionConflictError('), source.indexOf('function assertApprovedTempTransition('));
 const transitionQuery = source.slice(source.indexOf('function buildApprovedTempTransitionQuery('), source.indexOf('module.exports = {'));
 
 test('approval final transition requires pending state and exactly one affected row', () => {
   assert.match(transitionQuery, /UPDATE production_reports_temp\s+SET status='approved'[\s\S]*?WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
   assert.match(approval, /assertApprovedTempTransition\(statusUpdate, item\)/);
-  assert.match(transition, /Number\(statusUpdate\?\.affectedRows \|\| 0\) !== 1/);
-  assert.match(transition, /error\.status = 409;\s*error\.code = "APPROVAL_SELECTION_STALE";\s*error\.isPublic = true/);
+  assert.match(transition, /!hasExactlyOneAffectedRow\(statusUpdate\)/);
+  assert.match(transitionHelpers, /Number\(result\?\.affectedRows \|\| 0\) === 1/);
+  assert.match(transition, /createReviewTransitionConflictError\(item\.id, "APPROVAL_SELECTION_STALE"\)/);
+  assert.match(transitionHelpers, /error\.status = 409;[\s\S]*?error\.isPublic = true/);
 });
 
 test('approval checks final transition before temp snapshot, commit and postcommit notifications', () => {
@@ -40,8 +43,9 @@ test('approval selection is ordered, but its FOR UPDATE is stripped by the query
 test('approval uses a guarded final status transition rather than relying on a pessimistic selection lock', () => {
   assert.match(transitionQuery, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
   assert.match(approval, /assertApprovedTempTransition\(statusUpdate, item\)/);
-  assert.match(transition, /Number\(statusUpdate\?\.affectedRows \|\| 0\) !== 1/);
-  assert.match(transition, /error\.code = "APPROVAL_SELECTION_STALE"/);
+  assert.match(transition, /!hasExactlyOneAffectedRow\(statusUpdate\)/);
+  assert.match(transitionHelpers, /Number\(result\?\.affectedRows \|\| 0\) === 1/);
+  assert.match(transition, /createReviewTransitionConflictError\(item\.id, "APPROVAL_SELECTION_STALE"\)/);
   assert.match(approval, /await rollback\(connection\)/);
 });
 
