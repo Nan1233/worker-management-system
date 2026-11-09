@@ -432,9 +432,14 @@ function buildApprovalSelection(targets) {
   const expectedById = new Map();
   for (const item of normalizedTargets) {
     const id = Number(item.id);
-    const expected = item.expected_updated_at || null;
+    const supplied = item.expected_updated_at;
+    const expected = supplied == null || supplied === "" ? null : supplied;
+    // A supplied version must be a date/string, not a coerced number, boolean or array.
+    if (expected !== null && !(typeof expected === "string" || expected instanceof Date)) {
+      throw createTempReportVersionConflictError(id);
+    }
     // Invalid timestamps must not silently disable the optimistic concurrency check (NaN !== NaN).
-    if (expected && !Number.isFinite(new Date(expected).getTime())) {
+    if (expected !== null && !Number.isFinite(new Date(expected).getTime())) {
       throw createTempReportVersionConflictError(id);
     }
     // Missing duplicate timestamps cannot clear a guard; conflicting guards must fail closed.
