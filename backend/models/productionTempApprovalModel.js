@@ -735,6 +735,28 @@ function buildApprovedDetailReadQuery(kind, approvedReportId) {
   throw new Error("Unsupported approved detail kind");
 }
 
+function buildApprovedParentInsertQuery(item, reviewerId) {
+  return {
+    sql: `INSERT INTO production_reports
+           (source_temp_id,worker_id,process_id,work_date,entry_date,shift,operation_type,operation_mode,machine_no,
+            product_name,total_time,actual_time,deduction_time,standard_output,standard_version_id,machine_standard_id,
+            training_percent_snapshot,actual_output,tt_ok,tt_ng,kqd_dap_lai,kqd_tuot,
+            vo_do_long,xuoc_do_long,cong_gay,xoay,khong_dut,bavia_hut,ppcm,loi_cao_su,ng_kich_thuoc,cat_lem,note,
+            extra_data,status,review_note,reviewed_by,approved_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
+    params: buildApprovedReportInsertValues(item, reviewerId),
+  };
+}
+
+function buildApprovedTempTransitionQuery(item, reviewerId) {
+  return {
+    sql: `UPDATE production_reports_temp
+              SET status='approved',reviewed_by=?,approved_at=NOW(),updated_at=NOW()
+            WHERE id=? AND status IN ('pending','need_fix') AND updated_at=?`,
+    params: [reviewerId, item.id, item.updated_at],
+  };
+}
+
 module.exports = {
   async approveSelected(targets, reviewerId, isAdmin = false) {
     assertReviewBatchSize(targets);
@@ -760,17 +782,8 @@ module.exports = {
       for (const item of rows) {
         await validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache);
 
-        const insertResult = await query(
-          connection,
-          `INSERT INTO production_reports
-           (source_temp_id,worker_id,process_id,work_date,entry_date,shift,operation_type,operation_mode,machine_no,
-            product_name,total_time,actual_time,deduction_time,standard_output,standard_version_id,machine_standard_id,
-            training_percent_snapshot,actual_output,tt_ok,tt_ng,kqd_dap_lai,kqd_tuot,
-            vo_do_long,xuoc_do_long,cong_gay,xoay,khong_dut,bavia_hut,ppcm,loi_cao_su,ng_kich_thuoc,cat_lem,note,
-            extra_data,status,review_note,reviewed_by,approved_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
-          buildApprovedReportInsertValues(item, reviewerId),
-        );
+        const { sql: parentInsertSql, params: parentInsertParams } = buildApprovedParentInsertQuery(item, reviewerId);
+        const insertResult = await query(connection, parentInsertSql, parentInsertParams);
         const approvedReportId = Number(insertResult.insertId);
         approvedIds.push(approvedReportId);
 
@@ -809,13 +822,8 @@ module.exports = {
         // The final temp transition must succeed before committing the
         // approved report, copied lines, snapshots and audit records.
         // A lost status race must roll back the entire transaction.
-        const statusUpdate = await query(
-          connection,
-          `UPDATE production_reports_temp
-              SET status='approved',reviewed_by=?,approved_at=NOW(),updated_at=NOW()
-            WHERE id=? AND status IN ('pending','need_fix') AND updated_at=?`,
-          [reviewerId,item.id,item.updated_at],
-        );
+        const { sql: statusSql, params: statusParams } = buildApprovedTempTransitionQuery(item, reviewerId);
+        const statusUpdate = await query(connection, statusSql, statusParams);
         assertApprovedTempTransition(statusUpdate, item);
 
         const approvedTempSnapshot = await AuditService.loadTempReportSnapshot(
