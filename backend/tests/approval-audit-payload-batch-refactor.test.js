@@ -8,7 +8,7 @@ const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApp
 const start = source.indexOf('function getApprovedWorkDate(');
 const end = source.indexOf('module.exports = {', start);
 assert.ok(start >= 0 && end > start);
-const ctx = {};
+const ctx = { Date };
 vm.runInNewContext(source.slice(start, end), ctx);
 const getDate = vm.runInNewContext('getApprovedWorkDate', ctx);
 const preload = vm.runInNewContext('buildApprovedVersionPreloaded', ctx);
