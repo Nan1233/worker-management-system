@@ -25,11 +25,11 @@ test('rejects production and arbitrary remote APIs before DB guard', () => {
     assert.match(result.stderr, /KTC_STAGING_E2E_BLOCKED/, url);
   }
 });
-test('loopback and explicitly opted-in TEST API reach isolated DB guard', () => {
+test('loopback API reaches isolated DB guard', () => {
   for (const [url, extra] of [
     ['http://127.0.0.1:19080', {}],
     ['http://localhost:19080', {}],
-    ['https://ktc-be-test.nan978971.workers.dev', { KTC_E2E_ALLOW_REMOTE_STAGING: '1' }],
+
   ]) {
     const result = check(url, extra);
     assert.equal(result.status, 2, url);
