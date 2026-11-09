@@ -737,6 +737,13 @@ function buildTempMachineLineDefectsQuery(lines) {
     }
     return id;
   });
+  if (new Set(ids).size !== ids.length) {
+    const error = new Error("Dòng máy tạm có ID trùng lặp; đã hủy duyệt để bảo vệ dữ liệu");
+    error.status = 500;
+    error.code = "TEMP_MACHINE_LINE_DUPLICATE_ID";
+    error.isPublic = true;
+    throw error;
+  }
   return {
     sql: `SELECT *
        FROM production_temp_machine_defects
