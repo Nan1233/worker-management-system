@@ -747,6 +747,15 @@ function buildApprovedDetailReadQuery(kind, approvedReportId) {
   throw new Error("Unsupported approved detail kind");
 }
 
+function buildApprovedVersionRequest(item, approvedReportId, reviewerId, machineLines, defects, deductions) {
+  return {
+    reportId: approvedReportId,
+    reason: `Tạo từ báo cáo tạm #${item.id}`,
+    userId: reviewerId,
+    preloaded: buildApprovedVersionPreloaded(machineLines, defects, deductions),
+  };
+}
+
 function buildApprovedParentInsertQuery(item, reviewerId) {
   return {
     sql: `INSERT INTO production_reports
@@ -820,12 +829,7 @@ module.exports = {
           deductions: approvedDeductions,
         });
         await createApprovedReportVersion(
-          {
-            reportId: approvedReportId,
-            reason: `Tạo từ báo cáo tạm #${item.id}`,
-            userId: reviewerId,
-            preloaded: buildApprovedVersionPreloaded(approvedMachineLines, approvedDefects, approvedDeductions),
-          },
+          buildApprovedVersionRequest(item, approvedReportId, reviewerId, approvedMachineLines, approvedDefects, approvedDeductions),
           connection,
         );
 
