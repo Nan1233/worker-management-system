@@ -724,7 +724,19 @@ function buildRejectionScopeQuery(reportIds, reviewerId, isAdmin) {
 }
 
 function buildTempMachineLineDefectsQuery(lines) {
-  const ids = lines.map((line) => Number(line.id)).filter(Boolean);
+  const ids = lines.map((line) => {
+    const rawId = line?.id;
+    const id = Number(rawId);
+    if ((typeof rawId !== "number" && (typeof rawId !== "string" || !/^[0-9]+$/.test(rawId)))
+      || !Number.isSafeInteger(id) || id <= 0) {
+      const error = new Error("Dòng máy tạm có ID không hợp lệ; đã hủy duyệt để bảo vệ dữ liệu");
+      error.status = 500;
+      error.code = "TEMP_MACHINE_LINE_INVALID_ID";
+      error.isPublic = true;
+      throw error;
+    }
+    return id;
+  });
   return {
     sql: `SELECT *
        FROM production_temp_machine_defects
