@@ -23,7 +23,7 @@ function createLoader({ lines, defects = [], failRead = false }) {
       return calls.length === 1 ? lines : defects;
     },
   };
-  vm.runInNewContext(source.slice(queryStart, queryEnd) + '\\n' + source.slice(start, end), context);
+  vm.runInNewContext(source.slice(queryStart, queryEnd) + '\n' + source.slice(start, end), context);
   return { load: vm.runInNewContext('getTempMachineLines', context), calls, connection };
 }
 
