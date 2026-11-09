@@ -425,18 +425,30 @@ function buildApprovalSelection(targets) {
   return { reportIds, expectedById };
 }
 
+function createApprovalSelectionStaleError(reportIds, missingIds) {
+  const error = new Error(
+    "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
+  );
+  error.status = 409;
+  error.code = "APPROVAL_SELECTION_STALE";
+  error.isPublic = true;
+  error.details = { requested_ids: reportIds, missing_ids: missingIds };
+  return error;
+}
+
+function createTempReportVersionConflictError(reportId) {
+  const error = new Error(`Báo cáo #${reportId} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
+  error.status = 409;
+  error.code = "TEMP_REPORT_VERSION_CONFLICT";
+  error.isPublic = true;
+  return error;
+}
+
 function assertApprovalSelectionVisible(rows, reportIds) {
   if (rows.length !== reportIds.length) {
     const visibleIds = new Set(rows.map((row) => Number(row.id)));
     const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
-    const error = new Error(
-      "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
-    );
-    error.status = 409;
-    error.code = "APPROVAL_SELECTION_STALE";
-    error.isPublic = true; // the "reload the list" guidance must reach the user in production too
-    error.details = { requested_ids: reportIds, missing_ids: missingIds };
-    throw error;
+    throw createApprovalSelectionStaleError(reportIds, missingIds);
   }
 }
 
@@ -444,11 +456,7 @@ function assertApprovalSelectionVersions(rows, expectedById) {
   for (const row of rows) {
     const expected = expectedById.get(Number(row.id));
     if (expected && new Date(expected).getTime() !== new Date(row.updated_at).getTime()) {
-      const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
-      error.status = 409;
-      error.code = "TEMP_REPORT_VERSION_CONFLICT";
-      error.isPublic = true;
-      throw error;
+      throw createTempReportVersionConflictError(row.id);
     }
   }
 }

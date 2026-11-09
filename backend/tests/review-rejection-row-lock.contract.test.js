@@ -35,8 +35,12 @@ test('stale rejection selections return public 409 so manager can reload', () =>
   const versions = source.slice(source.indexOf('function assertApprovalSelectionVersions('), source.indexOf('module.exports = {'));
   assert.match(reject, /assertApprovalSelectionVisible\(rows, reportIds\)/);
   assert.match(reject, /assertApprovalSelectionVersions\(rows, expectedById\)/);
-  assert.match(visible, /error\.code = "APPROVAL_SELECTION_STALE";\s*error\.isPublic = true/);
-  assert.match(versions, /error\.code = "TEMP_REPORT_VERSION_CONFLICT";\s*error\.isPublic = true/);
+  assert.match(visible, /createApprovalSelectionStaleError\(reportIds, missingIds\)/);
+  const staleError = source.slice(source.indexOf("function createApprovalSelectionStaleError("), source.indexOf("function createTempReportVersionConflictError("));
+  assert.match(staleError, /error\.code = "APPROVAL_SELECTION_STALE";\s*error\.isPublic = true/);
+  assert.match(versions, /createTempReportVersionConflictError\(row\.id\)/);
+  const versionError = source.slice(source.indexOf("function createTempReportVersionConflictError("), source.indexOf("function assertApprovalSelectionVisible("));
+  assert.match(versionError, /error\.code = "TEMP_REPORT_VERSION_CONFLICT";\s*error\.isPublic = true/);
   assert.match(reject, /assertRejectedTempTransition\(updateResult, row\)/);
   assert.match(source, /error\.code = "TEMP_REPORT_VERSION_CONFLICT";\s*error\.isPublic = true/);
 });
