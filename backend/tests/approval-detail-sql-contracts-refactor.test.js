@@ -38,7 +38,12 @@ test('unsupported detail kind fails closed instead of issuing wrong SQL',()=>{
 });
 test('approval keeps sequential detail copy and reads before machine lines and snapshots',()=>{
  const flow=source.slice(source.indexOf('async approveSelected('),source.indexOf('async rejectSelected('));
- const markers=['buildApprovedDetailCopyQuery("defects"','await query(connection, defectsCopySql, defectsCopyParams)','buildApprovedDetailCopyQuery("deductions"','await query(connection, deductionsCopySql, deductionsCopyParams)','buildApprovedDetailReadQuery("defects"','await qRows(connection, defectsReadSql, defectsReadParams)','buildApprovedDetailReadQuery("deductions"','await qRows(connection, deductionsReadSql, deductionsReadParams)','copyMachineLinesToApproved(item.id','createLegacyApprovedSnapshot(item','createApprovedReportVersion('];
+ const detail=source.slice(source.indexOf('async function copyApprovedReportDetails('),source.indexOf('async function recordApprovedTempVersion('));
+ const detailMarkers=['buildApprovedDetailCopyQuery("defects"','await query(connection, defectsCopySql, defectsCopyParams)','buildApprovedDetailCopyQuery("deductions"','await query(connection, deductionsCopySql, deductionsCopyParams)','buildApprovedDetailReadQuery("defects"','await qRows(connection, defectsReadSql, defectsReadParams)','buildApprovedDetailReadQuery("deductions"','await qRows(connection, deductionsReadSql, deductionsReadParams)'];
+ const detailPositions=detailMarkers.map(x=>detail.indexOf(x));
+ assert.ok(detailPositions.every(x=>x>=0));
+ assert.ok(detailPositions.every((x,i)=>i===0||detailPositions[i-1]<x));
+ const markers=['copyApprovedReportDetails(connection, approvedReportId, item.id)','copyMachineLinesToApproved(item.id','createLegacyApprovedSnapshot(item','createApprovedReportVersion('];
  const positions=markers.map(x=>flow.indexOf(x));
  assert.ok(positions.every(x=>x>=0),JSON.stringify(positions));
  assert.ok(positions.every((x,i)=>i===0||positions[i-1]<x));
