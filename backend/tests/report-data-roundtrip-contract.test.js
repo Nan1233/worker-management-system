@@ -13,13 +13,17 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 test('approval copies all persisted child collections before marking the temp report approved', () => {
   const approval = read('models/productionTempApprovalModel.js');
 
-  const mainInsert = approval.indexOf('INSERT INTO production_reports');
-  const defectsCopy = approval.indexOf('INSERT INTO production_report_defects');
-  const deductionsCopy = approval.indexOf('INSERT INTO production_report_deductions');
-  const machineCopy = approval.indexOf('copyMachineLinesToApproved(item.id, approvedReportId');
-  const tempApproved = approval.indexOf("SET status='approved',reviewed_by=?,approved_at=NOW(),updated_at=NOW()");
-  const commit = approval.indexOf('await commit(connection)', tempApproved);
+  const flow = approval.slice(approval.indexOf('async approveSelected('), approval.indexOf('async rejectSelected('));
+  const builders = approval.slice(approval.indexOf('function buildApprovedDetailCopyQuery('), approval.indexOf('function buildApprovedDetailReadQuery('));
+  const mainInsert = flow.indexOf('INSERT INTO production_reports');
+  const defectsCopy = flow.indexOf('buildApprovedDetailCopyQuery("defects"');
+  const deductionsCopy = flow.indexOf('buildApprovedDetailCopyQuery("deductions"');
+  const machineCopy = flow.indexOf('copyMachineLinesToApproved(item.id, approvedReportId');
+  const tempApproved = flow.indexOf("SET status='approved',reviewed_by=?,approved_at=NOW(),updated_at=NOW()");
+  const commit = flow.indexOf('await commit(connection)', tempApproved);
 
+  assert.match(builders, /INSERT INTO production_report_defects/);
+  assert.match(builders, /INSERT INTO production_report_deductions/);
   assert.ok(mainInsert >= 0, 'approved parent report is inserted');
   assert.ok(defectsCopy > mainInsert, 'defect details are copied after parent insert');
   assert.ok(deductionsCopy > defectsCopy, 'deduction details are copied after defect details');

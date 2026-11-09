@@ -695,6 +695,46 @@ function buildApprovedMachineLinesRead(approvedReportId) {
   };
 }
 
+function buildApprovedDetailCopyQuery(kind, approvedReportId, tempReportId) {
+  if (kind === "defects") {
+    return {
+      sql: `INSERT INTO production_report_defects (report_id,defect_type_id,quantity)
+           SELECT ?,defect_type_id,quantity FROM production_temp_defects WHERE temp_report_id=?`,
+      params: [approvedReportId, tempReportId],
+    };
+  }
+  if (kind === "deductions") {
+    return {
+      sql: `INSERT INTO production_report_deductions (report_id,deduction_type_id,hours)
+           SELECT ?,deduction_type_id,hours FROM production_temp_deductions WHERE temp_report_id=?`,
+      params: [approvedReportId, tempReportId],
+    };
+  }
+  throw new Error("Unsupported approved detail kind");
+}
+
+function buildApprovedDetailReadQuery(kind, approvedReportId) {
+  if (kind === "defects") {
+    return {
+      sql: `SELECT d.id, d.defect_type_id, dt.defect_code, dt.defect_name, d.quantity
+             FROM production_report_defects d
+             LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+            WHERE d.report_id=? ORDER BY d.id`,
+      params: [approvedReportId],
+    };
+  }
+  if (kind === "deductions") {
+    return {
+      sql: `SELECT d.id, d.deduction_type_id, dt.deduction_code, dt.deduction_name, d.hours
+             FROM production_report_deductions d
+             LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+            WHERE d.report_id=? ORDER BY d.id`,
+      params: [approvedReportId],
+    };
+  }
+  throw new Error("Unsupported approved detail kind");
+}
+
 module.exports = {
   async approveSelected(targets, reviewerId, isAdmin = false) {
     assertReviewBatchSize(targets);
@@ -737,36 +777,15 @@ module.exports = {
         const workDate = getApprovedWorkDate(item);
         dates.add(workDate);
 
-        await query(
-          connection,
-          `INSERT INTO production_report_defects (report_id,defect_type_id,quantity)
-           SELECT ?,defect_type_id,quantity FROM production_temp_defects WHERE temp_report_id=?`,
-          [approvedReportId,item.id],
-        );
-        await query(
-          connection,
-          `INSERT INTO production_report_deductions (report_id,deduction_type_id,hours)
-           SELECT ?,deduction_type_id,hours FROM production_temp_deductions WHERE temp_report_id=?`,
-          [approvedReportId,item.id],
-        );
-        // One read of the approved defects/deductions serves both the legacy snapshot (name columns, id order)
-        // and the approved version (type id + value, ordered by type id then id).
-        const approvedDefects = await qRows(
-          connection,
-          `SELECT d.id, d.defect_type_id, dt.defect_code, dt.defect_name, d.quantity
-             FROM production_report_defects d
-             LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
-            WHERE d.report_id=? ORDER BY d.id`,
-          [approvedReportId],
-        );
-        const approvedDeductions = await qRows(
-          connection,
-          `SELECT d.id, d.deduction_type_id, dt.deduction_code, dt.deduction_name, d.hours
-             FROM production_report_deductions d
-             LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
-            WHERE d.report_id=? ORDER BY d.id`,
-          [approvedReportId],
-        );
+        const { sql: defectsCopySql, params: defectsCopyParams } = buildApprovedDetailCopyQuery("defects", approvedReportId, item.id);
+        await query(connection, defectsCopySql, defectsCopyParams);
+        const { sql: deductionsCopySql, params: deductionsCopyParams } = buildApprovedDetailCopyQuery("deductions", approvedReportId, item.id);
+        await query(connection, deductionsCopySql, deductionsCopyParams);
+        // Sequential reads share the same transaction connection and serve both snapshot formats.
+        const { sql: defectsReadSql, params: defectsReadParams } = buildApprovedDetailReadQuery("defects", approvedReportId);
+        const approvedDefects = await qRows(connection, defectsReadSql, defectsReadParams);
+        const { sql: deductionsReadSql, params: deductionsReadParams } = buildApprovedDetailReadQuery("deductions", approvedReportId);
+        const approvedDeductions = await qRows(connection, deductionsReadSql, deductionsReadParams);
         const copied = await copyMachineLinesToApproved(item.id, approvedReportId, connection, tempLinesCache.get(Number(item.id)) || null);
         // Without machine lines nothing was inserted, so an empty array is the correct "just read" result.
         const approvedMachineLines = copied.rows;
