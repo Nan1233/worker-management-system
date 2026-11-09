@@ -64,6 +64,19 @@ const queryWithLockRetry = async (executor, sql, params = []) => {
     throw lastError;
 };
 
+// Keep the Cloudflare subrequest-saving rules in one place. These tables never
+// consume the generated id, so SELECT LAST_INSERT_ID() would be redundant.
+// The explicit duplicate-lock check is retained to preserve the existing rule.
+const shouldRecoverInsertId = (sql, result) => {
+    const statement = String(sql || "");
+    const isInsert = /^\\s*INSERT\\s+/i.test(statement);
+    const currentInsertId = Number(result?.insertId || 0);
+    const hasNoAutoIncrementId = /^\\s*INSERT\\s+INTO\\s+`?production_report_duplicate_locks\\b/i.test(statement);
+    const idNeverReadTable = /KTC_BATCH_ID_LOOKUP/i.test(statement)
+        || /^\\s*INSERT\\s+INTO\\s+`?(?:production_report_duplicate_locks|production_temp_machine_lines|production_temp_machine_defects|production_temp_defects|production_temp_deductions|report_edit_logs|report_action_logs|activity_logs|report_versions)\\b/i.test(statement);
+    return isInsert && currentInsertId <= 0 && !hasNoAutoIncrementId && !idNeverReadTable;
+};
+
 /**
  * Execute a SQL statement and normalize MySQL/TiDB INSERT metadata.
  *
@@ -76,23 +89,7 @@ const queryWithLockRetry = async (executor, sql, params = []) => {
 const executeQuery = async (executor, sql, params = []) => {
     const result = await queryWithLockRetry(executor, sql, params);
 
-    const isInsert = /^\s*INSERT\s+/i.test(String(sql || ""));
-    const currentInsertId = Number(result?.insertId || 0);
-
-    // production_report_duplicate_locks is keyed by a hash (no AUTO_INCREMENT), so its INSERT never has an
-    // insert id to recover. Skipping the lookup saves one TiDB HTTP subrequest per lock on Cloudflare Workers.
-    const hasNoAutoIncrementId = /^\s*INSERT\s+INTO\s+`?production_report_duplicate_locks\b/i.test(String(sql || ""));
-
-    // Append-only child/log tables whose generated id is never read back. On the Cloudflare Worker every
-    // statement is a subrequest (limit 50), so the extra SELECT LAST_INSERT_ID() per INSERT is pure waste.
-    // production_temp_machine_lines is written with one multi-row INSERT and defects are mapped by sort_order, so its
-    // ids are not read either. Tables whose id IS consumed (production_reports_temp, ...) are not listed.
-    const idNeverReadTable = /KTC_BATCH_ID_LOOKUP/i.test(String(sql || ""))
-        || /^\s*INSERT\s+INTO\s+`?(?:production_report_duplicate_locks|production_temp_machine_lines|production_temp_machine_defects|production_temp_defects|production_temp_deductions|report_edit_logs|report_action_logs|activity_logs|report_versions)\b/i.test(String(sql || ""));
-
-    if (!isInsert || currentInsertId > 0 || hasNoAutoIncrementId || idNeverReadTable) {
-        return result;
-    }
+    if (!shouldRecoverInsertId(sql, result)) return result;
 
     const idRows = await queryWithLockRetry(executor, "SELECT LAST_INSERT_ID() AS insertId", []);
     const insertId = Number(idRows?.[0]?.insertId || 0);
