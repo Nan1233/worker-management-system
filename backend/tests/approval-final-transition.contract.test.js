@@ -22,7 +22,17 @@ test('approval checks final transition before temp snapshot, commit and postcomm
   assert.match(approval, /catch \(error\) \{\s*const rollbackResult = await rollback\(connection\)/);
 });
 
-test('approval still serializes selected reports with ordered locking read', () => {
+test('approval selection is ordered, but its FOR UPDATE is stripped by the query adapter', () => {
+  const shared = fs.readFileSync(path.join(__dirname, '../models/productionTempModelShared.js'), 'utf8');
   assert.match(approval, /ORDER BY temp\.id ASC\s+FOR UPDATE/);
+  assert.match(shared, /const effectiveSql = isTempReportApprovalSelect\(sql\)\s*\? removeApprovalRowLock\(sql\)\s*:\s*sql/);
+  assert.match(shared, /replace\(\/\\s\+FOR\\s\+UPDATE\\b\/gi, ""\)/);
   assert.match(approval, /rows\.length !== reportIds\.length/);
+});
+
+test('approval uses a guarded final status transition rather than relying on a pessimistic selection lock', () => {
+  assert.match(approval, /WHERE id=\? AND status IN \('pending','need_fix'\)/);
+  assert.match(approval, /Number\(statusUpdate\?\.affectedRows \|\| 0\) !== 1/);
+  assert.match(approval, /error\.code = "APPROVAL_SELECTION_STALE"/);
+  assert.match(approval, /await rollback\(connection\)/);
 });
