@@ -341,30 +341,54 @@ function buildLegacyApprovedSnapshotPayload(item, approvedReportId, snapshotDefe
   };
 }
 
+function buildLegacySnapshotDefectsRead(approvedReportId) {
+  return {
+    sql: `SELECT dt.defect_code, dt.defect_name, d.quantity
+         FROM production_report_defects d
+         LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+        WHERE d.report_id=? ORDER BY d.id`,
+    params: [approvedReportId],
+  };
+}
+
+function buildLegacySnapshotDeductionsRead(approvedReportId) {
+  return {
+    sql: `SELECT dt.deduction_code, dt.deduction_name, d.hours
+         FROM production_report_deductions d
+         LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+        WHERE d.report_id=? ORDER BY d.id`,
+    params: [approvedReportId],
+  };
+}
+
+function buildLegacySnapshotInsert(item, approvedReportId, reviewerId, snapshotData) {
+  return {
+    sql: `INSERT INTO production_report_snapshots
+      (report_id,snapshot_type,standard_version_id,calculation_version,snapshot_data,created_by)
+     VALUES(?,'approved',?,'v1',?,?)
+     ON DUPLICATE KEY UPDATE
+       snapshot_data=VALUES(snapshot_data),
+       standard_version_id=VALUES(standard_version_id),
+       created_by=VALUES(created_by),
+       created_at=CURRENT_TIMESTAMP`,
+    params: [approvedReportId, item.standard_version_id || null, snapshotData, reviewerId],
+  };
+}
+
+async function readLegacySnapshotRows(connection, { sql, params }) {
+  return qRows(connection, sql, params);
+}
+
 async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection, preloaded = {}) {
   const preloadedMachineLines = preloaded.machineLines || null;
   // TiDB Serverless transaction connections must not run concurrent queries.
   // Keep these snapshot reads sequential on the same transaction connection.
   const snapshotDefects = preloaded.defects
     ? buildLegacySnapshotDefects(preloaded.defects)
-    : await qRows(
-      connection,
-      `SELECT dt.defect_code, dt.defect_name, d.quantity
-         FROM production_report_defects d
-         LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
-        WHERE d.report_id=? ORDER BY d.id`,
-      [approvedReportId],
-    );
+    : await readLegacySnapshotRows(connection, buildLegacySnapshotDefectsRead(approvedReportId));
   const snapshotDeductions = preloaded.deductions
     ? buildLegacySnapshotDeductions(preloaded.deductions)
-    : await qRows(
-      connection,
-      `SELECT dt.deduction_code, dt.deduction_name, d.hours
-         FROM production_report_deductions d
-         LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
-        WHERE d.report_id=? ORDER BY d.id`,
-      [approvedReportId],
-    );
+    : await readLegacySnapshotRows(connection, buildLegacySnapshotDeductionsRead(approvedReportId));
   const machineLines = Array.isArray(preloadedMachineLines)
     ? preloadedMachineLines
     : await qRows(
@@ -373,19 +397,8 @@ async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, 
       [approvedReportId],
     );
   const snapshotData = JSON.stringify(buildLegacyApprovedSnapshotPayload(item, approvedReportId, snapshotDefects, snapshotDeductions, machineLines));
-
-  await query(
-    connection,
-    `INSERT INTO production_report_snapshots
-      (report_id,snapshot_type,standard_version_id,calculation_version,snapshot_data,created_by)
-     VALUES(?,'approved',?,'v1',?,?)
-     ON DUPLICATE KEY UPDATE
-       snapshot_data=VALUES(snapshot_data),
-       standard_version_id=VALUES(standard_version_id),
-       created_by=VALUES(created_by),
-       created_at=CURRENT_TIMESTAMP`,
-    [approvedReportId, item.standard_version_id || null, snapshotData, reviewerId],
-  );
+  const { sql: snapshotSql, params: snapshotParams } = buildLegacySnapshotInsert(item, approvedReportId, reviewerId, snapshotData);
+  await query(connection, snapshotSql, snapshotParams);
 }
 
 // Preserve the positional values of the approved-report INSERT (approved_at remains NOW()).
