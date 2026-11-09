@@ -200,11 +200,16 @@ function isParentProcessNonProductWork(item) {
     && Number(item?.process_id) !== 60006;
 }
 
-function assertNonProductWorkSnapshot(item) {
+// Shared zero-standard predicate; each caller retains its own public error message.
+function hasNonProductSnapshotMismatch(item) {
   const output = Number(item?.standard_output || 0);
   const versionId = Number(item?.standard_version_id || 0);
   const machineStandardId = Number(item?.machine_standard_id || 0);
-  if (output !== 0 || versionId !== 0 || machineStandardId !== 0) {
+  return output !== 0 || versionId !== 0 || machineStandardId !== 0;
+}
+
+function assertNonProductWorkSnapshot(item) {
+  if (hasNonProductSnapshotMismatch(item)) {
     const error = new Error("Ảnh chụp công việc khác trong công đoạn không hợp lệ; cần kiểm tra lại báo cáo");
     error.status = 422;
     error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
@@ -268,10 +273,7 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
   // CVK "Công việc khác" reports intentionally have no product standard.
   // Their valid snapshot is zero output with no product/machine standard IDs.
   if (resolved?.nonProductWork) {
-    const savedOutput = Number(item.standard_output || 0);
-    const savedVersionId = Number(item.standard_version_id || 0);
-    const savedMachineStandardId = Number(item.machine_standard_id || 0);
-    if (savedOutput !== 0 || savedVersionId !== 0 || savedMachineStandardId !== 0) {
+    if (hasNonProductSnapshotMismatch(item)) {
       const error = new Error("Ảnh chụp công việc khác không hợp lệ; cần kiểm tra lại báo cáo");
       error.status = 422;
       error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
