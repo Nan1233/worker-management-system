@@ -576,6 +576,41 @@ function buildApprovedPostCommitNotification(item, approvedReportId, workDate) {
   };
 }
 
+function assertApprovedTempTransition(statusUpdate, item) {
+  if (Number(statusUpdate?.affectedRows || 0) !== 1) {
+    const error = new Error(`Báo cáo #${item.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
+    error.status = 409;
+    error.code = "APPROVAL_SELECTION_STALE";
+    error.isPublic = true;
+    throw error;
+  }
+}
+
+function buildApprovedTempSnapshotOptions(item, tempLinesCache) {
+  return tempLinesCache.has(Number(item.id))
+    ? { machineLines: tempLinesCache.get(Number(item.id)) }
+    : null;
+}
+
+function buildApprovedTempReportVersion(item, approvedReportId, reviewerId, approvedTempSnapshot) {
+  return {
+    reportType:"temp",
+    reportId:item.id,
+    snapshot:approvedTempSnapshot,
+    reason:`Được duyệt thành báo cáo chính thức #${approvedReportId}`,
+    userId:reviewerId,
+  };
+}
+
+function buildApprovalBatchResult(rows, approvedIds, dates) {
+  return {
+    count: rows.length,
+    temp_ids: rows.map((row) => row.id),
+    approved_ids: approvedIds,
+    dates: [...dates],
+  };
+}
+
 module.exports = {
   async approveSelected(targets, reviewerId, isAdmin = false) {
     assertReviewBatchSize(targets);
@@ -694,27 +729,15 @@ module.exports = {
             WHERE id=? AND status IN ('pending','need_fix') AND updated_at=?`,
           [reviewerId,item.id,item.updated_at],
         );
-        if (Number(statusUpdate?.affectedRows || 0) !== 1) {
-          const error = new Error(`Báo cáo #${item.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
-          error.status = 409;
-          error.code = "APPROVAL_SELECTION_STALE";
-          error.isPublic = true;
-          throw error;
-        }
+        assertApprovedTempTransition(statusUpdate, item);
 
         const approvedTempSnapshot = await AuditService.loadTempReportSnapshot(
           item.id,
           connection,
-          tempLinesCache.has(Number(item.id)) ? { machineLines: tempLinesCache.get(Number(item.id)) } : null,
+          buildApprovedTempSnapshotOptions(item, tempLinesCache),
         );
         if (approvedTempSnapshot) {
-          await AuditService.createReportVersion({
-            reportType:"temp",
-            reportId:item.id,
-            snapshot:approvedTempSnapshot,
-            reason:`Được duyệt thành báo cáo chính thức #${approvedReportId}`,
-            userId:reviewerId,
-          }, connection);
+          await AuditService.createReportVersion(buildApprovedTempReportVersion(item, approvedReportId, reviewerId, approvedTempSnapshot), connection);
         }
 
         postCommitNotifications.push(buildApprovedPostCommitNotification(item, approvedReportId, workDate));
@@ -727,12 +750,7 @@ module.exports = {
       } catch (error) {
         console.warn(`[KTC] Post-commit approval notification batch failed: ${error.message}`);
       }
-      return {
-        count: rows.length,
-        temp_ids: rows.map((row) => row.id),
-        approved_ids: approvedIds,
-        dates: [...dates],
-      };
+      return buildApprovalBatchResult(rows, approvedIds, dates);
     } catch (error) {
       const rollbackResult = await rollback(connection);
       if (rollbackResult?.ok === false) {
