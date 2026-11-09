@@ -43,7 +43,7 @@ test('machine resolution retains null, undefined, zero and string values', () =>
 });
 
 test('approval validates each machine line using extracted input mapping', () => {
-  const a = source.indexOf('async function validateApprovalSnapshot(');
+  const a = source.indexOf('async function validateMachineApprovalSnapshot(');
   const b = source.indexOf('async function createLegacyApprovedSnapshot(', a);
   const validate = source.slice(a, b);
   assert.match(validate, /standardResolver\.resolveStandard\(buildMachineStandardResolutionInput\(item, line\)\)/);
