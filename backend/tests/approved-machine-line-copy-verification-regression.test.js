@@ -9,7 +9,8 @@ const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApp
 const start = source.indexOf('function verifyApprovedMachineLineCopy(');
 const end = source.indexOf('// Copies the temp machine lines', start);
 assert.ok(start >= 0 && end > start, 'machine line copy verifier must exist');
-const verify = vm.runInNewContext(source.slice(start, end) + '\nverifyApprovedMachineLineCopy;', {});
+const { storedStandardSource } = require('../utils/standardSourceCode');
+const verify = vm.runInNewContext(source.slice(start, end) + '\nverifyApprovedMachineLineCopy;', { storedStandardSource });
 const temp = [
   { machine_code: 'C2556-2', product_code: 'P-A' },
   { machine_code: 'C2556-8', product_code: 'P-B' },
@@ -201,4 +202,23 @@ test('malformed approved query rows fail closed with public mismatch error', () 
 test('malformed extra approved rows are rejected even when other rows match', () => {
   fails([approved[0], null], [temp[0], temp[1]]);
   fails([approved[0], { id: 102, machine_code: 'C2556-8', product_code: 'P-B' }, undefined]);
+});
+
+test('approved machine copy verifies normalized historical standard source code', () => {
+  const original = [{ machine_code: 'M1', product_code: 'P1',
+    standard_source: 'PRODUCT_VERSION_PROCESS_FALLBACK' }];
+  const row = { id: 101, machine_code: 'M1', product_code: 'P1',
+    standard_source: 'PROD_VER_PROC_FBK' };
+  assert.equal(verify([row], original, 9).length, 1);
+  fails([{ ...row, standard_source: 'MACHINE' }], original);
+  fails([{ ...row, standard_source: null }], original);
+});
+
+test('approved machine copy verifies default and machine historical standard source', () => {
+  const original = [{ machine_code: 'M1', product_code: 'P1', standard_source: null }];
+  const row = { id: 101, machine_code: 'M1', product_code: 'P1', standard_source: 'DEFAULT' };
+  assert.equal(verify([row], original, 9).length, 1);
+  fails([{ ...row, standard_source: 'MACHINE' }], original);
+  assert.equal(verify([{ ...row, standard_source: 'MACHINE_HIST' }],
+    [{ ...original[0], standard_source: 'MACHINE_HISTORICAL' }], 9).length, 1);
 });
