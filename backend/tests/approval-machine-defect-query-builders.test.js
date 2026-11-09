@@ -47,5 +47,5 @@ test('read and insert stay within original transaction data flow',()=>{
   assert.ok(readFlow.indexOf('buildTempMachineLineDefectsQuery(lines)')<readFlow.indexOf('attachMachineLineDefects(lines, defects)'));
   const copy=source.slice(source.indexOf('async function copyMachineLinesToApproved('),source.indexOf('function getExtraDataObject('));
   assert.ok(copy.indexOf('const pendingDefects = buildApprovedMachineDefectRows(')<copy.indexOf('if (pendingDefects.length)'));
-  assert.ok(copy.indexOf('buildApprovedMachineDefectsInsert(pendingDefects)')<copy.indexOf('return { ids:'));
+  assert.ok(copy.indexOf('buildApprovedMachineDefectsInsert(pendingDefects)')<copy.lastIndexOf('return { ids:'));
 });
