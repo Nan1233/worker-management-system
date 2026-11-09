@@ -11,9 +11,9 @@ const reject = source.slice(source.indexOf('async rejectSelected('));
 test('approval and rejection both lock selected pending reports in ascending ID order', () => {
   for (const [name, body] of [['approval', approve], ['rejection', reject]]) {
     assert.match(body, /AND temp\.status IN \('pending','need_fix'\)[\s\S]*?ORDER BY temp\.id ASC\s+FOR UPDATE`/, name);
-    const visibilityGuard = name === 'approval' ? 'assertApprovalSelectionVisible(rows, reportIds)' : 'if (rows.length !== reportIds.length)';
+    const visibilityGuard = 'assertApprovalSelectionVisible(rows, reportIds)';
     assert.ok(body.indexOf('FOR UPDATE') < body.indexOf(visibilityGuard), name);
-    const versionGuard = name === 'approval' ? 'assertApprovalSelectionVersions(rows, expectedById)' : 'for (const row of rows)';
+    const versionGuard = 'assertApprovalSelectionVersions(rows, expectedById)';
     assert.ok(body.indexOf('FOR UPDATE') < body.indexOf(versionGuard), name);
   }
 });
@@ -29,6 +29,11 @@ test('rejection keeps status-conditional updates and aborts entire batch on lost
 });
 
 test('stale rejection selections return public 409 so manager can reload', () => {
-  assert.match(reject, /error\.code = "APPROVAL_SELECTION_STALE";\s*error\.isPublic = true/);
+  const visible = source.slice(source.indexOf('function assertApprovalSelectionVisible('), source.indexOf('function assertApprovalSelectionVersions('));
+  const versions = source.slice(source.indexOf('function assertApprovalSelectionVersions('), source.indexOf('module.exports = {'));
+  assert.match(reject, /assertApprovalSelectionVisible\(rows, reportIds\)/);
+  assert.match(reject, /assertApprovalSelectionVersions\(rows, expectedById\)/);
+  assert.match(visible, /error\.code = "APPROVAL_SELECTION_STALE";\s*error\.isPublic = true/);
+  assert.match(versions, /error\.code = "TEMP_REPORT_VERSION_CONFLICT";\s*error\.isPublic = true/);
   assert.match(reject, /error\.code = "TEMP_REPORT_VERSION_CONFLICT";\s*error\.isPublic = true/);
 });
