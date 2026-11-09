@@ -14,12 +14,17 @@ const build = vm.runInNewContext('buildApprovalSelection', ctx);
 const visible = vm.runInNewContext('assertApprovalSelectionVisible', ctx);
 const versions = vm.runInNewContext('assertApprovalSelectionVersions', ctx);
 
-test('normalization preserves primitive IDs, duplicate last-write timestamp and falsy timestamp', () => {
-  const selection = build([{ id: 4, expected_updated_at: '2026-10-30T01:00:00Z' }, 8,
+test('normalization preserves primitive IDs and cannot erase duplicate version guard', () => {
+  const timestamp = '2026-10-30T01:00:00Z';
+  const selection = build([{ id: 4, expected_updated_at: timestamp }, 8,
     { id: '4', expected_updated_at: '' }]);
   assert.deepEqual(Array.from(selection.reportIds), [4, 8]);
-  assert.equal(selection.expectedById.get(4), null);
+  assert.equal(selection.expectedById.get(4), timestamp);
   assert.equal(selection.expectedById.get(8), null);
+  assert.throws(() => versions([{ id: 4, updated_at: '2026-10-30T02:00:00Z' }], selection.expectedById),
+    (error) => error.code === 'TEMP_REPORT_VERSION_CONFLICT');
+  const withLaterTimestamp = build([{ id: 4 }, { id: '4', expected_updated_at: timestamp }]);
+  assert.equal(withLaterTimestamp.expectedById.get(4), timestamp);
 });
 
 test('invalid selections keep existing message', () => {
