@@ -873,6 +873,13 @@ module.exports = {
         const { sql: parentInsertSql, params: parentInsertParams } = buildApprovedParentInsertQuery(item, reviewerId);
         const insertResult = await query(connection, parentInsertSql, parentInsertParams);
         const approvedReportId = Number(insertResult.insertId);
+        if (!Number.isSafeInteger(approvedReportId) || approvedReportId <= 0) {
+          const error = new Error(`Không xác nhận được ID báo cáo đã duyệt cho báo cáo tạm #${item.id}; đã hủy duyệt để bảo vệ dữ liệu`);
+          error.status = 500;
+          error.code = "APPROVED_PARENT_INSERT_ID_INVALID";
+          error.isPublic = true;
+          throw error;
+        }
         approvedIds.push(approvedReportId);
 
         const workDate = getApprovedWorkDate(item);
