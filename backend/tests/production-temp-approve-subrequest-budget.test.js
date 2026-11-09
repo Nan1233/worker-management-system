@@ -109,7 +109,7 @@ async function approve(opts, prebuiltContext = null) {
   const logOrig = console.log; const warnOrig = console.warn; const errOrig = console.error;
   console.log = () => {}; console.warn = () => {}; console.error = () => {};
   try {
-    const result = await ctx.Review.approveSelected([{ id: 900001 }], 9, false);
+    const result = await ctx.Review.approveSelected(opts?.targets || [{ id: 900001 }], 9, false);
     return { ...ctx, result };
   } catch (error) {
     return { ...ctx, error };
@@ -327,4 +327,72 @@ test('overlapping reviewer approvals allow only one guarded transition and commi
   assert.equal(losers[0].log.filter((line) => line === 'ROLLBACK').length, 1);
   assert.equal(sharedApprovalState.approved, true);
   assert.equal(sharedApprovalState.claimed, false);
+});
+
+// A stale UI timestamp must fail before any approved-report writes. This is
+// an optimistic version check in the model, not a live isolation test.
+test('stale expected_updated_at rejects before any approved-report writes', async () => {
+  const { error, log } = await approve({
+    lines: 4,
+    targets: [{ id: 900001, expected_updated_at: '2026-10-19T09:00:00.000Z' }],
+  });
+  assert.ok(error);
+  assert.equal(error.status, 409);
+  assert.equal(error.code, 'TEMP_REPORT_VERSION_CONFLICT');
+  assert.equal(log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.equal(log.filter((entry) => /^INSERT INTO production_reports /.test(entry)).length, 0);
+});
+
+test('matching expected_updated_at allows approval and exactly one commit', async () => {
+  const { result, error, log } = await approve({
+    lines: 4,
+    targets: [{ id: 900001, expected_updated_at: '2026-10-19T10:00:00.000Z' }],
+  });
+  assert.ifError(error);
+  assert.equal(result.count, 1);
+  assert.equal(log.filter((entry) => entry === 'COMMIT').length, 1);
+  assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 0);
+});
+
+test('failure after claiming temp status releases mock claim and a later retry succeeds', async () => {
+  const sharedApprovalState = { approved: false, claimed: false };
+  const failed = await approve({
+    lines: 4,
+    sharedApprovalState,
+    failOn: /^INSERT INTO activity_logs\s*\(/,
+  });
+  assert.ok(failed.error);
+  assert.ok(failed.calls.some((entry) => /^UPDATE production_reports_temp SET status='approved'/.test(entry.sql)));
+  assert.ok(failed.calls.some((entry) => /^INSERT INTO activity_logs\s*\(/.test(entry.sql)));
+  assert.equal(failed.log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(failed.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.deepEqual(sharedApprovalState, { approved: false, claimed: false });
+
+  const retried = await approve({ lines: 4, sharedApprovalState });
+  assert.ifError(retried.error);
+  assert.equal(retried.result.count, 1);
+  assert.equal(retried.log.filter((entry) => entry === 'COMMIT').length, 1);
+  assert.deepEqual(sharedApprovalState, { approved: true, claimed: false });
+
+  const duplicate = await approve({ lines: 4, sharedApprovalState });
+  assert.ok(duplicate.error);
+  assert.equal(duplicate.error.status, 409);
+  assert.equal(duplicate.error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(duplicate.log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(duplicate.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+});
+
+test('failed guarded status transition never creates a committed approval', async () => {
+  const sharedApprovalState = { approved: false, claimed: false };
+  const first = await approve({ lines: 4, sharedApprovalState, staleFinalTransition: true });
+  assert.ok(first.error);
+  assert.equal(first.error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(first.log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(first.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.deepEqual(sharedApprovalState, { approved: false, claimed: false });
+  const second = await approve({ lines: 4, sharedApprovalState });
+  assert.ifError(second.error);
+  assert.equal(second.result.count, 1);
+  assert.equal(second.log.filter((entry) => entry === 'COMMIT').length, 1);
 });
