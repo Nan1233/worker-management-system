@@ -617,6 +617,14 @@ async function deliverRejectedPostCommitNotifications(notifications) {
   }
 }
 
+async function deliverApprovedPostCommitNotifications(notifications) {
+  try {
+    await AuditService.notifyBatch(notifications);
+  } catch (error) {
+    console.warn(`[KTC] Post-commit approval notification batch failed: ${error.message}`);
+  }
+}
+
 function buildApprovalScopeQuery(reportIds, reviewerId, isAdmin) {
   const placeholders = reportIds.map(() => "?").join(",");
   const scopeJoin = isAdmin ? "" : "LEFT JOIN manager_processes mp ON mp.process_id = temp.process_id";
@@ -840,11 +848,7 @@ module.exports = {
 
       await AuditService.logActivities(postCommitActivities, connection);
       await commit(connection);
-      try {
-        await AuditService.notifyBatch(postCommitNotifications);
-      } catch (error) {
-        console.warn(`[KTC] Post-commit approval notification batch failed: ${error.message}`);
-      }
+      await deliverApprovedPostCommitNotifications(postCommitNotifications);
       return buildApprovalBatchResult(rows, approvedIds, dates);
     } catch (error) {
       const rollbackResult = await rollback(connection);

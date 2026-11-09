@@ -74,7 +74,7 @@ test('approval still records audit before commit and sends notifications only af
     'postCommitNotifications.push(buildApprovedPostCommitNotification(item, approvedReportId, workDate))',
     'await AuditService.logActivities(postCommitActivities, connection)',
     'await commit(connection)',
-    'await AuditService.notifyBatch(postCommitNotifications)',
+    'await deliverApprovedPostCommitNotifications(postCommitNotifications)',
   ].map(x=>flow.indexOf(x));
   assert.ok(markers.every(x=>x>=0), 'all approval transaction markers present');
   assert.ok(markers.every((x,i)=>i===0||markers[i-1]<x), 'approval transaction order preserved');

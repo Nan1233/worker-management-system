@@ -20,7 +20,7 @@ test('approval checks final transition before temp snapshot, commit and postcomm
   const guard = approval.indexOf('assertApprovedTempTransition(statusUpdate, item)');
   const snapshot = approval.indexOf('const approvedTempSnapshot =');
   const commit = approval.indexOf('await commit(connection)');
-  const notify = approval.indexOf('await AuditService.notifyBatch(');
+  const notify = approval.indexOf('await deliverApprovedPostCommitNotifications(');
   assert.ok(guard > 0 && guard < snapshot && snapshot < commit && commit < notify);
   assert.match(approval, /catch \(error\) \{\s*const rollbackResult = await rollback\(connection\)/);
 });
