@@ -56,7 +56,9 @@ test('approval copy calls extracted row builder and keeps single bulk defect ins
   const endCopy = source.indexOf('function getExtraDataObject(', start);
   const copy = source.slice(start, endCopy);
   assert.match(copy, /buildApprovedMachineDefectRows\(tempLines, byInsertOrder\)/);
-  assert.match(copy, /INSERT INTO production_report_machine_defects/);
-  assert.match(copy, /pendingDefects\.flat\(\)/);
-  assert.equal((copy.match(/INSERT INTO production_report_machine_defects/g) || []).length, 1);
+  const builder = source.slice(source.indexOf('function buildApprovedMachineDefectsInsert('), source.indexOf('module.exports = {'));
+  assert.match(copy, /buildApprovedMachineDefectsInsert\(pendingDefects\)/);
+  assert.match(builder, /INSERT INTO production_report_machine_defects/);
+  assert.match(builder, /pendingDefects\.flat\(\)/);
+  assert.equal((builder.match(/INSERT INTO production_report_machine_defects/g) || []).length, 1);
 });
