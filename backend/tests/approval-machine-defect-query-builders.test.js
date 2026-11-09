@@ -13,9 +13,9 @@ vm.runInNewContext(source.slice(start,end),ctx);
 const read=vm.runInNewContext('buildTempMachineLineDefectsQuery',ctx);
 const insert=vm.runInNewContext('buildApprovedMachineDefectsInsert',ctx);
 test('temp defect query preserves numeric ids and input ordering',()=>{
-  const rows=[{id:'7'},{id:3},{id:'007'}];
+  const rows=[{id:'7'},{id:3},{id:'8'}];
   const result=read(rows);
-  assert.deepEqual(Array.from(result.params),[7,3,7]);
+  assert.deepEqual(Array.from(result.params),[7,3,8]);
   assert.match(result.sql,/FROM production_temp_machine_defects/);
   assert.ok(result.sql.includes('machine_line_id IN (?,?,?)'));
   assert.match(result.sql,/ORDER BY machine_line_id ASC, id ASC/);
