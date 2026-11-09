@@ -240,6 +240,16 @@ function buildMachineStandardResolutionInput(item, line) {
   };
 }
 
+// Keep the saved standard snapshot fields identical for machine lines and reports.
+function buildStandardSnapshotConsistencyInput(saved, resolved) {
+  return {
+    resolved,
+    standardOutput: saved.standard_output,
+    standardVersionId: saved.standard_version_id,
+    machineStandardId: saved.machine_standard_id,
+  };
+}
+
 async function validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache = null) {
   const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
   if (!isMachineReport && isParentProcessNonProductWork(item)) {
@@ -265,12 +275,7 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
     for (const line of tempLines) {
       await assertApprovedEventForTempLine(connection, { report: item, line, context: eventContext });
       const resolved = await standardResolver.resolveStandard(buildMachineStandardResolutionInput(item, line));
-      assertStandardSnapshotConsistency({
-        resolved,
-        standardOutput: line.standard_output,
-        standardVersionId: line.standard_version_id,
-        machineStandardId: line.machine_standard_id,
-      });
+      assertStandardSnapshotConsistency(buildStandardSnapshotConsistencyInput(line, resolved));
     }
     return;
   }
@@ -297,12 +302,7 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
     return;
   }
 
-  assertStandardSnapshotConsistency({
-    resolved,
-    standardOutput: item.standard_output,
-    standardVersionId: item.standard_version_id,
-    machineStandardId: item.machine_standard_id,
-  });
+  assertStandardSnapshotConsistency(buildStandardSnapshotConsistencyInput(item, resolved));
 }
 
 async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection, preloaded = {}) {
