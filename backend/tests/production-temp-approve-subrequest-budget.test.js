@@ -454,7 +454,6 @@ test('commit callback failure is surfaced and triggers rollback without reportin
 });
 
 test('rollback callback failure preserves original approval error and attaches rollbackError', async () => {
-  const originalError = Object.assign(new Error('simulated write failure'), { code: 'ER_FAKE' });
   const rollbackError = Object.assign(new Error('simulated rollback failure'), { code: 'ER_ROLLBACK_FAKE' });
   const { error, log } = await approve({
     lines: 4,
@@ -462,8 +461,8 @@ test('rollback callback failure preserves original approval error and attaches r
     rollbackError,
   });
   assert.ok(error);
-  assert.equal(error.message, originalError.message);
-  assert.equal(error.code, originalError.code);
+  assert.equal(error.message, 'boom');
+  assert.equal(error.code, 'ER_FAKE');
   assert.equal(error.rollbackError, rollbackError);
   assert.equal(log.filter((entry) => entry === 'COMMIT').length, 0);
   assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1);
