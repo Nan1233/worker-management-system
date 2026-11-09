@@ -325,6 +325,15 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
 }
 
 // Keep the approved v1 legacy snapshot payload stable for exports and audit history.
+// Preserve the exact v1 legacy snapshot projection of preloaded approved rows.
+function buildLegacySnapshotDefects(rows) {
+  return rows.map((row) => ({ defect_code: row.defect_code, defect_name: row.defect_name, quantity: row.quantity }));
+}
+
+function buildLegacySnapshotDeductions(rows) {
+  return rows.map((row) => ({ deduction_code: row.deduction_code, deduction_name: row.deduction_name, hours: row.hours }));
+}
+
 function buildLegacyApprovedSnapshotPayload(item, approvedReportId, snapshotDefects, snapshotDeductions, machineLines) {
   return {
     report: {
@@ -361,7 +370,7 @@ async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, 
   // TiDB Serverless transaction connections must not run concurrent queries.
   // Keep these snapshot reads sequential on the same transaction connection.
   const snapshotDefects = preloaded.defects
-    ? preloaded.defects.map((row) => ({ defect_code: row.defect_code, defect_name: row.defect_name, quantity: row.quantity }))
+    ? buildLegacySnapshotDefects(preloaded.defects)
     : await qRows(
       connection,
       `SELECT dt.defect_code, dt.defect_name, d.quantity
@@ -371,7 +380,7 @@ async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, 
       [approvedReportId],
     );
   const snapshotDeductions = preloaded.deductions
-    ? preloaded.deductions.map((row) => ({ deduction_code: row.deduction_code, deduction_name: row.deduction_name, hours: row.hours }))
+    ? buildLegacySnapshotDeductions(preloaded.deductions)
     : await qRows(
       connection,
       `SELECT dt.deduction_code, dt.deduction_name, d.hours
