@@ -433,6 +433,10 @@ function buildApprovalSelection(targets) {
   for (const item of normalizedTargets) {
     const id = Number(item.id);
     const expected = item.expected_updated_at || null;
+    // Invalid timestamps must not silently disable the optimistic concurrency check (NaN !== NaN).
+    if (expected && !Number.isFinite(new Date(expected).getTime())) {
+      throw createTempReportVersionConflictError(id);
+    }
     // Missing duplicate timestamps cannot clear a guard; conflicting guards must fail closed.
     const previous = expectedById.get(id);
     if (previous && expected && new Date(previous).getTime() !== new Date(expected).getTime()) {
@@ -473,7 +477,8 @@ function assertApprovalSelectionVisible(rows, reportIds) {
 function assertApprovalSelectionVersions(rows, expectedById) {
   for (const row of rows) {
     const expected = expectedById.get(Number(row.id));
-    if (expected && new Date(expected).getTime() !== new Date(row.updated_at).getTime()) {
+    if (expected && (!Number.isFinite(new Date(row.updated_at).getTime())
+      || new Date(expected).getTime() !== new Date(row.updated_at).getTime())) {
       throw createTempReportVersionConflictError(row.id);
     }
   }
