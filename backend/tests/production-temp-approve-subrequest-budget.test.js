@@ -467,3 +467,54 @@ test('rollback callback failure preserves original approval error and attaches r
   assert.equal(log.filter((entry) => entry === 'COMMIT').length, 0);
   assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1);
 });
+
+test('batch approval with a missing selected report fails atomically before approved writes', async () => {
+  const { error, log } = await approve({
+    lines: 4,
+    targets: [{ id: 900001 }, { id: 900002 }],
+  });
+  assert.ok(error);
+  assert.equal(error.status, 409);
+  assert.equal(error.code, 'APPROVAL_SELECTION_STALE');
+  assert.deepEqual(error.details?.missing_ids, [900002]);
+  assert.equal(log.filter((line) => line === 'COMMIT').length, 0);
+  assert.equal(log.filter((line) => line === 'ROLLBACK').length, 1);
+  assert.equal(log.filter((line) => /^INSERT INTO production_reports /.test(line)).length, 0);
+  assert.equal(log.filter((line) => /^INSERT INTO production_report_machine_lines/.test(line)).length, 0);
+});
+
+test('batch approval with one stale timestamp fails before writing any selected report', async () => {
+  const rows = [
+    { id: 900001, worker_id: 7, updated_at: new Date('2026-10-19T10:00:00Z') },
+    { id: 900002, worker_id: 7, updated_at: new Date('2026-10-19T10:30:00Z') },
+  ];
+  const { error, log } = await approve({
+    lines: 4,
+    reportRows: rows,
+    targets: [
+      { id: 900001, expected_updated_at: '2026-10-19T10:00:00.000Z' },
+      { id: 900002, expected_updated_at: '2026-10-19T10:00:00.000Z' },
+    ],
+  });
+  assert.ok(error);
+  assert.equal(error.status, 409);
+  assert.equal(error.code, 'TEMP_REPORT_VERSION_CONFLICT');
+  assert.equal(log.filter((line) => line === 'COMMIT').length, 0);
+  assert.equal(log.filter((line) => line === 'ROLLBACK').length, 1);
+  assert.equal(log.filter((line) => /^INSERT INTO production_reports /.test(line)).length, 0);
+});
+
+test('batch approval rejects a report that became approved before selection', async () => {
+  const sharedApprovalState = { approved: true, claimed: false };
+  const { error, log } = await approve({
+    lines: 4,
+    sharedApprovalState,
+    targets: [{ id: 900001 }, { id: 900002 }],
+  });
+  assert.ok(error);
+  assert.equal(error.status, 409);
+  assert.equal(error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(log.filter((line) => line === 'COMMIT').length, 0);
+  assert.equal(log.filter((line) => line === 'ROLLBACK').length, 1);
+  assert.equal(log.filter((line) => /^INSERT INTO production_reports /.test(line)).length, 0);
+});
