@@ -62,6 +62,13 @@ test('selection rejects unsafe integer report IDs before database access', () =>
   assert.deepEqual(Array.from(build([Number.MAX_SAFE_INTEGER]).reportIds), [Number.MAX_SAFE_INTEGER]);
 });
 
+test('selection rejects coerced non-decimal IDs rather than approving another report', () => {
+  for (const value of [[true], [false], ['0x10'], ['1e2'], [' 1 '], ['1.0'], [1, true], [1, '0x2']]) {
+    assert.throws(() => build(value), (error) => error.message === 'Danh sách báo cáo không hợp lệ');
+  }
+  assert.deepEqual(Array.from(build([1, '002']).reportIds), [1, 2]);
+});
+
 test('stale selection preserves public 409 error, requested and missing IDs', () => {
   const requested = [2, 3, 4];
   assert.throws(() => visible([{ id: 2 }, { id: '4' }], requested), (error) => {
