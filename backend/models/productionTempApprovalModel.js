@@ -429,7 +429,11 @@ function buildApprovalSelection(targets) {
   for (const item of normalizedTargets) {
     const id = Number(item.id);
     const expected = item.expected_updated_at || null;
-    // A duplicate ID without a timestamp must not disable an earlier version guard.
+    // Missing duplicate timestamps cannot clear a guard; conflicting guards must fail closed.
+    const previous = expectedById.get(id);
+    if (previous && expected && new Date(previous).getTime() !== new Date(expected).getTime()) {
+      throw createTempReportVersionConflictError(id);
+    }
     if (expected || !expectedById.has(id)) expectedById.set(id, expected);
   }
   return { reportIds, expectedById };
