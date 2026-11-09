@@ -525,8 +525,8 @@ module.exports = {
           connection,
           `UPDATE production_reports_temp
               SET status='approved',reviewed_by=?,approved_at=NOW(),updated_at=NOW()
-            WHERE id=? AND status IN ('pending','need_fix')`,
-          [reviewerId,item.id],
+            WHERE id=? AND status IN ('pending','need_fix') AND updated_at=?`,
+          [reviewerId,item.id,item.updated_at],
         );
         if (Number(statusUpdate?.affectedRows || 0) !== 1) {
           const error = new Error(`Báo cáo #${item.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);

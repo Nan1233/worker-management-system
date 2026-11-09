@@ -8,7 +8,7 @@ const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApp
 const approval = source.slice(source.indexOf('async approveSelected('), source.indexOf('async rejectSelected('));
 
 test('approval final transition requires pending state and exactly one affected row', () => {
-  assert.match(approval, /UPDATE production_reports_temp\s+SET status='approved'[\s\S]*?WHERE id=\? AND status IN \('pending','need_fix'\)/);
+  assert.match(approval, /UPDATE production_reports_temp\s+SET status='approved'[\s\S]*?WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
   assert.match(approval, /Number\(statusUpdate\?\.affectedRows \|\| 0\) !== 1/);
   assert.match(approval, /error\.status = 409;\s*error\.code = "APPROVAL_SELECTION_STALE";\s*error\.isPublic = true/);
 });
@@ -31,8 +31,13 @@ test('approval selection is ordered, but its FOR UPDATE is stripped by the query
 });
 
 test('approval uses a guarded final status transition rather than relying on a pessimistic selection lock', () => {
-  assert.match(approval, /WHERE id=\? AND status IN \('pending','need_fix'\)/);
+  assert.match(approval, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
   assert.match(approval, /Number\(statusUpdate\?\.affectedRows \|\| 0\) !== 1/);
   assert.match(approval, /error\.code = "APPROVAL_SELECTION_STALE"/);
   assert.match(approval, /await rollback\(connection\)/);
+});
+
+test('approval compares final transition against the row version selected in this transaction', () => {
+  assert.match(approval, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
+  assert.match(approval, /\[reviewerId,item\.id,item\.updated_at\]/);
 });
