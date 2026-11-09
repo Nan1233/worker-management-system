@@ -45,7 +45,7 @@ test('snapshot reader forwards SQL and params without mutation',async()=>{
 });
 test('snapshot creation keeps sequential reads and single upsert',()=>{
  const flow=source.slice(source.indexOf('async function createLegacyApprovedSnapshot('),source.indexOf('// Preserve the positional values'));
- const markers=['buildLegacySnapshotDefectsRead(approvedReportId)','buildLegacySnapshotDeductionsRead(approvedReportId)','SELECT * FROM production_report_machine_lines','JSON.stringify(buildLegacyApprovedSnapshotPayload(','buildLegacySnapshotInsert(item, approvedReportId, reviewerId, snapshotData)','await query(connection, snapshotSql, snapshotParams)'];
+ const markers=['buildLegacySnapshotDefectsRead(approvedReportId)','buildLegacySnapshotDeductionsRead(approvedReportId)','buildApprovedMachineLinesRead(approvedReportId)','JSON.stringify(buildLegacyApprovedSnapshotPayload(','buildLegacySnapshotInsert(item, approvedReportId, reviewerId, snapshotData)','await query(connection, snapshotSql, snapshotParams)'];
  const positions=markers.map(x=>flow.indexOf(x));
  assert.ok(positions.every(x=>x>=0));
  assert.ok(positions.every((x,i)=>i===0||positions[i-1]<x));
