@@ -146,11 +146,18 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId) {
       && Object.prototype.hasOwnProperty.call(persisted, column)
       && Object.prototype.hasOwnProperty.call(source, column)
       && String(persisted[column] || "") !== String(source[column] || ""));
+  // sort_order is copied with a legacy default of 1. It distinguishes otherwise
+  // identical machine/product runs and must survive the bulk INSERT unchanged.
+  const sortOrderMismatch = (persisted, source) =>
+    Object.prototype.hasOwnProperty.call(persisted, "sort_order")
+      && Object.prototype.hasOwnProperty.call(source, "sort_order")
+      && String(persisted.sort_order || 1) !== String(source.sort_order || 1);
   if (byInsertOrder.length !== tempLines.length
     || hasInvalidIds
     || byInsertOrder.some((row, index) => String(row.machine_code) !== String(tempLines[index].machine_code)
       || String(row.product_code) !== String(tempLines[index].product_code)
-      || identityMismatch(row, tempLines[index]))) {
+      || identityMismatch(row, tempLines[index])
+      || sortOrderMismatch(row, tempLines[index]))) {
     const error = new Error(`Không xác nhận được dòng máy đã sao chép cho báo cáo tạm #${tempReportId}; đã hủy duyệt để bảo vệ dữ liệu`);
     error.status = 500;
     error.code = "APPROVED_MACHINE_LINES_COPY_MISMATCH";
