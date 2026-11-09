@@ -6,9 +6,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-const start = source.indexOf('function attachMachineLineDefects(');
+const queryStart = source.indexOf('function buildTempMachineLineDefectsQuery(');\nconst queryEnd = source.indexOf('function buildApprovedMachineDefectsInsert(', queryStart);\nconst start = source.indexOf('function attachMachineLineDefects(');
 const end = source.indexOf('// Build approved defect rows', start);
-assert.ok(start >= 0 && end > start, 'temp machine loader and builders must exist');
+assert.ok(queryStart >= 0 && queryEnd > queryStart && start >= 0 && end > start, 'temp machine loader and builders must exist');
 
 function createLoader({ lines, defects = [], failRead = false }) {
   const connection = { transaction: true };
@@ -21,7 +21,7 @@ function createLoader({ lines, defects = [], failRead = false }) {
       return calls.length === 1 ? lines : defects;
     },
   };
-  vm.runInNewContext(source.slice(start, end), context);
+  vm.runInNewContext(source.slice(queryStart, queryEnd) + '\\n' + source.slice(start, end), context);
   return { load: vm.runInNewContext('getTempMachineLines', context), calls, connection };
 }
 
