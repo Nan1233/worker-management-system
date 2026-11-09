@@ -24,7 +24,7 @@ test('machine line copy verifies persisted rows before creating or inserting def
     'await query(connection, machineInsertSql, machineInsertParams)',
     'buildApprovedMachineLinesRead(approvedReportId)',
     'await qRows(connection, approvedLinesSql, approvedLinesParams)',
-    'verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId)',
+    'verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, approvedReportId)',
     'buildApprovedMachineDefectRows(tempLines, byInsertOrder)',
     'buildApprovedMachineDefectsInsert(pendingDefects)',
     'await query(connection, defectInsertSql, defectInsertParams)',
