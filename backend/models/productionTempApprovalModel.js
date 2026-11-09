@@ -425,7 +425,13 @@ function buildApprovalSelection(targets) {
     : [];
   const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
   if (!reportIds.length) throw new Error("Danh sách báo cáo không hợp lệ");
-  const expectedById = new Map(normalizedTargets.map((item) => [Number(item.id), item.expected_updated_at || null]));
+  const expectedById = new Map();
+  for (const item of normalizedTargets) {
+    const id = Number(item.id);
+    const expected = item.expected_updated_at || null;
+    // A duplicate ID without a timestamp must not disable an earlier version guard.
+    if (expected || !expectedById.has(id)) expectedById.set(id, expected);
+  }
   return { reportIds, expectedById };
 }
 
