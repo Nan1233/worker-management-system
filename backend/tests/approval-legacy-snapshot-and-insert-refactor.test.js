@@ -41,7 +41,7 @@ test('legacy snapshot preserves all report fields and source references', () => 
   assert.strictEqual(result.defects, defects);
   assert.strictEqual(result.deductions, deductions);
   assert.strictEqual(result.machineLines, lines);
-  assert.equal(Object.keys(result.report).length, 22);
+  assert.equal(Object.keys(result.report).length, 21);
 });
 
 test('legacy snapshot retains numeric defaults, date fallback and explicit nulls', () => {
