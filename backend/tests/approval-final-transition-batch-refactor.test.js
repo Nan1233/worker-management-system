@@ -71,7 +71,7 @@ test('final transition, snapshot version, notification and commit keep original 
     'postCommitNotifications.push(buildApprovedPostCommitNotification(item, approvedReportId, workDate))',
     'await AuditService.logActivities(postCommitActivities, connection)',
     'await commit(connection)',
-    'await AuditService.notifyBatch(postCommitNotifications)',
+    'await deliverApprovedPostCommitNotifications(postCommitNotifications)',
     'return buildApprovalBatchResult(rows, approvedIds, dates)',
   ].map(x=>flow.indexOf(x));
   assert.ok(markers.every(x=>x>=0),'all transaction markers remain');
