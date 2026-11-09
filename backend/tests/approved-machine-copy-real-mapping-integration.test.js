@@ -51,8 +51,8 @@ const lines = [
       { defect_type_id: 10, defect_code: 'N10', defect_name: 'Other', quantity: '1.000000' }] },
 ];
 const approved = [
-  { id: 501, machine_code: 'M-1', product_code: 'P-1' },
-  { id: 502, machine_code: 'M-2', product_code: 'P-2' },
+  { id: 501, report_id: 100, machine_code: 'M-1', product_code: 'P-1' },
+  { id: 502, report_id: 100, machine_code: 'M-2', product_code: 'P-2' },
 ];
 
 test('real verifier and defect mapper preserve parent lineage and decimal quantities', async () => {

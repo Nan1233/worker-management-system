@@ -60,7 +60,7 @@ test('approval copy verifies rows before inserting defects without extra SELECT'
   const a = source.indexOf('async function copyMachineLinesToApproved(');
   const b = source.indexOf('function getExtraDataObject(', a);
   const copy = source.slice(a, b);
-  assert.match(copy, /verifyApprovedMachineLineCopy\(approvedRows, tempLines, tempReportId\)/);
+  assert.ok(copy.includes('verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, approvedReportId)'));
   assert.ok(copy.indexOf('verifyApprovedMachineLineCopy(') < copy.indexOf('buildApprovedMachineDefectRows('));
   const readBuilder = source.slice(source.indexOf('function buildApprovedMachineLinesRead('), source.indexOf('module.exports = {'));
   assert.match(copy, /buildApprovedMachineLinesRead\(approvedReportId\)/);

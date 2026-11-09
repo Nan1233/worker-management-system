@@ -132,7 +132,7 @@ function buildApprovedMachineLineValues(tempLines, approvedReportId) {
 
 // Verify the bulk INSERT's assumed id ordering before associating defects.
 // This check intentionally fails closed if the database returns unexpected rows.
-function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId) {
+function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, approvedReportId = null) {
   const byInsertOrder = [...approvedRows].sort((a, b) => Number(a.id) - Number(b.id));
   const ids = byInsertOrder.map((row) => Number(row.id));
   const hasInvalidIds = ids.some((id) => !Number.isSafeInteger(id) || id <= 0)
@@ -152,8 +152,13 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId) {
     Object.prototype.hasOwnProperty.call(persisted, "sort_order")
       && Object.prototype.hasOwnProperty.call(source, "sort_order")
       && String(persisted.sort_order || 1) !== String(source.sort_order || 1);
+  const wrongReportLineage = approvedReportId != null && byInsertOrder.some((row) =>
+    !Object.prototype.hasOwnProperty.call(row, "report_id")
+      || !Number.isSafeInteger(Number(row.report_id))
+      || Number(row.report_id) !== Number(approvedReportId));
   if (byInsertOrder.length !== tempLines.length
     || hasInvalidIds
+    || wrongReportLineage
     || byInsertOrder.some((row, index) => String(row.machine_code) !== String(tempLines[index].machine_code)
       || String(row.product_code) !== String(tempLines[index].product_code)
       || identityMismatch(row, tempLines[index])
@@ -183,7 +188,7 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
   const approvedRows = await qRows(connection, approvedLinesSql, approvedLinesParams);
   // AUTO_INCREMENT hands out ascending ids in row order inside one statement, so the n-th inserted row is the
   // n-th lowest id. Verify that assumption against machine_code/product_code and fail closed (rollback) if not.
-  const byInsertOrder = verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId);
+  const byInsertOrder = verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, approvedReportId);
 
   const pendingDefects = buildApprovedMachineDefectRows(tempLines, byInsertOrder);
 

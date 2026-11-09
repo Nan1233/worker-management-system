@@ -98,3 +98,16 @@ test('sort order identity is optional for legacy rows without the column', () =>
   assert.equal(verify([{ id: 101, machine_code: 'M1', product_code: 'P1' }],
     [{ machine_code: 'M1', product_code: 'P1', sort_order: 1 }], 9).length, 1);
 });
+
+test('approved machine lines must belong to the target approved report', () => {
+  const saved = [{ machine_code: 'M1', product_code: 'P1' }];
+  const valid = [{ id: 101, report_id: 5001, machine_code: 'M1', product_code: 'P1' }];
+  assert.equal(verify(valid, saved, 9, 5001).length, 1);
+  for (const report_id of [5002, null, 0, 'invalid']) {
+    assert.throws(() => verify([{ ...valid[0], report_id }], saved, 9, 5001),
+      (error) => error.code === 'APPROVED_MACHINE_LINES_COPY_MISMATCH');
+  }
+  const { report_id, ...missing } = valid[0];
+  assert.throws(() => verify([missing], saved, 9, 5001),
+    (error) => error.code === 'APPROVED_MACHINE_LINES_COPY_MISMATCH');
+});
