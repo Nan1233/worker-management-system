@@ -111,3 +111,31 @@ test('approved machine lines must belong to the target approved report', () => {
   assert.throws(() => verify([missing], saved, 9, 5001),
     (error) => error.code === 'APPROVED_MACHINE_LINES_COPY_MISMATCH');
 });
+
+test('identical machine identity cannot conceal swapped output and NG quantities', () => {
+  const originals = [
+    { machine_code: 'M1', product_code: 'P1', sort_order: 1, ok_quantity: '100.000000', ng_quantity: '2.000000' },
+    { machine_code: 'M1', product_code: 'P1', sort_order: 1, ok_quantity: '80.000000', ng_quantity: '4.000000' },
+  ];
+  const valid = originals.map((line, i) => ({ ...line, id: 101 + i, report_id: 5001 }));
+  assert.equal(verify(valid, originals, 9, 5001).length, 2);
+  fails(valid.map((row, i) => ({ ...row, ok_quantity: originals[1 - i].ok_quantity })), originals);
+  fails(valid.map((row, i) => ({ ...row, ng_quantity: originals[1 - i].ng_quantity })), originals);
+});
+
+test('machine quantity verification accepts equivalent TiDB decimal representations', () => {
+  const source = { machine_code: 'M1', product_code: 'P1', machine_time_hours: '01.500000',
+    standard_output: '100', ok_quantity: 5, ng_quantity: '0.000000',
+    counted_output: null, deduction_time_hours: null, earned_standard_hours: '0.50' };
+  const persisted = { id: 101, report_id: 5001, machine_code: 'M1', product_code: 'P1',
+    machine_time_hours: '1.5', standard_output: '100.000000', ok_quantity: '5.000000',
+    ng_quantity: 0, counted_output: '0.000000', deduction_time_hours: 0,
+    earned_standard_hours: '0.500000' };
+  assert.equal(verify([persisted], [source], 9, 5001).length, 1);
+});
+
+test('machine quantity verification rejects fractional changes without floating-point rounding', () => {
+  const source = [{ machine_code: 'M1', product_code: 'P1', ok_quantity: '9007199254740993.000001' }];
+  fails([{ id: 101, machine_code: 'M1', product_code: 'P1', ok_quantity: '9007199254740993.000002' }], source);
+  fails([{ id: 101, machine_code: 'M1', product_code: 'P1', ok_quantity: 'invalid' }], source);
+});
