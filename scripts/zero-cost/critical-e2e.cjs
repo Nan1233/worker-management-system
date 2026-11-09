@@ -41,7 +41,20 @@ async function cleanupRun(db){
   }
   if(errors.length)throw new Error(`E2E cleanup failed for ${errors.length} table(s): ${errors.join('; ')}`);
 }
+async function verifyWriterDatabaseSession(db){
+ const [rows]=await db.query('SELECT DATABASE() AS database_name');
+ const actual=String(rows?.[0]?.database_name||'').trim();
+ if(actual!=='worker_management_e2e'){
+   throw new Error('KTC_E2E_WRITER_BLOCKED: unexpected active database');
+ }
+}
 async function main(){const db=await mysql.createConnection(dbCfg);
+ try {
+   await verifyWriterDatabaseSession(db);
+ } catch(error) {
+   try { await db.end(); } catch(closeError) { throw new AggregateError([error,closeError],'E2E writer DB verification and close failed'); }
+   throw error;
+ }
  let executionError=null;
  try {
  await tc(1,'Worker login',async()=>{const r=await w.req('POST','/api/auth/login',{username:fixture.worker.code,access_type:'worker'});return {ok:r.status===200,status:r.status}});
