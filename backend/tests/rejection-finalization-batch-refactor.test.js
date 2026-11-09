@@ -68,5 +68,5 @@ test('rejection maintains guarded update, snapshot, audit, commit, notification 
   ].map(x=>flow.indexOf(x));
   assert.ok(markers.every(x=>x>=0));
   assert.ok(markers.every((x,i)=>i===0||markers[i-1]<x));
-  assert.match(flow,/await rollback\(connection\)/);
+  assert.match(flow,/await rollbackReviewTransaction\(connection, error\)/);
 });
