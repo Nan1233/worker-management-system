@@ -19,8 +19,10 @@ test('approval and rejection both lock selected pending reports in ascending ID 
 });
 
 test('rejection keeps status-conditional updates and aborts entire batch on lost race', () => {
-  assert.match(reject, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
-  assert.match(reject, /WHERE id=\? AND status IN \('pending','need_fix'\)`/);
+  const updateBuilder = source.slice(source.indexOf('function buildRejectedReportUpdate('), source.indexOf('function buildRejectedReportVersion('));
+  assert.match(reject, /buildRejectedReportUpdate\(row, expected, cleanReason, reviewerId\)/);
+  assert.match(updateBuilder, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
+  assert.match(updateBuilder, /WHERE id=\? AND status IN \('pending','need_fix'\)`/);
   assert.match(reject, /Number\(updateResult\?\.affectedRows \|\| 0\) !== 1/);
   assert.match(reject, /await rollback\(connection\)/);
   assert.match(reject, /await commit\(connection\)/);
