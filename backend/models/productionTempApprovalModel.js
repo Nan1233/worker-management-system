@@ -134,9 +134,13 @@ function buildApprovedMachineLineValues(tempLines, approvedReportId) {
 // This check intentionally fails closed if the database returns unexpected rows.
 function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, approvedReportId = null) {
   const byInsertOrder = [...approvedRows].sort((a, b) => Number(a.id) - Number(b.id));
-  const ids = byInsertOrder.map((row) => Number(row.id));
-  const hasInvalidIds = ids.some((id) => !Number.isSafeInteger(id) || id <= 0)
-    || new Set(ids).size !== ids.length;
+  const parseStrictId = (value) => {
+    if (typeof value !== "number" && (typeof value !== "string" || !/^[0-9]+$/.test(value))) return null;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+  };
+  const ids = byInsertOrder.map((row) => parseStrictId(row.id));
+  const hasInvalidIds = ids.some((id) => id === null) || new Set(ids).size !== ids.length;
   // Machine/product codes alone cannot distinguish repeated runs of the same product.
   // Check persisted source identities too, when supplied by the database.
   const identityColumns = ["machine_event_id", "machine_id", "product_standard_id",
@@ -181,8 +185,8 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, ap
   });
   const wrongReportLineage = approvedReportId != null && byInsertOrder.some((row) =>
     !Object.prototype.hasOwnProperty.call(row, "report_id")
-      || !Number.isSafeInteger(Number(row.report_id))
-      || Number(row.report_id) !== Number(approvedReportId));
+      || parseStrictId(row.report_id) === null
+      || parseStrictId(row.report_id) !== parseStrictId(approvedReportId));
   if (byInsertOrder.length !== tempLines.length
     || hasInvalidIds
     || wrongReportLineage
