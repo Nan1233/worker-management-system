@@ -54,6 +54,8 @@ test('selection rejects unsafe integer report IDs before database access', () =>
     ['9007199254740993'],
     [1.5],
     [-2],
+    [1, Number.MAX_SAFE_INTEGER + 1],
+    [1, 'not-a-report'],
   ]) {
     assert.throws(() => build(value), (error) => error.message === 'Danh sách báo cáo không hợp lệ');
   }
