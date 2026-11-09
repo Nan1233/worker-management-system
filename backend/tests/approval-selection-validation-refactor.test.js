@@ -27,6 +27,19 @@ test('normalization preserves primitive IDs and cannot erase duplicate version g
   assert.equal(withLaterTimestamp.expectedById.get(4), timestamp);
 });
 
+test('conflicting duplicate timestamps fail closed before acquiring a connection', () => {
+  const first = '2026-10-30T01:00:00Z';
+  const second = '2026-10-30T02:00:00Z';
+  assert.throws(() => build([
+    { id: 7, expected_updated_at: first },
+    { id: '7', expected_updated_at: second },
+  ]), (error) => error.code === 'TEMP_REPORT_VERSION_CONFLICT' && error.status === 409);
+  assert.doesNotThrow(() => build([
+    { id: 7, expected_updated_at: first },
+    { id: 7, expected_updated_at: '2026-10-30T01:00:00.000Z' },
+  ]));
+});
+
 test('invalid selections keep existing message', () => {
   for (const value of [null, {}, [], [0], ['bad'], [null], [undefined], [null, undefined]]) {
     assert.throws(() => build(value), (error) => error.message === 'Danh sách báo cáo không hợp lệ');
