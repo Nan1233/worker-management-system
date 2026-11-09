@@ -6,13 +6,13 @@ const path=require('node:path');
 const vm=require('node:vm');
 const source=fs.readFileSync(path.resolve(__dirname,'../scripts/stagingReleaseGate.cjs'),'utf8');
 function execute(env,reply){
- const calls=[],logs=[],exit={code:null};
+ const calls=[],logs=[],files=[],exit={code:null};
  const child={spawnSync(cmd,args,options){calls.push({cmd,args,options});return reply(calls.length);}};
  const processStub={env,execPath:'/usr/bin/node',exit(code){exit.code=code;throw new Error('EXIT:'+code)}};
  try{
-  vm.runInNewContext(source,{require(name){if(name==='node:child_process')return child;if(name==='node:path')return path;throw Error(name)},__dirname:path.resolve(__dirname,'../scripts'),process:processStub,console:{error:(...a)=>logs.push(a.join(' ')),log:(...a)=>logs.push(a.join(' '))}});
+  vm.runInNewContext(source,{require(name){if(name==='node:child_process')return child;if(name==='node:path')return path;if(name==='node:fs')return {mkdirSync(){},writeFileSync(p,content){files.push({p,content:JSON.parse(content)})}};throw Error(name)},__dirname:path.resolve(__dirname,'../scripts'),process:processStub,console:{error:(...a)=>logs.push(a.join(' ')),log:(...a)=>logs.push(a.join(' '))}});
  }catch(error){if(!String(error.message).startsWith('EXIT:'))throw error;}
- return {calls,logs,exit};
+ return {calls,logs,exit,files};
 }
 test('gate runs all three steps using current Node and bounded timeout',()=>{
  const x=execute({},()=>({status:0}));
@@ -34,4 +34,22 @@ test('gate stops on signal or spawn timeout and never prints PASS',()=>{
   assert.ok(x.logs.some(s=>s.includes('KTC_STAGING_RELEASE_GATE_FAIL=')));
   assert.ok(!x.logs.some(s=>s.includes('KTC_STAGING_RELEASE_GATE=PASS')));
  }
+});
+
+test('gate writes sanitized PASS manifest only after all checks succeed',()=>{
+ const x=execute({},()=>({status:0}));
+ assert.equal(x.files.length,1);
+ assert.equal(x.files[0].content.status,'PASS');
+ assert.equal(x.files[0].content.steps.length,3);
+ assert.ok(x.files[0].content.steps.every(s=>s.status==='PASS'));
+ assert.ok(!JSON.stringify(x.files[0].content).includes('DB_PASSWORD'));
+});
+test('gate writes FAIL manifest with only completed steps when child fails',()=>{
+ const x=execute({},n=>n===2?{status:null,signal:'SIGTERM',error:{code:'ETIMEDOUT',message:'timeout'}}:{status:0});
+ assert.equal(x.exit.code,1);
+ assert.equal(x.files.length,1);
+ assert.equal(x.files[0].content.status,'FAIL');
+ assert.equal(x.files[0].content.steps.length,2);
+ assert.equal(x.files[0].content.steps[1].errorCode,'ETIMEDOUT');
+ assert.equal(x.files[0].content.steps[1].signal,'SIGTERM');
 });
