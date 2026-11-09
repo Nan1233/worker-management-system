@@ -46,6 +46,22 @@ test('invalid selections keep existing message', () => {
   }
 });
 
+test('selection rejects unsafe integer report IDs before database access', () => {
+  for (const value of [
+    [Number.MAX_SAFE_INTEGER + 1],
+    [Number.POSITIVE_INFINITY],
+    [Number.NaN],
+    ['9007199254740993'],
+    [1.5],
+    [-2],
+    [1, Number.MAX_SAFE_INTEGER + 1],
+    [1, 'not-a-report'],
+  ]) {
+    assert.throws(() => build(value), (error) => error.message === 'Danh sách báo cáo không hợp lệ');
+  }
+  assert.deepEqual(Array.from(build([Number.MAX_SAFE_INTEGER]).reportIds), [Number.MAX_SAFE_INTEGER]);
+});
+
 test('stale selection preserves public 409 error, requested and missing IDs', () => {
   const requested = [2, 3, 4];
   assert.throws(() => visible([{ id: 2 }, { id: '4' }], requested), (error) => {

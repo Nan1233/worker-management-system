@@ -424,7 +424,9 @@ function buildApprovalSelection(targets) {
     ? targets.map((item) => item !== null && typeof item === "object" ? item : { id: item, expected_updated_at: null })
     : [];
   const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
-  if (!reportIds.length) throw new Error("Danh sách báo cáo không hợp lệ");
+  if (!reportIds.length || normalizedTargets.some((item) => !Number.isSafeInteger(Number(item.id)) || Number(item.id) <= 0)) {
+    throw new Error("Danh sách báo cáo không hợp lệ");
+  }
   const expectedById = new Map();
   for (const item of normalizedTargets) {
     const id = Number(item.id);
