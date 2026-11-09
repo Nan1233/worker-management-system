@@ -188,13 +188,17 @@ function hasNonProductSnapshotMismatch(item) {
   return output !== 0 || versionId !== 0 || machineStandardId !== 0;
 }
 
+function createNonProductSnapshotMismatchError(message) {
+  const error = new Error(message);
+  error.status = 422;
+  error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
+  error.isPublic = true;
+  return error;
+}
+
 function assertNonProductWorkSnapshot(item) {
   if (hasNonProductSnapshotMismatch(item)) {
-    const error = new Error("Ảnh chụp công việc khác trong công đoạn không hợp lệ; cần kiểm tra lại báo cáo");
-    error.status = 422;
-    error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
-    error.isPublic = true;
-    throw error;
+    throw createNonProductSnapshotMismatchError("Ảnh chụp công việc khác trong công đoạn không hợp lệ; cần kiểm tra lại báo cáo");
   }
 }
 
@@ -292,11 +296,7 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
   // Their valid snapshot is zero output with no product/machine standard IDs.
   if (resolved?.nonProductWork) {
     if (hasNonProductSnapshotMismatch(item)) {
-      const error = new Error("Ảnh chụp công việc khác không hợp lệ; cần kiểm tra lại báo cáo");
-      error.status = 422;
-      error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
-      error.isPublic = true;
-      throw error;
+      throw createNonProductSnapshotMismatchError("Ảnh chụp công việc khác không hợp lệ; cần kiểm tra lại báo cáo");
     }
     return;
   }
