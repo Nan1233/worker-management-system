@@ -421,7 +421,7 @@ function buildApprovedReportInsertValues(item, reviewerId) {
 // Keep input normalization and duplicate-ID precedence identical to approval's original path.
 function buildApprovalSelection(targets) {
   const normalizedTargets = Array.isArray(targets)
-    ? targets.map((item) => typeof item === "object" ? item : { id: item, expected_updated_at: null })
+    ? targets.map((item) => item !== null && typeof item === "object" ? item : { id: item, expected_updated_at: null })
     : [];
   const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
   if (!reportIds.length) throw new Error("Danh sách báo cáo không hợp lệ");
