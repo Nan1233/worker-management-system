@@ -611,6 +611,27 @@ function buildApprovalBatchResult(rows, approvedIds, dates) {
   };
 }
 
+function assertRejectedTempTransition(updateResult, row) {
+  if (Number(updateResult?.affectedRows || 0) !== 1) {
+    const error = new Error(`Báo cáo #${row.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
+    error.status = 409;
+    error.code = "TEMP_REPORT_VERSION_CONFLICT";
+    error.isPublic = true;
+    throw error;
+  }
+}
+
+function buildRejectionBatchResult(rows) {
+  return {count:rows.length,ids:rows.map((row)=>row.id)};
+}
+
+async function deliverRejectedPostCommitNotifications(notifications) {
+  for (const notification of notifications) {
+    try { await AuditService.notifyUsers(notification.userIds,notification.payload); }
+    catch (error) { console.warn(`[KTC] Post-commit rejection notification failed: ${error.message}`); }
+  }
+}
+
 module.exports = {
   async approveSelected(targets, reviewerId, isAdmin = false) {
     assertReviewBatchSize(targets);
@@ -797,13 +818,7 @@ module.exports = {
         const expected = expectedById.get(Number(row.id));
         const { sql: updateSql, params: updateParams } = buildRejectedReportUpdate(row, expected, cleanReason, reviewerId);
         const updateResult = await query(connection,updateSql,updateParams);
-        if (Number(updateResult?.affectedRows || 0) !== 1) {
-          const error = new Error(`Báo cáo #${row.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
-          error.status = 409;
-          error.code = "TEMP_REPORT_VERSION_CONFLICT";
-          error.isPublic = true;
-          throw error;
-        }
+        assertRejectedTempTransition(updateResult, row);
         const rejectedSnapshot = await AuditService.loadTempReportSnapshot(row.id, connection);
         if (rejectedSnapshot) {
           await AuditService.createReportVersion(buildRejectedReportVersion(row, rejectedSnapshot, cleanReason, reviewerId),connection);
@@ -812,11 +827,8 @@ module.exports = {
         postCommitNotifications.push(buildRejectedReportNotification(row, cleanReason));
       }
       await commit(connection);
-      for (const notification of postCommitNotifications) {
-        try { await AuditService.notifyUsers(notification.userIds,notification.payload); }
-        catch (error) { console.warn(`[KTC] Post-commit rejection notification failed: ${error.message}`); }
-      }
-      return {count:rows.length,ids:rows.map((row)=>row.id)};
+      await deliverRejectedPostCommitNotifications(postCommitNotifications);
+      return buildRejectionBatchResult(rows);
     } catch (error) {
       const rollbackResult = await rollback(connection);
       if (rollbackResult?.ok === false) {
