@@ -416,15 +416,49 @@ function buildApprovedReportInsertValues(item, reviewerId) {
   ];
 }
 
+// Keep input normalization and duplicate-ID precedence identical to approval's original path.
+function buildApprovalSelection(targets) {
+  const normalizedTargets = Array.isArray(targets)
+    ? targets.map((item) => typeof item === "object" ? item : { id: item, expected_updated_at: null })
+    : [];
+  const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
+  if (!reportIds.length) throw new Error("Danh sách báo cáo không hợp lệ");
+  const expectedById = new Map(normalizedTargets.map((item) => [Number(item.id), item.expected_updated_at || null]));
+  return { reportIds, expectedById };
+}
+
+function assertApprovalSelectionVisible(rows, reportIds) {
+  if (rows.length !== reportIds.length) {
+    const visibleIds = new Set(rows.map((row) => Number(row.id)));
+    const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
+    const error = new Error(
+      "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
+    );
+    error.status = 409;
+    error.code = "APPROVAL_SELECTION_STALE";
+    error.isPublic = true; // the "reload the list" guidance must reach the user in production too
+    error.details = { requested_ids: reportIds, missing_ids: missingIds };
+    throw error;
+  }
+}
+
+function assertApprovalSelectionVersions(rows, expectedById) {
+  for (const row of rows) {
+    const expected = expectedById.get(Number(row.id));
+    if (expected && new Date(expected).getTime() !== new Date(row.updated_at).getTime()) {
+      const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
+      error.status = 409;
+      error.code = "TEMP_REPORT_VERSION_CONFLICT";
+      error.isPublic = true;
+      throw error;
+    }
+  }
+}
+
 module.exports = {
   async approveSelected(targets, reviewerId, isAdmin = false) {
     assertReviewBatchSize(targets);
-    const normalizedTargets = Array.isArray(targets)
-      ? targets.map((item) => typeof item === "object" ? item : { id: item, expected_updated_at: null })
-      : [];
-    const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
-    if (!reportIds.length) throw new Error("Danh sách báo cáo không hợp lệ");
-    const expectedById = new Map(normalizedTargets.map((item) => [Number(item.id), item.expected_updated_at || null]));
+    const { reportIds, expectedById } = buildApprovalSelection(targets);
     const connection = await getConnection();
     const postCommitNotifications = [];
     const postCommitActivities = [];
@@ -451,29 +485,8 @@ module.exports = {
           FOR UPDATE`,
         params,
       );
-      if (rows.length !== reportIds.length) {
-        const visibleIds = new Set(rows.map((row) => Number(row.id)));
-        const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
-        const error = new Error(
-          "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
-        );
-        error.status = 409;
-        error.code = "APPROVAL_SELECTION_STALE";
-        error.isPublic = true; // the "reload the list" guidance must reach the user in production too
-        error.details = { requested_ids: reportIds, missing_ids: missingIds };
-        throw error;
-      }
-
-      for (const row of rows) {
-        const expected = expectedById.get(Number(row.id));
-        if (expected && new Date(expected).getTime() !== new Date(row.updated_at).getTime()) {
-          const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
-          error.status = 409;
-          error.code = "TEMP_REPORT_VERSION_CONFLICT";
-          error.isPublic = true;
-          throw error;
-        }
-      }
+      assertApprovalSelectionVisible(rows, reportIds);
+      assertApprovalSelectionVersions(rows, expectedById);
 
       const standardResolver = createStandardResolver({
         query: (sql, params = []) => qRows(connection, sql, params),
