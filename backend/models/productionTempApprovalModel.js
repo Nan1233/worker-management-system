@@ -54,15 +54,19 @@ function attachMachineLineDefects(lines, defects) {
   return lines.map((line) => ({ ...line, defects: byLine.get(Number(line.id)) || [] }));
 }
 
-async function getTempMachineLines(tempReportId, connection) {
-  const lines = await qRows(
-    connection,
-    `SELECT *
+function buildTempMachineLinesRead(tempReportId) {
+  return {
+    sql: `SELECT *
        FROM production_temp_machine_lines
       WHERE temp_report_id=?
       ORDER BY sort_order ASC, id ASC`,
-    [Number(tempReportId)],
-  );
+    params: [Number(tempReportId)],
+  };
+}
+
+async function getTempMachineLines(tempReportId, connection) {
+  const { sql: lineSql, params: lineParams } = buildTempMachineLinesRead(tempReportId);
+  const lines = await qRows(connection, lineSql, lineParams);
   if (!lines.length) return [];
 
   const { sql: defectSql, params: defectParams } = buildTempMachineLineDefectsQuery(lines);
