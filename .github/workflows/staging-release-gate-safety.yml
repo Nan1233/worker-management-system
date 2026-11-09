@@ -4,6 +4,7 @@ on:
     branches: [test]
     paths:
       - 'scripts/stagingReleaseGate.cjs'
+      - 'scripts/performanceLargeData.cjs'
       - 'scripts/stagingE2E.cjs'
       - 'scripts/zero-cost/critical-e2e.cjs'
       - 'scripts/zero-cost/http.cjs'
@@ -18,6 +19,7 @@ on:
       - 'tests/critical-e2e-writer-session.test.cjs'
       - 'tests/critical-e2e-cleanup-like.test.cjs'
       - 'tests/phase3-exit-evidence.test.cjs'
+      - 'tests/performance-db-isolation.test.cjs'
       - 'docs/PHASE3_EXIT_GATE.md'
       - 'tests/zero-cost-http-redirect.test.cjs'
       - '.github/workflows/staging-release-gate-safety.yml'
@@ -25,6 +27,7 @@ on:
     branches: [test]
     paths:
       - 'scripts/stagingReleaseGate.cjs'
+      - 'scripts/performanceLargeData.cjs'
       - 'scripts/stagingE2E.cjs'
       - 'scripts/zero-cost/critical-e2e.cjs'
       - 'scripts/zero-cost/http.cjs'
@@ -39,6 +42,7 @@ on:
       - 'tests/critical-e2e-writer-session.test.cjs'
       - 'tests/critical-e2e-cleanup-like.test.cjs'
       - 'tests/phase3-exit-evidence.test.cjs'
+      - 'tests/performance-db-isolation.test.cjs'
       - 'docs/PHASE3_EXIT_GATE.md'
       - 'tests/zero-cost-http-redirect.test.cjs'
       - '.github/workflows/staging-release-gate-safety.yml'
@@ -54,6 +58,7 @@ jobs:
           node-version: '22'
       - run: npm ci --prefix backend --no-audit --no-fund
       - run: node --check scripts/stagingReleaseGate.cjs
+      - run: node --check scripts/performanceLargeData.cjs
       - run: node --check scripts/stagingE2E.cjs
       - run: node --check scripts/zero-cost/critical-e2e.cjs
-      - run: node --test tests/staging-release-gate-guard.test.cjs tests/staging-e2e-api-target.test.cjs tests/critical-e2e-direct-guard.test.cjs tests/critical-e2e-cleanup-contract.test.cjs tests/critical-e2e-finally-cleanup.test.cjs tests/critical-e2e-db-tls.test.cjs tests/e2e-db-port-and-run-id.test.cjs tests/critical-e2e-writer-session.test.cjs tests/critical-e2e-cleanup-like.test.cjs tests/phase3-exit-evidence.test.cjs tests/zero-cost-http-redirect.test.cjs
+      - run: node --test tests/staging-release-gate-guard.test.cjs tests/staging-e2e-api-target.test.cjs tests/critical-e2e-direct-guard.test.cjs tests/critical-e2e-cleanup-contract.test.cjs tests/critical-e2e-finally-cleanup.test.cjs tests/critical-e2e-db-tls.test.cjs tests/e2e-db-port-and-run-id.test.cjs tests/critical-e2e-writer-session.test.cjs tests/critical-e2e-cleanup-like.test.cjs tests/phase3-exit-evidence.test.cjs tests/performance-db-isolation.test.cjs tests/zero-cost-http-redirect.test.cjs
