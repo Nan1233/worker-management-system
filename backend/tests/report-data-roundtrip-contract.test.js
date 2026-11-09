@@ -18,8 +18,8 @@ test('approval copies all persisted child collections before marking the temp re
   const parentQuery = approval.slice(approval.indexOf('function buildApprovedParentInsertQuery('), approval.indexOf('function buildApprovedTempTransitionQuery('));
   const transitionQuery = approval.slice(approval.indexOf('function buildApprovedTempTransitionQuery('), approval.indexOf('module.exports = {'));
   const mainInsert = flow.indexOf('buildApprovedParentInsertQuery(item, reviewerId)');
-  const defectsCopy = flow.indexOf('buildApprovedDetailCopyQuery("defects"');
-  const deductionsCopy = flow.indexOf('buildApprovedDetailCopyQuery("deductions"');
+  const defectsCopy = flow.indexOf('copyApprovedReportDetails(connection, approvedReportId, item.id)');
+  const deductionsCopy = defectsCopy;
   const machineCopy = flow.indexOf('copyMachineLinesToApproved(item.id, approvedReportId');
   const tempApproved = flow.indexOf('buildApprovedTempTransitionQuery(item, reviewerId)');
   assert.match(parentQuery, /INSERT INTO production_reports/);
@@ -30,8 +30,9 @@ test('approval copies all persisted child collections before marking the temp re
   assert.match(builders, /INSERT INTO production_report_deductions/);
   assert.ok(mainInsert >= 0, 'approved parent report is inserted');
   assert.ok(defectsCopy > mainInsert, 'defect details are copied after parent insert');
-  assert.ok(deductionsCopy > defectsCopy, 'deduction details are copied after defect details');
-  assert.ok(machineCopy > deductionsCopy, 'machine lines and machine defects are copied');
+  const detailFlow = approval.slice(approval.indexOf('async function copyApprovedReportDetails('),approval.indexOf('async function recordApprovedTempVersion('));
+  assert.ok(detailFlow.indexOf('buildApprovedDetailCopyQuery("deductions"') > detailFlow.indexOf('buildApprovedDetailCopyQuery("defects"'), 'deduction details are copied after defect details');
+  assert.ok(machineCopy > defectsCopy, 'machine lines and machine defects are copied');
   assert.ok(tempApproved > machineCopy, 'temp status is marked approved only after child copies');
   assert.ok(commit > tempApproved, 'the transaction commits after status and detail writes');
   assert.match(approval, /createApprovedReportVersion\(/, 'approved version snapshot is created');
