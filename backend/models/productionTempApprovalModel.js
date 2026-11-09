@@ -152,6 +152,30 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, ap
     Object.prototype.hasOwnProperty.call(persisted, "sort_order")
       && Object.prototype.hasOwnProperty.call(source, "sort_order")
       && String(persisted.sort_order || 1) !== String(source.sort_order || 1);
+  // Decimal values may be returned as strings with trailing zeros by TiDB.
+  // Normalize textually to avoid losing DECIMAL(18,6) precision through Number().
+  const canonicalDecimal = (value) => {
+    const raw = String(value ?? "").trim();
+    if (!/^[+-]?(?:[0-9]+)(?:\\.[0-9]+)?$/.test(raw)) return null;
+    const negative = raw.startsWith("-");
+    const unsigned = raw.replace(/^[+-]/, "");
+    const [integer, fraction = ""] = unsigned.split(".");
+    const whole = integer.replace(/^0+/, "") || "0";
+    const decimal = fraction.replace(/0+$/, "");
+    const magnitude = whole + (decimal ? "." + decimal : "");
+    return (negative && magnitude !== "0" ? "-" : "") + magnitude;
+  };
+  const quantityColumns = ["machine_time_hours", "standard_output", "ok_quantity", "ng_quantity",
+    "maximum_output", "deduction_time_hours", "counted_output", "earned_standard_hours"];
+  const quantityMismatch = (persisted, source) => quantityColumns.some((column) => {
+    if (!Object.prototype.hasOwnProperty.call(persisted, column)
+      || !Object.prototype.hasOwnProperty.call(source, column)) return false;
+    const saved = ["deduction_time_hours", "counted_output", "earned_standard_hours"].includes(column)
+      ? source[column] || 0 : source[column];
+    const actual = canonicalDecimal(persisted[column]);
+    const expected = canonicalDecimal(saved);
+    return actual === null || expected === null || actual !== expected;
+  });
   const wrongReportLineage = approvedReportId != null && byInsertOrder.some((row) =>
     !Object.prototype.hasOwnProperty.call(row, "report_id")
       || !Number.isSafeInteger(Number(row.report_id))
@@ -162,7 +186,8 @@ function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, ap
     || byInsertOrder.some((row, index) => String(row.machine_code) !== String(tempLines[index].machine_code)
       || String(row.product_code) !== String(tempLines[index].product_code)
       || identityMismatch(row, tempLines[index])
-      || sortOrderMismatch(row, tempLines[index]))) {
+      || sortOrderMismatch(row, tempLines[index])
+      || quantityMismatch(row, tempLines[index]))) {
     const error = new Error(`Không xác nhận được dòng máy đã sao chép cho báo cáo tạm #${tempReportId}; đã hủy duyệt để bảo vệ dữ liệu`);
     error.status = 500;
     error.code = "APPROVED_MACHINE_LINES_COPY_MISMATCH";
