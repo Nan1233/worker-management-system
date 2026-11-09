@@ -6,7 +6,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-const queryStart = source.indexOf('function buildTempMachineLineDefectsQuery(');\nconst queryEnd = source.indexOf('function buildApprovedMachineDefectsInsert(', queryStart);\nconst start = source.indexOf('function attachMachineLineDefects(');
+const queryStart = source.indexOf('function buildTempMachineLineDefectsQuery(');
+const queryEnd = source.indexOf('function buildApprovedMachineDefectsInsert(', queryStart);
+const start = source.indexOf('function attachMachineLineDefects(');
 const end = source.indexOf('// Build approved defect rows', start);
 assert.ok(queryStart >= 0 && queryEnd > queryStart && start >= 0 && end > start, 'temp machine loader and builders must exist');
 
