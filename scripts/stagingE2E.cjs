@@ -13,11 +13,8 @@ try {
 }
 const hostname = url.hostname.toLowerCase();
 const local = ['localhost', '127.0.0.1', '[::1]'].includes(hostname);
-const remoteTest = hostname.endsWith('-test.nan978971.workers.dev')
-  && url.protocol === 'https:'
-  && process.env.KTC_E2E_ALLOW_REMOTE_STAGING === '1';
-if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.pathname !== '/' || url.search || url.hash || (!local && !remoteTest)) {
-  console.error('KTC_STAGING_E2E_BLOCKED: write-path API must be loopback, or explicitly approved HTTPS TEST Worker.');
+if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.pathname !== '/' || url.search || url.hash || !local) {
+  console.error('KTC_STAGING_E2E_BLOCKED: write-path API must be loopback; remote Workers may point at production data.');
   process.exit(1);
 }
 
