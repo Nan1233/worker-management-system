@@ -8,7 +8,6 @@ on:
       - 'backend/scripts/e2e-db-guard.cjs'
       - 'tests/staging-release-gate-guard.test.cjs'
       - 'tests/staging-e2e-api-target.test.cjs'
-      - 'tests/staging-e2e-api-target.test.cjs'
       - '.github/workflows/staging-release-gate-safety.yml'
   push:
     branches: [test]
@@ -28,6 +27,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm ci --prefix backend --no-audit --no-fund
       - run: node --check scripts/stagingReleaseGate.cjs
       - run: node --check scripts/stagingE2E.cjs
       - run: node --test tests/staging-release-gate-guard.test.cjs tests/staging-e2e-api-target.test.cjs
