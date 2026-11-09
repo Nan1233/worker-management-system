@@ -250,13 +250,8 @@ function buildStandardSnapshotConsistencyInput(saved, resolved) {
   };
 }
 
-async function validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache = null) {
-  const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
-  if (!isMachineReport && isParentProcessNonProductWork(item)) {
-    assertNonProductWorkSnapshot(item);
-    return;
-  }
-  if (isMachineReport) {
+// Validate machine report snapshots before any approval copy occurs.
+async function validateMachineApprovalSnapshot(item, connection, standardResolver, tempLinesCache) {
     const tempLines = await getTempMachineLines(item.id, connection);
     if (tempLinesCache) tempLinesCache.set(Number(item.id), tempLines);
     if (!tempLines.length) {
@@ -277,6 +272,17 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
       const resolved = await standardResolver.resolveStandard(buildMachineStandardResolutionInput(item, line));
       assertStandardSnapshotConsistency(buildStandardSnapshotConsistencyInput(line, resolved));
     }
+    return;
+}
+
+async function validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache = null) {
+  const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
+  if (!isMachineReport && isParentProcessNonProductWork(item)) {
+    assertNonProductWorkSnapshot(item);
+    return;
+  }
+  if (isMachineReport) {
+    await validateMachineApprovalSnapshot(item, connection, standardResolver, tempLinesCache);
     return;
   }
 
