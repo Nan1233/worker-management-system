@@ -74,3 +74,27 @@ test('missing optional source identities in legacy test fixtures remain compatib
   assert.equal(verify([{ id: 101, machine_code: 'M1', product_code: 'P1' }],
     [{ machine_code: 'M1', product_code: 'P1' }], 9).length, 1);
 });
+
+test('same machine, product and event cannot conceal swapped sort order', () => {
+  const saved = [
+    { machine_code: 'M1', product_code: 'P1', machine_event_id: 20, sort_order: 1 },
+    { machine_code: 'M1', product_code: 'P1', machine_event_id: 20, sort_order: 2 },
+  ];
+  const persisted = [
+    { id: 101, ...saved[1] },
+    { id: 102, ...saved[0] },
+  ];
+  fails(persisted, saved);
+  assert.equal(verify([{ id: 101, ...saved[0] }, { id: 102, ...saved[1] }], saved, 9).length, 2);
+});
+
+test('legacy sort order zero and null use the persisted default one', () => {
+  const saved = [{ machine_code: 'M1', product_code: 'P1', sort_order: 0 }];
+  assert.equal(verify([{ id: 101, machine_code: 'M1', product_code: 'P1', sort_order: 1 }], saved, 9).length, 1);
+  fails([{ id: 101, machine_code: 'M1', product_code: 'P1', sort_order: 2 }], saved);
+});
+
+test('sort order identity is optional for legacy rows without the column', () => {
+  assert.equal(verify([{ id: 101, machine_code: 'M1', product_code: 'P1' }],
+    [{ machine_code: 'M1', product_code: 'P1', sort_order: 1 }], 9).length, 1);
+});
