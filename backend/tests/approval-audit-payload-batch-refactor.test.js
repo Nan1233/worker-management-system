@@ -68,7 +68,7 @@ test('approval still records audit before commit and sends notifications only af
   const flow = source.slice(source.indexOf('async approveSelected('), source.indexOf('async rejectSelected('));
   const markers = [
     'await validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache)',
-    'buildApprovedVersionPreloaded(approvedMachineLines, approvedDefects, approvedDeductions)',
+    'buildApprovedVersionRequest(item, approvedReportId, reviewerId, approvedMachineLines, approvedDefects, approvedDeductions)',
     'postCommitActivities.push(...buildApprovedPostCommitActivities(item, approvedReportId, reviewerId))',
     'const statusUpdate = await query(',
     'postCommitNotifications.push(buildApprovedPostCommitNotification(item, approvedReportId, workDate))',
