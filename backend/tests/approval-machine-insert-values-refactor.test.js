@@ -55,14 +55,14 @@ test('machine INSERT mapping preserves 21 columns and all defaults', () => {
       earned_standard_hours: 3.5, defects_json: [], sort_order: 1 },
   ];
   const actual = buildValues(lines, 999);
-  assert.deepEqual(JSON.parse(JSON.stringify(actual)), previousValues(lines, 999));
+  assert.deepEqual(Array.from(actual), previousValues(lines, 999));
   assert.equal(actual.length, 42);
   assert.equal(actual[0], 999);
   assert.equal(actual[21], 999);
 });
 
 test('machine INSERT mapping preserves empty input and falsy values', () => {
-  assert.deepEqual(buildValues([], 2), []);
+  assert.deepEqual(Array.from(buildValues([], 2)), []);
   const lines = [{ machine_code: '', product_code: '', machine_event_id: 0,
     deduction_time_hours: 0, counted_output: 0, earned_standard_hours: 0,
     sort_order: 0, deductions_json: null, defects_json: null }];
