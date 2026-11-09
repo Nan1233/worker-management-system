@@ -396,3 +396,48 @@ test('failed guarded status transition never creates a committed approval', asyn
   assert.equal(second.result.count, 1);
   assert.equal(second.log.filter((entry) => entry === 'COMMIT').length, 1);
 });
+
+// Every failed write stage must leave the shared mock transaction claim free.
+// Follow each failure with a successful retry and then a rejected duplicate.
+// This tests the transaction control flow without asserting real DB isolation.
+test('approval write-stage rollback permits exactly one later successful retry', async (t) => {
+  const defectsByLine = {
+    100: [{ defect_type_id: 1, defect_code: 'NG-A', defect_name: 'NG A', quantity: 1 }],
+  };
+  const stages = [
+    ['official report', /^INSERT INTO production_reports\s*\(/],
+    ['report NG', /^INSERT INTO production_report_defects\s*\(/],
+    ['report deductions', /^INSERT INTO production_report_deductions\s*\(/],
+    ['machine lines', /^INSERT INTO production_report_machine_lines\s*\(/],
+    ['machine NG', /^INSERT INTO production_report_machine_defects\s*\(/],
+    ['legacy snapshot', /^INSERT INTO production_report_snapshots\s*\(/],
+    ['approved version', /^INSERT INTO report_versions\s*\(/],
+    ['final status', /^UPDATE production_reports_temp SET status='approved'/],
+    ['activity log', /^INSERT INTO activity_logs\s*\(/],
+  ];
+  for (const [stage, failOn] of stages) {
+    await t.test(stage, async () => {
+      const sharedApprovalState = { approved: false, claimed: false };
+      const failed = await approve({ lines: 4, defectsByLine, failOn, sharedApprovalState });
+      assert.ok(failed.error, `expected failure at ${stage}`);
+      assert.ok(failed.calls.some((entry) => failOn.test(entry.sql)), `stage not reached: ${stage}`);
+      assert.equal(failed.log.filter((entry) => entry === 'COMMIT').length, 0);
+      assert.equal(failed.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+      assert.deepEqual(sharedApprovalState, { approved: false, claimed: false });
+
+      const retry = await approve({ lines: 4, defectsByLine, sharedApprovalState });
+      assert.ifError(retry.error);
+      assert.equal(retry.result.count, 1);
+      assert.equal(retry.log.filter((entry) => entry === 'COMMIT').length, 1);
+      assert.deepEqual(sharedApprovalState, { approved: true, claimed: false });
+
+      const duplicate = await approve({ lines: 4, defectsByLine, sharedApprovalState });
+      assert.ok(duplicate.error);
+      assert.equal(duplicate.error.status, 409);
+      assert.equal(duplicate.error.code, 'APPROVAL_SELECTION_STALE');
+      assert.equal(duplicate.log.filter((entry) => entry === 'COMMIT').length, 0);
+      assert.equal(duplicate.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+      assert.equal(duplicate.log.filter((entry) => /^INSERT INTO production_reports /.test(entry)).length, 0);
+    });
+  }
+});
