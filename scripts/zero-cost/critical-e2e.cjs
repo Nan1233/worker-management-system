@@ -28,12 +28,12 @@ async function cleanupRun(db){
     console.warn('KTC_E2E_KEEP_DATA=1: E2E fixtures intentionally retained in isolated database');
     return;
   }
-  const like=`%${runId}%`;
+  const like=`%${runId.replace(/[!%_]/g, char=>`!${char}`)}%`;
   const errors=[];
   for(const [table,column] of [['production_reports_temp','note'],['production_reports','note'],['machine_production_events','note']]){
     try{
       const [tables]=await db.query(`SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?`,[table]);
-      if(Number(tables[0]?.n||0)>0)await db.query(`DELETE FROM \`${table}\` WHERE \`${column}\` LIKE ?`,[like]);
+      if(Number(tables[0]?.n||0)>0)await db.query(`DELETE FROM \`${table}\` WHERE \`${column}\` LIKE ? ESCAPE '!'`,[like]);
     }catch(error){
       errors.push(`${table}: ${error.message}`);
       console.error(`KTC_E2E_CLEANUP_FAILED ${table}: ${error.message}`);
