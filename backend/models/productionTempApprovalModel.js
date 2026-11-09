@@ -124,7 +124,11 @@ function buildApprovedMachineLineValues(tempLines, approvedReportId) {
 // This check intentionally fails closed if the database returns unexpected rows.
 function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId) {
   const byInsertOrder = [...approvedRows].sort((a, b) => Number(a.id) - Number(b.id));
+  const ids = byInsertOrder.map((row) => Number(row.id));
+  const hasInvalidIds = ids.some((id) => !Number.isSafeInteger(id) || id <= 0)
+    || new Set(ids).size !== ids.length;
   if (byInsertOrder.length !== tempLines.length
+    || hasInvalidIds
     || byInsertOrder.some((row, index) => String(row.machine_code) !== String(tempLines[index].machine_code)
       || String(row.product_code) !== String(tempLines[index].product_code))) {
     const error = new Error(`Không xác nhận được dòng máy đã sao chép cho báo cáo tạm #${tempReportId}; đã hủy duyệt để bảo vệ dữ liệu`);
