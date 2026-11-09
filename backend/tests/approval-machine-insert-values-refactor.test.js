@@ -66,7 +66,7 @@ test('machine INSERT mapping preserves empty input and falsy values', () => {
   const lines = [{ machine_code: '', product_code: '', machine_event_id: 0,
     deduction_time_hours: 0, counted_output: 0, earned_standard_hours: 0,
     sort_order: 0, deductions_json: null, defects_json: null }];
-  assert.deepEqual(buildValues(lines, 3), previousValues(lines, 3));
+  assert.deepEqual(Array.from(buildValues(lines, 3)), previousValues(lines, 3));
 });
 
 test('copy function retains single bulk INSERT and calls extracted mapper', () => {
