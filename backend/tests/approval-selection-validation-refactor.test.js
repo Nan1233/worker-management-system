@@ -23,7 +23,7 @@ test('normalization preserves primitive IDs, duplicate last-write timestamp and 
 });
 
 test('invalid selections keep existing message', () => {
-  for (const value of [null, {}, [], [0], ['bad']]) {
+  for (const value of [null, {}, [], [0], ['bad'], [null], [undefined], [null, undefined]]) {
     assert.throws(() => build(value), (error) => error.message === 'Danh sách báo cáo không hợp lệ');
   }
 });
