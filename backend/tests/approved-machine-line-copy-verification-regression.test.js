@@ -45,3 +45,32 @@ test('swapped machine or product codes fail closed even when row counts match', 
   fails([{ ...approved[0], product_code: 'P-B' }, approved[1]]);
   fails([{ ...approved[1], id: 101 }, { ...approved[0], id: 102 }]);
 });
+
+test('same machine and product codes cannot hide a swapped event lineage', () => {
+  const saved = [
+    { machine_code: 'M1', product_code: 'P1', machine_event_id: 700, machine_id: 4 },
+    { machine_code: 'M1', product_code: 'P1', machine_event_id: 701, machine_id: 4 },
+  ];
+  const persisted = [
+    { id: 101, ...saved[1] },
+    { id: 102, ...saved[0] },
+  ];
+  fails(persisted, saved);
+  const correct = [{ id: 101, ...saved[0] }, { id: 102, ...saved[1] }];
+  assert.equal(verify(correct, saved, 9).length, 2);
+});
+
+test('persisted standard identity mismatches fail closed even when codes match', () => {
+  const saved = [{ machine_code: 'M1', product_code: 'P1',
+    product_standard_id: 5, standard_version_id: 6, machine_standard_id: 7 }];
+  const persisted = [{ id: 101, ...saved[0] }];
+  assert.equal(verify(persisted, saved, 9).length, 1);
+  for (const field of ['product_standard_id', 'standard_version_id', 'machine_standard_id']) {
+    fails([{ ...persisted[0], [field]: 999 }], saved);
+  }
+});
+
+test('missing optional source identities in legacy test fixtures remain compatible', () => {
+  assert.equal(verify([{ id: 101, machine_code: 'M1', product_code: 'P1' }],
+    [{ machine_code: 'M1', product_code: 'P1' }], 9).length, 1);
+});
