@@ -61,7 +61,8 @@ test('optimistic concurrency preserves exact timestamp comparison and error', ()
 
 test('falsy expected timestamps and invalid-date comparisons remain unchanged', () => {
   assert.doesNotThrow(() => versions([{ id: 5, updated_at: 'bad' }], new Map([[5, null]])));
-  assert.doesNotThrow(() => versions([{ id: 5, updated_at: 'bad' }], new Map([[5, 'bad']])));
+  assert.throws(() => versions([{ id: 5, updated_at: 'bad' }], new Map([[5, 'bad']])),
+    (error) => error.code === 'TEMP_REPORT_VERSION_CONFLICT');
 });
 
 test('transaction approval calls checks in original order after SELECT FOR UPDATE', () => {
