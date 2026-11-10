@@ -76,6 +76,7 @@ import {
 } from "./processPageConfig";
 import { processExtraFields } from "./processExtraFields";
 import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";
+import AppIcon from "../../components/common/AppIcon";
 import ProcessTimeDeductionSection from "./components/ProcessTimeDeductionSection";
 import ProcessWorkerHeader from "./components/ProcessWorkerHeader";
 import ProcessQualitySection from "./components/ProcessQualitySection";
