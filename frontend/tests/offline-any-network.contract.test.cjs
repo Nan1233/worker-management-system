@@ -9,7 +9,7 @@ test('worker process does not gate on company network and queues offline', () =>
   const src = read('src/pages/worker/ProcessPage.tsx');
   assert.doesNotMatch(src, /getCompanyNetworkAccess|ProcessNetworkGate|networkAllowed|networkChecking/);
   assert.match(src, /if \(!navigator\.onLine\)/);
-  assert.match(src, /enqueueOfflineReport\(payload\)/);
+  assert.match(src, /enqueueOfflineReports\(payloads\)/);
   assert.match(src, /tự gửi khi có Internet/);
 });
 
