@@ -13,7 +13,7 @@ const edit = fs.readFileSync(path.join(root, "src/pages/worker/WorkerReportEditV
 
 test("machine line allows actual-time entry and shows a computed read-only gross total", () => {
   assert.match(basic, /label>Thời gian chạy thực tế/);
-  assert.match(basic, /isMaiStyleProcess \? "Thời gian dừng máy" : isEpProcess \? "Thời gian phụ" : "Thời gian trừ"/);
+  assert.match(basic, /isMaiStyleProcess \\? "Thời gian dừng máy" : isEpProcess \\? "Thời gian trừ giờ" : "Thời gian trừ"/);
   assert.match(basic, /data-worker-time="machine-total"/);
   assert.match(basic, /data-worker-time-value="machine-total" value=\{formatMachineHours\(getMachineActualMinutes\(line\) \+ getMachineDeductionMinutes\(line\)\)\} readOnly/);
   assert.match(basic, /worker-time-grid machine-worker-time-grid/);
