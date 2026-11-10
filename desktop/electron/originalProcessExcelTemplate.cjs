@@ -47,7 +47,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     await onTemplateLoaded({ processCode: code, templatePath: filename, sheetName: sheet.name,
       reportCount: (processData?.reports || []).length, templateKind: "original-company" });
   }
-  const reports = helpers.sortReports(processData?.reports || []);
+  const sourceReports = processData?.reports ?? [];
+  if (!Array.isArray(sourceReports)) throw new Error("Dữ liệu báo cáo "+code+" không phải danh sách.");
+  const reports = helpers.sortReports(sourceReports);
   const deductionTypes = helpers.processDetailTypes(code,processData,"deductionTypes","deductions","deduction");
   const defectTypes = helpers.processDetailTypes(code,processData,"defectTypes","defects","defect");
   const mapping = [];
@@ -105,6 +107,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     }
   }
   // Replace fixed October sample dates/month captions with the requested period.
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(yearMonth || ""))) {
+    throw new Error("Kỳ báo cáo Excel không hợp lệ cho "+code+": "+yearMonth);
+  }
   const [reportYear,reportMonth]=yearMonth.split("-").map(Number);
   if (code==="MAI" || code==="DO") {
     const dateRow=sheet.getRow(1);
@@ -129,8 +134,8 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   if(code==="K1") sheet.getRow(3).eachCell({includeEmpty:false},cell=>{
     if(typeof cell.value==="number") cell.value=null;
   });
-  // Label the actual report month without replacing the original headers.
-  sheet.headerFooter.oddHeader = "KTC "+code+" - "+yearMonth;
+  // Keep the company template print header/footer untouched. Some source sheets
+  // have headerFooter=null, so assigning oddHeader would crash the export.
   sheet.views=[{state:"frozen",ySplit:config.header,xSplit:3,showGridLines:false}];
   workbook.creator="KTC Production Control";
   workbook.modified=new Date();
