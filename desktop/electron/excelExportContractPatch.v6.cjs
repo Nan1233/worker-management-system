@@ -7,7 +7,10 @@ const path = require('node:path');
 const ExcelJS = require('exceljs');
 const monthly = require('./monthlyWorkbookLocal.cjs');
 // Capture the unpatched per-process builder for seven original company forms.
-const buildOriginalProcessWorkbookLocal = monthly.buildProcessWorkbookLocal;
+const buildOriginalProcessWorkbookLocal = monthly.buildCompanyOriginalProcessWorkbookLocal;
+if (typeof buildOriginalProcessWorkbookLocal !== 'function') {
+  throw new Error('Missing unwrapped original company Excel template builder.');
+}
 const ORIGINAL_COMPANY_CODES = new Set(['MAI', 'DO', 'K1', 'K2', 'CAN', 'EP', 'XLBV']);
 
 if (typeof global.findDataStartRow !== 'function') {
