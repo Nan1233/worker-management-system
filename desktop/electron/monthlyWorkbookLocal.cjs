@@ -1357,9 +1357,15 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
     addExcelDbSyncMetadata(original.workbook, code, config, processData, yearMonth, original.mapping);
     addPhysicalMachineEventsMetadata(original.workbook, processData);
     const buffer = Buffer.from(await original.workbook.xlsx.writeBuffer());
+    const originalCols = {};
+    for (const field of original.mapping || []) {
+      if (typeof field.key === 'string' && !field.key.startsWith('defect:') && !field.key.startsWith('deduction:') && originalCols[field.key] == null) {
+        originalCols[field.key] = field.index;
+      }
+    }
     return {buffer, result:original.result, processCode:code, processName:config.title,
       fileName:processWorkbookFileName(code,date,payload), formulaReplacementCount:0,
-      templateKind:"original-company"};
+      templateKind:"original-company", columnContract:{cols:originalCols}};
   }
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'KTC Production Control';
