@@ -201,13 +201,13 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   // Capture an untouched template body style before inserting date separators.
   // Reuse the original cell formatting for every MAI data row, including rows
   // beyond the template's preformatted sample area.
-  const maiBodyStyle=code==="MAI" ? {
+  const originalBodyStyle={
     height:sheet.getRow(config.first).height,
     cells:Array.from({length:lastMappedCol},(_,i)=>{
       const cell=sheet.getRow(config.first).getCell(i+1);
       return cell.hasStyle?JSON.parse(JSON.stringify(cell.style)):null;
     })
-  }:null;
+  };
   // Clear old sample body cells, while preserving each company's formatting.
   const bodyEnd=sheet.rowCount;
   for(let r=config.first;r<=bodyEnd;r++){
@@ -229,12 +229,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       first.font={...(first.font||{}),bold:true};
       // Never paint a MAI date separator with a header fill: that destroys
       // the original company's cell palette and creates uneven color bands.
-      if(code!=="MAI"){
-        const sourceFill=sheet.getCell(config.header,1).fill;
-        if(sourceFill&&sourceFill.type==="pattern"){
-          for(let col=1;col<=lastMappedCol;col++)separator.getCell(col).fill=JSON.parse(JSON.stringify(sourceFill));
-        }
-      }
+      // Preserve the original template fill for every process; do not recolor.
     }
     const targetRowIndex=rowIndex++;
     const baseStyle=sheet.getRow(config.first);
@@ -246,10 +241,10 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         if(seed.hasStyle) cell.style=JSON.parse(JSON.stringify(seed.style));
       }
     }
-    if(maiBodyStyle){
-      row.height=maiBodyStyle.height;
+    if(originalBodyStyle){
+      row.height=originalBodyStyle.height;
       for(let col=1;col<=lastMappedCol;col++){
-        const style=maiBodyStyle.cells[col-1];
+        const style=originalBodyStyle.cells[col-1];
         if(style)row.getCell(col).style=JSON.parse(JSON.stringify(style));
       }
     }
