@@ -48,3 +48,17 @@ test("controller passes transaction connection and proposal writes guard pending
   assert.match(routes, /UPDATE report_edit_proposals SET reason=\?, proposed_data=\?, updated_at=CURRENT_TIMESTAMP WHERE id=\? AND status='pending'/);
   assert.match(routes, /UPDATE report_edit_proposals SET status=\?, updated_at=CURRENT_TIMESTAMP WHERE id=\? AND status='pending'/);
 });
+
+test("proposal review invalidates cached manager lists only after commit", () => {
+  const routes = source("routes/productionTempRoutes.js");
+  const start = routes.indexOf('router.post("/edit-proposals/:id/review"');
+  const end = routes.indexOf('router.delete("/edit-proposals/:id"', start);
+  const review = routes.slice(start, end);
+  const commits = [...review.matchAll(/await commitTransaction\(connection\);/g)].map((m) => m.index);
+  const invalidations = [...review.matchAll(/invalidateManagerReportLists\(\);/g)].map((m) => m.index);
+  assert.equal(commits.length, 2, "reject and approve must each commit once");
+  assert.equal(invalidations.length, 2, "both outcomes must invalidate manager report caches");
+  assert.ok(invalidations[0] > commits[0] && invalidations[1] > commits[1]);
+  assert.match(review, /try \{ finalProposal = await proposalDetail\(id\) \|\| finalProposal; \}/);
+  assert.match(review, /try \{ rejectedProposal = await proposalDetail\(id\) \|\| rejectedProposal; \}/);
+});
