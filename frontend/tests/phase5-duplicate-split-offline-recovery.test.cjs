@@ -38,3 +38,9 @@ test('offline queue only accepts payloads with stable client request ids', () =>
   assert.match(queue, /if \(!clientRequestId\) throw new Error/);
   assert.match(queue, /item\.payload\.client_request_id === clientRequestId/);
 });
+
+test('form reset cannot discard confirmed but unsent split reports', () => {
+  const handler = action('const handleReset = () => {', 'return (');
+  assert.match(handler, /if \(duplicatePrimaryCompletedRef\.current && pendingSplitPayloadsRef\.current\.length\)/);
+  assert.ok(handler.indexOf('return;') < handler.indexOf('clearProcessDraft(process)'));
+});
