@@ -81,7 +81,7 @@ router.post("/edit-proposals", authMiddleware, checkRole("admin", "manager", "le
 });
 
 router.put("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{
-    try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});const reason=String(req.body?.reason??current.reason).trim(),proposedData=req.body?.proposed_data??current.proposed_data;if(reason.length<2||reason.length>1000)return res.status(400).json({success:false,message:"Nội dung đề xuất sửa phải từ 2 đến 1000 ký tự"});await db.promise().query(`UPDATE report_edit_proposals SET reason=?, proposed_data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,[reason,JSON.stringify(proposedData||{}),id]);return res.json({success:true,message:"Đã cập nhật đề xuất sửa",data:await proposalDetail(id)});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể cập nhật đề xuất sửa"});}
+    try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});const reason=String(req.body?.reason??current.reason).trim(),proposedData=req.body?.proposed_data??current.proposed_data;if(reason.length<2||reason.length>1000)return res.status(400).json({success:false,message:"Nội dung đề xuất sửa phải từ 2 đến 1000 ký tự"});const [updated]=await db.promise().query(`UPDATE report_edit_proposals SET reason=?, proposed_data=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'`,[reason,JSON.stringify(proposedData||{}),id]);if(Number(updated.affectedRows)!==1)return res.status(409).json({success:false,code:'PROPOSAL_NOT_PENDING',message:'Đề xuất đã được xử lý, không thể chỉnh sửa'});return res.json({success:true,message:"Đã cập nhật đề xuất sửa",data:await proposalDetail(id)});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể cập nhật đề xuất sửa"});}
 });
 
 router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","admin","lead"), permission("REPORT_APPROVE"), async (req,res)=>{
@@ -92,7 +92,8 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
         if(current.status!=="pending")return res.status(400).json({success:false,message:"Đề xuất này đã được xử lý"});
         if(decision==="reject"){
             const reason=String(req.body?.reason||"").trim(); if(reason.length<2)return res.status(400).json({success:false,message:"Vui lòng nhập lý do từ chối"});
-            await db.promise().query(`UPDATE report_edit_proposals SET status='rejected', updated_at=CURRENT_TIMESTAMP WHERE id=?`,[id]);
+            const [updated]=await db.promise().query(`UPDATE report_edit_proposals SET status='rejected', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'`,[id]);
+            if(Number(updated.affectedRows)!==1)return res.status(409).json({success:false,code:'PROPOSAL_NOT_PENDING',message:'Đề xuất đã được xử lý'});
             return res.json({success:true,message:"Đã từ chối đề xuất sửa",data:await proposalDetail(id)});
         }
         if(decision!=="approve")return res.status(400).json({success:false,message:"Thao tác xử lý không hợp lệ"});
