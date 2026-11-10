@@ -49,6 +49,7 @@
     "files": [
       "electron/monthlyWorkbookLocal.cjs",
       "electron/**/*",
+      "assets/templates/ktc-process/**/*",
       "package.json"
     ],
     "win": {
