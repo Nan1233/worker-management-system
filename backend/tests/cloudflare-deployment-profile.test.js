@@ -30,7 +30,7 @@ test('Cloudflare TEST profile is explicitly isolated to TEST frontend origin', (
 
 test('Cloudflare production profile is explicit and does not contain secrets', () => {
   const config = parseJsonc('wrangler.production.jsonc');
-  assert.equal(config.name, 'ktc-be');
+  assert.equal(config.name, 'ktc-backend');
   assert.equal(config.vars.KTC_ENVIRONMENT, 'production');
   assert.equal(config.vars.NODE_ENV, 'production');
   assert.equal(config.vars.KTC_FRONTEND_ORIGIN, PRODUCTION_FRONTEND_ORIGIN);
