@@ -37,6 +37,7 @@ function ProductionHistory() {
     const [reports, setReports] = useState<ProductionReport[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [reloadKey, setReloadKey] = useState(0);
     const [searchKeyword, setSearchKeyword] = useState("");
     const [selectedDate, setSelectedDate] = useState("");
     const [selectedShift, setSelectedShift] = useState("");
@@ -44,24 +45,26 @@ function ProductionHistory() {
     const [currentPage, setCurrentPage] = useState(1);
 
     useEffect(() => {
+        let cancelled = false;
         const loadReports = async () => {
             try {
                 setLoading(true);
                 setError("");
                 const data = await getMyTempReports();
-                setReports(Array.isArray(data) ? data : []);
+                if (!cancelled) setReports(Array.isArray(data) ? data : []);
             } catch (err: unknown) {
                 console.error("Lỗi lấy lịch sử:", err);
                 const message = axios.isAxiosError(err)
                     ? err.response?.data?.message || "Không thể tải lịch sử báo cáo"
                     : "Không thể tải lịch sử báo cáo";
-                setError(message);
+                if (!cancelled) setError(message);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
         void loadReports();
-    }, []);
+        return () => { cancelled = true; };
+    }, [reloadKey]);
 
     const filteredReports = useMemo(() => {
         const keyword = normalizeText(searchKeyword);
@@ -82,7 +85,7 @@ function ProductionHistory() {
         });
     }, [reports, searchKeyword, selectedDate, selectedShift, selectedStatus]);
 
-    useEffect(() => setCurrentPage(1), [searchKeyword, selectedDate, selectedShift, selectedStatus]);
+    useEffect(() => setCurrentPage(1), [searchKeyword, selectedDate, selectedShift, selectedStatus, reports]);
 
     const totalPages = Math.max(1, Math.ceil(filteredReports.length / ITEMS_PER_PAGE));
     const paginatedReports = filteredReports.slice(
@@ -287,12 +290,17 @@ function ProductionHistory() {
                     </div>
                 </section>
 
-                {error && <div className="history-error">{error}</div>}
+                {error && <div className="history-error" role="alert">
+                    <strong>Không thể tải lịch sử báo cáo</strong>
+                    <p>{error}</p>
+                    <button type="button" onClick={() => setReloadKey(value => value + 1)}>Thử tải lại</button>
+                </div>}
 
                 {!error && filteredReports.length === 0 ? (
                     <div className="history-empty">
-                        <strong>Không tìm thấy báo cáo</strong>
-                        <p>Thử thay đổi từ khóa hoặc bộ lọc.</p>
+                        <strong>{hasActiveFilter ? "Không tìm thấy báo cáo phù hợp" : "Chưa có báo cáo nào"}</strong>
+                        <p>{hasActiveFilter ? "Thử thay đổi từ khóa hoặc bộ lọc." : "Các báo cáo đã gửi sẽ xuất hiện tại đây."}</p>
+                        {hasActiveFilter && <button type="button" onClick={clearFilters}>Xóa bộ lọc</button>}
                     </div>
                 ) : !error && filteredReports.length > 0 ? (
                     <section className="report-card">

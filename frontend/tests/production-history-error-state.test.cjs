@@ -10,12 +10,15 @@ const source = fs.readFileSync(
 );
 
 test('history API errors do not also show the no-results empty state', () => {
-  assert.match(source, /\{error && <div className="history-error">\{error\}<\/div>\}/);
+  assert.match(source, /\{error && <div className="history-error" role="alert">/);
+  assert.match(source, /<p>\{error\}<\/p>/);
+  assert.match(source, /Thử tải lại/);
   assert.match(source, /!error && filteredReports\.length === 0/);
   assert.match(source, /: !error && filteredReports\.length > 0 \?/);
 });
 
 test('a successful empty history still shows the no-results message', () => {
-  assert.match(source, /<strong>Không tìm thấy báo cáo<\/strong>/);
-  assert.match(source, /<p>Thử thay đổi từ khóa hoặc bộ lọc\.<\/p>/);
+  assert.match(source, /Không tìm thấy báo cáo phù hợp/);
+  assert.match(source, /Chưa có báo cáo nào/);
+  assert.match(source, /Thử thay đổi từ khóa hoặc bộ lọc\./);
 });
