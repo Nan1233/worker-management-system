@@ -67,7 +67,10 @@ export function getDateRangeForMode(
   }
 
   if (mode === "month") {
-    const month = /^\d{4}-\d{2}$/.test(selectedMonth)
+    // A syntactically valid YYYY-MM can still be an impossible month (00/13+).
+    // Reject it before building a date range rather than silently normalizing
+    // the end date into a different month.
+    const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth)
       ? selectedMonth
       : getToday().slice(0, 7);
     const [y, m] = month.split("-").map(Number);
