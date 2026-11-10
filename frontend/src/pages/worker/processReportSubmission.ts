@@ -238,6 +238,16 @@ export function buildProductionReportPayloads(args: Parameters<typeof buildProdu
   const processCode = String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase();
   const isMai = processCode === "MAI";
   const isDo = processCode === "DO" || processCode === "CAN";
+  if (processCode === "CAN") {
+    const requestId = String(args.clientRequestId || "").trim();
+    return completedLines.map((line, index) => buildProductionReportPayload({
+      ...args,
+      clientRequestId: requestId ? `${requestId}-C${index + 1}` : null,
+      extraData: { ...args.extraData, material_code: String(line.materialCode || "").trim() },
+      machineLines: [line],
+      ...(line.machineCode.trim() ? {} : { usesAnyMachine: false, usesMultiMachineLines: false, usesSingleMachine: false }),
+    }));
+  }
   const completedLines = args.machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim());
   const machineLines = completedLines.filter((line) => Boolean(line.machineCode.trim()));
   const manualLines = completedLines.filter((line) => !line.machineCode.trim() && Boolean(line.productCode.trim()));
