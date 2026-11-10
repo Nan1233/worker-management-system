@@ -256,7 +256,7 @@ function machineDisplay(report) {
 function productDisplay(report) {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
   const values = lines.map((item) => asText(item.product_code)).filter(Boolean);
-  return values.length ? [...new Set(values)].join(', ') : asText(report.product_name);
+  return values.length ? [...new Set(values)].join(', ') : (asText(report.product_code) || asText(report.product_name));
 }
 
 function countedNg(report) {
