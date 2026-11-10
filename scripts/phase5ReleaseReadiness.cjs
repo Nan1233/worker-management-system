@@ -53,7 +53,7 @@ try {
 }
 
 const expectedTestApi = 'https://ktc-be-test.nan978971.workers.dev/api';
-const expectedProductionApi = 'https://ktc-be.nan978971.workers.dev/api';
+const expectedProductionApi = 'https://ktc-backend.nan978971.workers.dev/api';
 const testFrontendApi = envValue('frontend/.env.test', 'VITE_API_URL');
 const productionFrontendApi = envValue('frontend/.env.production', 'VITE_API_URL');
 const testProfileOk = Boolean(
@@ -71,7 +71,7 @@ const testProfileOk = Boolean(
   testBackendProfile?.environment === 'test'
 );
 const productionProfileOk = Boolean(
-  backendProduction.name === 'ktc-be' &&
+  backendProduction.name === 'ktc-backend' &&
   backendProduction.vars?.KTC_ENVIRONMENT === 'production' &&
   backendProduction.vars?.KTC_FRONTEND_ORIGIN === 'https://ktc-frontend.nan978971.workers.dev' &&
   backendProduction.vars?.KTC_RUN_MASTER_DATA_BOOTSTRAP === 'false' &&
