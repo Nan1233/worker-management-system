@@ -49,7 +49,6 @@
     "files": [
       "electron/monthlyWorkbookLocal.cjs",
       "electron/**/*",
-      "assets/templates/ktc-process/**/*",
       "package.json"
     ],
     "win": {
@@ -111,7 +110,14 @@
           "bao-cao-cat-long-export.xlsx",
           "bao-cao-mai-do-export.xlsx",
           "TT_MAI_TEMPLATE.xlsx",
-          "TT_DO_TEMPLATE.xlsx"
+          "TT_DO_TEMPLATE.xlsx",
+        "01_MAU_MAI.xlsx",
+        "02_MAU_DO.xlsx",
+        "03_MAU_KIEM_1.xlsx",
+        "04_MAU_KIEM_2.xlsx",
+        "05_MAU_CAN.xlsx",
+        "06_MAU_EP.xlsx",
+        "07_MAU_XLBV.xlsx"
         ]
       },
       {
