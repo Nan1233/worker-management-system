@@ -1860,16 +1860,7 @@ const updateDeductionValue = (
 
                 <ProcessBasicInfoSection
                     processCode={processCode}
-                    inlineExtraFields={processCode === "CAN" ? (
-                        <ProcessExtraFieldsSection
-                            inline
-                            fields={currentExtraFields.filter((field) => field.key === "material_code")}
-                            extraData={extraData}
-                            setExtraData={setExtraData}
-                            fieldOptions={extraFieldOptions}
-                            loadingFieldOptions={loadingRelatedMaiMachines}
-                        />
-                    ) : undefined}
+                    inlineExtraFields={undefined}
                     form={form}
                     setForm={setForm}
                     onFormChange={handleChange}
