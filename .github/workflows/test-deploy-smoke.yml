@@ -4,9 +4,10 @@ name: KTC TEST post-deploy smoke
 # (Workers Builds deploys ktc-be-test / ktc-fe-test from that branch). Read-only apart from normal
 # sign-ins. Authenticated checks run only when the optional secrets are configured; otherwise they
 # are reported as SKIP, never as PASS. Secrets are passed as env and never printed.
+# Cloudflare deployment is intentionally paused. Run post-deploy smoke manually
+# only after deployment is explicitly re-enabled; otherwise every source push
+# waits for a deployment that is not supposed to happen.
 on:
-  push:
-    branches: [test]
   workflow_dispatch:
 
 permissions:
