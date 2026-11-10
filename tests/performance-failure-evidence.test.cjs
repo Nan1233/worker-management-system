@@ -21,7 +21,7 @@ test('performance runner persists failure evidence and never prints PASS for fai
 
 test('connection failures are caught and recorded without closing a nonexistent connection',()=>{
  const tryAt=source.indexOf('  try {\n  db=await mysql.createConnection');
- const catchAt=source.indexOf('  } catch(error) {\\n    executionError=error;',tryAt);
+ const catchAt=source.indexOf('  } catch(error) {\n    executionError=error;',tryAt);
  assert.ok(tryAt>=0&&catchAt>tryAt,'connection must be inside evidence-producing try/catch');
  assert.match(source,/let db=null;/);
  assert.match(source,/if\(db\)await db\.end\(\)/);
