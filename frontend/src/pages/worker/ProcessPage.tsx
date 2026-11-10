@@ -330,7 +330,7 @@ const machineAutocompleteOptions =
         // Mài cho phép nhập sản phẩm không cần gắn máy. Khi chưa chọn máy,
         // hiển thị toàn bộ sản phẩm thuộc phạm vi công đoạn; khi đã chọn máy
         // vẫn lọc theo mapping/định mức của máy như các công đoạn khác.
-        if (["MAI", "DO"].includes(processCode) && !String(machineCode || "").trim()) {
+        if (["MAI", "DO", "CAN"].includes(processCode) && !String(machineCode || "").trim()) {
             return scopedProductOptions;
         }
         return filterProductsForSelection({
