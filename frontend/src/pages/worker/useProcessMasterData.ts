@@ -206,11 +206,11 @@ function filterK2MasterOptions(
 // Only show canonical encoded master entries for the five Excel-driven processes.
 // Legacy codes remain in the DB for historical reports but are not selectable.
 const ENCODED_PREFIXES: Record<string, { ng: string; deduction: string }> = {
-  MAI: { ng: "MAI_NG", deduction: "MAI_TG" },
-  DO: { ng: "DO_NG", deduction: "DO_TG" },
-  CAN: { ng: "CAN_NG", deduction: "CAN_TG" },
-  EP: { ng: "EP_NG", deduction: "EP_TG" },
-  XLBV: { ng: "XLBV_NG", deduction: "XLBV_TG" },
+  MAI: { ng: "MAI_NG", deduction: "MAI_TTH" },
+  DO: { ng: "DO_NG", deduction: "DO_TTH" },
+  CAN: { ng: "CAN_NG", deduction: "CAN_TTH" },
+  EP: { ng: "EP_NG", deduction: "EP_TTH" },
+  XLBV: { ng: "XLBV_NG", deduction: "XLBV_TTH" },
 };
 function filterEncodedOptions(options: WorkerMasterOption[], processCode: string, kind: "ng" | "deduction"): WorkerMasterOption[] {
   const rule = ENCODED_PREFIXES[String(processCode || "").trim().toUpperCase()];
