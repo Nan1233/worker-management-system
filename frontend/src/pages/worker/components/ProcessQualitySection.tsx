@@ -37,8 +37,12 @@ export default function ProcessQualitySection({ form, activeNgOptions, selectedN
         selectedNg.filter((key) => !visibleKeys.has(key)).forEach((key) => onToggleNg(key, false));
     }, [gcOperation, hasCanonicalGcDefects, qualityLocked, visibleNgOptions, selectedNg, onToggleNg, shouldHide]);
     if (shouldHide) return null;
-    // Worker entry shows the encoding only; full defect names remain in DB and reports.
-    const getDisplayLabel = (item: NgOption) => String(item.code || "").trim() || String(item.label || "").trim();
+    // XLBV workers need readable defect names; retain encoded labels for other processes.
+    const getDisplayLabel = (item: NgOption) => {
+        const code = String(item.code || "").trim();
+        const label = String(item.label || "").trim();
+        return /^XLBV_NG_\\d+$/i.test(code) ? (label || code) : (code || label);
+    };
     return <section className="worker-form-card worker-quality-section">
         <h2 className="worker-card-title"><span><AppIcon name="sheet" size={20} /></span> {operationMode === "MACHINE" ? "Lỗi NG của máy" : "Báo cáo Chất lượng"}</h2>
         {operationMode !== "MACHINE" && <div className="worker-quality-summary">
