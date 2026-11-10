@@ -151,6 +151,8 @@ function ProcessPage() {
     const pendingSplitPayloadsRef = useRef<any[]>([]);
     // A confirmed primary report must not be submitted again when a later split fails.
     const duplicatePrimaryCompletedRef = useRef(false);
+    // Reuse the same idempotency key if the server accepted a forced duplicate but its response was lost.
+    const duplicateForceRequestIdRef = useRef<string | null>(null);
     const workerInfoRequestSeqRef = useRef(0);
     const masterDataRequestSeqRef = useRef(0);
     const machineStandardRequestSeqRef = useRef<Record<number, number>>({});
@@ -651,6 +653,7 @@ const machineAutocompleteOptions =
         setDuplicatePrompt(null);
         pendingSplitPayloadsRef.current = [];
         duplicatePrimaryCompletedRef.current = false;
+        duplicateForceRequestIdRef.current = null;
         clientRequestIdRef.current = null;
         submitLockRef.current = false;
         setSubmitting(false);
@@ -664,15 +667,19 @@ const machineAutocompleteOptions =
         if (!snapshotMatches) {
             submitLockRef.current = false;
             showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng lưu lại để kiểm tra lại.", "warning");
-            setDuplicatePrompt(null);
+            if (!duplicatePrimaryCompletedRef.current) {
+                duplicateForceRequestIdRef.current = null;
+                setDuplicatePrompt(null);
+            }
             return;
         }
         try {
             setSubmitting(true);
             if (!duplicatePrimaryCompletedRef.current) {
+                duplicateForceRequestIdRef.current ||= createClientRequestId();
                 await createTempReport({
                     ...duplicatePrompt.payload,
-                    client_request_id: crypto.randomUUID(),
+                    client_request_id: duplicateForceRequestIdRef.current,
                     force_create: true,
                     duplicate_confirmation_token: duplicatePrompt.confirmationToken,
                 });
@@ -699,7 +706,7 @@ const machineAutocompleteOptions =
         if (!snapshotMatches) {
             submitLockRef.current = false;
             showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng kiểm tra lại.", "warning");
-            setDuplicatePrompt(null);
+            if (!duplicatePrimaryCompletedRef.current) setDuplicatePrompt(null);
             return;
         }
         try {
@@ -1627,6 +1634,7 @@ const updateDeductionValue = (
                                 const prompt = toDuplicatePrompt(duplicateResponse.data, payload);
                                 if (prompt) {
                                     duplicatePrimaryCompletedRef.current = false;
+                                    duplicateForceRequestIdRef.current = null;
                                     pendingSplitPayloadsRef.current = payloads.slice(index + 1);
                                     const reportType = duplicateResponse.data?.report_type === "approved" ? "approved" : "temp";
                                     setDuplicatePrompt({ ...prompt, reportType, formSignature: getDuplicateFormSignature() });
@@ -1650,6 +1658,7 @@ const updateDeductionValue = (
                         const prompt = toDuplicatePrompt(response, payload);
                         if (prompt) {
                             duplicatePrimaryCompletedRef.current = false;
+                            duplicateForceRequestIdRef.current = null;
                             pendingSplitPayloadsRef.current = payloads.slice(index + 1);
                             setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
                             return;
@@ -1919,8 +1928,14 @@ const updateDeductionValue = (
                 submitting={submitting}
                 loadingWorker={loadingWorker}
                 onCancelDuplicate={() => {
+                    if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
+                        showToast("Một phần báo cáo đã gửi thành công. Vui lòng thử lại để gửi nốt các báo cáo còn lại trước khi thoát.", "warning");
+                        return;
+                    }
                     setDuplicatePrompt(null);
                     pendingSplitPayloadsRef.current = [];
+                    duplicatePrimaryCompletedRef.current = false;
+                    duplicateForceRequestIdRef.current = null;
                     submitLockRef.current = false;
                 }}
                 onUpdateExisting={() => void handleUpdateExistingReport()}
