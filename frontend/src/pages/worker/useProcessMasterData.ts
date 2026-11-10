@@ -216,15 +216,22 @@ function filterEncodedOptions(options: WorkerMasterOption[], processCode: string
   const rule = ENCODED_PREFIXES[String(processCode || "").trim().toUpperCase()];
   if (!rule) return options;
   const prefix = rule[kind];
-  const unique = new Map<string, WorkerMasterOption>();
-  for (const option of options) {
+  const canonical = options.filter((option) => {
     const code = String(option.code || "").trim().toUpperCase();
-    if (!code.startsWith(prefix)) continue;
-    const suffix = code.slice(prefix.length).replace(/^_/, "");
-    if (!/^[0-9]+$/.test(suffix)) continue;
-    if (!unique.has(code)) unique.set(code, option);
-  }
-  return [...unique.values()];
+    if (!code.startsWith(prefix)) return false;
+    return /^_?[0-9]+$/.test(code.slice(prefix.length));
+  });
+  // Prefer the encoded DB row and collapse duplicate names and duplicate codes.
+  const uniqueLabels = new Set<string>();
+  const uniqueCodes = new Set<string>();
+  return canonical.filter((option) => {
+    const code = String(option.code || "").trim().toUpperCase();
+    const label = normalizeMasterLabel(option.label);
+    if (uniqueCodes.has(code) || (label && uniqueLabels.has(label))) return false;
+    uniqueCodes.add(code);
+    if (label) uniqueLabels.add(label);
+    return true;
+  });
 }
 
 const PROCESS_ID_BY_CODE: Record<string, number> = {
