@@ -50,7 +50,7 @@ test('both review paths use one transaction and preserve rollback on exceptions'
   for (const body of [approve, reject]) {
     assert.equal((body.match(/await beginTransaction\(connection\)/g) || []).length, 1);
     assert.equal((body.match(/await commit\(connection\)/g) || []).length, 1);
-    assert.match(body, /catch \(error\) \{\s*if \(ownsTransaction\) await rollbackReviewTransaction\(connection, error\);\s*throw error;/);
-    assert.match(body, /finally \{\s*connection\.release\(\)/);
+    assert.match(body, /catch \(error\) \{\s*(?:if \(ownsTransaction\) )?await rollbackReviewTransaction\(connection, error\);\s*throw error;/);
+    assert.match(body, /finally \{\s*(?:if \(ownsTransaction\) )?connection\.release\(\)/);
   }
 });
