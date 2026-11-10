@@ -14,7 +14,9 @@ test('phase 4 worker history supports recoverable error and filter-empty states'
 test('phase 4 worker entry focuses validation and handles offline submission', () => {
   const s = read('pages/worker/ProcessPage.tsx');
   assert.match(s, /focusValidationTarget\(validationMessage\)/);
-  assert.match(s, /selector = '#ttNg'/);
+  const focus = read('pages/worker/processValidationFocus.ts');
+  assert.match(s, /focusProcessValidationTarget/);
+  assert.match(focus, /selector = '#ttNg'/);
   assert.match(s, /enqueueOfflineReport/);
 });
 test('phase 4 manager detail ignores obsolete requests', () => {
