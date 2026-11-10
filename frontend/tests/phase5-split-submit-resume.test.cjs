@@ -19,8 +19,8 @@ test('duplicate create and update resume pending split payloads without replayin
     const action = section(start, end);
     assert.match(action, /if \(!duplicatePrimaryCompletedRef\.current\) \{/);
     assert.match(action, /duplicatePrimaryCompletedRef\.current = true;/);
-    assert.match(action, /while \(pendingSplitPayloadsRef\.current\.length\) \{/);
-    assert.match(action, /await createTempReport\(pendingSplitPayloadsRef\.current\[0\]\);\s*pendingSplitPayloadsRef\.current\.shift\(\);/);
+    assert.match(action, /if \(pendingCount\) enqueueOfflineReports\(pendingSplitPayloadsRef\.current\)/);
+    assert.ok(action.indexOf('enqueueOfflineReports(pendingSplitPayloadsRef.current)') < action.indexOf('finishDuplicateAction()'));
     assert.doesNotMatch(action, /pendingSplitPayloadsRef\.current = \[\];/);
   }
 });
