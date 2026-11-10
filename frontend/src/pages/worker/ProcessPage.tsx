@@ -1726,6 +1726,10 @@ const updateDeductionValue = (
     // =====================================================
 
     const handleReset = () => {
+        if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
+            showToast("Một phần báo cáo đã gửi thành công. Hãy gửi nốt phần còn lại trước khi làm mới biểu mẫu.", "warning");
+            return;
+        }
         const hasEnteredData = Boolean(
             form.productName.trim()
             || form.machineNo.trim()
