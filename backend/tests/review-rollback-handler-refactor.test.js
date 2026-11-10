@@ -49,6 +49,6 @@ test('both review paths call rollback helper, rethrow and release connection',()
  for(const method of ['async approveSelected(','async rejectSelected(']){
   const start=source.indexOf(method),end=source.indexOf('async ',start+10);
   const flow=source.slice(start,end<0?undefined:end);
-  assert.match(flow,/catch \(error\) \{\s*await rollbackReviewTransaction\(connection, error\);\s*throw error;\s*\} finally \{\s*connection\.release\(\)/);
+  assert.match(flow,/catch \(error\) \{\s*if \(ownsTransaction\) await rollbackReviewTransaction\(connection, error\);\s*throw error;\s*\} finally \{\s*if \(ownsTransaction\) connection\.release\(\)/);
  }
 });
