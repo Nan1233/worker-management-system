@@ -131,6 +131,32 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     }
     sheet.getColumn(d.col).hidden=false;
   }
+  // Include every NG type configured for this process in FE, even if no report
+  // has used it yet. Append missing types after the source template's last
+  // column so we never overwrite the daily separators or original headers.
+  const usedDefectKeys=new Set(mappedDefects.filter(d=>d.type).map(d=>String(d.type.key)));
+  const configuredDefects=Array.isArray(processData?.defectTypes)?processData.defectTypes:[];
+  const extraDefects=[];
+  let nextDefectCol=sheet.columnCount+1;
+  for(const item of configuredDefects){
+    const aliases=masterAliases(item);
+    const match=defectTypes.find(t=>{
+      const known=new Set([t.key,...(t.aliases||[])].map(String));
+      return aliases.some(alias=>known.has(alias));
+    });
+    if(!match)continue;
+    const key=String(match.key);
+    if(usedDefectKeys.has(key))continue;
+    usedDefectKeys.add(key);
+    const label=String(match.label||defectDisplayName(item)||key);
+    const col=nextDefectCol++;
+    const cell=sheet.getCell(config.header,col);
+    cell.value=label;
+    sheet.getColumn(col).width=Math.max(12,Math.min(30,label.length+3));
+    sheet.getColumn(col).hidden=false;
+    extraDefects.push({col,header:label,type:match});
+    mapping.push({index:col,key:"defect:"+key,header:label});
+  }
   // Some source workbooks append sample day-by-day OK / NG / % blocks
   // after the actual defect columns. Hide only those triplets, not named NG.
   const lastDefectCol=config.defects?toNumber(config.defects[1]):0;
@@ -178,8 +204,8 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       if(value!==null)row.getCell(d.col).value=value;
     }
     const defectDetails=helpers.detailMap(helpers.reportDetailItems(report,code,"defect"),"defect");
-    for(const d of mappedDefects){
-      const value=matchMasterValue(d.header,defectTypes,defectDetails);
+    for(const d of [...mappedDefects,...extraDefects]){
+      const value=d.type ? [d.type.key,...(d.type.aliases||[])].map(key=>defectDetails.get(key)).find(v=>v!==undefined) ?? null : matchMasterValue(d.header,defectTypes,defectDetails);
       if(value!==null)row.getCell(d.col).value=value;
     }
   }
