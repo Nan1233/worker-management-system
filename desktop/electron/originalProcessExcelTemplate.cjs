@@ -181,7 +181,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     const candidates=[report?.work_date,report?.workDate,report?.production_date,report?.productionDate,report?.report_date,report?.reportDate];
     for(const raw of candidates){
       const key=helpers.dateKey(raw);
-      if(/^\\d{4}-\\d{2}-\\d{2}$/.test(key)&&key.slice(0,7)===yearMonth)return key;
+      if(/^\d{4}-\d{2}-\d{2}$/.test(key)&&key.slice(0,7)===yearMonth)return key;
     }
     const fields=Object.keys(report||{}).filter(key=>/date|ngay/i.test(key)).join(",");
     throw new Error("Báo cáo "+code+" (id="+String(report?.id??"?")+") thiếu ngày sản xuất thuộc "+yearMonth+"; dateFields="+fields);
