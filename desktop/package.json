@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "electron": "37.10.3",
-    "electron-builder": "26.15.3"
+    "electron-builder": "26.18.0"
   },
   "build": {
     "appId": "vn.ktc.productioncontrol",
