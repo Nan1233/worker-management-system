@@ -369,7 +369,7 @@ export function useProcessMasterData(processId: number, processCode: string) {
           dedupeEncodedOrLegacyDeductions(
             normalizeDeductionOptions(deductions.value, resolvedProcessId),
             processCode,
-            "deduction",
+
           ),
         );
       } else {
