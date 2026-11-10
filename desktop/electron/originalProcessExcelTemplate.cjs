@@ -30,6 +30,51 @@ function matchMasterValue(header, types, values) {
   if (matches.length !== 1) return null;
   return [matches[0].key,...(matches[0].aliases||[])].map(key=>values.get(key)).find(v=>v!==undefined) ?? null;
 }
+// FE and export receive the same per-process defect master data from the API.
+// Resolve by stable ID/code first; names are only a fallback for legacy reports.
+function masterAliases(item) {
+  const keys=[];
+  for(const value of [item?.defect_type_id,item?.type_id,item?.id]) {
+    const n=Number(value);if(Number.isInteger(n)&&n>0)keys.push("id:"+n);
+  }
+  for(const value of [item?.defect_type_code,item?.defect_code,item?.type_code,item?.code]) {
+    if(value!=null&&String(value).trim())keys.push("code:"+norm(value));
+  }
+  for(const value of [item?.defect_type_name,item?.defect_name,item?.type_name,item?.display_name,item?.label,item?.name]) {
+    if(value!=null&&String(value).trim())keys.push("name:"+norm(value));
+  }
+  return [...new Set(keys)];
+}
+function defectDisplayName(item) {
+  return String(item?.defect_type_name ?? item?.defect_name ?? item?.display_name ?? item?.type_name ?? item?.label ?? item?.name ?? item?.defect_type_code ?? item?.defect_code ?? item?.code ?? "").trim();
+}
+function makeDefectColumns(defectTypes,reports,helpers,code,slots) {
+  const masters=Array.isArray(defectTypes)?defectTypes:[];
+  const buckets=new Map();
+  const canonical=(item)=>{
+    const aliases=masterAliases(item);
+    const matched=masters.find(master=>{
+      const known=new Set([master.key,...(master.aliases||[])].map(String));
+      return aliases.some(a=>known.has(a));
+    });
+    return matched || item;
+  };
+  for(let index=0;index<reports.length;index++){
+    const details=helpers.reportDetailItems(reports[index],code,"defect");
+    for(const item of details){
+      const quantity=Number(item?.defect_quantity ?? item?.ng_quantity ?? item?.quantity ?? item?.qty ?? item?.value ?? 0);
+      if(!Number.isFinite(quantity)||quantity<=0)continue;
+      const master=canonical(item);
+      const key=String(master.key || masterAliases(master)[0] || masterAliases(item)[0] || "name:"+norm(defectDisplayName(item)));
+      if(!key||key==="name:")throw new Error("Không xác định được loại NG của "+code+" tại báo cáo "+(index+1));
+      let entry=buckets.get(key);
+      if(!entry){entry={key,label:String(master.label || defectDisplayName(master) || defectDisplayName(item) || key),values:new Map()};buckets.set(key,entry);}
+      entry.values.set(index,(entry.values.get(index)||0)+quantity);
+    }
+  }
+  if(buckets.size>slots.length)throw new Error("Mẫu "+code+" chỉ có "+slots.length+" cột NG nhưng dữ liệu cần "+buckets.size+" cột; không thể xuất mà không mất dữ liệu.");
+  return [...buckets.values()];
+}
 async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMonth, settings, helpers, onTemplateLoaded}) {
   const config = FORMS[code];
   if (!config) return null;
@@ -64,10 +109,23 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     }
     return list;
   };
-  const detailCols=[
-    ...buildDetailColumns("deduction",config.deductions,config.deductionHeader),
-    ...buildDetailColumns("defect",config.defects)
-  ];
+  const detailCols=buildDetailColumns("deduction",config.deductions,config.deductionHeader);
+  const defectSlots=[];
+  if(config.defects)for(let col=toNumber(config.defects[0]);col<=toNumber(config.defects[1]);col++)defectSlots.push(col);
+  const activeDefects=makeDefectColumns(defectTypes,reports,helpers,code,defectSlots);
+  // The original company layout is preserved. Only unused NG slots are hidden.
+  for(let index=0;index<defectSlots.length;index++){
+    const col=defectSlots[index];
+    const column=sheet.getColumn(col);
+    if(index<activeDefects.length){
+      column.hidden=false;
+      sheet.getCell(config.header,col).value=activeDefects[index].label;
+      mapping.push({index:col,key:"defect:"+activeDefects[index].key,header:activeDefects[index].label});
+    }else{
+      column.hidden=true;
+      sheet.getCell(config.header,col).value=null;
+    }
+  }
   const distinct = new Set();
   for (const field of mapping) {
     if (distinct.has(field.index)) throw new Error("Duplicate template column index "+code);
@@ -97,13 +155,13 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         cell.value=value instanceof Date ? value : (typeof value==="number" && !Number.isFinite(value) ? null:value);
       }
     }
-    for(const kind of ["deduction","defect"]) {
-      const types=kind==="deduction"?deductionTypes:defectTypes;
-      const details=helpers.detailMap(helpers.reportDetailItems(report,code,kind),kind);
-      for (const d of detailCols.filter(item=>item.kind===kind)) {
-        const value=matchMasterValue(d.header,types,details);
-        if(value!==null) row.getCell(d.col).value=value;
-      }
+    const deductionDetails=helpers.detailMap(helpers.reportDetailItems(report,code,"deduction"),"deduction");
+    for(const d of detailCols){
+      const value=matchMasterValue(d.header,deductionTypes,deductionDetails);
+      if(value!==null)row.getCell(d.col).value=value;
+    }
+    for(let d=0;d<activeDefects.length;d++){
+      row.getCell(defectSlots[d]).value=activeDefects[d].values.get(index)||null;
     }
   }
   // Replace fixed October sample dates/month captions with the requested period.
