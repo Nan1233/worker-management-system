@@ -20,6 +20,7 @@ export function validateMachineLines(args: {
     return Boolean(
       hasText(line.machineCode)
       || hasText(line.productCode)
+      || (String(args.processCode || "").trim().toUpperCase() === "CAN" && hasText(line.materialCode))
       || hasText(line.hours)
       || hasText(line.minutes)
       || hasText(line.actualQuantity)
@@ -51,12 +52,12 @@ export function validateMachineLines(args: {
       if (defectTotal !== ng) return `Máy ${machineCode || "đang chọn"}: tổng chi tiết lỗi (${defectTotal}) phải bằng NG (${ng})`;
     }
     if (!args.allowZeroQuantity && Math.max(0, Number(line.okQuantity) || 0) + Math.max(0, Number(line.ngQuantity) || 0) <= 0) return `${machineLabel}: phải nhập OK hoặc NG lớn hơn 0`;
-    if (!productCode) return `${machineLabel}: thiếu mã sản phẩm`;
-    if (!machineCode && !manualWithoutMachine && !["MAI", "DO"].includes(String(args.processCode || "").trim().toUpperCase())) return "Thiếu số máy";
+    if (!productCode && String(args.processCode || "").trim().toUpperCase() !== "CAN") return `${machineLabel}: thiếu mã sản phẩm`;
+    if (!machineCode && !manualWithoutMachine && !["MAI", "DO", "CAN"].includes(String(args.processCode || "").trim().toUpperCase())) return "Thiếu số máy";
     if (machineCode && args.isMachineValid && !args.isMachineValid(machineCode)) return `Máy ${machineCode} không hợp lệ`;
 
     // Product selection and validation use the exact product_code from the process master.
-    if (args.isProductValid) {
+    if (productCode && args.isProductValid) {
       const valid = args.isProductValid(machineCode, productCode)
         || args.isProductValid(machineCode, normalizeProduct(productCode));
       if (!valid) return `Sản phẩm ${productCode} không hợp lệ`;
