@@ -110,20 +110,37 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     return list;
   };
   const detailCols=buildDetailColumns("deduction",config.deductions,config.deductionHeader);
-  const defectSlots=[];
-  if(config.defects)for(let col=toNumber(config.defects[0]);col<=toNumber(config.defects[1]);col++)defectSlots.push(col);
-  const activeDefects=makeDefectColumns(defectTypes,reports,helpers,code,defectSlots);
-  // The original company layout is preserved. Only unused NG slots are hidden.
-  for(let index=0;index<defectSlots.length;index++){
-    const col=defectSlots[index];
-    const column=sheet.getColumn(col);
-    if(index<activeDefects.length){
-      column.hidden=false;
-      sheet.getCell(config.header,col).value=activeDefects[index].label;
-      mapping.push({index:col,key:"defect:"+activeDefects[index].key,header:activeDefects[index].label});
+  // Preserve every named NG category in the company's form, including zero-count types.
+  // Resolve its display label from the FE/API master list, never from sample daily totals.
+  const defectCols=buildDetailColumns("defect",config.defects);
+  const mappedDefects=[];
+  for(const d of defectCols){
+    const headerNorm=norm(d.header);
+    const matches=defectTypes.filter(t=>[t.label,...(t.aliases||[])].some(v=>{
+      const raw=String(v);return !raw.startsWith("id:")&&!raw.startsWith("code:")&&norm(raw.replace(/^name:/,""))===headerNorm;
+    }));
+    if(matches.length===1){
+      const type=matches[0];
+      const label=String(type.label||d.header);
+      sheet.getCell(config.header,d.col).value=label;
+      mappedDefects.push({...d,type});
+      mapping.push({index:d.col,key:"defect:"+type.key,header:label});
     }else{
-      column.hidden=true;
-      sheet.getCell(config.header,col).value=null;
+      // Keep the source heading rather than silently assigning another NG code.
+      mappedDefects.push(d);
+    }
+    sheet.getColumn(d.col).hidden=false;
+  }
+  // Some source workbooks append sample day-by-day OK / NG / % blocks
+  // after the actual defect columns. Hide only those triplets, not named NG.
+  const lastDefectCol=config.defects?toNumber(config.defects[1]):0;
+  const lastMappedCol=Math.max(...Object.keys(config.fields).map(toNumber),lastDefectCol);
+  for(let col=lastMappedCol+1;col+2<=sheet.columnCount;col++){
+    const titles=[0,1,2].map(offset=>norm(sheet.getCell(config.header,col+offset).value));
+    if(titles[0]==="ok"&&titles[1]==="ng"&&
+       (titles[2]===""||titles[2]==="%"||titles[2]==="percent"||titles[2]==="tyle")){
+      for(let offset=0;offset<3;offset++)sheet.getColumn(col+offset).hidden=true;
+      col+=2;
     }
   }
   const distinct = new Set();
@@ -160,8 +177,10 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       const value=matchMasterValue(d.header,deductionTypes,deductionDetails);
       if(value!==null)row.getCell(d.col).value=value;
     }
-    for(let d=0;d<activeDefects.length;d++){
-      row.getCell(defectSlots[d]).value=activeDefects[d].values.get(index)||null;
+    const defectDetails=helpers.detailMap(helpers.reportDetailItems(report,code,"defect"),"defect");
+    for(const d of mappedDefects){
+      const value=matchMasterValue(d.header,defectTypes,defectDetails);
+      if(value!==null)row.getCell(d.col).value=value;
     }
   }
   // Replace fixed October sample dates/month captions with the requested period.
