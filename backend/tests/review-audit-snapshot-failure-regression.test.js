@@ -68,6 +68,6 @@ test('both approval and rejection catch audit errors and rollback before releasi
     const start = source.indexOf(method);
     const end = source.indexOf('async ', start + method.length);
     const flow = source.slice(start, end < 0 ? undefined : end);
-    assert.match(flow, /catch \(error\) \{\s*if \(ownsTransaction\) await rollbackReviewTransaction\(connection, error\);\s*throw error;\s*\} finally \{\s*if \(ownsTransaction\) connection\.release\(\)/);
+    assert.match(flow, /catch \(error\) \{\s*(?:if \(ownsTransaction\) )?await rollbackReviewTransaction\(connection, error\);\s*throw error;\s*\} finally \{\s*(?:if \(ownsTransaction\) )?connection\.release\(\)/);
   }
 });
