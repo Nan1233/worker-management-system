@@ -1,13 +1,13 @@
 # KTC — Phase 5 Release Readiness
 
-**Current decision: BLOCKED for release — source profiles are prepared, but Cloudflare runtime secrets and account-side configuration are not verified.**
+**Current decision: BLOCKED for release — source profiles are prepared, but account-side secrets, production NODE_ENV and runtime acceptance are not verified/approved.**
 
 This phase is performed on branch `test`. It changes source/configuration and adds synthetic tests only. It does not authorize a deployment, database connection, migration, live-data validation, GitHub release, installer distribution, or auto-update publication.
 
 ## Selected production architecture
 
 - Frontend: Cloudflare Workers Static Assets (Worker name `ktc-frontend`).
-- API: Cloudflare Worker (name `ktc-be`).
+- API: Cloudflare Worker (name `ktc-backend`).
 - Database: TiDB Cloud through `@tidbcloud/serverless`.
 - TEST frontend/API remain isolated as `ktc-fe-test` and `ktc-be-test`.
 - The Worker endpoint names in this repository define the intended `workers.dev` URLs; their availability and custom-domain routing have not been checked against the Cloudflare account.
@@ -16,9 +16,9 @@ This phase is performed on branch `test`. It changes source/configuration and ad
 
 | Component | TEST | Production |
 |---|---|---|
-| Backend Worker | `backend/wrangler.jsonc` → `ktc-be-test` | `backend/wrangler.production.jsonc` → `ktc-be` |
+| Backend Worker | `backend/wrangler.jsonc` → `ktc-be-test` | `backend/wrangler.production.jsonc` → `ktc-backend` |
 | Frontend Worker | `frontend/wrangler.jsonc` → `ktc-fe-test` | `frontend/wrangler.production.jsonc` → `ktc-frontend` |
-| Frontend API | `frontend/.env.test` → `https://ktc-be-test.nan978971.workers.dev/api` | `frontend/.env.production` → `https://ktc-be.nan978971.workers.dev/api` |
+| Frontend API | `frontend/.env.test` → `https://ktc-be-test.nan978971.workers.dev/api` | `frontend/.env.production` → `https://ktc-backend.nan978971.workers.dev/api` |
 | Desktop | `desktop/package.json` defaults to TEST | `desktop/electron-builder.production.json` overrides packaged metadata to production |
 
 Frontend API configuration now fails closed:
