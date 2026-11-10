@@ -19,10 +19,10 @@ test('confirmed duplicate create/update preserve the remaining split queue on tr
     const handler = action(start, end);
     assert.match(handler, /duplicatePrimaryCompletedRef\.current && isTransientNetworkFailure\(error\)/);
     assert.match(handler, /error\.response\?\.status === 429/);
-    assert.match(handler, /for \(const payload of pendingSplitPayloadsRef\.current\) enqueueOfflineReport\(payload\);/);
+    assert.match(handler, /enqueueOfflineReports\(pendingSplitPayloadsRef\.current\)/);
     assert.match(handler, /finishDuplicateAction\(\);\s*return;/);
     assert.match(handler, /catch \(queueError: unknown\)/);
-    assert.match(handler, /while \(pendingSplitPayloadsRef\.current\.length\)/);
+    assert.match(handler, /if \(pendingCount\) enqueueOfflineReports\(pendingSplitPayloadsRef\.current\)/);
   }
 });
 

@@ -49,7 +49,7 @@ import {
 import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
 import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
-import { enqueueOfflineReport, isTransientNetworkFailure } from "../../services/offlineReportQueue";
+import { enqueueOfflineReports, isTransientNetworkFailure } from "../../services/offlineReportQueue";
 import { workerCanAccessProcess } from "../../utils/processAccess";
 import { getProcessFormSchema } from "./processFormSchemas";
 
@@ -686,11 +686,10 @@ const machineAutocompleteOptions =
                 duplicatePrimaryCompletedRef.current = true;
             }
             const pendingCount = pendingSplitPayloadsRef.current.length;
-            while (pendingSplitPayloadsRef.current.length) {
-                await createTempReport(pendingSplitPayloadsRef.current[0]);
-                pendingSplitPayloadsRef.current.shift();
-            }
-            showToast(pendingCount ? "Đã xác nhận báo cáo trùng và gửi các báo cáo còn lại." : "Đã tạo báo cáo trùng theo xác nhận.", "success");
+            // Persist every remaining machine report BEFORE navigating away.
+            // A browser reload must not discard the rest of this split submit.
+            if (pendingCount) enqueueOfflineReports(pendingSplitPayloadsRef.current);
+            showToast(pendingCount ? "Đã xác nhận báo cáo trùng. Các báo cáo máy còn lại đã lưu an toàn và đang đồng bộ." : "Đã tạo báo cáo trùng theo xác nhận.", pendingCount ? "warning" : "success");
             finishDuplicateAction();
         } catch (error: unknown) {
             // After the primary report succeeded, preserve the unsent split reports
@@ -699,7 +698,7 @@ const machineAutocompleteOptions =
             if (duplicatePrimaryCompletedRef.current && isTransientNetworkFailure(error)
                 && !(axios.isAxiosError(error) && error.response?.status === 429)) {
                 try {
-                    for (const payload of pendingSplitPayloadsRef.current) enqueueOfflineReport(payload);
+                    enqueueOfflineReports(pendingSplitPayloadsRef.current);
                     showToast("Báo cáo chính đã lưu. Các báo cáo còn lại đã được đưa vào hàng đợi và sẽ tự đồng bộ khi có mạng.", "warning");
                     finishDuplicateAction();
                     return;
@@ -730,17 +729,15 @@ const machineAutocompleteOptions =
                 duplicatePrimaryCompletedRef.current = true;
             }
             const pendingCount = pendingSplitPayloadsRef.current.length;
-            while (pendingSplitPayloadsRef.current.length) {
-                await createTempReport(pendingSplitPayloadsRef.current[0]);
-                pendingSplitPayloadsRef.current.shift();
-            }
-            showToast(pendingCount ? "Đã cập nhật báo cáo trùng và gửi các báo cáo còn lại." : "Đã cập nhật báo cáo hiện có.", "success");
+            // Save the complete remainder atomically before clearing the form.
+            if (pendingCount) enqueueOfflineReports(pendingSplitPayloadsRef.current);
+            showToast(pendingCount ? "Đã cập nhật báo cáo chính. Các báo cáo máy còn lại đã lưu an toàn và đang đồng bộ." : "Đã cập nhật báo cáo hiện có.", pendingCount ? "warning" : "success");
             finishDuplicateAction();
         } catch (error: unknown) {
             if (duplicatePrimaryCompletedRef.current && isTransientNetworkFailure(error)
                 && !(axios.isAxiosError(error) && error.response?.status === 429)) {
                 try {
-                    for (const payload of pendingSplitPayloadsRef.current) enqueueOfflineReport(payload);
+                    enqueueOfflineReports(pendingSplitPayloadsRef.current);
                     showToast("Báo cáo chính đã cập nhật. Các báo cáo còn lại đã lưu vào hàng đợi offline.", "warning");
                     finishDuplicateAction();
                     return;
@@ -1634,7 +1631,7 @@ const updateDeductionValue = (
                 });
 
                 if (!navigator.onLine) {
-                    payloads.forEach((payload) => enqueueOfflineReport(payload));
+                    enqueueOfflineReports(payloads);
                     showToast("Đang mất mạng. Các báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
                     clearProcessDraft(process);
                     clientRequestIdRef.current = null;
@@ -1668,7 +1665,7 @@ const updateDeductionValue = (
                             }
                         }
                         if (isTransientNetworkFailure(error)) {
-                            payloads.slice(index).forEach((payload) => enqueueOfflineReport(payload));
+                            enqueueOfflineReports(payloads.slice(index));
                             showToast("Kết nối Internet bị gián đoạn. Các báo cáo còn lại đã được lưu trên thiết bị và sẽ tự gửi khi có mạng.", "warning");
                             clearProcessDraft(process);
                             clientRequestIdRef.current = null;

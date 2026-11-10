@@ -32,7 +32,7 @@ test('worker 429 preserves form and is not put into the offline mutation queue',
   const catchIndex = page.indexOf('} catch (error: any) {');
   const rateIndex = page.indexOf('=== 429', catchIndex);
   const transientIndex = page.indexOf('isTransientNetworkFailure(error)', catchIndex);
-  const enqueueIndex = page.indexOf('enqueueOfflineReport(payload)', catchIndex);
+  const enqueueIndex = page.indexOf('enqueueOfflineReports(payloads.slice(index))', catchIndex);
   assert.ok(rateIndex > catchIndex && rateIndex < transientIndex, '429 must be handled before transient/offline classification');
   assert.ok(enqueueIndex > transientIndex, 'offline queue must remain only on transient path');
   assert.match(page.slice(rateIndex, transientIndex), /showToast\([\s\S]*"warning"\)/);

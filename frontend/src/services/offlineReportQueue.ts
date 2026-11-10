@@ -209,6 +209,58 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
     return item;
 }
 
+/**
+ * Atomically stage a multi-machine submission. Capacity and request IDs are
+ * checked for the entire batch BEFORE a single localStorage write. A partial
+ * queue is never presented to the worker as a fully saved submission.
+ */
+export function enqueueOfflineReports(payloads: ProductionReport[]): OfflineReportQueueItem[] {
+    if (!payloads.length) return [];
+    const owner = currentOwner();
+    if (!owner) throw new Error("Không xác định được công nhân cho hàng đợi offline.");
+
+    const all = readAll();
+    const newlyQueued: OfflineReportQueueItem[] = [];
+    const result: OfflineReportQueueItem[] = [];
+    const known = new Map(
+        all.filter((item) => ownerMatches(item.owner, owner))
+            .map((item) => [String(item.payload.client_request_id || "").trim(), item] as const)
+    );
+
+    for (const payload of payloads) {
+        const requestId = String(payload.client_request_id || "").trim();
+        if (!requestId) throw new Error("Báo cáo offline phải có client_request_id.");
+        const existing = known.get(requestId);
+        if (existing) {
+            result.push(existing);
+            continue;
+        }
+        const item: OfflineReportQueueItem = {
+            id: crypto.randomUUID(),
+            owner,
+            createdAt: Date.now(),
+            attempts: 0,
+            status: "queued",
+            nextRetryAt: Date.now(),
+            payload
+        };
+        newlyQueued.push(item);
+        known.set(requestId, item);
+        result.push(item);
+    }
+
+    const mineCount = all.filter((item) => ownerMatches(item.owner, owner)).length;
+    if (mineCount + newlyQueued.length > MAX_ITEMS_PER_OWNER) {
+        throw new Error("Hàng đợi offline của công nhân không đủ chỗ cho toàn bộ báo cáo. Hãy đồng bộ trước khi lưu.");
+    }
+    if (all.length + newlyQueued.length > MAX_TOTAL_ITEMS) {
+        throw new Error("Thiết bị không đủ chỗ cho toàn bộ nhóm báo cáo offline. Chưa có báo cáo mới nào được lưu.");
+    }
+    if (newlyQueued.length) writeAll([...all, ...newlyQueued]);
+    void flushOfflineReportQueue();
+    return result;
+}
+
 export function getCurrentOfflineQueueCount(): number {
     const owner = currentOwner();
     if (!owner) return 0;
