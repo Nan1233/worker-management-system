@@ -9,12 +9,13 @@ const ts = require('typescript');
 
 // Run the real TypeScript queue module with fake browser storage and an
 // indefinitely pending API call. No network, credentials or test database.
-function makeQueue({ failWrite = false } = {}) {
+function makeQueue({ failWrite = false, initialRaw = null } = {}) {
   const source = fs.readFileSync(path.join(__dirname, '../src/services/offlineReportQueue.ts'), 'utf8');
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
   const values = new Map();
+  if (initialRaw !== null) values.set('ktcOfflineReportQueueV1', initialRaw);
   let writes = 0;
   let events = 0;
   let uuid = 0;
@@ -55,7 +56,8 @@ function makeQueue({ failWrite = false } = {}) {
     state: () => ({
       writes,
       events,
-      items: JSON.parse(values.get('ktcOfflineReportQueueV1') || '[]'),
+      raw: values.get('ktcOfflineReportQueueV1') || null,
+      items: (() => { try { return JSON.parse(values.get('ktcOfflineReportQueueV1') || '[]'); } catch { return null; } })(),
     }),
   };
 }
@@ -96,4 +98,20 @@ test('storage failure never reports a split batch as safely queued', () => {
   assert.throws(() => queue.enqueueOfflineReports(payloads('x', 'y')), /Không còn đủ bộ nhớ/);
   assert.equal(state().items.length, 0);
   assert.equal(state().events, 0);
+});
+
+test('corrupt JSON in the existing offline queue is never overwritten by a new batch', () => {
+  const corrupt = '{"unfinished":';
+  const { queue, state } = makeQueue({ initialRaw: corrupt });
+  assert.throws(() => queue.enqueueOfflineReports(payloads('a', 'b')), /Không thể ghi đè/);
+  assert.equal(state().raw, corrupt);
+  assert.equal(state().writes, 0);
+});
+
+test('malformed existing queue records are preserved rather than silently discarded', () => {
+  const corrupt = JSON.stringify([{ id: 'old', payload: null, owner: null }]);
+  const { queue, state } = makeQueue({ initialRaw: corrupt });
+  assert.throws(() => queue.enqueueOfflineReports(payloads('a')), /Không thể ghi đè/);
+  assert.equal(state().raw, corrupt);
+  assert.equal(state().writes, 0);
 });
