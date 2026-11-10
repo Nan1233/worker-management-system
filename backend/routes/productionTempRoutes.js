@@ -97,6 +97,7 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
             return res.json({success:true,message:"Đã từ chối đề xuất sửa",data:await proposalDetail(id)});
         }
         if(decision!=="approve")return res.status(400).json({success:false,message:"Thao tác xử lý không hợp lệ"});
+        if(!["pending","approved"].includes(statusAfter))return res.status(400).json({success:false,code:"INVALID_STATUS_AFTER",message:"Trạng thái sau xử lý không hợp lệ"});
         const proposed=current.proposed_data&&typeof current.proposed_data==="object"?current.proposed_data:{};
         let resultPayload=null; let resultStatus=200;
         const fakeRes={status(code){resultStatus=code;return this;},json(body){resultPayload=body;return this;}};
@@ -104,12 +105,13 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
         if(resultStatus>=400||resultPayload?.success===false)return res.status(resultStatus||400).json(resultPayload||{success:false,message:"Không thể cập nhật báo cáo theo đề xuất"});
         if(statusAfter==="approved") await ProductionTemp.approveSelected([{id:current.report_id}],Number(req.user.id),req.user.role==="admin");
         const newStatus=statusAfter==="approved"?"approved":"accepted";
-        await db.promise().query(`UPDATE report_edit_proposals SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,[newStatus,id]);
+        const [transition]=await db.promise().query(`UPDATE report_edit_proposals SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'`,[newStatus,id]);
+        if(Number(transition.affectedRows)!==1)return res.status(409).json({success:false,code:'PROPOSAL_REVIEW_CONFLICT',message:'Đề xuất đã được xử lý đồng thời; cần kiểm tra trạng thái báo cáo trước khi thao tác tiếp'});
         return res.json({success:true,message:statusAfter==="approved"?"Đã sửa và duyệt báo cáo":"Đã áp dụng đề xuất, báo cáo đang chờ duyệt",data:await proposalDetail(id)});
     }catch(error){console.error("REVIEW EDIT PROPOSAL ERROR:",error);return res.status(error.status||500).json({success:false,message:error.message||"Không thể xử lý đề xuất sửa"});}
 });
 
-router.delete("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});await db.promise().query(`DELETE FROM report_edit_proposals WHERE id=?`,[id]);return res.json({success:true,message:"Đã xóa đề xuất sửa"});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa đề xuất sửa"});}});
+router.delete("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});const [deleted]=await db.promise().query(`DELETE FROM report_edit_proposals WHERE id=? AND status='pending'`,[id]);if(Number(deleted.affectedRows)!==1)return res.status(409).json({success:false,code:'PROPOSAL_NOT_PENDING',message:'Chỉ có thể xóa đề xuất đang chờ xử lý'});return res.json({success:true,message:"Đã xóa đề xuất sửa"});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa đề xuất sửa"});}});
 
 router.post("/approve-selected",authMiddleware,checkRole("admin","admin_ops","manager","lead"),validate({ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true}}),permission("REPORT_APPROVE"),controller.approveSelectedReports);
 router.post("/reject-selected",authMiddleware,checkRole("admin","admin_ops","manager","lead"),validate({ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true},reason:{required:true,type:"string",minLength:2,maxLength:500}}),permission("REPORT_APPROVE"),controller.rejectSelectedReports);
