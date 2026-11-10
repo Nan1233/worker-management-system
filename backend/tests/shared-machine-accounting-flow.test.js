@@ -121,7 +121,7 @@ test('Excel company payload carries physical events separately from worker repor
   const physicalMetadata = fs.readFileSync(path.join(repo, 'desktop/electron/monthlyWorkbookPhysicalEvents.cjs'), 'utf8');
   assert.match(desktop, /createPhysicalMachineMetadata/);
   assert.match(physicalMetadata, /_KTC_MACHINE_EVENTS/);
-  assert.match(desktop, /physical_counted_output/);
+  assert.match(physicalMetadata, /physical_counted_output/);
 });
 
 test('shared-machine scanner is read-only and never creates events automatically', () => {
