@@ -1,5 +1,11 @@
 name: Phase 5 Public Health Smoke (read-only)
 on:
+  push:
+    branches: [test]
+    paths:
+      - 'scripts/phase5PublicHealthSmoke.cjs'
+      - 'tests/phase5-public-health-smoke.test.cjs'
+      - '.github/workflows/phase5-public-health-smoke.yml'
   workflow_dispatch:
     inputs:
       target:
@@ -21,4 +27,6 @@ jobs:
       - name: Validate probe implementation
         run: node --test tests/phase5-public-health-smoke.test.cjs
       - name: Check public live and ready endpoints
-        run: node scripts/phase5PublicHealthSmoke.cjs ${{ inputs.target }}
+        env:
+          KTC_HEALTH_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'test' }}
+        run: node scripts/phase5PublicHealthSmoke.cjs "$KTC_HEALTH_TARGET"
