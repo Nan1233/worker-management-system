@@ -143,7 +143,7 @@ export function buildProductionReportPayload(args: {
   }
 
   const deductions=args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(args.deductions[String(o.key||"")])/60 })).filter(x=>x.hours>0);
-  const isMaiWithoutMachine = String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase() === "MAI"
+  const isMaiWithoutMachine = ["MAI", "DO"].includes(String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase())
     && lines.length > 0
     && lines.every((line) => !String(line.machine_code || "").trim());
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
@@ -235,29 +235,48 @@ export function buildProductionReportPayload(args: {
  * machine lines in one MACHINE report.
  */
 export function buildProductionReportPayloads(args: Parameters<typeof buildProductionReportPayload>[0]): ProductionReport[] {
-  const isMai = String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase() === "MAI";
+  const processCode = String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase();
+  const isMai = processCode === "MAI";
+  const isDo = processCode === "DO";
   const completedLines = args.machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim());
   const machineLines = completedLines.filter((line) => Boolean(line.machineCode.trim()));
   const manualLines = completedLines.filter((line) => !line.machineCode.trim() && Boolean(line.productCode.trim()));
 
-  if (!isMai || machineLines.length === 0 || manualLines.length === 0) {
+  if (!isMai && !isDo) return [buildProductionReportPayload(args)];
+  if (isMai && (machineLines.length === 0 || manualLines.length === 0)) {
     return [buildProductionReportPayload(args)];
   }
-
+  // DO: a blank machine is valid. Never collapse multiple product-only lines
+  // into one parent report, otherwise only one job is saved.
   const baseRequestId = String(args.clientRequestId || "").trim();
-  const machinePayload = buildProductionReportPayload({
-    ...args,
-    clientRequestId: baseRequestId ? `${baseRequestId}-M` : null,
-    machineLines,
-  });
-  const manualPayload = buildProductionReportPayload({
-    ...args,
-    clientRequestId: baseRequestId ? `${baseRequestId}-H` : null,
-    machineLines: manualLines,
-    usesAnyMachine: false,
-    usesMultiMachineLines: false,
-    usesSingleMachine: false,
-  });
-
-  return [machinePayload, manualPayload];
+  const payloads: ProductionReport[] = [];
+  if (machineLines.length) {
+    payloads.push(buildProductionReportPayload({
+      ...args,
+      clientRequestId: baseRequestId ? `${baseRequestId}-M` : null,
+      machineLines,
+    }));
+  }
+  if (isDo) {
+    manualLines.forEach((line, index) => {
+      payloads.push(buildProductionReportPayload({
+        ...args,
+        clientRequestId: baseRequestId ? `${baseRequestId}-H${index + 1}` : null,
+        machineLines: [line],
+        usesAnyMachine: false,
+        usesMultiMachineLines: false,
+        usesSingleMachine: false,
+      }));
+    });
+  } else if (manualLines.length) {
+    payloads.push(buildProductionReportPayload({
+      ...args,
+      clientRequestId: baseRequestId ? `${baseRequestId}-H` : null,
+      machineLines: manualLines,
+      usesAnyMachine: false,
+      usesMultiMachineLines: false,
+      usesSingleMachine: false,
+    }));
+  }
+  return payloads.length ? payloads : [buildProductionReportPayload(args)];
 }
