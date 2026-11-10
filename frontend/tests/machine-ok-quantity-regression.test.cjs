@@ -32,5 +32,7 @@ test('backend accepts camelCase machine quantities without defaulting submitted 
 
   assert.match(controller, /ok_quantity:\s*line\?\.ok_quantity\s*\?\?\s*line\?\.okQuantity\s*\?\?\s*0/);
   assert.match(controller, /ng_quantity:\s*line\?\.ng_quantity\s*\?\?\s*line\?\.ngQuantity\s*\?\?\s*0/);
-  assert.match(controller, /Number\(machineValidation\.totals\?\.totalOk\s*\|\|\s*0\)/);
+  const payloadService = read('../backend/services/productionTempReportPayloadService.js');
+  assert.match(controller, /buildProductionTempReportPayload\(/);
+  assert.match(payloadService, /Number\(machineValidation\.totals\?\.totalOk\s*\|\|\s*0\)/);
 });
