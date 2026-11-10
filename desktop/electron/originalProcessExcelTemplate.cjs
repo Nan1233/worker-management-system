@@ -165,6 +165,17 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   // Use the same local date normalization as the established GC exporter.
   // Backend work_date can be a Date, ISO timestamp, or SQL date string.
   const dateOf=(report)=>{
+    // Diagnostic only: log date values before normalization, without exposing worker details.
+    if(String(report?.id)==="1170007"||String(report?.id)==="1050001"){
+      const raw=report?.work_date;
+      console.log("[KTC_EXCEL_DATE_DIAGNOSTIC]",JSON.stringify({
+        processCode:code,reportId:report?.id,yearMonth,
+        workDateValue:raw instanceof Date?raw.toISOString():raw??null,
+        workDateType:raw instanceof Date?"Date":typeof raw,
+        normalizedDate:helpers.dateKey(raw),
+        dateFields:Object.keys(report||{}).filter(key=>/date|ngay/i.test(key))
+      }));
+    }
     // Export payloads may use snake_case or camelCase; only accept a date
     // within the requested month, never substitute the sync/creation date.
     const candidates=[report?.work_date,report?.workDate,report?.production_date,report?.productionDate,report?.report_date,report?.reportDate];
