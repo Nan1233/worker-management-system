@@ -53,6 +53,15 @@ function resolveCloudflareDeploymentProfile(env = process.env) {
     throw error;
   }
 
+  // Refuse to start a production Worker with test-mode Node behavior.
+  // A matching KTC_ENVIRONMENT alone does not prove NODE_ENV is safe.
+  const nodeEnvironment = String(env.NODE_ENV || '').trim().toLowerCase();
+  if (nodeEnvironment !== environment) {
+    const error = new Error('NODE_ENV must match KTC_ENVIRONMENT for Cloudflare Workers');
+    error.code = 'CLOUDFLARE_NODE_ENV_MISMATCH';
+    throw error;
+  }
+
   return Object.freeze({
     environment,
     frontendOrigin,

@@ -64,6 +64,32 @@ test('Cloudflare profile rejects missing environment and cross-environment origi
   );
 });
 
+test('Cloudflare production fails closed when NODE_ENV is missing or still test', () => {
+  for (const nodeEnv of [undefined, '', 'test', 'development']) {
+    assert.throws(
+      () => resolveCloudflareDeploymentProfile({
+        KTC_ENVIRONMENT: 'production',
+        KTC_FRONTEND_ORIGIN: PRODUCTION_FRONTEND_ORIGIN,
+        NODE_ENV: nodeEnv,
+      }),
+      { code: 'CLOUDFLARE_NODE_ENV_MISMATCH' }
+    );
+  }
+  assert.equal(resolveCloudflareDeploymentProfile({
+    KTC_ENVIRONMENT: 'production',
+    KTC_FRONTEND_ORIGIN: PRODUCTION_FRONTEND_ORIGIN,
+    NODE_ENV: 'production',
+  }).environment, 'production');
+  assert.throws(
+    () => resolveCloudflareDeploymentProfile({
+      KTC_ENVIRONMENT: 'test',
+      KTC_FRONTEND_ORIGIN: TEST_FRONTEND_ORIGIN,
+      NODE_ENV: 'production',
+    }),
+    { code: 'CLOUDFLARE_NODE_ENV_MISMATCH' }
+  );
+});
+
 test('Cloudflare Worker uses profile-driven CORS and has no request-triggered master-data seed path', () => {
   const worker = read('cloudflare-worker.js');
   assert.match(worker, /resolveCloudflareDeploymentProfile/);
