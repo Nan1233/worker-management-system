@@ -3,7 +3,7 @@ const ONLINE_MESSAGE_MS = 3200;
 
 export default function NetworkStatusBanner() {
     const [online, setOnline] = useState(() => navigator.onLine);
-    const [visible, setVisible] = useState(false);
+    const [visible, setVisible] = useState(() => !navigator.onLine);
 
     useEffect(() => {
         let hideTimer: number | undefined;
@@ -53,7 +53,7 @@ export default function NetworkStatusBanner() {
             <span>
                 {online
                     ? "Đã kết nối mạng. Bạn có thể tiếp tục thao tác."
-                    : "Mất kết nối mạng. Báo cáo sẽ được giữ lại và đồng bộ khi có mạng."}
+                    : "Mất kết nối mạng. Kiểm tra báo cáo chờ đồng bộ trước khi đóng ứng dụng."}
             </span>
         </div>
     );
