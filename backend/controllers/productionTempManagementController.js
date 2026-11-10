@@ -442,7 +442,8 @@ exports.updateTempReport = async (req, res) => {
                 expectedUpdatedAt: req.body?.expected_updated_at || null,
                 // Same-request facts that spare the model repeated master-data reads (Worker subrequest budget).
                 processCode: current.process_code || undefined,
-                machineLinesValidated: true
+                machineLinesValidated: true,
+                ...(req.transactionConnection ? { connection: req.transactionConnection } : {})
             }
         );
 
