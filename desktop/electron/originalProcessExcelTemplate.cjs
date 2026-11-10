@@ -127,7 +127,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   for(const [defectIndex,d] of defectCols.entries()){
     const headerNorm=norm(d.header);
     const matches=code==="MAI"
-      ? defectTypes.filter(t=>[t.key,...(t.aliases||[])].some(v=>String(v).toLowerCase().includes("mai_ng_"+String(defectIndex+1).padStart(3,"0"))))
+      ? defectTypes.filter(t=>[t.key,...(t.aliases||[])].some(v=>norm(v).includes("maing"+String(defectIndex+1).padStart(3,"0")) || norm(v)===norm(maiDefectLabels[defectIndex])))
       : defectTypes.filter(t=>[t.label,...(t.aliases||[])].some(v=>{
           const raw=String(v);return !raw.startsWith("id:")&&!raw.startsWith("code:")&&norm(raw.replace(/^name:/,""))===headerNorm;
         }));
@@ -198,6 +198,16 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     const fields=Object.keys(report||{}).filter(key=>/date|ngay/i.test(key)).join(",");
     throw new Error("Báo cáo "+code+" (id="+String(report?.id??"?")+") thiếu ngày sản xuất thuộc "+yearMonth+"; dateFields="+fields);
   };
+  // Capture an untouched template body style before inserting date separators.
+  // Reuse the original cell formatting for every MAI data row, including rows
+  // beyond the template's preformatted sample area.
+  const maiBodyStyle=code==="MAI" ? {
+    height:sheet.getRow(config.first).height,
+    cells:Array.from({length:lastMappedCol},(_,i)=>{
+      const cell=sheet.getRow(config.first).getCell(i+1);
+      return cell.hasStyle?JSON.parse(JSON.stringify(cell.style)):null;
+    })
+  }:null;
   // Clear old sample body cells, while preserving each company's formatting.
   const bodyEnd=sheet.rowCount;
   for(let r=config.first;r<=bodyEnd;r++){
@@ -217,10 +227,13 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       const first=separator.getCell(1);
       first.value=day.slice(8,10)+"/"+day.slice(5,7)+"/"+day.slice(0,4);
       first.font={...(first.font||{}),bold:true};
-      // Keep the source workbook palette rather than importing GC's pink.
-      const sourceFill=sheet.getCell(config.header,1).fill;
-      if(sourceFill&&sourceFill.type==="pattern"){
-        for(let col=1;col<=lastMappedCol;col++)separator.getCell(col).fill=JSON.parse(JSON.stringify(sourceFill));
+      // Never paint a MAI date separator with a header fill: that destroys
+      // the original company's cell palette and creates uneven color bands.
+      if(code!=="MAI"){
+        const sourceFill=sheet.getCell(config.header,1).fill;
+        if(sourceFill&&sourceFill.type==="pattern"){
+          for(let col=1;col<=lastMappedCol;col++)separator.getCell(col).fill=JSON.parse(JSON.stringify(sourceFill));
+        }
       }
     }
     const targetRowIndex=rowIndex++;
@@ -231,6 +244,13 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       for(let col=1;col<=sheet.columnCount;col++){
         const seed=baseStyle.getCell(col), cell=row.getCell(col);
         if(seed.hasStyle) cell.style=JSON.parse(JSON.stringify(seed.style));
+      }
+    }
+    if(maiBodyStyle){
+      row.height=maiBodyStyle.height;
+      for(let col=1;col<=lastMappedCol;col++){
+        const style=maiBodyStyle.cells[col-1];
+        if(style)row.getCell(col).style=JSON.parse(JSON.stringify(style));
       }
     }
     const snapshot=helpers.reportSnapshot(report,helpers.settingsForReport(report,settings,processData?.settingsByDate||{}));
