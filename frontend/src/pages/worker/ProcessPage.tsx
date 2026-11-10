@@ -706,7 +706,7 @@ const machineAutocompleteOptions =
         if (!snapshotMatches) {
             submitLockRef.current = false;
             showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng kiểm tra lại.", "warning");
-            setDuplicatePrompt(null);
+            if (!duplicatePrimaryCompletedRef.current) setDuplicatePrompt(null);
             return;
         }
         try {
@@ -1928,8 +1928,14 @@ const updateDeductionValue = (
                 submitting={submitting}
                 loadingWorker={loadingWorker}
                 onCancelDuplicate={() => {
+                    if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
+                        showToast("Một phần báo cáo đã gửi thành công. Vui lòng thử lại để gửi nốt các báo cáo còn lại trước khi thoát.", "warning");
+                        return;
+                    }
                     setDuplicatePrompt(null);
                     pendingSplitPayloadsRef.current = [];
+                    duplicatePrimaryCompletedRef.current = false;
+                    duplicateForceRequestIdRef.current = null;
                     submitLockRef.current = false;
                 }}
                 onUpdateExisting={() => void handleUpdateExistingReport()}
