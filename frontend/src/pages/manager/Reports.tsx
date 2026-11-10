@@ -133,7 +133,10 @@ export default function Reports() {
             setReports(result.data || []); setProcessOptions((result.processes || []).map((item: any) => String(item?.process_name || item?.process_code || "")).filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "vi"))); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
         } catch (e: any) {
             if (!isCurrentRequest()) return;
-            setError(e?.response?.data?.message || "Không thể tải báo cáo chờ duyệt"); setReports([]); setProcessOptions([]); setTotal(0); setPages(1);
+            // A transient reload failure must not erase the previous page or the
+            // process filter choices. Keep the last successful snapshot visible
+            // behind the retryable error until a new request succeeds.
+            setError(e?.response?.data?.message || "Không thể tải báo cáo chờ duyệt");
         } finally {
             if (reportAbortRef.current === controller) reportAbortRef.current = null;
             if (isCurrentRequest()) setLoading(false);
