@@ -964,17 +964,18 @@ async function recordRejectedTempVersion(row, cleanReason, reviewerId, connectio
 }
 
 module.exports = {
-  async approveSelected(targets, reviewerId, isAdmin = false) {
+  async approveSelected(targets, reviewerId, isAdmin = false, options = {}) {
     assertReviewBatchSize(targets);
     const { reportIds, expectedById } = buildApprovalSelection(targets);
-    const connection = await getConnection();
+    const connection = options.connection || await getConnection();
+    const ownsTransaction = !options.connection;
     const postCommitNotifications = [];
     const postCommitActivities = [];
     const approvedIds = [];
     const dates = new Set();
 
     try {
-      await beginTransaction(connection);
+      if (ownsTransaction) await beginTransaction(connection);
       const { sql: selectionSql, params: selectionParams } = buildApprovalScopeQuery(reportIds, reviewerId, isAdmin);
       const rows = await query(connection, selectionSql, selectionParams);
       assertApprovalSelectionVisible(rows, reportIds);
@@ -1032,14 +1033,18 @@ module.exports = {
       }
 
       await AuditService.logActivities(postCommitActivities, connection);
-      await commit(connection);
-      await deliverApprovedPostCommitNotifications(postCommitNotifications);
+      if (ownsTransaction) {
+        await commit(connection);
+        await deliverApprovedPostCommitNotifications(postCommitNotifications);
+      } else if (Array.isArray(options.postCommitNotifications)) {
+        options.postCommitNotifications.push(...postCommitNotifications);
+      }
       return buildApprovalBatchResult(rows, approvedIds, dates);
     } catch (error) {
-      await rollbackReviewTransaction(connection, error);
+      if (ownsTransaction) await rollbackReviewTransaction(connection, error);
       throw error;
     } finally {
-      connection.release();
+      if (ownsTransaction) connection.release();
     }
   },
 
