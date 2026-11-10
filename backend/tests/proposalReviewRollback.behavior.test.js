@@ -15,7 +15,7 @@ const handlerStart = section.indexOf(prefix);
 assert.ok(handlerStart >= 0, "review handler must be registered");
 const handlerSource = section.slice(handlerStart + prefix.length, section.lastIndexOf("\n});") + 2);
 
-function harness({ approvalFails = false, updateFails = false, decision = "approve", statusAfter = "approved", postCommitReadFails = false, transitionFails = false, commitFails = false, legacyMachine = false, cacheFails = false } = {}) {
+function harness({ approvalFails = false, updateFails = false, decision = "approve", statusAfter = "approved", postCommitReadFails = false, transitionFails = false, commitFails = false, legacyMachine = false, cacheFails = false, staleMachineRef = false } = {}) {
   const events = [];
   const proposal = { id: 9, report_id: 31, status: "pending", proposed_data: JSON.stringify({ actual_output: 12 }) };
   const connection = { release() { events.push("release"); } };
@@ -27,6 +27,7 @@ function harness({ approvalFails = false, updateFails = false, decision = "appro
     transactionQuery: async (_connection, sql) => {
       if (sql.includes("FOR UPDATE")) return [{ ...proposal }];
       if (sql.includes("NOT EXISTS")) return legacyMachine ? [{ id: 31 }] : [];
+      if (sql.includes("LEFT JOIN machines m")) return staleMachineRef ? [{ id: 12 }] : [];
       if (sql.startsWith("UPDATE report_edit_proposals")) return { affectedRows: transitionFails ? 0 : 1 };
       throw new Error("Unexpected SQL: " + sql);
     },
@@ -131,4 +132,12 @@ test("cache failure after commit must not turn a successful review into HTTP 500
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.success, true);
   assert.deepEqual(h.events, ["begin", "update", "approve", "commit", "invalidate", "release"]);
+});
+
+test("stale machine reference blocks atomic approval and rolls back", async () => {
+  const h = harness({ staleMachineRef: true });
+  const res = await h.run();
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, "STALE_MACHINE_REFERENCE_REQUIRES_REVIEW");
+  assert.deepEqual(h.events, ["begin", "update", "rollback", "release"]);
 });
