@@ -30,7 +30,7 @@ function matchMasterValue(header, types, values) {
   if (matches.length !== 1) return null;
   return [matches[0].key,...(matches[0].aliases||[])].map(key=>values.get(key)).find(v=>v!==undefined) ?? null;
 }
-async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMonth, settings, helpers}) {
+async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMonth, settings, helpers, onTemplateLoaded}) {
   const config = FORMS[code];
   if (!config) return null;
   const filename = templatePath(code);
@@ -43,6 +43,10 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   await workbook.xlsx.readFile(filename);
   const sheet = workbook.getWorksheet(config.sheet);
   if (!sheet) throw new Error("Mẫu "+code+" thiếu sheet "+config.sheet);
+  if (typeof onTemplateLoaded === "function") {
+    await onTemplateLoaded({ processCode: code, templatePath: filename, sheetName: sheet.name,
+      reportCount: (processData?.reports || []).length, templateKind: "original-company" });
+  }
   const reports = helpers.sortReports(processData?.reports || []);
   const deductionTypes = helpers.processDetailTypes(code,processData,"deductionTypes","deductions","deduction");
   const defectTypes = helpers.processDetailTypes(code,processData,"defectTypes","defects","defect");
