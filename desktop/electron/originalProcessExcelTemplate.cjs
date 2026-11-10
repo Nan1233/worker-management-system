@@ -115,6 +115,14 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     sheet.getCell("M3").value=new Date(reportYear,reportMonth-1,1);
   }
   if(code==="K1" || code==="XLBV") sheet.getCell("A1").value="THÁNG "+reportMonth+"/"+reportYear;
+  // Remove fixed example totals and product codes left in extracted header-only samples.
+  if(code==="CAN") { sheet.getCell("U1").value=null; sheet.getCell("V1").value=null; }
+  if(code==="K2") sheet.getRow(1).eachCell({includeEmpty:false},cell=>{
+    if(typeof cell.value==="number") cell.value=null;
+  });
+  if(code==="K1") sheet.getRow(3).eachCell({includeEmpty:false},cell=>{
+    if(typeof cell.value==="number") cell.value=null;
+  });
   // Label the actual report month without replacing the original headers.
   sheet.headerFooter.oddHeader = "KTC "+code+" - "+yearMonth;
   sheet.views=[{state:"frozen",ySplit:config.header,xSplit:3,showGridLines:false}];
