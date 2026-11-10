@@ -1024,7 +1024,10 @@ async function performSyncSingleMonth({ date, source }) {
     const built = await buildSplitMonthlyWorkbooksLocal({
       appPath: app.getAppPath(),
       date,
-      payload: companyData
+      payload: companyData,
+      onTemplateLoaded: async (details) => {
+        await writeLog('INFO', 'ORIGINAL_TEMPLATE_LOADED', { date, ...details });
+      }
     });
 
     const expectedProcessCodes = Object.keys(PROCESS_SHEETS);
