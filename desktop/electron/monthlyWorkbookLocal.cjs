@@ -1365,7 +1365,6 @@ async function buildProcessWorkbookLocal({ date, payload, processCode }) {
   workbook.creator = 'KTC Production Control';
   workbook.created = new Date();
   workbook.modified = new Date();
-  const processData = payload.processes?.[code] || {};
   const result = renderProcessSheet(
     workbook,
     code,
