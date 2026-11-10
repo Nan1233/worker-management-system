@@ -8,10 +8,10 @@ const GC_SHARED_MACHINE_NUMBERS = Object.freeze([5, 6, 7, 11]);
 // - Cắt/Lồng (GC): 1 worker tối đa 4 máy; 1 máy tối đa 2 workers.
 // - Mài (MAI): 1 worker tối đa 10 máy-sản phẩm; 1 máy tối đa 2 workers.
 // - Các công đoạn khác giữ capacity theo DB, mặc định 1 người/máy.
-const MULTI_MACHINE_PROCESS_CODES = new Set(["GC", "MAI", "DO"]);
+const MULTI_MACHINE_PROCESS_CODES = new Set(["GC", "MAI", "DO", "CAN", "EP"]);
 const MAX_MACHINES_PER_WORKER = 4;
 const MAX_MAI_MACHINES_PER_WORKER = 10;
-const getMaxMachinesPerWorker = (code) => ["MAI", "DO"].includes(String(code || "").trim().toUpperCase()) ? MAX_MAI_MACHINES_PER_WORKER : MAX_MACHINES_PER_WORKER;
+const getMaxMachinesPerWorker = (code) => ["MAI", "DO", "CAN", "EP"].includes(String(code || "").trim().toUpperCase()) ? MAX_MAI_MACHINES_PER_WORKER : MAX_MACHINES_PER_WORKER;
 const DEFAULT_SHARED_WORKERS_PER_MACHINE = 4;
 
 const canonicalMachineNumber = (value) => {
