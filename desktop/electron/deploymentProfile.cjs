@@ -9,7 +9,7 @@ const PROFILES = Object.freeze({
   production: Object.freeze({
     environment: 'production',
     frontendUrl: 'https://ktc-frontend.nan978971.workers.dev',
-    apiUrl: 'https://ktc-be.nan978971.workers.dev/api',
+    apiUrl: 'https://ktc-backend.nan978971.workers.dev/api',
   }),
 });
 
