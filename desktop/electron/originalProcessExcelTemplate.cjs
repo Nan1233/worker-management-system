@@ -165,11 +165,15 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   // Use the same local date normalization as the established GC exporter.
   // Backend work_date can be a Date, ISO timestamp, or SQL date string.
   const dateOf=(report)=>{
-    const key=helpers.dateKey(report?.work_date);
-    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(key)){
-      throw new Error("Báo cáo "+code+" (id="+String(report?.id??"?")+") thiếu ngày sản xuất hợp lệ");
+    // Export payloads may use snake_case or camelCase; only accept a date
+    // within the requested month, never substitute the sync/creation date.
+    const candidates=[report?.work_date,report?.workDate,report?.production_date,report?.productionDate,report?.report_date,report?.reportDate];
+    for(const raw of candidates){
+      const key=helpers.dateKey(raw);
+      if(/^\\d{4}-\\d{2}-\\d{2}$/.test(key)&&key.slice(0,7)===yearMonth)return key;
     }
-    return key;
+    const fields=Object.keys(report||{}).filter(key=>/date|ngay/i.test(key)).join(",");
+    throw new Error("Báo cáo "+code+" (id="+String(report?.id??"?")+") thiếu ngày sản xuất thuộc "+yearMonth+"; dateFields="+fields);
   };
   // Clear old sample body cells, while preserving each company's formatting.
   const bodyEnd=sheet.rowCount;
