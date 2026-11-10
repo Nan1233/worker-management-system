@@ -90,6 +90,25 @@ test('Cloudflare production fails closed when NODE_ENV is missing or still test'
   );
 });
 
+test('Cloudflare production rejects account-side master-data bootstrap drift', () => {
+  assert.throws(
+    () => resolveCloudflareDeploymentProfile({
+      KTC_ENVIRONMENT: 'production',
+      KTC_FRONTEND_ORIGIN: PRODUCTION_FRONTEND_ORIGIN,
+      NODE_ENV: 'production',
+      KTC_RUN_MASTER_DATA_BOOTSTRAP: 'true',
+    }),
+    { code: 'CLOUDFLARE_PRODUCTION_BOOTSTRAP_FORBIDDEN' }
+  );
+  const profile = resolveCloudflareDeploymentProfile({
+    KTC_ENVIRONMENT: 'production',
+    KTC_FRONTEND_ORIGIN: PRODUCTION_FRONTEND_ORIGIN,
+    NODE_ENV: 'production',
+    KTC_RUN_MASTER_DATA_BOOTSTRAP: 'false',
+  });
+  assert.equal(profile.masterDataBootstrapEnabled, false);
+});
+
 test('Cloudflare Worker uses profile-driven CORS and has no request-triggered master-data seed path', () => {
   const worker = read('cloudflare-worker.js');
   assert.match(worker, /resolveCloudflareDeploymentProfile/);
