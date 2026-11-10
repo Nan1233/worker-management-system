@@ -15,12 +15,12 @@ const handlerStart = section.indexOf(prefix);
 assert.ok(handlerStart >= 0, "review handler must be registered");
 const handlerSource = section.slice(handlerStart + prefix.length, section.lastIndexOf("\n});") + 2);
 
-function harness({ approvalFails = false, updateFails = false, decision = "approve", statusAfter = "approved" } = {}) {
+function harness({ approvalFails = false, updateFails = false, decision = "approve", statusAfter = "approved", postCommitReadFails = false } = {}) {
   const events = [];
   const proposal = { id: 9, report_id: 31, status: "pending", proposed_data: JSON.stringify({ actual_output: 12 }) };
   const connection = { release() { events.push("release"); } };
   const context = {
-    proposalDetail: async () => ({ ...proposal }),
+    proposalDetail: async () => { if (postCommitReadFails && events.includes("commit")) throw new Error("Read failed after commit"); return { ...proposal }; },
     assertProposalAccess: async () => true,
     getConnection: async () => connection,
     beginReadCommittedTransaction: async () => { events.push("begin"); },
@@ -85,4 +85,12 @@ test("rejection commits once without editing or approving report", async () => {
   const res = await h.run();
   assert.equal(res.body.success, true);
   assert.deepEqual(h.events, ["begin", "commit", "invalidate", "release"]);
+});
+
+test("post-commit read failure still returns success and never rolls back committed edit", async () => {
+  const h = harness({ postCommitReadFails: true });
+  const res = await h.run();
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.deepEqual(h.events, ["begin", "update", "approve", "commit", "invalidate", "release"]);
 });
