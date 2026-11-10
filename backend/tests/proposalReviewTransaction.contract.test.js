@@ -16,13 +16,15 @@ test("proposal review locks the proposal and commits only after the final transi
   const review = routes.slice(start, end);
   const lock = review.indexOf("FROM report_edit_proposals WHERE id=? FOR UPDATE");
   const update = review.indexOf("await controller.updateTempReport(");
-  const approve = review.indexOf("await ProductionTemp.approveSelected(");
+  const approve = review.indexOf("await atomicApprovalModel.approveSelected(");
   const transition = review.indexOf("const transitioned = await transactionQuery(");
   const finalCommit = review.lastIndexOf("await commitTransaction(connection)");
   assert.ok(lock >= 0 && update > lock && approve > update && transition > approve && finalCommit > transition);
   assert.match(review, /await rollbackTransaction\(connection\)/);
   assert.match(review, /if \(connection\) connection\.release\(\)/);
   assert.match(review, /postCommitCallbacks/);
+  assert.match(review, /LEGACY_MACHINE_LINE_REQUIRES_REVIEW/);
+  assert.equal(review.includes("await ProductionTemp.approveSelected("), false);
 });
 
 test("update and approval models must not commit or release a caller-owned transaction", () => {
