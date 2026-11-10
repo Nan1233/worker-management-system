@@ -33,5 +33,7 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Check KTC-001 transaction regression contract
         run: node --test tests/proposalReviewTransaction.contract.test.js
+      - name: Check KTC-001 rollback behavior
+        run: node --test tests/proposalReviewRollback.behavior.test.js
       - name: Verify backend source and run tests
         run: npm run verify
