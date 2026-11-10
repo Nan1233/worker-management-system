@@ -162,12 +162,14 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   }
   // A copied source template has 50 blank styled rows. Additional rows
   // are made with the same styles without altering source headers/column widths.
+  // Use the same local date normalization as the established GC exporter.
+  // Backend work_date can be a Date, ISO timestamp, or SQL date string.
   const dateOf=(report)=>{
-    const raw=report?.work_date;
-    if(raw instanceof Date&&!Number.isNaN(raw.getTime()))return raw.toISOString().slice(0,10);
-    const match=String(raw??"").match(/^\\d{4}-\\d{2}-\\d{2}/);
-    if(!match)throw new Error("Báo cáo "+code+" thiếu ngày sản xuất hợp lệ");
-    return match[0];
+    const key=helpers.dateKey(report?.work_date);
+    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(key)){
+      throw new Error("Báo cáo "+code+" (id="+String(report?.id??"?")+") thiếu ngày sản xuất hợp lệ");
+    }
+    return key;
   };
   // Clear old sample body cells, while preserving each company's formatting.
   const bodyEnd=sheet.rowCount;
