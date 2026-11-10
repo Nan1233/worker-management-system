@@ -31,5 +31,7 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check KTC-001 transaction regression contract
+        run: node --test tests/proposalReviewTransaction.contract.test.js
       - name: Verify backend source and run tests
         run: npm run verify
