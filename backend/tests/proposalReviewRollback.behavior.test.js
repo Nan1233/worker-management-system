@@ -15,7 +15,7 @@ const handlerStart = section.indexOf(prefix);
 assert.ok(handlerStart >= 0, "review handler must be registered");
 const handlerSource = section.slice(handlerStart + prefix.length, section.lastIndexOf("\n});") + 2);
 
-function harness({ approvalFails = false, updateFails = false, decision = "approve", statusAfter = "approved", postCommitReadFails = false } = {}) {
+function harness({ approvalFails = false, updateFails = false, decision = "approve", statusAfter = "approved", postCommitReadFails = false, transitionFails = false, commitFails = false, legacyMachine = false } = {}) {
   const events = [];
   const proposal = { id: 9, report_id: 31, status: "pending", proposed_data: JSON.stringify({ actual_output: 12 }) };
   const connection = { release() { events.push("release"); } };
@@ -26,8 +26,8 @@ function harness({ approvalFails = false, updateFails = false, decision = "appro
     beginReadCommittedTransaction: async () => { events.push("begin"); },
     transactionQuery: async (_connection, sql) => {
       if (sql.includes("FOR UPDATE")) return [{ ...proposal }];
-      if (sql.includes("NOT EXISTS")) return [];
-      if (sql.startsWith("UPDATE report_edit_proposals")) return { affectedRows: 1 };
+      if (sql.includes("NOT EXISTS")) return legacyMachine ? [{ id: 31 }] : [];
+      if (sql.startsWith("UPDATE report_edit_proposals")) return { affectedRows: transitionFails ? 0 : 1 };
       throw new Error("Unexpected SQL: " + sql);
     },
     controller: {
@@ -43,7 +43,7 @@ function harness({ approvalFails = false, updateFails = false, decision = "appro
         if (approvalFails) throw Object.assign(new Error("Approval failed"), { status: 409 });
       },
     },
-    commitTransaction: async () => { events.push("commit"); },
+    commitTransaction: async () => { events.push("commit"); if (commitFails) throw new Error("Commit failed"); },
     rollbackTransaction: async () => { events.push("rollback"); return { ok: true }; },
     invalidateManagerReportLists: () => { events.push("invalidate"); },
     console: { error() {} },
@@ -93,4 +93,34 @@ test("post-commit read failure still returns success and never rolls back commit
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.success, true);
   assert.deepEqual(h.events, ["begin", "update", "approve", "commit", "invalidate", "release"]);
+});
+
+test("proposal CAS conflict rolls back edit and approval", async () => {
+  const h = harness({ transitionFails: true });
+  const res = await h.run();
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.success, false);
+  assert.deepEqual(h.events, ["begin", "update", "approve", "rollback", "release"]);
+});
+
+test("legacy machine without lines fails closed and rolls back edit", async () => {
+  const h = harness({ legacyMachine: true });
+  const res = await h.run();
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, "LEGACY_MACHINE_LINE_REQUIRES_REVIEW");
+  assert.deepEqual(h.events, ["begin", "update", "rollback", "release"]);
+});
+
+test("commit failure is not reported as success", async () => {
+  const h = harness({ commitFails: true });
+  const res = await h.run();
+  assert.equal(res.body.success, false);
+  assert.deepEqual(h.events, ["begin", "update", "approve", "commit", "rollback", "release"]);
+});
+
+test("accepted pending edit commits without approving the report", async () => {
+  const h = harness({ statusAfter: "pending" });
+  const res = await h.run();
+  assert.equal(res.body.success, true);
+  assert.deepEqual(h.events, ["begin", "update", "commit", "invalidate", "release"]);
 });
