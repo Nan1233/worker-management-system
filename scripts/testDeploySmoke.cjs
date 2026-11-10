@@ -82,9 +82,9 @@ async function main() {
       // relative asset URLs (./assets/...), while other builds use /assets/...
       const page = await call('GET', '/', { base: FRONTEND });
       if (page.status !== 200 || !/<div id="root">/i.test(page.text)) return `HTTP ${page.status} or missing React root`;
-      const scripts = [...page.text.matchAll(/<script\\b[^>]*\\bsrc=["']([^"']+\\.js(?:\\?[^"']*)?)["']/gi)]
+      const scripts = [...page.text.matchAll(/<script\b[^>]*\bsrc=["']([^"']+\.js(?:\?[^"']*)?)["']/gi)]
         .map((match) => match[1])
-        .filter((src) => /(?:^|\\/)assets\\//.test(src));
+        .filter((src) => /(?:^|\/)assets\//.test(src));
       if (!scripts.length) return 'no Vite /assets/*.js script references in frontend HTML';
       for (const src of scripts) {
         const assetUrl = new URL(src, `${FRONTEND}/`);
