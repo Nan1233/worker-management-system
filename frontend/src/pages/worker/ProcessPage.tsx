@@ -795,11 +795,16 @@ useLayoutEffect(() => {
     // Persist DO immediately on page refresh/close, including edits made within
     // the 700ms autosave debounce window.
     const doDraftSnapshotRef = useRef<ProcessDraft | null>(null);
-    doDraftSnapshotRef.current = {
-        version: 3, savedAt: Date.now(), process, form, deductions,
-        selectedDeduction, selectedNg, machineLines, machineCount,
-        operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
-    };
+    useEffect(() => {
+        doDraftSnapshotRef.current = {
+            version: 3, savedAt: Date.now(), process, form, deductions,
+            selectedDeduction, selectedNg, machineLines, machineCount,
+            operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
+        };
+    }, [
+        process, form, deductions, selectedDeduction, selectedNg, machineLines,
+        machineCount, operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
+    ]);
     useEffect(() => {
         if (processCode !== "DO") return;
         const persistOnLeave = () => {
