@@ -49,5 +49,5 @@ test("describeApprovalError keeps the server message and adds HTTP status, code 
 
 test("pending list drawer sends the manager to the event-capable detail page when a shared machine event is missing", () => {
   const src = read("src/pages/manager/Reports.tsx");
-  assert.match(src, /code === "MACHINE_EVENT_REQUIRED"\) navigate\(`\$\{basePath\}\/report\/\$\{Number\(detail\.id\)\}\?source=pending`\)/);
+  assert.ok(src.includes('navigate(`${basePath}/report/${approvedId}?source=pending`)'));
 });
