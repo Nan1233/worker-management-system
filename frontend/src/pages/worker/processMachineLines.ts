@@ -36,7 +36,7 @@ export function getMaxMachineCount(processCodeOrLines: string | MachineLineState
   const lines = Array.isArray(processCodeOrLines) ? processCodeOrLines : (Array.isArray(linesOrMax) ? linesOrMax : []);
   // Cán và Ép: một công nhân chỉ báo cáo một máy trong một lượt nhập.
   // Khóa ở domain logic, không chỉ ẩn dropdown trong giao diện.
-  if (["EP", "CAN"].includes(processCode)) return 1;
+  if (["EP", "CAN", "MAI", "DO"].includes(processCode)) return 10;
   // MAI report lines are independent production reports, not a count of
   // currently loaded machine-master rows. Workers must be able to prepare
   // six (or more, up to ten) product/machine reports in one submission even
