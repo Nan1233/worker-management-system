@@ -143,7 +143,7 @@ export function buildProductionReportPayload(args: {
   }
 
   const deductions=args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(args.deductions[String(o.key||"")])/60 })).filter(x=>x.hours>0);
-  const isMaiWithoutMachine = ["MAI", "DO"].includes(String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase())
+  const isMaiWithoutMachine = ["MAI", "DO", "CAN"].includes(String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase())
     && lines.length > 0
     && lines.every((line) => !String(line.machine_code || "").trim());
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
@@ -237,7 +237,7 @@ export function buildProductionReportPayload(args: {
 export function buildProductionReportPayloads(args: Parameters<typeof buildProductionReportPayload>[0]): ProductionReport[] {
   const processCode = String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase();
   const isMai = processCode === "MAI";
-  const isDo = processCode === "DO";
+  const isDo = processCode === "DO" || processCode === "CAN";
   const completedLines = args.machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim());
   const machineLines = completedLines.filter((line) => Boolean(line.machineCode.trim()));
   const manualLines = completedLines.filter((line) => !line.machineCode.trim() && Boolean(line.productCode.trim()));
