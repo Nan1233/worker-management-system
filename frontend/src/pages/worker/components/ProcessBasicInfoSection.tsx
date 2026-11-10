@@ -145,7 +145,7 @@ export default function ProcessBasicInfoSection({ inlineExtraFields, processCode
 
 </div>
 <div className="worker-time-item worker-time-computed" data-worker-time="machine-deduction">
-<label>{isMaiStyleProcess ? "Thời gian dừng máy" : isEpProcess ? "Thời gian phụ" : "Thời gian trừ"}</label>
+<label>{isMaiStyleProcess ? "Thời gian dừng máy" : isEpProcess ? "Thời gian trừ giờ" : "Thời gian trừ"}</label>
 <div className="worker-time-value-with-unit"><input data-worker-time-value="machine-deduction" value={formatMachineHours(getMachineDeductionMinutes(line))} readOnly aria-readonly="true" /><span>giờ</span></div>
 </div>
 <div className="worker-time-item worker-time-computed" data-worker-time="machine-total">
@@ -165,7 +165,7 @@ export default function ProcessBasicInfoSection({ inlineExtraFields, processCode
 </div>
 <div className="machine-detail-dropdown-row"><div className="machine-detail-dropdown-item"><div className="worker-dropdown-box machine-worker-deduction-box">
 <button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineDeductionIndex((current) => current === index ? null : index)} aria-expanded={openMachineDeductionIndex === index}>
-<span className="worker-dropdown-title-main"><span>{isMaiStyleProcess ? "Thời gian dừng máy" : isEpProcess ? "⏱ Thời gian phụ theo mẫu Ép" : "⏱ Thời gian trừ"}</span><small>{line.selectedDeductions?.length ? `${line.selectedDeductions.length} loại · ${formatMachineHours(getMachineDeductionMinutes(line))} giờ` : "Không có thời gian dừng máy"}</small></span>
+<span className="worker-dropdown-title-main"><span>{isMaiStyleProcess ? "Thời gian dừng máy" : isEpProcess ? "⏱ Thời gian trừ giờ" : "⏱ Thời gian trừ"}</span><small>{line.selectedDeductions?.length ? `${line.selectedDeductions.length} loại · ${formatMachineHours(getMachineDeductionMinutes(line))} giờ` : "Không có thời gian dừng máy"}</small></span>
 <span aria-hidden="true">▼</span>
 </button>
 {openMachineDeductionIndex === index && <div className="worker-dropdown-options">
