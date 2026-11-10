@@ -25,7 +25,7 @@ test('approval checks final transition before temp snapshot, commit and postcomm
   const commit = approval.indexOf('await commit(connection)');
   const notify = approval.indexOf('await deliverApprovedPostCommitNotifications(');
   assert.ok(guard > 0 && guard < snapshot && snapshot < commit && commit < notify);
-  assert.match(approval, /catch \(error\) \{\s*await rollbackReviewTransaction\(connection, error\)/);
+  assert.match(approval, /catch \(error\) \{\s*if \(ownsTransaction\) await rollbackReviewTransaction\(connection, error\)/);
 });
 
 test('approval selection is ordered, but its FOR UPDATE is stripped by the query adapter', () => {
