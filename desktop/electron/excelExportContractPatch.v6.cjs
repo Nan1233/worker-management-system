@@ -6,6 +6,9 @@ const Module = require('node:module');
 const path = require('node:path');
 const ExcelJS = require('exceljs');
 const monthly = require('./monthlyWorkbookLocal.cjs');
+// Capture the unpatched per-process builder for seven original company forms.
+const buildOriginalProcessWorkbookLocal = monthly.buildProcessWorkbookLocal;
+const ORIGINAL_COMPANY_CODES = new Set(['MAI', 'DO', 'K1', 'K2', 'CAN', 'EP', 'XLBV']);
 
 if (typeof global.findDataStartRow !== 'function') {
   global.findDataStartRow = function findDataStartRow(sheet, headerRow) {
@@ -328,7 +331,7 @@ function mergeProcessData(rows) {
   return merged;
 }
 
-async function buildWorkerSplit({ appPath, date, payload }) {
+async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
   if (!payload || payload.dataSource !== 'tidb.production_reports.approved') {
     throw new Error('Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
   }
@@ -344,13 +347,22 @@ async function buildWorkerSplit({ appPath, date, payload }) {
       }
       report.process_code = report.process_code || item.processCode;
     }
-    const built = await buildWorkerProcessWorkbook({
-      appPath,
-      processCode: item.processCode,
-      processName: processData.processName || processData.process_name || item.processCode,
-      date,
-      processData
-    });
+    // GC, SX3 and CVK keep the existing v6 export unchanged.
+    // The seven company-specific processes must use their original Excel templates.
+    const built = ORIGINAL_COMPANY_CODES.has(item.processCode)
+      ? await buildOriginalProcessWorkbookLocal({
+          date, payload, processCode: item.processCode, onTemplateLoaded
+        })
+      : await buildWorkerProcessWorkbook({
+          appPath,
+          processCode: item.processCode,
+          processName: processData.processName || processData.process_name || item.processCode,
+          date,
+          processData
+        });
+    if (ORIGINAL_COMPANY_CODES.has(item.processCode) && built.templateKind !== 'original-company') {
+      throw new Error('Không thể xuất ' + item.processCode + ': chưa sử dụng mẫu Excel gốc.');
+    }
     built.processCode = item.processCode;
     built.processName = processData.processName || processData.process_name || item.processCode;
     built.reportCount = reports.length;
