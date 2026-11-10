@@ -5,7 +5,7 @@ import { getStoredUser } from "../../utils/authStorage";
 import { approveSelectedTempReports, approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
-import { num, text, getStoredExtraData, processLabel, fmt, pct, dateText, rangeFor, kpi, metricStyle } from "./managerReportsPresentation";
+import { num, text, processLabel, fmt, pct, dateText, rangeFor, kpi, metricStyle } from "./managerReportsPresentation";
 import "./ReportsSplitReference.css";
 import "./ReportsDetailCompact.css";
 
