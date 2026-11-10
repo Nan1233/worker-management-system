@@ -12,6 +12,7 @@ const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const db = require("../config/db");
 const AuditService = require("../services/auditService");
 const ProductionTemp = require("../models/productionTempModel");
+const atomicApprovalModel = require("../models/productionTempApprovalModel");
 const { getConnection, beginReadCommittedTransaction, query: transactionQuery, commit: commitTransaction, rollback: rollbackTransaction } = require("../models/productionTempModelShared");
 
 const { TtlCache } = require("../utils/cache");
@@ -151,7 +152,19 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
         }
 
         if (statusAfter === "approved") {
-            await ProductionTemp.approveSelected([{id:current.report_id}],Number(req.user.id),req.user.role === "admin",
+            // The public ProductionTemp facade runs legacy backfills outside the caller's
+            // transaction and drops the fourth (options) argument. Never call it here.
+            // Fail closed on legacy machine reports rather than mutate them outside atomic review.
+            const legacy = await transactionQuery(connection,
+                `SELECT t.id FROM production_reports_temp t
+                   LEFT JOIN processes p ON p.id=t.process_id
+                  WHERE t.id=? AND UPPER(COALESCE(t.operation_mode,''))='MACHINE'
+                    AND UPPER(TRIM(COALESCE(p.process_code,''))) NOT IN ('CVK','XLBV','SX3')
+                    AND t.process_id NOT IN (30002,60006)
+                    AND NOT EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=t.id)
+                  LIMIT 1`, [current.report_id]);
+            if (legacy.length) throw Object.assign(new Error("Báo cáo máy cũ thiếu dòng máy; cần bổ sung dữ liệu trước khi duyệt đề xuất"), {status:409,code:"LEGACY_MACHINE_LINE_REQUIRES_REVIEW"});
+            await atomicApprovalModel.approveSelected([{id:current.report_id}],Number(req.user.id),req.user.role === "admin",
                 {connection,postCommitCallbacks});
         }
         const newStatus = statusAfter === "approved" ? "approved" : "accepted";
