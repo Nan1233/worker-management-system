@@ -13,6 +13,7 @@ on:
       - 'RELEASE-VALIDATION.md'
       - '.github/workflows/staging-release-gate-safety.yml'
       - '.github/workflows/phase3-source-acceptance.yml'
+      - '.github/workflows/phase5-public-health-smoke.yml'
   push:
     branches: [test]
     paths:
@@ -119,6 +120,8 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --prefix backend --no-audit --no-fund
+      - run: node --check scripts/phase5PublicHealthSmoke.cjs
+      - run: node --test tests/phase5-public-health-smoke.test.cjs
       - run: node --check scripts/stagingReleaseGate.cjs
       - run: node --check scripts/performanceLargeData.cjs
       - run: node --check scripts/securityRuntimeAudit.cjs
