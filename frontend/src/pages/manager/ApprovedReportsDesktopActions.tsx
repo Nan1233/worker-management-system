@@ -46,7 +46,8 @@ export default function ApprovedReportsDesktopActions() {
 
         const token = getAccessToken();
         if (!token) {
-            window.alert("Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.");
+            setSyncSuccess(false);
+            setSyncMessage("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi cập nhật Excel.");
             return;
         }
 
@@ -88,6 +89,7 @@ export default function ApprovedReportsDesktopActions() {
                 <button
                     type="button"
                     onClick={() => void updateExcel()}
+                    aria-busy={busy}
                     disabled={busy}
                     title="Cập nhật các file Excel từ dữ liệu đã duyệt"
                     style={{
