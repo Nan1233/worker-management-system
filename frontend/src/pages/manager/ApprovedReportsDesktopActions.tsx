@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getToday } from "./managerReportDateLogic";
 import { createPortal } from "react-dom";
 import ApprovedReports from "./ApprovedReports";
 import { getAccessToken } from "../../utils/authStorage";
@@ -35,9 +36,12 @@ export default function ApprovedReportsDesktopActions() {
     const { can } = usePermissions();
     const canExport = can("REPORT_EXPORT");
     const [busy, setBusy] = useState(false);
+    const syncLockRef = useRef(false);
+    const [syncMessage, setSyncMessage] = useState("");
+    const [syncSuccess, setSyncSuccess] = useState(false);
 
     const updateExcel = async () => {
-        if (!window.ktcDesktop?.syncAllExcel || busy) return;
+        if (!window.ktcDesktop?.syncAllExcel || syncLockRef.current) return;
 
         const token = getAccessToken();
         if (!token) {
@@ -46,20 +50,26 @@ export default function ApprovedReportsDesktopActions() {
         }
 
         const dateInput = document.querySelector<HTMLInputElement>(".pending-filter-card input[type='date']");
-        const date = dateInput?.value || new Date().toISOString().slice(0, 10);
+        const date = dateInput?.value || getToday();
 
+        syncLockRef.current = true;
         setBusy(true);
+        setSyncMessage("");
         try {
             const result = await window.ktcDesktop.syncAllExcel(token, date);
             if (result?.success) {
-                window.alert("Đã cập nhật Excel thành công.");
+                setSyncSuccess(true);
+                setSyncMessage("Đã cập nhật Excel thành công.");
             } else {
-                window.alert(result?.message || result?.reason || "Cập nhật Excel không thành công.");
+                setSyncSuccess(false);
+                setSyncMessage(result?.message || result?.reason || "Cập nhật Excel không thành công.");
             }
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Không thể cập nhật Excel.";
-            window.alert(message);
+            setSyncSuccess(false);
+            setSyncMessage(message);
         } finally {
+            syncLockRef.current = false;
             setBusy(false);
         }
     };
@@ -73,6 +83,7 @@ export default function ApprovedReportsDesktopActions() {
         <>
             <ApprovedReports />
             {createPortal(
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
                 <button
                     type="button"
                     onClick={() => void updateExcel()}
@@ -94,7 +105,9 @@ export default function ApprovedReportsDesktopActions() {
                     }}
                 >
                     {busy ? "↻ Đang cập nhật…" : "↻ Cập nhật Excel"}
-                </button>,
+                </button>
+                {syncMessage && <span role="status" aria-live="polite" style={{ fontSize: 12, color: syncSuccess ? "#166534" : "#b42323" }}>{syncMessage}</span>}
+                </div>,
                 footer.lastElementChild && footer.lastElementChild.tagName === "DIV" ? footer.lastElementChild : footer
             )}
         </>
