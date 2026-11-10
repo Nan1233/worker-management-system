@@ -269,7 +269,7 @@ test('Mài merges only identical machine/product runs and splits distinct produc
   const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   assert.match(source, /const shouldSplitMachineReports = \(data, machineLines\) =>[\s\S]*isGiaCongProcess\(data\) \|\| isMaiProcess\(data\)/);
   assert.match(source, /const reportMachineLines = isMaiProcess\(data\)[\s\S]*groupMaiMachineProductLines\(machineLines\)[\s\S]*: machineLines/);
-  assert.match(source, /DO_SINGLE_MACHINE_REQUIRED/);
+  assert.doesNotMatch(source, /DO_SINGLE_MACHINE_REQUIRED/);
   assert.match(source, /line\.product_code/);
   assert.match(source, /:line:/);
   assert.match(source, /machine_group_request_id/);
