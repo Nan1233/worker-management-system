@@ -180,7 +180,9 @@ test('CAN material code is embedded in the main form without a duplicate extra s
   const section = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessExtraFieldsSection.tsx'), 'utf8');
   assert.ok(page.includes('inlineExtraFields={undefined}'));
   assert.ok(page.includes('processCode !== "CAN" && <ProcessExtraFieldsSection'));
-  assert.ok(extra.includes('key: "material_code"'));
+  const schema = fs.readFileSync(path.join(root, 'src/pages/worker/processFormSchemas.ts'), 'utf8');
+  assert.ok(schema.includes('key: "material_code"'));
+  assert.ok(!extra.includes('key: "material_code"'));
   assert.ok(section.includes('inline ? "worker-field-full worker-inline-extra-fields"'));
 });
 
