@@ -29,10 +29,7 @@ export const PROCESS_SPECIFIC_FIELDS: Record<string, ExtraFieldDefinition[]> = {
     { key: "stop_reason", label: "Lý do dừng máy", type: "text" },
   ],
 
-  ep: [
-    { key: "press_box_shift", label: "Ca / thùng Ép", type: "text" },
-    { key: "handler", label: "Người xử lý ép/bavia", type: "text" },
-  ],
+  ep: [],
 
   bavia: [],
 
