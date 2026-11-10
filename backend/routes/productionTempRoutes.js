@@ -120,6 +120,7 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
             if (Number(updated.affectedRows) !== 1) throw Object.assign(new Error("Đề xuất đã được xử lý"), {status:409});
             await commitTransaction(connection);
             committed = true;
+            invalidateManagerReportLists();
             let rejectedProposal = {id,report_id:current.report_id,status:"rejected"};
             try { rejectedProposal = await proposalDetail(id) || rejectedProposal; }
             catch (readError) { console.error("PROPOSAL REJECTION POST-COMMIT READ ERROR:",readError); }
@@ -174,6 +175,7 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
 
         await commitTransaction(connection);
         committed = true;
+        invalidateManagerReportLists();
         for (const callback of postCommitCallbacks) {
             try { await callback(); } catch (notificationError) {
                 console.error("PROPOSAL POST-COMMIT NOTIFICATION ERROR:", notificationError);
