@@ -234,6 +234,20 @@ function filterEncodedOptions(options: WorkerMasterOption[], processCode: string
   });
 }
 
+// Keep deduction entry usable until the DB has canonical TG codes.
+// Prefer encoded rows when present; otherwise show unique legacy names.
+function dedupeEncodedOrLegacyDeductions(options: WorkerMasterOption[], processCode: string, kind: "deduction"): WorkerMasterOption[] {
+  const canonical = filterEncodedOptions(options, processCode, kind);
+  const candidates = canonical.length ? canonical : options;
+  const seen = new Set<string>();
+  return candidates.filter((option) => {
+    const key = normalizeMasterLabel(option.label) || String(option.code || "").toUpperCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 const PROCESS_ID_BY_CODE: Record<string, number> = {
   GC: 1,
   MAI: 2,
@@ -345,7 +359,7 @@ export function useProcessMasterData(processId: number, processCode: string) {
 
       if (deductions) {
         setActiveDeductionOptions(
-          filterEncodedOptions(dedupeGcDeductionOptions(
+          dedupeEncodedOrLegacyDeductions(dedupeGcDeductionOptions(
             filterK2MasterOptions(
               dedupeMaiDeductionOptions(
                 normalizeDeductionOptions(deductions.value, resolvedProcessId),
