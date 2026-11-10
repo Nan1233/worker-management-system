@@ -6,7 +6,7 @@ const source = fs.readFileSync(path.resolve(__dirname, '../src/pages/manager/App
 
 test('Excel export fallback uses local report date instead of UTC', () => {
   assert.match(source, /import \{ getToday \} from "\.\/managerReportDateLogic"/);
-  assert.match(source, /dateInput\?\.value \|\| getToday\(\)/);
+  assert.match(source, /document\.querySelector<HTMLInputElement>\("\.pending-filter-card input\[type=\x27date\x27\]"\)\?\.value \|\| getToday\(\)/);
   assert.doesNotMatch(source, /new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);
 });
 test('desktop sync prevents concurrent clicks and displays accessible result', () => {
