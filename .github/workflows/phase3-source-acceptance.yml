@@ -7,6 +7,10 @@ on:
       - 'frontend/**'
       - 'desktop/**'
       - 'shared/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'docs/PHASE3_EXIT_GATE.md'
+      - '.github/workflows/staging-release-gate-safety.yml'
       - '.github/workflows/phase3-source-acceptance.yml'
   push:
     branches: [test]
@@ -83,8 +87,34 @@ jobs:
           name: desktop-remediation-lockfile
           path: desktop/package-lock.json
           if-no-files-found: error
+  desktop-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run smoke:excel
+      - run: node --test tests/phase2-gc-xlsx-roundtrip.test.cjs tests/monthly-workbook-physical-events.test.cjs tests/company-excel-shared-machine.test.cjs tests/production-calculation-engine.test.cjs
+  staging-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix backend --no-audit --no-fund
+      - run: node --test tests/staging-release-gate-guard.test.cjs tests/staging-release-gate-timeout.test.cjs tests/staging-e2e-api-target.test.cjs tests/critical-e2e-direct-guard.test.cjs tests/critical-e2e-cleanup-contract.test.cjs tests/critical-e2e-finally-cleanup.test.cjs tests/critical-e2e-db-tls.test.cjs tests/e2e-db-port-and-run-id.test.cjs tests/critical-e2e-writer-session.test.cjs tests/critical-e2e-cleanup-like.test.cjs tests/phase3-exit-evidence.test.cjs tests/performance-db-isolation.test.cjs tests/performance-failure-evidence.test.cjs tests/security-runtime-audit-target.test.cjs tests/zero-cost-http-redirect.test.cjs
   source-acceptance:
-    needs: [backend, frontend, desktop]
+    needs: [backend, frontend, desktop, desktop-windows, staging-safety]
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Phase 3 source checks passed for commit ${GITHUB_SHA}. This is NOT staging UAT or production approval."
+      - run: echo "Phase 3 source checks passed for commit ${GITHUB_SHA}. Windows CI is not physical device UAT. This is NOT staging UAT or production approval."
