@@ -24,7 +24,7 @@ test('Desktop defaults to TEST and has an explicit production packaging profile'
 test('Desktop TEST and production profiles map only to their matching Cloudflare endpoints', () => {
   assert.equal(resolveDesktopDeploymentProfile('test').apiUrl, 'https://ktc-be-test.nan978971.workers.dev/api');
   assert.equal(resolveDesktopDeploymentProfile('test').frontendUrl, 'https://ktc-fe-test.nan978971.workers.dev');
-  assert.equal(resolveDesktopDeploymentProfile('production').apiUrl, 'https://ktc-be.nan978971.workers.dev/api');
+  assert.equal(resolveDesktopDeploymentProfile('production').apiUrl, 'https://ktc-backend.nan978971.workers.dev/api');
   assert.equal(resolveDesktopDeploymentProfile('production').frontendUrl, 'https://ktc-frontend.nan978971.workers.dev');
   assert.notEqual(PROFILES.test.apiUrl, PROFILES.production.apiUrl);
 });
