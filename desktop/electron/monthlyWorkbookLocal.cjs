@@ -602,7 +602,82 @@ function makeColumns(processCode, deductionTypes, defectTypes) {
     { key: 'note', header: 'Ghi chú', group: 'summary', width: 28, align: 'left' },
     { key: 'id', header: 'ID', group: 'summary', width: 10, format: NUMBER_FORMATS.INTEGER }
   );
-  return columns;
+
+  // Mỗi công đoạn có cấu trúc xuất riêng, đối chiếu theo các file báo cáo
+  // thực tế tháng 10/2026 và các trường trong processFormSchemas.ts.
+  // Các cột đối soát không có trong form giấy vẫn được giữ ở cuối bảng.
+  const layouts = {
+    GC: {
+      fields: ['stt','workerCode','workerName','shift','machine','product','operationType','operationMode','training','workingTime','actualTime','deductionTime','@deduction','standard','enteredOutput','output','achievement','outputPerHour','ok','ng','ngRate','@defect'],
+      headers: { machine: 'Số máy Cắt/Lồng', product: 'Mã SP', output: 'KQSX', outputPerHour: 'SL/H', achievement: '% thực tích' }
+    },
+    MAI: {
+      fields: ['stt','workerCode','workerName','shift','machine','training','workingTime','actualTime','deductionTime','@deduction','product','standard','enteredOutput','output','achievement','outputPerHour','ok','ng','@defect','ngRate'],
+      headers: { workerName: 'Người mài', machine: 'Số máy mài', workingTime: 'Thời gian làm việc', actualTime: 'Thời gian mài thực tế', output: 'KQSX Mài', outputPerHour: 'SL/H Mài', ng: 'TỔNG PP', achievement: '% thực tích' }
+    },
+    DO: {
+      fields: ['stt','workerCode','workerName','shift','machine','training','workingTime','actualTime','deductionTime','@deduction','product','standard','enteredOutput','output','achievement','outputPerHour','ok','ng','ngRate','@defect'],
+      headers: { workerName: 'Người đo', machine: 'Máy đo', workingTime: 'Thời gian đo', actualTime: 'Thời gian đo thực tế', output: 'KQSX Đo', outputPerHour: 'SL/H Đo', ng: 'Tổng lỗi Đo', achievement: '% thực tích' }
+    },
+    K1: {
+      fields: ['stt','workerCode','workerName','shift','product','machine','extra:press_date','extra:press_box_shift','extra:deduction_work','extra:late_early_hours','extra:xlbv_deduction_worker','training','workingTime','actualTime','deductionTime','@deduction','standard','enteredOutput','output','achievement','outputPerHour','ok','ng','ngRate','@defect'],
+      headers: { product: 'MÃ SẢN PHẨM', machine: 'Máy/vị trí Kiểm 1', output: 'TT Kiểm 1', outputPerHour: 'NS/H Kiểm 1', achievement: '% năng suất', ng: 'Tổng NG Kiểm 1' }
+    },
+    K2: {
+      fields: ['stt','workerCode','workerName','shift','training','deductionTime','@deduction','workingTime','actualTime','product','machine','standard','enteredOutput','output','achievement','outputPerHour','ok','ng','ngRate','@defect'],
+      headers: { product: 'Mã SP Kiểm 2', machine: 'Máy/vị trí Kiểm 2', output: 'TT Kiểm 2', outputPerHour: 'Năng suất/giờ', achievement: '% năng suất', ng: 'Tổng NG Kiểm 2' }
+    },
+    CAN: {
+      fields: ['stt','workerCode','workerName','shift','machine','extra:material_code','product','extra:rolling_hours','workingTime','actualTime','deductionTime','@deduction','standard','enteredOutput','output','achievement','outputPerHour','ngRate','ng','@defect','ok','extra:stop_reason'],
+      headers: { machine: 'Số máy cán', product: 'Mã SP Cán', standard: 'Định mức (kg/h)', enteredOutput: 'Thực tích nhập (kg)', output: 'Thực tích cán (kg)', outputPerHour: 'KG/H', achievement: '% thực tích', ng: 'Tổng lỗi Cán' },
+      decimalFields: ['enteredOutput','output','ok','ng']
+    },
+    EP: {
+      fields: ['stt','workerCode','workerName','shift','machine','product','extra:press_box_shift','extra:handler','workingTime','actualTime','deductionTime','standard','enteredOutput','output','achievement','outputPerHour','ok','ng','ngRate','@defect','@deduction'],
+      headers: { machine: 'Số máy Ép', product: 'Mã SP Ép', workingTime: 'Tổng thời gian Ép', actualTime: 'Thời gian Ép thực tế', output: 'KQSX Ép', outputPerHour: 'NS/H Ép', achievement: '% năng suất', ng: 'TỔNG PP Ép' }
+    },
+    XLBV: {
+      fields: ['stt','workerCode','workerName','shift','product','machine','workingTime','actualTime','extra:stop_operation_hours','extra:deduction_work','extra:shortage_hours','deductionTime','@deduction','standard','enteredOutput','output','achievement','outputPerHour','ok','ng','ngRate','@defect'],
+      headers: { product: 'Mã SP XLBV', machine: 'Vị trí XLBV', output: 'Thực tích XLBV', outputPerHour: 'SLSP/H', achievement: '% thực tích', ng: 'Tổng NG XLBV' }
+    },
+    SX3: {
+      fields: ['stt','workerCode','workerName','shift','machine','product','extra:work_minutes','extra:assembly_minutes','extra:tray_minutes','extra:plan_quantity','workingTime','actualTime','deductionTime','standard','enteredOutput','output','achievement','outputPerHour','ok','ng','ngRate','@deduction','@defect'],
+      headers: { machine: 'Dây chuyền SX3', product: 'Mã SP lắp ráp', output: 'Thực tích lắp ráp', ng: 'Tổng NG Part', outputPerHour: 'SL/H Lắp ráp', achievement: '% kế hoạch' }
+    },
+    CVK: {
+      fields: ['stt','workerCode','workerName','shift','extra:work_type','product','machine','workingTime','actualTime','deductionTime','@deduction','standard','enteredOutput','output','achievement','outputPerHour','ok','ng','@defect'],
+      headers: { product: 'Mã công việc/SP', output: 'Khối lượng CVK', outputPerHour: 'SL/H CVK' }
+    }
+  };
+  const layout = layouts[String(processCode || '').toUpperCase()];
+  if (!layout) throw new Error(`Thiếu định nghĩa form Excel cho công đoạn ${processCode}`);
+  const byKey = new Map(columns.map((column) => [column.key, column]));
+  const ordered = [];
+  const used = new Set();
+  const append = (column) => {
+    if (!column || used.has(column.key)) return;
+    used.add(column.key);
+    ordered.push({
+      ...column,
+      header: layout.headers?.[column.key] || column.header,
+      format: layout.decimalFields?.includes(column.key) ? NUMBER_FORMATS.DECIMAL : column.format
+    });
+  };
+  for (const key of layout.fields) {
+    if (key === '@deduction') {
+      columns.filter((column) => column.group === 'deduction').forEach(append);
+    } else if (key === '@defect') {
+      columns.filter((column) => column.group === 'defect').forEach(append);
+    } else {
+      if (!byKey.has(key)) throw new Error(`Form ${processCode} tham chiếu cột không tồn tại: ${key}`);
+      append(byKey.get(key));
+    }
+  }
+  // Giữ toàn bộ trường nghiệp vụ và metadata (ngày nhập, trạng thái, ID,...)
+  // để không mất dữ liệu khi cấu trúc form thay đổi.
+  columns.forEach(append);
+  if (ordered.length !== columns.length) throw new Error(`Form ${processCode} làm thiếu cột dữ liệu`);
+  return ordered;
 }
 
 function groupStyle(group) {
