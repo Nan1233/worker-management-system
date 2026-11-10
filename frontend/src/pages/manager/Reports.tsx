@@ -209,6 +209,7 @@ export default function Reports() {
         if (!detail || approving || loading || error || managerActionLockRef.current) return;
         const approvedId = Number(detail.id);
         const requestSeq = detailRequestSeqRef.current;
+        const selectionScope = selectionScopeRef.current;
         managerActionLockRef.current = true;
         setApproving(true);
         try {
@@ -216,7 +217,8 @@ export default function Reports() {
             // must not close or redirect the manager's newer selection.
             await approveSelectedTempReports([approvedId]);
             if (detailRequestSeqRef.current === requestSeq) closeDetail();
-            await load();
+            // A single approval must not replace a newer page/filter request.
+            if (selectionScopeRef.current === selectionScope) await load();
             window.alert("Đã duyệt báo cáo thành công.");
         } catch (e: any) {
             window.alert(describeApprovalError(e, "Không thể duyệt báo cáo. Vui lòng thử lại."));
