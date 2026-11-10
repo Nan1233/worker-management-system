@@ -172,7 +172,7 @@ export default function ProcessBasicInfoSection({ inlineExtraFields, processCode
 {activeDeductionOptions.length === 0 ? <div className="worker-dropdown-empty" role="status">Chưa có loại thời gian trừ được cấu hình cho công đoạn này.</div> : activeDeductionOptions.map((item) => (
 <label key={item.key} className="worker-dropdown-option">
 <input type="checkbox" checked={line.selectedDeductions?.includes(item.key) || false} onChange={(event) => toggleMachineDeduction(index, item.key, event.target.checked)} />
-<span>{item.label}</span>
+<span>{String(item.code || "").trim() || item.label}</span>
 </label>
 ))}
 </div>}
