@@ -1466,6 +1466,8 @@ async function buildReconciliationWorkbook({ date, payload }) {
 
 module.exports = {
   buildMonthlyWorkbookLocal,
+  // Stable unwrapped entry point consumed by excelExportContractPatch.v6.cjs.
+  buildCompanyOriginalProcessWorkbookLocal: buildProcessWorkbookLocal,
   buildProcessWorkbookLocal,
   buildMonthlySummaryWorkbookLocal,
   buildSplitMonthlyWorkbooksLocal,
