@@ -20,7 +20,7 @@ interface Props {
 }
 
 export default function ProcessTimeDeductionSection({ processCode = "", form, setForm, deductions, activeDeductionOptions, selectedDeduction, showDeduction, setShowDeduction, onToggleDeduction, onUpdateDeduction, onNormalizeDeduction, onWarning }: Props) {
-    const displayCode = (item: DeductionOption) => String(item.code || "").trim() || String(item.label || "").trim();
+    const displayCode = (item: DeductionOption) => String(item.label || "").trim();
     const formatHours = (value: string): string => {
         const number = Number(String(value ?? "").replace(",", "."));
         return Number.isFinite(number) ? number.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : "0";
