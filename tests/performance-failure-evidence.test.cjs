@@ -7,7 +7,7 @@ const source=fs.readFileSync(path.resolve(__dirname,'../scripts/performanceLarge
 test('performance runner always closes verified DB even when identity or query fails',()=>{
  const start=source.indexOf('  try {\n  db=await mysql.createConnection');
  const catchAt=source.indexOf('  } catch(error) {\n    executionError=error;',start);
- const closeAt=source.indexOf('    await db.end();',catchAt);
+ const closeAt=source.indexOf('    if(db)await db.end();',catchAt);
  assert.ok(start>=0&&catchAt>start&&closeAt>catchAt);
  assert.ok(source.indexOf('SELECT DATABASE() AS database_name')<source.indexOf('for(const [name,sql]'));
  assert.doesNotMatch(source.slice(start,catchAt),/await db\.end\(\)/);
