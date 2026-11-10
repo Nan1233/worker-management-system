@@ -87,7 +87,7 @@ export function buildProductionReportPayload(args: {
     formDefects.push({ defect_type_id:Number(master?.id||master?.defect_type_id||0)||undefined, defect_code:String(master?.code||master?.defect_code||code), defect_name:String(master?.label||master?.defect_name||name), quantity });
   }
 
-  const lines=args.machineLines.filter(l=>l.machineCode.trim()||l.productCode.trim()).map(l=>{
+  const lines=args.machineLines.filter(l=>l.machineCode.trim()||l.productCode.trim()||(String(args.processCode || "").trim().toUpperCase() === "CAN" && String(l.materialCode || "").trim())).map(l=>{
     const defectKeys = new Set<string>([...(l.selectedDefects || []).map(String), ...Object.keys(l.defects || {}).filter((key) => num(l.defects[key]) > 0)]);
     const lineDefects = [...defectKeys].map((key) => {
       const option = args.activeNgOptions.find(o => String(o.key) === key || String(o.code || o.defect_code || "").trim().toUpperCase() === key.trim().toUpperCase() || String(o.id || o.defect_type_id || "") === key);
@@ -248,7 +248,7 @@ export function buildProductionReportPayloads(args: Parameters<typeof buildProdu
       ...(line.machineCode.trim() ? {} : { usesAnyMachine: false, usesMultiMachineLines: false, usesSingleMachine: false }),
     }));
   }
-  const completedLines = args.machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim());
+  const completedLines = args.machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim() || (processCode === "CAN" && String(line.materialCode || "").trim()));
   const machineLines = completedLines.filter((line) => Boolean(line.machineCode.trim()));
   const manualLines = completedLines.filter((line) => !line.machineCode.trim() && Boolean(line.productCode.trim()));
 
