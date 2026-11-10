@@ -58,7 +58,7 @@ test('rejection processes each report sequentially and commits once after loop',
 test('both batch paths roll back on failure and always release connection', () => {
   for (const name of ['async approveSelected(', 'async rejectSelected(']) {
     const body = flow(name, name.includes('approve') ? 'async rejectSelected(' : undefined);
-    assert.match(body, /catch \(error\) \{\s*await rollbackReviewTransaction\(connection, error\);\s*throw error;/);
+    assert.match(body, /catch \(error\) \{\s*if \(ownsTransaction\) await rollbackReviewTransaction\(connection, error\);\s*throw error;/);
     assert.match(body, /finally \{\s*connection\.release\(\)/);
   }
 });
