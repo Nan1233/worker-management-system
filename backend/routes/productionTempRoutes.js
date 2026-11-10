@@ -165,6 +165,23 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
                     AND NOT EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=t.id)
                   LIMIT 1`, [current.report_id]);
             if (legacy.length) throw Object.assign(new Error("Báo cáo máy cũ thiếu dòng máy; cần bổ sung dữ liệu trước khi duyệt đề xuất"), {status:409,code:"LEGACY_MACHINE_LINE_REQUIRES_REVIEW"});
+            // The normal approval facade repairs stale machine references using a separate
+            // connection. In this atomic path, reject instead of performing an out-of-transaction
+            // repair or approving a report with a stale machine identity.
+            const staleMachineRefs = await transactionQuery(connection,
+                `SELECT ml.id
+                   FROM production_temp_machine_lines ml
+                   JOIN production_reports_temp r ON r.id=ml.temp_report_id
+                   LEFT JOIN machines m ON m.id=ml.machine_id
+                  WHERE ml.temp_report_id=?
+                    AND UPPER(COALESCE(r.operation_mode,''))='MACHINE'
+                    AND (ml.machine_id IS NULL OR m.id IS NULL
+                      OR m.process_id<>r.process_id
+                      OR UPPER(TRIM(COALESCE(m.machine_code,'')))<>UPPER(TRIM(COALESCE(ml.machine_code,''))))
+                  LIMIT 1`, [current.report_id]);
+            if (staleMachineRefs.length) throw Object.assign(
+                new Error("Dòng máy có mã tham chiếu không hợp lệ; cần sửa dữ liệu máy trước khi duyệt"),
+                {status:409,code:"STALE_MACHINE_REFERENCE_REQUIRES_REVIEW"});
             await atomicApprovalModel.approveSelected([{id:current.report_id}],Number(req.user.id),req.user.role === "admin",
                 {connection,postCommitCallbacks});
         }
