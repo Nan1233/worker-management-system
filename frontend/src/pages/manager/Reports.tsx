@@ -198,19 +198,23 @@ export default function Reports() {
 
     const approveDetail = async () => {
         if (!detail || approving || managerActionLockRef.current) return;
+        const approvedId = Number(detail.id);
+        const requestSeq = detailRequestSeqRef.current;
         managerActionLockRef.current = true;
         setApproving(true);
         try {
-            // Use the same selected-approval API contract as the review workflow.
-            await approveSelectedTempReports([Number(detail.id)]);
-            setDetail(null);
+            // Capture the report being approved: switching detail while awaiting
+            // must not close or redirect the manager's newer selection.
+            await approveSelectedTempReports([approvedId]);
+            if (detailRequestSeqRef.current === requestSeq) closeDetail();
             await load();
             window.alert("Đã duyệt báo cáo thành công.");
         } catch (e: any) {
             window.alert(describeApprovalError(e, "Không thể duyệt báo cáo. Vui lòng thử lại."));
-            // A shared GC machine needs an approved physical event first; that is created on the report detail page,
-            // so take the manager there instead of leaving them at a dead end.
-            if (e?.response?.data?.code === "MACHINE_EVENT_REQUIRED") navigate(`${basePath}/report/${Number(detail.id)}?source=pending`);
+            // Shared GC machine approvals require a physical event on the detail page.
+            if (e?.response?.data?.code === "MACHINE_EVENT_REQUIRED" && detailRequestSeqRef.current === requestSeq) {
+                navigate(`${basePath}/report/${approvedId}?source=pending`);
+            }
         } finally {
             managerActionLockRef.current = false;
             setApproving(false);
