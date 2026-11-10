@@ -40,6 +40,7 @@ import type {
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
+import type { ProcessDraft } from "./processDraftStorage";
 import {
     clearProcessDraft,
     hasMeaningfulProcessDraft,
