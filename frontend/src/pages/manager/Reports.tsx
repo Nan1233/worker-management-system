@@ -268,7 +268,8 @@ export default function Reports() {
             if (detail && detailRequestSeqRef.current === detailRequestSeq && rejectedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
             setRejectDialogOpen(false);
             setRejectTargetIds([]);
-            await load();
+            // Do not issue a refresh with captured filters after the manager navigates elsewhere.
+            if (selectionScopeRef.current === selectionScope) await load();
             window.alert(`Đã từ chối ${succeeded}/${targets.length} báo cáo.${failures.length ? `\\n\\nCác báo cáo chưa từ chối:\\n• ${failures.join("\\n• ")}` : ""}`);
         } finally { managerActionLockRef.current = false; setRejecting(false); }
     };
@@ -305,7 +306,8 @@ export default function Reports() {
             }
             if (selectionScopeRef.current === selectionScope) setSelectedIds(failedIds);
             if (detail && detailRequestSeqRef.current === detailRequestSeq && approvedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
-            await load();
+            // The current filter/page owns its own request; never abort it with stale parameters.
+            if (selectionScopeRef.current === selectionScope) await load();
             const summary = `Duyệt thành công ${succeeded}/${targets.length} báo cáo.${failedIds.length ? `\\n\\nGiữ lại ${failedIds.length} báo cáo chưa duyệt để xử lý tiếp:${`\\n• ${failures.join("\\n• ")}`}` : ""}`;
             window.alert(summary);
         } finally { managerActionLockRef.current = false; setBulkApproving(false); }
