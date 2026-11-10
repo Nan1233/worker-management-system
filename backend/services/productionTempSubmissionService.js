@@ -381,7 +381,7 @@ const createAuditAfterChildrenBatch = async ({ tempIds, audit, data, requestIds,
 
 const processCodeOf = (data) => String(data?._resolved_process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
 const isGiaCongProcess = (data) => processCodeOf(data) === "GC";
-const isMaiProcess = (data) => ["MAI", "DO"].includes(processCodeOf(data));
+const isMaiProcess = (data) => ["MAI", "DO", "CAN", "EP"].includes(processCodeOf(data));
 const shouldSplitMachineReports = (data, machineLines) =>
     Array.isArray(machineLines) && machineLines.length > 1 && (isGiaCongProcess(data) || isMaiProcess(data));
 
