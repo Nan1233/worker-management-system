@@ -693,6 +693,20 @@ const machineAutocompleteOptions =
             showToast(pendingCount ? "Đã xác nhận báo cáo trùng và gửi các báo cáo còn lại." : "Đã tạo báo cáo trùng theo xác nhận.", "success");
             finishDuplicateAction();
         } catch (error: unknown) {
+            // After the primary report succeeded, preserve the unsent split reports
+            // across a page reload when connectivity becomes unreliable. Their
+            // original client_request_id values make offline retries idempotent.
+            if (duplicatePrimaryCompletedRef.current && isTransientNetworkFailure(error)
+                && !(axios.isAxiosError(error) && error.response?.status === 429)) {
+                try {
+                    for (const payload of pendingSplitPayloadsRef.current) enqueueOfflineReport(payload);
+                    showToast("Báo cáo chính đã lưu. Các báo cáo còn lại đã được đưa vào hàng đợi và sẽ tự đồng bộ khi có mạng.", "warning");
+                    finishDuplicateAction();
+                    return;
+                } catch (queueError: unknown) {
+                    showToast(queueError instanceof Error ? queueError.message : "Không thể lưu báo cáo còn lại trên thiết bị.", "error");
+                }
+            }
             showToast((error as any)?.response?.data?.message || (duplicatePrimaryCompletedRef.current ? "Báo cáo chính đã được xử lý. Một báo cáo còn lại chưa gửi được; hãy thử lại để tiếp tục phần chưa gửi." : "Không thể tạo báo cáo."), "error");
             submitLockRef.current = false;
             setSubmitting(false);
@@ -723,6 +737,17 @@ const machineAutocompleteOptions =
             showToast(pendingCount ? "Đã cập nhật báo cáo trùng và gửi các báo cáo còn lại." : "Đã cập nhật báo cáo hiện có.", "success");
             finishDuplicateAction();
         } catch (error: unknown) {
+            if (duplicatePrimaryCompletedRef.current && isTransientNetworkFailure(error)
+                && !(axios.isAxiosError(error) && error.response?.status === 429)) {
+                try {
+                    for (const payload of pendingSplitPayloadsRef.current) enqueueOfflineReport(payload);
+                    showToast("Báo cáo chính đã cập nhật. Các báo cáo còn lại đã lưu vào hàng đợi offline.", "warning");
+                    finishDuplicateAction();
+                    return;
+                } catch (queueError: unknown) {
+                    showToast(queueError instanceof Error ? queueError.message : "Không thể lưu báo cáo còn lại trên thiết bị.", "error");
+                }
+            }
             showToast((error as any)?.response?.data?.message || (duplicatePrimaryCompletedRef.current ? "Báo cáo chính đã được cập nhật. Một báo cáo còn lại chưa gửi được; hãy thử lại để tiếp tục phần chưa gửi." : "Không thể cập nhật báo cáo."), "error");
             submitLockRef.current = false;
             setSubmitting(false);
@@ -1701,6 +1726,10 @@ const updateDeductionValue = (
     // =====================================================
 
     const handleReset = () => {
+        if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
+            showToast("Một phần báo cáo đã gửi thành công. Hãy gửi nốt phần còn lại trước khi làm mới biểu mẫu.", "warning");
+            return;
+        }
         const hasEnteredData = Boolean(
             form.productName.trim()
             || form.machineNo.trim()
