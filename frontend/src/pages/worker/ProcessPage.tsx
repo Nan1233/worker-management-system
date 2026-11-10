@@ -686,7 +686,7 @@ const machineAutocompleteOptions =
             showToast(pendingCount ? "Đã xác nhận báo cáo trùng và gửi các báo cáo còn lại." : "Đã tạo báo cáo trùng theo xác nhận.", "success");
             finishDuplicateAction();
         } catch (error: unknown) {
-            showToast((error as any)?.response?.data?.message || "Không thể tạo báo cáo.", "error");
+            showToast((error as any)?.response?.data?.message || (duplicatePrimaryCompletedRef.current ? "Báo cáo chính đã được xử lý. Một báo cáo còn lại chưa gửi được; hãy thử lại để tiếp tục phần chưa gửi." : "Không thể tạo báo cáo."), "error");
             submitLockRef.current = false;
             setSubmitting(false);
         }
@@ -716,7 +716,7 @@ const machineAutocompleteOptions =
             showToast(pendingCount ? "Đã cập nhật báo cáo trùng và gửi các báo cáo còn lại." : "Đã cập nhật báo cáo hiện có.", "success");
             finishDuplicateAction();
         } catch (error: unknown) {
-            showToast((error as any)?.response?.data?.message || "Không thể cập nhật báo cáo.", "error");
+            showToast((error as any)?.response?.data?.message || (duplicatePrimaryCompletedRef.current ? "Báo cáo chính đã được cập nhật. Một báo cáo còn lại chưa gửi được; hãy thử lại để tiếp tục phần chưa gửi." : "Không thể cập nhật báo cáo."), "error");
             submitLockRef.current = false;
             setSubmitting(false);
         }
@@ -1650,7 +1650,7 @@ const updateDeductionValue = (
                         const prompt = toDuplicatePrompt(response, payload);
                         if (prompt) {
                             duplicatePrimaryCompletedRef.current = false;
-                                    pendingSplitPayloadsRef.current = payloads.slice(index + 1);
+                            pendingSplitPayloadsRef.current = payloads.slice(index + 1);
                             setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
                             return;
                         }
