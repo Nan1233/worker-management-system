@@ -1340,7 +1340,7 @@ async function buildMonthlyWorkbookLocal({ date, payload }) {
  * Tạo một workbook chỉ chứa đúng một sheet công đoạn.
  * Dùng cho Desktop để mỗi công đoạn là một file Excel độc lập, nhẹ và dễ mở/chỉnh.
  */
-async function buildProcessWorkbookLocal({ date, payload, processCode }) {
+async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplateLoaded }) {
   assertApprovedDatabasePayload(payload);
   const code = String(processCode || '').trim().toUpperCase();
   const config = PROCESS_SHEETS[code];
@@ -1352,7 +1352,7 @@ async function buildProcessWorkbookLocal({ date, payload, processCode }) {
     const original = await renderOriginalProcessTemplate({
       ExcelJS, code, processData, yearMonth, settings: formulaSettingsFor(payload,code),
       helpers: { sortReports, processDetailTypes, reportSnapshot, settingsForReport,
-        parseExtraData, detailMap, reportDetailItems }
+        parseExtraData, detailMap, reportDetailItems }, onTemplateLoaded
     });
     addExcelDbSyncMetadata(original.workbook, code, config, processData, yearMonth, original.mapping);
     addPhysicalMachineEventsMetadata(original.workbook, processData);
@@ -1413,12 +1413,12 @@ async function buildMonthlySummaryWorkbookLocal({ date, payload }) {
   };
 }
 
-async function buildSplitMonthlyWorkbooksLocal({ date, payload }) {
+async function buildSplitMonthlyWorkbooksLocal({ date, payload, onTemplateLoaded }) {
   assertApprovedDatabasePayload(payload);
   const summary = await buildMonthlySummaryWorkbookLocal({ date, payload });
   const processes = [];
   for (const code of Object.keys(PROCESS_SHEETS)) {
-    processes.push(await buildProcessWorkbookLocal({ date, payload, processCode: code }));
+    processes.push(await buildProcessWorkbookLocal({ date, payload, processCode: code, onTemplateLoaded }));
   }
   return { summary, processes };
 }
