@@ -142,6 +142,10 @@ export default function Reports() {
 
     const filterKey = JSON.stringify([date, range?.dateFrom || "", range?.dateTo || "", process, shift, searchQuery]);
     const previousFilterKeyRef = useRef(filterKey);
+    // A bulk request may finish after the user changes filters or pages.
+    // Never restore its failed IDs into a different selection scope.
+    const selectionScopeRef = useRef("");
+    selectionScopeRef.current = JSON.stringify([filterKey, page]);
 
     useEffect(() => {
         const filtersChanged = previousFilterKeyRef.current !== filterKey;
@@ -242,6 +246,7 @@ export default function Reports() {
         if (!window.confirm(`Từ chối ${targets.length} báo cáo đã chọn? Lý do: ${reason}`)) return;
         const detailRequestSeq = detailRequestSeqRef.current;
         const rejectedIds = [...rejectTargetIds];
+        const selectionScope = selectionScopeRef.current;
         managerActionLockRef.current = true;
         setRejecting(true);
         try {
@@ -252,7 +257,9 @@ export default function Reports() {
                 try { await rejectSelectedTempReports([Number(report.id)], reason); succeeded += 1; }
                 catch (e: any) { failedIds.push(Number(report.id)); failures.push(`#${report.id}: ${e?.response?.data?.message || e?.message || "Không thể từ chối"}`); }
             }
-            setSelectedIds(previous => [...new Set([...previous.filter(id => !rejectTargetIds.includes(id)), ...failedIds])]);
+            if (selectionScopeRef.current === selectionScope) {
+                setSelectedIds(previous => [...new Set([...previous.filter(id => !rejectedIds.includes(id)), ...failedIds])]);
+            }
             if (detail && detailRequestSeqRef.current === detailRequestSeq && rejectedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
             setRejectDialogOpen(false);
             setRejectTargetIds([]);
@@ -271,6 +278,7 @@ export default function Reports() {
         if (!window.confirm(`Duyệt lần lượt ${targets.length} báo cáo đã chọn? Báo cáo lỗi sẽ được giữ lại để xử lý sau.`)) return;
         const detailRequestSeq = detailRequestSeqRef.current;
         const approvedIds = targets.map(report => Number(report.id));
+        const selectionScope = selectionScopeRef.current;
         managerActionLockRef.current = true;
         setBulkApproving(true); setError("");
         const failedIds: number[] = [];
@@ -290,7 +298,7 @@ export default function Reports() {
                     failures.push(`${code} (#${id}): ${message}`);
                 }
             }
-            setSelectedIds(failedIds);
+            if (selectionScopeRef.current === selectionScope) setSelectedIds(failedIds);
             if (detail && detailRequestSeqRef.current === detailRequestSeq && approvedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
             await load();
             const summary = `Duyệt thành công ${succeeded}/${targets.length} báo cáo.${failedIds.length ? `\\n\\nGiữ lại ${failedIds.length} báo cáo chưa duyệt để xử lý tiếp:${`\\n• ${failures.join("\\n• ")}`}` : ""}`;
