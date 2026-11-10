@@ -1036,8 +1036,10 @@ module.exports = {
       if (ownsTransaction) {
         await commit(connection);
         await deliverApprovedPostCommitNotifications(postCommitNotifications);
-      } else if (Array.isArray(options.postCommitNotifications)) {
-        options.postCommitNotifications.push(...postCommitNotifications);
+      } else if (Array.isArray(options.postCommitCallbacks)) {
+        options.postCommitCallbacks.push(() => deliverApprovedPostCommitNotifications(postCommitNotifications));
+      } else {
+        throw new Error('Shared approval transaction requires postCommitCallbacks');
       }
       return buildApprovalBatchResult(rows, approvedIds, dates);
     } catch (error) {
