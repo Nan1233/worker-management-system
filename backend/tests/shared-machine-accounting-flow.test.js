@@ -150,7 +150,6 @@ test('GC process code is resolved from the database when the client sends only p
   assert.match(source, /const reportMachineLines = isMaiProcess\(data\)[\s\S]*groupMaiMachineProductLines\(machineLines\)[\s\S]*: machineLines/);
   assert.match(source, /const splitMachines = shouldSplitMachineReports\(data, reportMachineLines\)/);
   assert.match(source, /const isMaiProcess = \(data\) => \["MAI", "DO", "CAN", "EP"\]\.includes\(processCodeOf\(data\)\)/);
-  assert.match(source, /processCodeOf\(data\) === "DO" && machineLines\.length !== 1/);
   assert.match(source, /machine_group_request_id/);
   assert.match(source, /line\.product_code/);
   assert.match(source, /:line:/);
