@@ -218,8 +218,9 @@ export default function Reports() {
             await approveSelectedTempReports([approvedId]);
             if (detailRequestSeqRef.current === requestSeq) closeDetail();
             // A single approval must not replace a newer page/filter request.
-            if (selectionScopeRef.current === selectionScope) await load();
             window.alert("Đã duyệt báo cáo thành công.");
+            // Approval outcome is independent of the best-effort list refresh.
+            if (selectionScopeRef.current === selectionScope) await load();
         } catch (e: any) {
             window.alert(describeApprovalError(e, "Không thể duyệt báo cáo. Vui lòng thử lại."));
             // Shared GC machine approvals require a physical event on the detail page.
@@ -271,8 +272,9 @@ export default function Reports() {
             setRejectDialogOpen(false);
             setRejectTargetIds([]);
             // Do not issue a refresh with captured filters after the manager navigates elsewhere.
-            if (selectionScopeRef.current === selectionScope) await load();
             window.alert(`Đã từ chối ${succeeded}/${targets.length} báo cáo.${failures.length ? `\\n\\nCác báo cáo chưa từ chối:\\n• ${failures.join("\\n• ")}` : ""}`);
+            // Do not delay or misclassify the decision result if refresh fails.
+            if (selectionScopeRef.current === selectionScope) await load();
         } finally { managerActionLockRef.current = false; setRejecting(false); }
     };
 
@@ -309,9 +311,10 @@ export default function Reports() {
             if (selectionScopeRef.current === selectionScope) setSelectedIds(failedIds);
             if (detail && detailRequestSeqRef.current === detailRequestSeq && approvedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
             // The current filter/page owns its own request; never abort it with stale parameters.
-            if (selectionScopeRef.current === selectionScope) await load();
             const summary = `Duyệt thành công ${succeeded}/${targets.length} báo cáo.${failedIds.length ? `\\n\\nGiữ lại ${failedIds.length} báo cáo chưa duyệt để xử lý tiếp:${`\\n• ${failures.join("\\n• ")}`}` : ""}`;
             window.alert(summary);
+            // A stale or failed refresh must not change the approval summary.
+            if (selectionScopeRef.current === selectionScope) await load();
         } finally { managerActionLockRef.current = false; setBulkApproving(false); }
     };
 
