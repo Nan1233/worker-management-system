@@ -4,14 +4,16 @@ const { getProcessMachinePolicy } = require('../services/processMachinePolicy');
 const { getGcMachineRule } = require('../services/factoryMachineRuleService');
 
 test('machine policies match real KTC factory rules 2026-08-10', () => {
-  assert.deepEqual(getProcessMachinePolicy(2), { code: 'MAI', mode: 'MULTI_MACHINE_OPTIONAL', minMachines: 0, maxMachines: 6 });
-  assert.equal(getProcessMachinePolicy(60001).mode, 'SINGLE_MACHINE_OPTIONAL');
-  assert.equal(getProcessMachinePolicy(60003).mode, 'SINGLE_MACHINE_REQUIRED');
+  assert.deepEqual(getProcessMachinePolicy(2), { code: 'MAI', mode: 'MULTI_MACHINE_OPTIONAL', minMachines: 0, maxMachines: 10 });
+  assert.equal(getProcessMachinePolicy(60001).mode, 'MULTI_MACHINE_OPTIONAL');
+  assert.equal(getProcessMachinePolicy(60003).mode, 'MULTI_MACHINE_REQUIRED');
   assert.equal(getProcessMachinePolicy(1).mode, 'MANUAL_OR_SMART_MACHINE');
-  assert.equal(getProcessMachinePolicy(3).mode, 'SINGLE_MACHINE_OPTIONAL');
-  assert.equal(getProcessMachinePolicy(3).maxMachines, 1, 'Đo may use at most one machine per report');
+  assert.equal(getProcessMachinePolicy(3).mode, 'MULTI_MACHINE_OPTIONAL');
+  assert.equal(getProcessMachinePolicy(3).maxMachines, 10, 'Đo may use at most ten machines per report');
   assert.equal(getProcessMachinePolicy(4).maxMachines, 1);
-  assert.equal(getProcessMachinePolicy(60002).mode, 'MULTI_MACHINE_REQUIRED');
+  assert.equal(getProcessMachinePolicy(7).maxMachines, 10);
+  assert.equal(getProcessMachinePolicy(8).maxMachines, 10);
+  assert.equal(getProcessMachinePolicy(60002).mode, 'MULTI_MACHINE_OPTIONAL');
   assert.equal(getProcessMachinePolicy(60004).mode, 'MANUAL_ONLY');
   assert.equal(getProcessMachinePolicy(60005).mode, 'MANUAL_ONLY');
 });
