@@ -82,10 +82,19 @@ export function getDateRangeForMode(
   }
 
   if (mode === "range") {
-    return {
-      dateFrom: dateFrom || getToday(),
-      dateTo: dateTo || dateFrom || getToday(),
+    const isValidDate = (value: string): boolean => {
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+      const [year, month, day] = value.split("-").map(Number);
+      if (year < 100 || month < 1 || month > 12 || day < 1) return false;
+      return day <= new Date(year, month, 0).getDate();
     };
+    const start = isValidDate(dateFrom) ? dateFrom : getToday();
+    const end = isValidDate(dateTo) ? dateTo : start;
+    // ISO calendar dates sort lexicographically. Normalize reversed inputs so
+    // the manager never sends a backwards range to the report endpoint.
+    return start <= end
+      ? { dateFrom: start, dateTo: end }
+      : { dateFrom: end, dateTo: start };
   }
 
   return { dateFrom: "", dateTo: "" };
