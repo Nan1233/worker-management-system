@@ -119,7 +119,10 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
             if (Number(updated.affectedRows) !== 1) throw Object.assign(new Error("Đề xuất đã được xử lý"), {status:409});
             await commitTransaction(connection);
             committed = true;
-            return res.json({success:true,message:"Đã từ chối đề xuất sửa",data:await proposalDetail(id)});
+            let rejectedProposal = {id,report_id:current.report_id,status:"rejected"};
+            try { rejectedProposal = await proposalDetail(id) || rejectedProposal; }
+            catch (readError) { console.error("PROPOSAL REJECTION POST-COMMIT READ ERROR:",readError); }
+            return res.json({success:true,message:"Đã từ chối đề xuất sửa",data:rejectedProposal});
         }
 
         let proposed = current.proposed_data;
