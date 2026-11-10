@@ -109,9 +109,9 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
             "SELECT id, report_id, proposed_data, status FROM report_edit_proposals WHERE id=? FOR UPDATE", [id]);
         const current = locked[0];
         if (!current || Number(current.report_id) !== Number(initial.report_id)) {
-            return res.status(409).json({success:false,code:"PROPOSAL_CHANGED",message:"Đề xuất đã thay đổi"});
+            throw Object.assign(new Error("Đề xuất đã thay đổi"), {status:409,code:"PROPOSAL_CHANGED"});
         }
-        if (current.status !== "pending") return res.status(409).json({success:false,code:"PROPOSAL_NOT_PENDING",message:"Đề xuất đã được xử lý"});
+        if (current.status !== "pending") throw Object.assign(new Error("Đề xuất đã được xử lý"), {status:409,code:"PROPOSAL_NOT_PENDING"});
 
         if (decision === "reject") {
             const updated = await transactionQuery(connection,
