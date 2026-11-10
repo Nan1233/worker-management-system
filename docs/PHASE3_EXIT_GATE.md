@@ -1,6 +1,6 @@
 # KTC Phase 3 Exit Gate — evidence-first handoff
 
-Status: **SOURCE CI EVIDENCE COLLECTED; PHASE 3 NOT YET ACCEPTED**. Automated verification has passed on multiple later PR heads through #288; no live isolated TiDB staging UAT or production release approval has been recorded.
+Status: **SOURCE CI EVIDENCE COLLECTED; PHASE 3 NOT YET ACCEPTED**. The complete Phase 3 source-acceptance suite passed on PR #295 HEAD, including Windows CI Excel smoke; isolated TiDB staging UAT, physical Windows device acceptance and release approval remain unverified.
 
 ## Scope freeze
 
@@ -10,10 +10,10 @@ After PR #270, stop opening incremental approved-machine-copy hardening PRs unle
 
 | Gate | Evidence required | Status |
 | --- | --- | --- |
-| Source integrity | `test` merge commit `67c78605f3a5f9bfd26a0d35927aa59a235c4bcd`; PR #288 HEAD `8c3bb64d632f5fb0b66c0bb2525f07a22e608bb8` passed 2 workflows | PR-HEAD SOURCE CI PASS; POST-MERGE CHECK PENDING |
+| Source integrity | `test` merge commit `4b9fd11805269e9980361e8e256111c9dd036581`; PR #295 HEAD `220bfc1bc1296020bcbdbdae847e449e44a58e0f` passed full Phase 3 source acceptance and RBAC | FULL PR-HEAD SOURCE CI PASS; POST-MERGE CHECK PENDING |
 | Business regression | Approve/reject/edit, RBAC, historical standard snapshots, decimal precision, machine/worker credit, NG associations | AUTOMATED BACKEND/FRONTEND CI PASS; STAGING UAT PENDING |
 | GC shared machines | Physical machine output and machine hours counted once, worker credits tracked separately | XLSX/CONTRACT CI PASS; LIVE DB RECONCILIATION PENDING |
-| Desktop Excel | Monthly export smoke, totals, dates, dynamic NG/deductions, sync metadata, no duplicate shared-machine hours | SMOKE/XLSX CI PASS; DEVICE/UAT PENDING |
+| Desktop Excel | Monthly export smoke, totals, dates, dynamic NG/deductions, sync metadata, no duplicate shared-machine hours | LINUX + WINDOWS RUNNER SMOKE/XLSX CI PASS; PHYSICAL DEVICE/UAT PENDING |
 | Security | No privilege escalation, secrets in source, or unauthorized export | RBAC/DEPENDENCY HIGH AUDIT PASS; LIVE SECURITY UAT PENDING |
 | Staging readiness | Isolated non-production TiDB, migration/restore plan, credentials and test identities verified | PENDING |
 
@@ -51,6 +51,29 @@ These checks passed on their **PR heads before merge**, not on the resulting squ
 - Role-based approval/rejection/edit tests and machine-output-versus-worker-credit reconciliation.
 - Desktop export file hashes, validation logs, Windows version and app version.
 - Signed go/no-go record including unresolved defects, rollback owner and planned deployment window.
+
+## Full source acceptance refresh (2026-11-10)
+
+On [PR #295](https://github.com/Nan1233/worker-management-system/pull/295), HEAD `220bfc1bc1296020bcbdbdae847e449e44a58e0f`, these workflows completed **SUCCESS**:
+
+- [Phase 3 Source Acceptance Evidence](https://github.com/Nan1233/worker-management-system/actions/runs/42731407216): all six jobs PASS — backend check/test/audit, frontend typecheck/lint/test/build/audit, desktop Linux Excel regression/audit, **desktop Windows runner Excel smoke and shared-machine tests**, staging safety contracts, aggregate source-acceptance.
+- [Admin Ops RBAC Checks](https://github.com/Nan1233/worker-management-system/actions/runs/42731406853): SUCCESS.
+- Merged into `test` as `4b9fd11805269e9980361e8e256111c9dd036581`.
+
+**Scope boundary:** This is PR-head source CI, not post-merge CI, not a physical KTC Windows workstation test, and not proof that a production-like TiDB staging database exists.
+
+### Phase 3 closeout: evidence still required
+
+| Evidence | Responsible environment | Pass condition |
+| --- | --- | --- |
+| Isolated staging DB identity and restore rehearsal | Dedicated disposable TiDB `worker_management_e2e` | Identity verified on actual writer connection; migration version, backup/restore owner and timestamp recorded |
+| 24 critical write-path scenarios | Local loopback backend connected only to disposable staging DB | 24/24 PASS, no leaked fixture rows, cleanup manifest and logs attached |
+| Manager/lead/worker role UAT | Staging accounts with synthetic data | Unauthorized scope rejected; approve/reject/edit and stale-update conflict demonstrated |
+| Shared-machine accounting reconciliation | Staging GC 5/6/7/11 data | Machine physical totals counted once; worker credits separately reconciled |
+| Excel physical-device acceptance | KTC Windows PC running intended Electron build | Monthly XLSX output, date grouping, dynamic NG/deductions, sync sheet, file permissions and path verified |
+| Release decision | Named KTC approver | Signed go/no-go with known issues, rollback and deployment ownership |
+
+**Do not close Phase 3 or deploy to production until all required evidence is collected.** CI green alone cannot satisfy these acceptance items.
 
 ## Repeatable verification commands
 
