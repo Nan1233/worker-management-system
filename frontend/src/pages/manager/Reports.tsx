@@ -240,6 +240,8 @@ export default function Reports() {
             return;
         }
         if (!window.confirm(`Từ chối ${targets.length} báo cáo đã chọn? Lý do: ${reason}`)) return;
+        const detailRequestSeq = detailRequestSeqRef.current;
+        const rejectedIds = [...rejectTargetIds];
         managerActionLockRef.current = true;
         setRejecting(true);
         try {
@@ -251,7 +253,7 @@ export default function Reports() {
                 catch (e: any) { failedIds.push(Number(report.id)); failures.push(`#${report.id}: ${e?.response?.data?.message || e?.message || "Không thể từ chối"}`); }
             }
             setSelectedIds(previous => [...new Set([...previous.filter(id => !rejectTargetIds.includes(id)), ...failedIds])]);
-            if (detail && rejectTargetIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) setDetail(null);
+            if (detail && detailRequestSeqRef.current === detailRequestSeq && rejectedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
             setRejectDialogOpen(false);
             setRejectTargetIds([]);
             await load();
@@ -267,6 +269,8 @@ export default function Reports() {
         const targets = reports.filter(r => selectedIds.includes(Number(r.id)));
         if (!targets.length || bulkApproving || managerActionLockRef.current) return;
         if (!window.confirm(`Duyệt lần lượt ${targets.length} báo cáo đã chọn? Báo cáo lỗi sẽ được giữ lại để xử lý sau.`)) return;
+        const detailRequestSeq = detailRequestSeqRef.current;
+        const approvedIds = targets.map(report => Number(report.id));
         managerActionLockRef.current = true;
         setBulkApproving(true); setError("");
         const failedIds: number[] = [];
@@ -287,7 +291,7 @@ export default function Reports() {
                 }
             }
             setSelectedIds(failedIds);
-            if (detail && succeeded > 0 && !failedIds.includes(Number(detail.id))) setDetail(null);
+            if (detail && detailRequestSeqRef.current === detailRequestSeq && approvedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
             await load();
             const summary = `Duyệt thành công ${succeeded}/${targets.length} báo cáo.${failedIds.length ? `\\n\\nGiữ lại ${failedIds.length} báo cáo chưa duyệt để xử lý tiếp:${`\\n• ${failures.join("\\n• ")}`}` : ""}`;
             window.alert(summary);
