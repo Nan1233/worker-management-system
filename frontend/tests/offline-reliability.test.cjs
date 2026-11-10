@@ -1,7 +1,7 @@
 const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
 const root=path.resolve(__dirname,'..');const read=(p)=>fs.readFileSync(path.join(root,p),'utf8');
 test('offline report queue is identity scoped and preserves client_request_id',()=>{const s=read('src/services/offlineReportQueue.ts');assert.match(s,/userId:/);assert.match(s,/workerId:/);assert.match(s,/workerCode:/);assert.match(s,/client_request_id/);assert.match(s,/createTempReport\(item\.payload\)/);});
-test('worker submit queues only transient failures after company network was allowed',()=>{const s=read('src/pages/worker/ProcessPage.tsx');assert.match(s,/isTransientNetworkFailure\(error\)/);assert.match(s,/enqueueOfflineReport\(payload\)/);});
+test('worker submit queues only transient failures after company network was allowed',()=>{const s=read('src/pages/worker/ProcessPage.tsx');assert.match(s,/isTransientNetworkFailure\(error\)/);assert.match(s,/enqueueOfflineReports\(payloads\)/);});
 test('global online listener flushes pending worker reports',()=>{const s=read('src/components/system/OfflineReportSync.tsx');assert.match(s,/addEventListener\("online", onOnline\)/);assert.match(s,/flushOfflineReportQueue/);assert.match(s,/OFFLINE_QUEUE_CHANGED_EVENT/);});
 test('offline retry uses backoff and blocks permanent 4xx instead of retrying forever',()=>{const s=read('src/services/offlineReportQueue.ts');assert.match(s,/retryDelayMs/);assert.match(s,/status: "retrying"/);assert.match(s,/status: "blocked"/);assert.match(s,/status === 408/);assert.match(s,/status === 429/);assert.match(s,/status >= 500/);});
 test('offline sync warns when queued production data needs manual review',()=>{const s=read('src/components/system/OfflineReportSync.tsx');assert.match(s,/status === "blocked"/);assert.match(s,/Dữ liệu vẫn được giữ trên thiết bị/);});
@@ -11,3 +11,14 @@ test('offline queue UI exposes blocked retry and explicit removal controls',()=>
 test('offline queue never silently drops stale or overflow production reports',()=>{const s=read('src/services/offlineReportQueue.ts');assert.doesNotMatch(s,/slice\(-MAX_ITEMS/);assert.doesNotMatch(s,/filter\(\(item\).*MAX_AGE_MS/);assert.match(s,/Do not automatically block old reports/);assert.match(s,/MAX_ITEMS_PER_OWNER/);assert.match(s,/Hàng đợi offline trên thiết bị đã đầy/);});
 
 test('manual force sync includes blocked reports for an explicit retry',()=>{const s=read('src/services/offlineReportQueue.ts');assert.match(s,/\(!force && item\.status === "blocked"\)/);});
+
+test('offline status distinguishes reports waiting for retry from reports blocked for correction',()=> {
+ const ui=read('src/components/system/OfflineReportSync.tsx');
+ assert.match(ui,/const waiting = items\.length - blocked/);
+ assert.match(ui,/const statusSummary = blocked && waiting/);
+ assert.match(ui,/chờ đồng bộ · \$\{blocked\} cần kiểm tra/);
+ assert.match(ui,/cần kiểm tra trước khi gửi lại/);
+ assert.match(ui,/const waiting = queue\.length - blocked/);
+ assert.match(ui,/queue\.length \? "warning" : "success"/);
+ assert.doesNotMatch(ui,/đang kiểm tra kết nối máy chủ/);
+});

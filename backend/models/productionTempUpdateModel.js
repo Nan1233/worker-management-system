@@ -58,9 +58,10 @@ const getWorkerEditWindowStart = (report) => {
 
 module.exports = {
     async updateReport(id, data, changedBy, reason = null, options = {}) {
-        const connection = await getConnection();
+        const connection = options.connection || await getConnection();
+        const ownsTransaction = !options.connection;
         try {
-            await beginReadCommittedTransaction(connection);
+            if (ownsTransaction) await beginReadCommittedTransaction(connection);
             const { isAdmin = false, workerId = null } = options;
             const isWorkerEdit = Number(workerId) > 0;
             const scopeJoin = isAdmin || isWorkerEdit ? "" : "JOIN manager_processes mp ON mp.process_id = pr.process_id";
@@ -216,7 +217,7 @@ module.exports = {
             await checkDailyHours(connection, { workerId: current.worker_id, workDate: nextWorkDate, incomingActualHours: nextActualTime, incomingMachineLines: dailyHoursMachineLines || [], isParallelMachineProcess, excludeTempReportId: id });
             const changes = editableFields.filter(field => Object.prototype.hasOwnProperty.call(data, field)).filter(field => String(current[field] ?? "") !== String(data[field] ?? ""));
             const detailChanged = hasDeductions || hasDefects || hasMachineLines;
-            if (changes.length === 0 && !detailChanged) { await rollback(connection); return { changed: false, report: current }; }
+            if (changes.length === 0 && !detailChanged) { if (ownsTransaction) await rollback(connection); return { changed: false, report: current }; }
             if (changes.length > 0) {
                 const assignments = changes.map(field => `\`${field}\` = ?`).join(", ");
                 await query(connection, `UPDATE production_reports_temp SET ${assignments},updated_by=?,updated_at=NOW() ${resubmittingRejected ? ",status='pending',review_note=NULL,reviewed_by=NULL,approved_at=NULL" : ""} WHERE id=?`, [...changes.map(field => data[field]), changedBy, id]);
@@ -265,10 +266,10 @@ module.exports = {
                 const notification = { type:"report_resubmitted",title:"Báo cáo đã được sửa và gửi lại",message:`Báo cáo #${id} đã được công nhân chỉnh sửa sau khi bị từ chối và đang chờ duyệt lại.`,entityType:"temp_report",entityId:id };
                 for (const [role,linkUrl] of [["lead","/lead/reports"],["manager","/manager/reports"],["admin","/admin/reports"]]) { const ids=reviewerGroups[role]; if (ids.length) await AuditService.notifyUsers(ids,{...notification,linkUrl},connection); }
             }
-            await commit(connection);
+            if (ownsTransaction) await commit(connection);
             return { changed:true,fields:changes,details:{deductions:hasDeductions,defects:hasDefects,machine_lines:hasMachineLines} };
         } catch (error) {
-            const rolledBack = await rollback(connection);
+            const rolledBack = ownsTransaction ? await rollback(connection) : { ok: true };
             if (rolledBack && rolledBack.ok === false) {
                 // COMMIT never ran, so the database discards the open transaction; surface the original error and
                 // flag that the explicit ROLLBACK failed (never report it as a clean rollback).
@@ -277,7 +278,7 @@ module.exports = {
             }
             throw error;
         }
-        finally { connection.release(); }
+        finally { if (ownsTransaction) connection.release(); }
     }
     ,_getWorkerEditWindowStart: getWorkerEditWindowStart,
     _checkDailyHours: checkDailyHours,

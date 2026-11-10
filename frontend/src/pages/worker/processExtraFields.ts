@@ -25,14 +25,10 @@ export const PROCESS_SPECIFIC_FIELDS: Record<string, ExtraFieldDefinition[]> = {
   "kiem-2": [],
 
   can: [
-    { key: "material_code", label: "Mã nguyên liệu", type: "text", required: true },
     { key: "stop_reason", label: "Lý do dừng máy", type: "text" },
   ],
 
-  ep: [
-    { key: "press_box_shift", label: "Ca / thùng Ép", type: "text" },
-    { key: "handler", label: "Người xử lý ép/bavia", type: "text" },
-  ],
+  ep: [],
 
   bavia: [],
 

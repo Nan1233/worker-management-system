@@ -1,101 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { describeApprovalError } from "../../utils/approvalError";
 import { getStoredUser } from "../../utils/authStorage";
 import { approveSelectedTempReports, approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
+import { num, text, processLabel, fmt, pct, dateText, rangeFor, kpi, metricStyle } from "./managerReportsPresentation";
 import "./ReportsSplitReference.css";
 import "./ReportsDetailCompact.css";
-
-const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-const text = (v: unknown, fallback = "—") => v === null || v === undefined || v === "" ? fallback : String(v);
-const getStoredExtraData = (value: unknown): Record<string, unknown> => {
-    if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
-    if (typeof value === "string") { try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {}; } catch { /* malformed saved filter: use defaults */ } }
-    return {};
-};
-const processLabel = (report: ProductionReport) => {
-    const x = report as ProductionReport & Record<string, unknown>;
-    const extra = getStoredExtraData(x.extra_data);
-    const workType = String(extra.work_type || x.work_type || "").trim();
-    return extra.non_product_work === true && workType
-        ? `${text(x.process_name || x.process_code)} · Công việc khác (${workType})`
-        : text(x.process_name || x.process_code);
-};
-const fmt = (v: unknown) => num(v).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
-const pct = (v: unknown) => `${fmt(v)}%`;
-const dateText = (v: unknown) => { const s = String(v || "").slice(0, 10); const [y, m, d] = s.split("-"); return y && m && d ? `${d}/${m}/${y}` : s || "—"; };
-const dateValue = (v: Date) => `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
-const rangeFor = (value: string, type: "day" | "week" | "month" | "year") => {
-    const start = new Date(`${value}T00:00:00`); const end = new Date(start);
-    if (type === "year") { start.setMonth(0, 1); end.setMonth(11, 31); }
-    else if (type === "month") { start.setDate(1); end.setMonth(end.getMonth() + 1, 0); }
-    else if (type === "week") { const offset = (start.getDay() + 6) % 7; start.setDate(start.getDate() - offset); end.setTime(start.getTime()); end.setDate(start.getDate() + 6); }
-    return { dateFrom: dateValue(start), dateTo: dateValue(end) };
-};
-
-const kpi = (r: ProductionReport) => {
-    const x = r as ProductionReport & Record<string, unknown>;
-    const ok = num(x.tt_ok); const ng = num(x.tt_ng);
-    const actual = num(x.actual_output) || ok + ng;
-    const extra = getStoredExtraData(x.extra_data);
-    const standard = num(x.standard_output)
-        || num(x.target_output)
-        || num(x.standard_output_per_hour)
-        || num(x.standardOutput)
-        || num(extra.standard_output)
-        || num(extra.target_output);
-    const machineLines = Array.isArray(x.machine_lines) ? x.machine_lines as Array<Record<string, unknown>> : [];
-    const machineNetHours = machineLines.reduce((sum, line) => {
-        const gross = Math.max(0, num(line.machine_time_hours));
-        const deduction = Math.max(0, num(line.deduction_time_hours));
-        return sum + Math.max(0, gross - deduction);
-    }, 0);
-    const machineStandardTime = machineLines.reduce((sum, line) => {
-        const netHours = Math.max(0, num(line.machine_time_hours) - num(line.deduction_time_hours));
-        const lineStandard = Math.max(0, num(line.standard_output));
-        return sum + (netHours > 0 && lineStandard > 0 ? netHours * lineStandard : 0);
-    }, 0);
-    const actualTime = num(x.actual_time)
-        || num(x.actual_hours)
-        || num(x.working_hours)
-        || num(x.total_working_hours)
-        || num(x.tt_gio)
-        || num(extra.actual_time)
-        || num(extra.actual_hours)
-        || num(extra.working_hours)
-        || machineNetHours;
-    // Prefer the persisted KPI snapshot when present; otherwise calculate only
-    // when both inputs are available. Do not silently turn missing fields into
-    // a fabricated zero when the pending detail uses legacy field names.
-    const storedTtDinhMuc = x.tt_dinh_muc ?? x.tt_dinh_muc_snapshot ?? x.standard_time_total ?? x.standardTimeTotal;
-    const storedTtDinhMucValue = storedTtDinhMuc !== null && storedTtDinhMuc !== undefined && storedTtDinhMuc !== "" ? num(storedTtDinhMuc) : 0;
-    const ttDinhMuc = storedTtDinhMucValue > 0
-        ? storedTtDinhMucValue
-        : (machineStandardTime > 0 ? machineStandardTime : (standard > 0 && actualTime > 0 ? standard * actualTime : 0));
-    const storedNangSuat = x.nang_suat_percent ?? x.nang_suat_percent_snapshot ?? x.productivity_percent;
-    const storedNangSuatValue = storedNangSuat !== null && storedNangSuat !== undefined && storedNangSuat !== "" ? num(storedNangSuat) : 0;
-    const nangSuat = storedNangSuatValue > 0
-        ? storedNangSuatValue
-        : (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0);
-    const dat = actual > 0 ? ok / actual * 100 : 0;
-    const pp = num(x.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
-    // Pending API returns the snapshot as training_percent_snapshot (the
-    // detail page already reads this field). Keep the list consistent with it.
-    const hv = x.training_percent ?? x.training_percent_snapshot ?? x.worker_training_percent ?? x.hv_percent ?? x.learning_percent ?? x.hoc_viec_percent ?? 100;
-    const ngTypeCount = Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count));
-    // Machine lines that ran without a usable standard: there is nothing to compare against, so the screen must say
-    // so ("Thiếu định mức") instead of showing a 0 that looks like a real zero productivity.
-    const standardMissing = ttDinhMuc <= 0 && num(x.standard_missing_lines) > 0;
-    return { ok, ng, actual, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount, standardMissing };
-};
-
-const metricStyle = (type: "productivity" | "pp", value: number, ngTypeCount = 0): CSSProperties => {
-    if (type === "productivity" && (value <= 75 || value > 100)) return { backgroundColor: "#ffd6e7", color: "#9b123f", fontWeight: 800, border: "1px solid #ff9fbe" };
-    if (type === "pp" && (value === 0 || ngTypeCount === 1)) return { backgroundColor: "#fff0b8", color: "#795600", fontWeight: 800, border: "1px solid #e3ad20" };
-    return {};
-};
 
 export default function Reports() {
     const [date, setDate] = useState(getToday());
@@ -110,6 +22,7 @@ export default function Reports() {
     const reportLoadSeqRef = useRef(0);
     const reportAbortRef = useRef<AbortController | null>(null);
     const managerActionLockRef = useRef(false);
+    const detailRequestSeqRef = useRef(0);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -132,7 +45,10 @@ export default function Reports() {
             setReports(result.data || []); setProcessOptions((result.processes || []).map((item: any) => String(item?.process_name || item?.process_code || "")).filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "vi"))); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
         } catch (e: any) {
             if (!isCurrentRequest()) return;
-            setError(e?.response?.data?.message || "Không thể tải báo cáo chờ duyệt"); setReports([]); setProcessOptions([]); setTotal(0); setPages(1);
+            // A transient reload failure must not erase the previous page or the
+            // process filter choices. Keep the last successful snapshot visible
+            // behind the retryable error until a new request succeeds.
+            setError(e?.response?.data?.message || "Không thể tải báo cáo chờ duyệt");
         } finally {
             if (reportAbortRef.current === controller) reportAbortRef.current = null;
             if (isCurrentRequest()) setLoading(false);
@@ -141,6 +57,12 @@ export default function Reports() {
 
     const filterKey = JSON.stringify([date, range?.dateFrom || "", range?.dateTo || "", process, shift, searchQuery]);
     const previousFilterKeyRef = useRef(filterKey);
+    // A bulk request may finish after the user changes filters or pages.
+    // Never restore its failed IDs into a different selection scope.
+    const selectionScopeRef = useRef("");
+    useEffect(() => {
+        selectionScopeRef.current = JSON.stringify([filterKey, page]);
+    }, [filterKey, page]);
 
     useEffect(() => {
         const filtersChanged = previousFilterKeyRef.current !== filterKey;
@@ -159,23 +81,34 @@ export default function Reports() {
         if (loading) return;
         window.dispatchEvent(new CustomEvent("ktc:manager-pending-page-data", { detail: { reports } }));
     }, [reports, loading]);
-    useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, searchQuery]);
+    useEffect(() => {
+        detailRequestSeqRef.current += 1;
+        setPage(1); setDetail(null); setDetailLoading(false); setSelectedIds([]);
+    }, [date, range, process, shift, searchQuery]);
     useEffect(() => { setSelectedIds([]); }, [page]);
 
     const processes = processOptions;
     const shifts = useMemo(() => Array.from(new Set(reports.map(r => r.shift).filter(Boolean))).sort(), [reports]);
     const quick = (type: "day" | "week" | "month" | "year") => { const today = getToday(); setDate(today); setRange(type === "day" ? null : rangeFor(today, type)); };
 
+    const closeDetail = () => {
+        detailRequestSeqRef.current += 1;
+        setDetail(null);
+        setDetailLoading(false);
+    };
+
     const openDetail = async (report: ProductionReport) => {
+        const requestSeq = ++detailRequestSeqRef.current;
+        const isCurrent = () => detailRequestSeqRef.current === requestSeq;
         setDetail(report);
         setDetailLoading(true);
         try {
             const full = await getTempReportDetail(Number(report.id));
-            setDetail(full || report);
+            if (isCurrent()) setDetail(full || report);
         } catch {
-            setDetail(report);
+            if (isCurrent()) setDetail(report);
         } finally {
-            setDetailLoading(false);
+            if (isCurrent()) setDetailLoading(false);
         }
     };
 
@@ -185,20 +118,27 @@ export default function Reports() {
     const basePath = currentUser?.role === "admin" ? "/admin" : role === "lead" ? "/lead" : role === "admin_ops" ? "/admin-ops" : "/manager";
 
     const approveDetail = async () => {
-        if (!detail || approving || managerActionLockRef.current) return;
+        if (!detail || approving || loading || error || managerActionLockRef.current) return;
+        const approvedId = Number(detail.id);
+        const requestSeq = detailRequestSeqRef.current;
+        const selectionScope = selectionScopeRef.current;
         managerActionLockRef.current = true;
         setApproving(true);
         try {
-            // Use the same selected-approval API contract as the review workflow.
-            await approveSelectedTempReports([Number(detail.id)]);
-            setDetail(null);
-            await load();
+            // Capture the report being approved: switching detail while awaiting
+            // must not close or redirect the manager's newer selection.
+            await approveSelectedTempReports([approvedId]);
+            if (detailRequestSeqRef.current === requestSeq) closeDetail();
+            // A single approval must not replace a newer page/filter request.
             window.alert("Đã duyệt báo cáo thành công.");
+            // Approval outcome is independent of the best-effort list refresh.
+            if (selectionScopeRef.current === selectionScope) await load();
         } catch (e: any) {
             window.alert(describeApprovalError(e, "Không thể duyệt báo cáo. Vui lòng thử lại."));
-            // A shared GC machine needs an approved physical event first; that is created on the report detail page,
-            // so take the manager there instead of leaving them at a dead end.
-            if (e?.response?.data?.code === "MACHINE_EVENT_REQUIRED") navigate(`${basePath}/report/${Number(detail.id)}?source=pending`);
+            // Shared GC machine approvals require a physical event on the detail page.
+            if (e?.response?.data?.code === "MACHINE_EVENT_REQUIRED" && detailRequestSeqRef.current === requestSeq) {
+                navigate(`${basePath}/report/${approvedId}?source=pending`);
+            }
         } finally {
             managerActionLockRef.current = false;
             setApproving(false);
@@ -207,7 +147,7 @@ export default function Reports() {
 
     const openRejectDialog = (ids: number[]) => {
         const validIds = [...new Set(ids.map(Number).filter(id => Number.isInteger(id) && id > 0))];
-        if (!validIds.length || rejecting) return;
+        if (!validIds.length || rejecting || loading || error) return;
         setRejectTargetIds(validIds);
         setRejectReason("");
         setRejectNote("");
@@ -215,7 +155,7 @@ export default function Reports() {
     };
 
     const rejectTargets = async () => {
-        if (rejecting || !rejectTargetIds.length || managerActionLockRef.current) return;
+        if (rejecting || loading || error || !rejectTargetIds.length || managerActionLockRef.current) return;
         const reason = rejectReason === "Khác" ? rejectNote.trim() : rejectReason.trim();
         if (!reason) { window.alert("Vui lòng chọn lý do từ chối."); return; }
         const targets = reports.filter(report => rejectTargetIds.includes(Number(report.id)));
@@ -224,6 +164,9 @@ export default function Reports() {
             return;
         }
         if (!window.confirm(`Từ chối ${targets.length} báo cáo đã chọn? Lý do: ${reason}`)) return;
+        const detailRequestSeq = detailRequestSeqRef.current;
+        const rejectedIds = [...rejectTargetIds];
+        const selectionScope = selectionScopeRef.current;
         managerActionLockRef.current = true;
         setRejecting(true);
         try {
@@ -234,12 +177,16 @@ export default function Reports() {
                 try { await rejectSelectedTempReports([Number(report.id)], reason); succeeded += 1; }
                 catch (e: any) { failedIds.push(Number(report.id)); failures.push(`#${report.id}: ${e?.response?.data?.message || e?.message || "Không thể từ chối"}`); }
             }
-            setSelectedIds(previous => [...new Set([...previous.filter(id => !rejectTargetIds.includes(id)), ...failedIds])]);
-            if (detail && rejectTargetIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) setDetail(null);
+            if (selectionScopeRef.current === selectionScope) {
+                setSelectedIds(previous => [...new Set([...previous.filter(id => !rejectedIds.includes(id)), ...failedIds])]);
+            }
+            if (detail && detailRequestSeqRef.current === detailRequestSeq && rejectedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
             setRejectDialogOpen(false);
             setRejectTargetIds([]);
-            await load();
+            // Do not issue a refresh with captured filters after the manager navigates elsewhere.
             window.alert(`Đã từ chối ${succeeded}/${targets.length} báo cáo.${failures.length ? `\\n\\nCác báo cáo chưa từ chối:\\n• ${failures.join("\\n• ")}` : ""}`);
+            // Do not delay or misclassify the decision result if refresh fails.
+            if (selectionScopeRef.current === selectionScope) await load();
         } finally { managerActionLockRef.current = false; setRejecting(false); }
     };
 
@@ -249,8 +196,11 @@ export default function Reports() {
     const toggleVisibleSelection = () => setSelectedIds(previous => allVisibleSelected ? previous.filter(id => !visibleIds.includes(id)) : [...new Set([...previous, ...visibleIds])]);
     const approveBulk = async () => {
         const targets = reports.filter(r => selectedIds.includes(Number(r.id)));
-        if (!targets.length || bulkApproving || managerActionLockRef.current) return;
+        if (!targets.length || bulkApproving || loading || error || managerActionLockRef.current) return;
         if (!window.confirm(`Duyệt lần lượt ${targets.length} báo cáo đã chọn? Báo cáo lỗi sẽ được giữ lại để xử lý sau.`)) return;
+        const detailRequestSeq = detailRequestSeqRef.current;
+        const approvedIds = targets.map(report => Number(report.id));
+        const selectionScope = selectionScopeRef.current;
         managerActionLockRef.current = true;
         setBulkApproving(true); setError("");
         const failedIds: number[] = [];
@@ -270,11 +220,13 @@ export default function Reports() {
                     failures.push(`${code} (#${id}): ${message}`);
                 }
             }
-            setSelectedIds(failedIds);
-            if (detail && succeeded > 0 && !failedIds.includes(Number(detail.id))) setDetail(null);
-            await load();
+            if (selectionScopeRef.current === selectionScope) setSelectedIds(failedIds);
+            if (detail && detailRequestSeqRef.current === detailRequestSeq && approvedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
+            // The current filter/page owns its own request; never abort it with stale parameters.
             const summary = `Duyệt thành công ${succeeded}/${targets.length} báo cáo.${failedIds.length ? `\\n\\nGiữ lại ${failedIds.length} báo cáo chưa duyệt để xử lý tiếp:${`\\n• ${failures.join("\\n• ")}`}` : ""}`;
             window.alert(summary);
+            // A stale or failed refresh must not change the approval summary.
+            if (selectionScopeRef.current === selectionScope) await load();
         } finally { managerActionLockRef.current = false; setBulkApproving(false); }
     };
 
@@ -316,15 +268,15 @@ export default function Reports() {
                             <span><strong style={{ color: "#244564" }}>{selectedIds.length} báo cáo</strong> được chọn</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 10, marginLeft: "auto" }}>
-                            <button type="button" onClick={() => openRejectDialog(selectedIds)} disabled={selectedIds.length === 0 || rejecting || loading} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#e5a4a4" : "#e2e8f0", borderRadius: 9, padding: "0 16px", background: selectedIds.length ? "#fff" : "#f1f5f9", color: selectedIds.length ? "#b42323" : "#94a3b8", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", cursor: selectedIds.length && !rejecting && !loading ? "pointer" : "not-allowed", transition: "background .15s ease, border-color .15s ease" }}>{rejecting ? "Đang từ chối..." : `✕ Từ chối ${selectedIds.length}`}</button>
-                            <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#1769aa" : "#cbd5e1", borderRadius: 9, padding: "0 18px", background: selectedIds.length ? "linear-gradient(135deg, #1976c9, #145da0)" : "#cbd5e1", color: "#fff", fontSize: 13, fontWeight: 750, whiteSpace: "nowrap", cursor: selectedIds.length && !bulkApproving && !loading ? "pointer" : "not-allowed", boxShadow: selectedIds.length ? "0 3px 8px rgba(23,105,170,.18)" : "none", transition: "background .15s ease, box-shadow .15s ease" }}>{bulkApproving ? "Đang duyệt..." : `✓ Duyệt ${selectedIds.length}`}</button>
+                            <button type="button" onClick={() => openRejectDialog(selectedIds)} disabled={selectedIds.length === 0 || rejecting || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#e5a4a4" : "#e2e8f0", borderRadius: 9, padding: "0 16px", background: selectedIds.length ? "#fff" : "#f1f5f9", color: selectedIds.length ? "#b42323" : "#94a3b8", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", cursor: selectedIds.length && !rejecting && !loading ? "pointer" : "not-allowed", transition: "background .15s ease, border-color .15s ease" }}>{rejecting ? "Đang từ chối..." : `✕ Từ chối ${selectedIds.length}`}</button>
+                            <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#1769aa" : "#cbd5e1", borderRadius: 9, padding: "0 18px", background: selectedIds.length ? "linear-gradient(135deg, #1976c9, #145da0)" : "#cbd5e1", color: "#fff", fontSize: 13, fontWeight: 750, whiteSpace: "nowrap", cursor: selectedIds.length && !bulkApproving && !loading ? "pointer" : "not-allowed", boxShadow: selectedIds.length ? "0 3px 8px rgba(23,105,170,.18)" : "none", transition: "background .15s ease, box-shadow .15s ease" }}>{bulkApproving ? "Đang duyệt..." : `✓ Duyệt ${selectedIds.length}`}</button>
                         </div>
                     </div>
                     <div className="pending-table-wrap" style={{ overflowX: "auto" }}>
                         <table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                             <thead><tr><th className="select-col"><input type="checkbox" aria-label="Chọn tất cả báo cáo trên trang này" checked={allVisibleSelected} onChange={toggleVisibleSelection} disabled={loading || reports.length === 0} /></th><th className="view-col">Xem</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian</th><th>% HV</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% đạt</th><th>% PP</th><th>Trạng thái</th></tr></thead>
                             <tbody>
-                                {loading ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={15} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}>{error}</td></tr> : reports.length === 0 ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
+                                {loading ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={15} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}><div role="alert">{error}</div><button type="button" onClick={() => void load()} disabled={loading} style={{ marginTop: 12, minHeight: 40, padding: "8px 16px", border: "1px solid #c24141", borderRadius: 8, background: "#fff", color: "#9f2828", fontWeight: 700, cursor: "pointer" }}>Thử tải lại</button></td></tr> : reports.length === 0 ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
                                     const x = kpi(r);
                                     const code = `PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`;
                                     return <tr key={r.id ?? i} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => void openDetail(r)} style={{ cursor: "pointer" }}>
@@ -344,7 +296,7 @@ export default function Reports() {
                 {detail && <aside className="pending-detail-card pending-detail-card-compact">
                     <div className="pending-detail-head">
                         <div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span><span className="pending-detail-code">#{detail.id}</span></div>
-                        <button type="button" className="pending-detail-close" onClick={() => setDetail(null)} aria-label="Đóng">×</button>
+                        <button type="button" className="pending-detail-close" onClick={closeDetail} aria-label="Đóng">×</button>
                     </div>
                     {detailLoading ? <div className="pending-detail-loading">Đang tải chi tiết...</div> : detailKpi && <div className="pending-detail-body">
                         <section className="pending-detail-section"><h3>Thông tin chung</h3><div className="pending-detail-grid">
@@ -376,9 +328,9 @@ export default function Reports() {
                         <section className="pending-detail-section"><h3>Ghi chú</h3><div className="pending-detail-field"><span>Ghi chú</span><strong>{text(detail.note || (detail as any).notes, "Không có ghi chú")}</strong></div></section>
                     </div>}
                     <div className="pending-detail-actions pending-detail-actions-compact">
-                        <button type="button" className="pending-detail-cancel" onClick={() => setDetail(null)}>Đóng</button>
-                        <button type="button" onClick={() => openRejectDialog([Number(detail.id)])} disabled={rejecting || detailLoading} style={{ border: "1px solid #dc5656", background: "#fff1f1", color: "#b42323", borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: rejecting || detailLoading ? "not-allowed" : "pointer" }}>{rejecting ? "Đang từ chối..." : "Từ chối báo cáo"}</button>
-                        <button type="button" className="pending-detail-approve" onClick={() => void approveDetail()} disabled={approving || detailLoading || rejecting}>{approving ? "Đang duyệt..." : "Duyệt báo cáo"}</button>
+                        <button type="button" className="pending-detail-cancel" onClick={closeDetail}>Đóng</button>
+                        <button type="button" onClick={() => openRejectDialog([Number(detail.id)])} disabled={rejecting || detailLoading || loading || Boolean(error)} style={{ border: "1px solid #dc5656", background: "#fff1f1", color: "#b42323", borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: rejecting || detailLoading ? "not-allowed" : "pointer" }}>{rejecting ? "Đang từ chối..." : "Từ chối báo cáo"}</button>
+                        <button type="button" className="pending-detail-approve" onClick={() => void approveDetail()} disabled={approving || detailLoading || rejecting || loading || Boolean(error)}>{approving ? "Đang duyệt..." : "Duyệt báo cáo"}</button>
                     </div>
                 </aside>}
             </div>
@@ -400,7 +352,7 @@ export default function Reports() {
                 {rejectReason === "Khác" && <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Nhập lý do từ chối cụ thể..." rows={3} disabled={rejecting} style={{ width: "100%", boxSizing: "border-box", marginTop: 10, border: "1px solid #cbd9e8", borderRadius: 8, padding: 10, resize: "vertical" }} />}
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
                     <button type="button" onClick={() => setRejectDialogOpen(false)} disabled={rejecting} style={{ border: "1px solid #cbd9e8", borderRadius: 8, padding: "9px 14px", background: "#fff", color: "#526b88" }}>Hủy</button>
-                    <button type="button" onClick={() => void rejectTargets()} disabled={rejecting || !rejectReason || (rejectReason === "Khác" && !rejectNote.trim())} style={{ border: 0, borderRadius: 8, padding: "9px 14px", background: rejecting || !rejectReason || (rejectReason === "Khác" && !rejectNote.trim()) ? "#cbd5e1" : "#b42323", color: "#fff", fontWeight: 700 }}>{rejecting ? "Đang từ chối..." : `Xác nhận từ chối ${rejectTargetIds.length} báo cáo`}</button>
+                    <button type="button" onClick={() => void rejectTargets()} disabled={rejecting || loading || Boolean(error) || !rejectReason || (rejectReason === "Khác" && !rejectNote.trim())} style={{ border: 0, borderRadius: 8, padding: "9px 14px", background: rejecting || !rejectReason || (rejectReason === "Khác" && !rejectNote.trim()) ? "#cbd5e1" : "#b42323", color: "#fff", fontWeight: 700 }}>{rejecting ? "Đang từ chối..." : `Xác nhận từ chối ${rejectTargetIds.length} báo cáo`}</button>
                 </div>
             </section>
         </div>}

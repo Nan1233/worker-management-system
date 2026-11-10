@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateProductionReport } = require('../utils/reportValidation');
+const { validateProductionReport, isImplicitGcNonProductWork } = require('../utils/reportValidation');
 
 test('CVK report accepts zero standard and zero production output', () => {
   const result = validateProductionReport({
@@ -98,4 +98,43 @@ test('GC Xuất nhập work type accepts zero standard even when non_product_wor
   const result = validateProductionReport(payload, { skipActualOutputFormula: true });
   assert.equal(result.valid, true, JSON.stringify(result.errors));
   assert.equal(result.normalized.standard_output, 0);
+});
+
+test('GC non-product classifier recognizes only approved work types without a product or machine', () => {
+  const good = { process_id: 1, work_type: 'Xuất nhập', product_name: '', machine_no: '' };
+  assert.equal(isImplicitGcNonProductWork(good), true);
+  assert.equal(isImplicitGcNonProductWork({ ...good, work_type: 'KTCD' }), true);
+  assert.equal(isImplicitGcNonProductWork({ ...good, work_type: 'TAIPP' }), true);
+  assert.equal(isImplicitGcNonProductWork({ ...good, work_type: 'Bảo trì' }), false);
+  assert.equal(isImplicitGcNonProductWork({ ...good, product_name: 'P1' }), false);
+  assert.equal(isImplicitGcNonProductWork({ ...good, machine_no: 'C13' }), false);
+  assert.equal(isImplicitGcNonProductWork({ ...good, operation_mode: 'MACHINE' }), false);
+  assert.equal(isImplicitGcNonProductWork({ ...good, machine_lines: [{}] }), false);
+  assert.equal(isImplicitGcNonProductWork({ ...good, machines: [{}] }), false);
+  assert.equal(isImplicitGcNonProductWork({ ...good, process_id: 7, process_code: 'GC' }), false,
+    'untrusted process_code must not override canonical process id');
+});
+
+test('GC machine production cannot bypass standard/output validation by claiming Xuất nhập', () => {
+  const payload = {
+    process_id: 1, process_code: 'GC', work_type: 'Xuất nhập',
+    work_date: new Date().toISOString().slice(0, 10), shift: 'A',
+    machine_no: 'C13', product_name: 'PART-1', operation_mode: 'MACHINE',
+    total_time: 4, actual_time: 4, deduction_time: 0,
+    standard_output: 0, actual_output: 0, tt_ok: 0, tt_ng: 0,
+    defects: [], deductions: [], training_percent: 100
+  };
+  assert.equal(isImplicitGcNonProductWork(payload), false);
+  const result = validateProductionReport(payload, { skipActualOutputFormula: true });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.tt_ok, JSON.stringify(result.errors));
+});
+
+test('worker submission shares the validated non-product classifier with master-data lookup', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '../controllers/productionTempWorkerController.js'), 'utf8');
+  assert.match(source, /isImplicitGcNonProductWork\(req\.body\)/);
+  assert.match(source, /nonProductWork: isNonProductWorkWithinProcess/);
+  assert.match(source, /if \(implicitGcNonProductWork\) extraDataInput\.non_product_work = true/);
 });

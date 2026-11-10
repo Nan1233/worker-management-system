@@ -11,8 +11,10 @@ const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
 test('create path declares AuditService before using it', () => {
   const service = read('services/productionTempSubmissionService.js');
   assert.match(service, /const\s+AuditService\s*=\s*require\(["']\.\/auditService["']\)/);
-  assert.match(service, /AuditService\.loadTempReportSnapshot\(/);
-  assert.match(service, /AuditService\.createReportVersion\(/);
+  // Creation writes immutable snapshots via the batched audit transaction.
+  assert.match(service, /const createAuditAfterChildrenBatch = async/);
+  assert.match(service, /INSERT INTO report_versions \(report_type,report_id,version_no,snapshot_json,change_reason,created_by\)/);
+  assert.match(service, /await createAuditAfterChildrenBatch\(/);
 
   const createModel = read('models/productionTempCreateModel.js');
   if (/AuditService\./.test(createModel)) {

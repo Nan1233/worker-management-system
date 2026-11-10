@@ -124,3 +124,36 @@ test('duplicate confirmation signature covers the full worker form snapshot, inc
   assert.match(signature, /\[\s*processInfo\.id[\s\S]*selectedNg[\s\S]*\]/);
   assert.doesNotMatch(signature, /resolvedReportKqdPolicy/);
 });
+
+test('successful duplicate creation/update clears the draft and invalidates pending autosave', () => {
+  const page = read('src/pages/worker/ProcessPage.tsx');
+  const start = page.indexOf('const finishDuplicateAction = useCallback(');
+  const end = page.indexOf('const handleCreateDuplicateAnyway', start);
+  assert.ok(start >= 0 && end > start);
+  const finish = page.slice(start, end);
+  assert.match(finish, /resetVersionRef\.current \+= 1/);
+  assert.match(finish, /clearTimeout\(draftSaveTimerRef\.current\)/);
+  assert.match(finish, /clearProcessDraft\(process\)/);
+  assert.ok(finish.indexOf('clearProcessDraft(process)') < finish.indexOf('navigate("/worker"'));
+  assert.match(finish, /\[navigate, process, setDuplicatePrompt\]/);
+  const create = page.slice(end, page.indexOf('const handleUpdateExistingReport', end));
+  const update = page.slice(page.indexOf('const handleUpdateExistingReport', end), page.indexOf('// Separate-run duplicate creation', end));
+  assert.match(create, /showToast\([\s\S]*?finishDuplicateAction\(\)/);
+  assert.match(update, /showToast\([\s\S]*?finishDuplicateAction\(\)/);
+  assert.doesNotMatch(create.slice(create.indexOf('catch (error: unknown)')), /clearProcessDraft\(process\)/);
+  assert.doesNotMatch(update.slice(update.indexOf('catch (error: unknown)')), /clearProcessDraft\(process\)/);
+});
+
+test('duplicate resume only updates drafts explicitly owned by the signed-in worker', () => {
+  const actions = read('src/pages/worker/components/ProcessSubmitActions.tsx');
+  const start = actions.indexOf('const syncVisibleMachineLinesToDraft');
+  const end = actions.indexOf('export default function ProcessSubmitActions', start);
+  assert.ok(start >= 0 && end > start);
+  const body = actions.slice(start, end);
+  assert.match(actions, /import \{ getStoredUser \} from "\.\.\/\.\.\/\.\.\/utils\/authStorage"/);
+  assert.match(body, /if \(!user \|\| user\.role !== "worker"\) return/);
+  assert.match(body, /draft\?\.ownerWorkerId == null && !draft\?\.ownerWorkerCode/);
+  assert.match(body, /Number\(draft\.ownerWorkerId\) !== workerId/);
+  assert.match(body, /String\(draft\.ownerWorkerCode \|\| ""\)\.trim\(\)\.toUpperCase\(\) !== workerCode/);
+  assert.ok(body.indexOf('ownerWorkerId == null') < body.indexOf('bestDraft = draft'));
+});

@@ -12,10 +12,11 @@ const BACKEND = path.join(__dirname, '..');
 const MACHINE_CODES = ['M05', 'M06', 'M07', 'M11'];
 const PRODUCTS = ['CGYX-AUTO', 'C5770-AUTO'];
 
-function build({ lines = 4, withEvents = true, failOn = null, existingApproved = false, noEventRows = false, lineStandardOutput = 500, defectsByLine = {}, tamperApproved = false, reportRows = null } = {}) {
+function build({ lines = 4, withEvents = true, failOn = null, existingApproved = false, noEventRows = false, lineStandardOutput = 500, defectsByLine = {}, tamperApproved = false, reportRows = null, staleFinalTransition = false, sharedApprovalState = null, commitError = null, rollbackError = null, editBeforeFinal = false } = {}) {
   const log = [];
   const calls = [];
   let nextId = 5000;
+  let ownsApprovalClaim = false;
   const machineCodes = Array.from({ length: lines }, (_, i) => MACHINE_CODES[i] || `M${20 + i}`);
   const productOf = (i) => PRODUCTS[i % PRODUCTS.length];
   const report = {
@@ -42,7 +43,7 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
     if (failOn && failOn.test(sql)) throw Object.assign(new Error('boom'), { code: 'ER_FAKE' });
     if (/FROM production_reports WHERE source_temp_id IN/.test(sql) || /SELECT id,source_temp_id,work_date FROM production_reports/.test(sql)) return existingApproved ? [{ id: 1, source_temp_id: 900001 }] : [];
     if (/FROM production_reports_temp t WHERE t.id IN/.test(sql)) return [];
-    if (/SELECT DISTINCT temp\.\*/.test(sql)) return reportRows || [report];
+    if (/SELECT DISTINCT temp\.\*/.test(sql)) return sharedApprovalState?.approved ? [] : (reportRows || [report]);
     if (/SELECT \* FROM production_reports_temp WHERE id=\? LIMIT 1 FOR UPDATE/.test(sql)) return [report];
     if (/FROM production_temp_machine_lines ml JOIN production_reports_temp r/.test(sql)) return tempLines.map((l) => ({ ...l, process_id: 1, work_date: report.work_date, shift: 'DAY', machine_no: report.machine_no, product_name: report.product_name, process_code: 'GC' }));
     if (/FROM production_temp_machine_lines WHERE temp_report_id=\?/.test(sql)) return tempLines.map((l) => ({ ...l }));
@@ -63,7 +64,12 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
     }
     if (/FROM product_standard_versions/.test(sql)) return [{ id: 9, process_id: 1, product_code: params[1] || 'X', standard_output: 500, exclude_kqd_from_tt: 0, version_no: 1, effective_from: '2026-01-01', effective_to: null, status: 'active' }];
     if (/SELECT \* FROM production_reports WHERE id=\?/.test(sql)) return [{ id: 5001, source_temp_id: 900001, worker_id: 7, process_id: 1, work_date: '2026-10-19', shift: 'DAY', status: 'approved', operation_mode: 'MACHINE', total_time: 8, actual_time: 8, standard_output: 0, actual_output: 1000, tt_ok: 990, tt_ng: 10, extra_data: '{}' }];
-    if (/production_report_machine_lines/.test(sql) && /^SELECT/i.test(sql) && !/production_report_machine_defects/.test(sql)) return tempLines.map((l) => ({ ...l, id: l.id + 1000, report_id: 5001, machine_code: tamperApproved ? 'ZZ' : l.machine_code }));
+    if (/production_report_machine_lines/.test(sql) && /^SELECT/i.test(sql) && !/production_report_machine_defects/.test(sql)) return tempLines.map((l, i) => ({ ...l, id: l.id + 1000, report_id: 5001, machine_event_id: l.machine_event_id || (noEventRows ? null : 300 + i), machine_code: tamperApproved ? 'ZZ' : l.machine_code, standard_source: 'PROD_VERSION_MACH_FB' }));
+    if (/^UPDATE production_reports_temp SET status='approved'/.test(sql)) {
+      if (staleFinalTransition || editBeforeFinal || sharedApprovalState?.approved || sharedApprovalState?.claimed) return { affectedRows: 0 };
+      if (sharedApprovalState) { sharedApprovalState.claimed = true; ownsApprovalClaim = true; }
+      return { affectedRows: 1 };
+    }
     if (/^INSERT/i.test(sql)) { nextId += 1; return { insertId: nextId, affectedRows: 1 }; }
     return [];
   };
@@ -79,8 +85,8 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
       setImmediate(() => cb(err, r, []));
     },
     beginTransaction(a, b) { const cb = typeof a === 'function' ? a : b; record('BEGIN'); setImmediate(() => cb(null)); },
-    commit(cb) { record('COMMIT'); setImmediate(() => cb(null)); },
-    rollback(cb) { record('ROLLBACK'); setImmediate(() => cb(null)); },
+    commit(cb) { record('COMMIT'); if (commitError) return setImmediate(() => cb(commitError)); if (sharedApprovalState && ownsApprovalClaim) { sharedApprovalState.approved = true; sharedApprovalState.claimed = false; ownsApprovalClaim = false; } setImmediate(() => cb(null)); },
+    rollback(cb) { record('ROLLBACK'); if (rollbackError) return setImmediate(() => cb(rollbackError)); if (sharedApprovalState && ownsApprovalClaim) { sharedApprovalState.claimed = false; ownsApprovalClaim = false; } setImmediate(() => cb(null)); },
     release() {},
   };
   const fakeDb = {
@@ -98,12 +104,12 @@ function build({ lines = 4, withEvents = true, failOn = null, existingApproved =
   return { Review, log, calls };
 }
 
-async function approve(opts) {
-  const ctx = build(opts);
+async function approve(opts, prebuiltContext = null) {
+  const ctx = prebuiltContext || build(opts);
   const logOrig = console.log; const warnOrig = console.warn; const errOrig = console.error;
   console.log = () => {}; console.warn = () => {}; console.error = () => {};
   try {
-    const result = await ctx.Review.approveSelected([{ id: 900001 }], 9, false);
+    const result = await ctx.Review.approveSelected(opts?.targets || [{ id: 900001 }], 9, false);
     return { ...ctx, result };
   } catch (error) {
     return { ...ctx, error };
@@ -227,4 +233,318 @@ test('lines without a linked event are linked with one candidate SELECT and one 
   // event ids (4 x [lineId, eventId]) are the last CASE block before the IN list
   const p = updates[0].params;
   assert.deepEqual(p.slice(-4), [100, 101, 102, 103]);
+});
+
+test('failed final approval transition rolls back inserted approved report and machine lines', async () => {
+  const { error, log } = await approve({ lines: 4, staleFinalTransition: true });
+  assert.ok(error);
+  assert.equal(error.status, 409);
+  assert.equal(error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.ok(log.some((entry) => /^INSERT INTO production_reports /.test(entry)));
+  assert.ok(log.some((entry) => /^INSERT INTO production_report_machine_lines/.test(entry)));
+});
+
+
+// Phase 2.2: fault-injection coverage for each approval write stage.
+// The mocked SQL connection tracks command order; this is not a live TiDB test.
+test('mid-transaction approval write failures roll back without committing', async (t) => {
+  const defectsByLine = {
+    100: [{ defect_type_id: 1, defect_code: 'NG-A', defect_name: 'NG A', quantity: 1 }],
+  };
+  const stages = [
+    ['official report', /^INSERT INTO production_reports\s*\(/],
+    ['report NG', /^INSERT INTO production_report_defects\s*\(/],
+    ['report deductions', /^INSERT INTO production_report_deductions\s*\(/],
+    ['machine lines', /^INSERT INTO production_report_machine_lines\s*\(/],
+    ['machine NG', /^INSERT INTO production_report_machine_defects\s*\(/],
+    ['legacy approved snapshot', /^INSERT INTO production_report_snapshots\s*\(/],
+    ['approved version/audit snapshot', /^INSERT INTO report_versions\s*\(/],
+    ['final temp status', /^UPDATE production_reports_temp SET status='approved'/],
+    ['approval activity log', /^INSERT INTO activity_logs\s*\(/],
+  ];
+  for (const [stage, failOn] of stages) {
+    await t.test(stage, async () => {
+      const { error, log, calls } = await approve({ lines: 4, defectsByLine, failOn });
+      assert.ok(calls.some((entry) => failOn.test(entry.sql)), `Fault target not reached: ${stage}`);
+      assert.ok(error, `Approval should fail: ${stage}`);
+      assert.equal(log.filter((entry) => entry === 'COMMIT').length, 0, `Unexpected commit: ${stage}`);
+      assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1, `Missing rollback: ${stage}`);
+      assert.ok(log.indexOf('ROLLBACK') > log.findIndex((entry) => failOn.test(entry)), `Rollback must follow failed SQL: ${stage}`);
+    });
+  }
+});
+
+// Sequential replay is a deterministic mock of a later request observing a
+// committed approval. It is NOT a parallel-transaction or live TiDB race test.
+test('replaying approval after another reviewer committed returns 409 without duplicate writes', async () => {
+  const sharedApprovalState = { approved: false };
+  const first = await approve({ lines: 4, sharedApprovalState });
+  assert.ifError(first.error);
+  assert.equal(first.result.count, 1);
+  assert.equal(first.log.filter((entry) => entry === 'COMMIT').length, 1);
+  assert.equal(sharedApprovalState.approved, true);
+
+  const second = await approve({ lines: 4, sharedApprovalState });
+  assert.ok(second.error);
+  assert.equal(second.error.status, 409);
+  assert.equal(second.error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(second.log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(second.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.equal(second.log.filter((entry) => /^INSERT INTO production_reports /.test(entry)).length, 0);
+  assert.equal(second.log.filter((entry) => /^INSERT INTO production_report_machine_lines/.test(entry)).length, 0);
+});
+
+// Two approval requests use independent mock connections but contend for the
+// same atomic status-transition claim. This is an in-memory CAS simulation,
+// NOT a verification of TiDB transaction isolation or row locking.
+test('overlapping reviewer approvals allow only one guarded transition and commit', async () => {
+  const sharedApprovalState = { approved: false, claimed: false };
+  // Build both dependency graphs before either async request starts. Building
+  // inside Promise.all would mutate Node's require.cache while the other
+  // request is already running, potentially reusing the wrong fake DB.
+  const firstContext = build({ lines: 4, sharedApprovalState });
+  const secondContext = build({ lines: 4, sharedApprovalState });
+  assert.notStrictEqual(firstContext.Review, secondContext.Review);
+  assert.notStrictEqual(firstContext.calls, secondContext.calls);
+  const [first, second] = await Promise.all([
+    approve(null, firstContext),
+    approve(null, secondContext),
+  ]);
+  const outcomes = [first, second];
+  const winners = outcomes.filter((entry) => !entry.error);
+  const losers = outcomes.filter((entry) => entry.error);
+  assert.equal(winners.length, 1, 'exactly one reviewer must succeed');
+  assert.equal(losers.length, 1, 'the other reviewer must be rejected');
+  assert.equal(winners[0].result.count, 1);
+  assert.ok(first.calls.some((entry) => entry.sql === 'BEGIN'));
+  assert.ok(second.calls.some((entry) => entry.sql === 'BEGIN'));
+  assert.notStrictEqual(first.calls, second.calls);
+  assert.equal(losers[0].error.status, 409);
+  assert.equal(losers[0].error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(outcomes.reduce((sum, entry) => sum + entry.log.filter((line) => line === 'COMMIT').length, 0), 1);
+  assert.equal(losers[0].log.filter((line) => line === 'ROLLBACK').length, 1);
+  assert.equal(sharedApprovalState.approved, true);
+  assert.equal(sharedApprovalState.claimed, false);
+});
+
+// A stale UI timestamp must fail before any approved-report writes. This is
+// an optimistic version check in the model, not a live isolation test.
+test('stale expected_updated_at rejects before any approved-report writes', async () => {
+  const { error, log } = await approve({
+    lines: 4,
+    targets: [{ id: 900001, expected_updated_at: '2026-10-19T09:00:00.000Z' }],
+  });
+  assert.ok(error);
+  assert.equal(error.status, 409);
+  assert.equal(error.code, 'TEMP_REPORT_VERSION_CONFLICT');
+  assert.equal(log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.equal(log.filter((entry) => /^INSERT INTO production_reports /.test(entry)).length, 0);
+});
+
+test('matching expected_updated_at allows approval and exactly one commit', async () => {
+  const { result, error, log } = await approve({
+    lines: 4,
+    targets: [{ id: 900001, expected_updated_at: '2026-10-19T10:00:00.000Z' }],
+  });
+  assert.ifError(error);
+  assert.equal(result.count, 1);
+  assert.equal(log.filter((entry) => entry === 'COMMIT').length, 1);
+  assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 0);
+});
+
+test('failure after claiming temp status releases mock claim and a later retry succeeds', async () => {
+  const sharedApprovalState = { approved: false, claimed: false };
+  const failed = await approve({
+    lines: 4,
+    sharedApprovalState,
+    failOn: /^INSERT INTO activity_logs\s*\(/,
+  });
+  assert.ok(failed.error);
+  assert.ok(failed.calls.some((entry) => /^UPDATE production_reports_temp SET status='approved'/.test(entry.sql)));
+  assert.ok(failed.calls.some((entry) => /^INSERT INTO activity_logs\s*\(/.test(entry.sql)));
+  assert.equal(failed.log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(failed.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.deepEqual(sharedApprovalState, { approved: false, claimed: false });
+
+  const retried = await approve({ lines: 4, sharedApprovalState });
+  assert.ifError(retried.error);
+  assert.equal(retried.result.count, 1);
+  assert.equal(retried.log.filter((entry) => entry === 'COMMIT').length, 1);
+  assert.deepEqual(sharedApprovalState, { approved: true, claimed: false });
+
+  const duplicate = await approve({ lines: 4, sharedApprovalState });
+  assert.ok(duplicate.error);
+  assert.equal(duplicate.error.status, 409);
+  assert.equal(duplicate.error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(duplicate.log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(duplicate.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+});
+
+test('failed guarded status transition never creates a committed approval', async () => {
+  const sharedApprovalState = { approved: false, claimed: false };
+  const first = await approve({ lines: 4, sharedApprovalState, staleFinalTransition: true });
+  assert.ok(first.error);
+  assert.equal(first.error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(first.log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(first.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.deepEqual(sharedApprovalState, { approved: false, claimed: false });
+  const second = await approve({ lines: 4, sharedApprovalState });
+  assert.ifError(second.error);
+  assert.equal(second.result.count, 1);
+  assert.equal(second.log.filter((entry) => entry === 'COMMIT').length, 1);
+});
+
+// Every failed write stage must leave the shared mock transaction claim free.
+// Follow each failure with a successful retry and then a rejected duplicate.
+// This tests the transaction control flow without asserting real DB isolation.
+test('approval write-stage rollback permits exactly one later successful retry', async (t) => {
+  const defectsByLine = {
+    100: [{ defect_type_id: 1, defect_code: 'NG-A', defect_name: 'NG A', quantity: 1 }],
+  };
+  const stages = [
+    ['official report', /^INSERT INTO production_reports\s*\(/],
+    ['report NG', /^INSERT INTO production_report_defects\s*\(/],
+    ['report deductions', /^INSERT INTO production_report_deductions\s*\(/],
+    ['machine lines', /^INSERT INTO production_report_machine_lines\s*\(/],
+    ['machine NG', /^INSERT INTO production_report_machine_defects\s*\(/],
+    ['legacy snapshot', /^INSERT INTO production_report_snapshots\s*\(/],
+    ['approved version', /^INSERT INTO report_versions\s*\(/],
+    ['final status', /^UPDATE production_reports_temp SET status='approved'/],
+    ['activity log', /^INSERT INTO activity_logs\s*\(/],
+  ];
+  for (const [stage, failOn] of stages) {
+    await t.test(stage, async () => {
+      const sharedApprovalState = { approved: false, claimed: false };
+      const failed = await approve({ lines: 4, defectsByLine, failOn, sharedApprovalState });
+      assert.ok(failed.error, `expected failure at ${stage}`);
+      assert.ok(failed.calls.some((entry) => failOn.test(entry.sql)), `stage not reached: ${stage}`);
+      assert.equal(failed.log.filter((entry) => entry === 'COMMIT').length, 0);
+      assert.equal(failed.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+      assert.deepEqual(sharedApprovalState, { approved: false, claimed: false });
+
+      const retry = await approve({ lines: 4, defectsByLine, sharedApprovalState });
+      assert.ifError(retry.error);
+      assert.equal(retry.result.count, 1);
+      assert.equal(retry.log.filter((entry) => entry === 'COMMIT').length, 1);
+      assert.deepEqual(sharedApprovalState, { approved: true, claimed: false });
+
+      const duplicate = await approve({ lines: 4, defectsByLine, sharedApprovalState });
+      assert.ok(duplicate.error);
+      assert.equal(duplicate.error.status, 409);
+      assert.equal(duplicate.error.code, 'APPROVAL_SELECTION_STALE');
+      assert.equal(duplicate.log.filter((entry) => entry === 'COMMIT').length, 0);
+      assert.equal(duplicate.log.filter((entry) => entry === 'ROLLBACK').length, 1);
+      assert.equal(duplicate.log.filter((entry) => /^INSERT INTO production_reports /.test(entry)).length, 0);
+    });
+  }
+});
+
+test('commit callback failure is surfaced and triggers rollback without reporting success', async () => {
+  const sharedApprovalState = { approved: false, claimed: false };
+  const commitError = Object.assign(new Error('simulated commit rejection'), { code: 'ER_COMMIT_FAKE' });
+  const { error, log, calls } = await approve({ lines: 4, sharedApprovalState, commitError });
+  assert.equal(error, commitError);
+  assert.equal(log.filter((entry) => entry === 'COMMIT').length, 1);
+  assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.ok(calls.some((entry) => /^UPDATE production_reports_temp SET status='approved'/.test(entry.sql)));
+  assert.deepEqual(sharedApprovalState, { approved: false, claimed: false });
+});
+
+test('rollback callback failure preserves original approval error and attaches rollbackError', async () => {
+  const rollbackError = Object.assign(new Error('simulated rollback failure'), { code: 'ER_ROLLBACK_FAKE' });
+  const { error, log } = await approve({
+    lines: 4,
+    failOn: /^INSERT INTO production_reports\s*\(/,
+    rollbackError,
+  });
+  assert.ok(error);
+  assert.equal(error.message, 'boom');
+  assert.equal(error.code, 'ER_FAKE');
+  assert.equal(error.rollbackError, rollbackError);
+  assert.equal(log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1);
+});
+
+test('batch approval with a missing selected report fails atomically before approved writes', async () => {
+  const { error, log } = await approve({
+    lines: 4,
+    targets: [{ id: 900001 }, { id: 900002 }],
+  });
+  assert.ok(error);
+  assert.equal(error.status, 409);
+  assert.equal(error.code, 'APPROVAL_SELECTION_STALE');
+  assert.deepEqual(error.details?.missing_ids, [900002]);
+  assert.equal(log.filter((line) => line === 'COMMIT').length, 0);
+  assert.equal(log.filter((line) => line === 'ROLLBACK').length, 1);
+  assert.equal(log.filter((line) => /^INSERT INTO production_reports /.test(line)).length, 0);
+  assert.equal(log.filter((line) => /^INSERT INTO production_report_machine_lines/.test(line)).length, 0);
+});
+
+test('batch approval with one stale timestamp fails before writing any selected report', async () => {
+  const rows = [
+    { id: 900001, worker_id: 7, updated_at: new Date('2026-10-19T10:00:00Z') },
+    { id: 900002, worker_id: 7, updated_at: new Date('2026-10-19T10:30:00Z') },
+  ];
+  const { error, log } = await approve({
+    lines: 4,
+    reportRows: rows,
+    targets: [
+      { id: 900001, expected_updated_at: '2026-10-19T10:00:00.000Z' },
+      { id: 900002, expected_updated_at: '2026-10-19T10:00:00.000Z' },
+    ],
+  });
+  assert.ok(error);
+  assert.equal(error.status, 409);
+  assert.equal(error.code, 'TEMP_REPORT_VERSION_CONFLICT');
+  assert.equal(log.filter((line) => line === 'COMMIT').length, 0);
+  assert.equal(log.filter((line) => line === 'ROLLBACK').length, 1);
+  assert.equal(log.filter((line) => /^INSERT INTO production_reports /.test(line)).length, 0);
+});
+
+test('batch approval rejects a report that became approved before selection', async () => {
+  const sharedApprovalState = { approved: true, claimed: false };
+  const { error, log } = await approve({
+    lines: 4,
+    sharedApprovalState,
+    targets: [{ id: 900001 }, { id: 900002 }],
+  });
+  assert.ok(error);
+  assert.equal(error.status, 409);
+  assert.equal(error.code, 'APPROVAL_SELECTION_STALE');
+  assert.equal(log.filter((line) => line === 'COMMIT').length, 0);
+  assert.equal(log.filter((line) => line === 'ROLLBACK').length, 1);
+  assert.equal(log.filter((line) => /^INSERT INTO production_reports /.test(line)).length, 0);
+});
+
+test('edit during approval invalidates final version compare-and-swap and rolls back', async () => {
+  const sharedApprovalState = { approved: false, claimed: false };
+  const { error, log, calls } = await approve({
+    lines: 4,
+    sharedApprovalState,
+    editBeforeFinal: true,
+  });
+  assert.ok(error);
+  assert.equal(error.status, 409);
+  assert.equal(error.code, 'APPROVAL_SELECTION_STALE');
+  const transition = calls.find((entry) => /^UPDATE production_reports_temp SET status='approved'/.test(entry.sql));
+  assert.ok(transition);
+  assert.match(transition.sql, /AND updated_at=\?/);
+  assert.equal(transition.params[1], 900001);
+  assert.equal(new Date(transition.params[2]).toISOString(), '2026-10-19T10:00:00.000Z');
+  assert.equal(log.filter((entry) => entry === 'COMMIT').length, 0);
+  assert.equal(log.filter((entry) => entry === 'ROLLBACK').length, 1);
+  assert.deepEqual(sharedApprovalState, { approved: false, claimed: false });
+});
+
+test('final approval version predicate uses selected row even when UI timestamp is absent', async () => {
+  const { result, error, calls } = await approve({ lines: 4 });
+  assert.ifError(error);
+  assert.equal(result.count, 1);
+  const transition = calls.find((entry) => /^UPDATE production_reports_temp SET status='approved'/.test(entry.sql));
+  assert.ok(transition);
+  assert.match(transition.sql, /AND updated_at=\?/);
+  assert.equal(new Date(transition.params[2]).toISOString(), '2026-10-19T10:00:00.000Z');
 });

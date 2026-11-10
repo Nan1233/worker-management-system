@@ -381,7 +381,7 @@ const createAuditAfterChildrenBatch = async ({ tempIds, audit, data, requestIds,
 
 const processCodeOf = (data) => String(data?._resolved_process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
 const isGiaCongProcess = (data) => processCodeOf(data) === "GC";
-const isMaiProcess = (data) => processCodeOf(data) === "MAI";
+const isMaiProcess = (data) => ["MAI", "DO", "CAN", "EP"].includes(processCodeOf(data));
 const shouldSplitMachineReports = (data, machineLines) =>
     Array.isArray(machineLines) && machineLines.length > 1 && (isGiaCongProcess(data) || isMaiProcess(data));
 
@@ -527,14 +527,6 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         data.process_code = processRows[0]?.process_code || data.process_code || null;
         if (processRows[0]?.process_code) data._resolved_process_code = String(processRows[0].process_code).trim().toUpperCase();
 
-        // Đo is strictly one worker / one machine. Reject malformed multi-machine
-        // payloads rather than creating misleading split reports.
-        if (processCodeOf(data) === "DO" && machineLines.length !== 1) {
-            const error = new Error("Công đoạn Đo chỉ cho phép một công nhân báo cáo trên một máy mỗi lần.");
-            error.status = 422; error.code = "DO_SINGLE_MACHINE_REQUIRED"; error.isPublic = true;
-            error.details = { process_code: "DO", machine_line_count: machineLines.length, required_machine_line_count: 1 };
-            throw error;
-        }
         const training = await resolveInitialTrainingSnapshot({ executor: db, workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, trainingPercent: data.training_percent });
         data.training_percent_snapshot = Number(training);
         data.standard_version_id = data.standard_version_id || null;

@@ -3,7 +3,7 @@ import type { DeductionKey, DeductionState, FormState } from "../processPageConf
 import AppIcon from "../../../components/common/AppIcon";
 import { MAX_TOTAL_WORK_MINUTES, getDeductionMinutes, parseFlexibleTime } from "../processFormUtils";
 
-interface DeductionOption { key: DeductionKey; label: string; }
+interface DeductionOption { key: DeductionKey; label: string; code?: string; }
 interface Props {
     processCode?: string;
     form: FormState;
@@ -20,6 +20,7 @@ interface Props {
 }
 
 export default function ProcessTimeDeductionSection({ processCode = "", form, setForm, deductions, activeDeductionOptions, selectedDeduction, showDeduction, setShowDeduction, onToggleDeduction, onUpdateDeduction, onNormalizeDeduction, onWarning }: Props) {
+    const displayCode = (item: DeductionOption) => String(item.label || "").trim();
     const formatHours = (value: string): string => {
         const number = Number(String(value ?? "").replace(",", "."));
         return Number.isFinite(number) ? number.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : "0";
@@ -92,7 +93,7 @@ export default function ProcessTimeDeductionSection({ processCode = "", form, se
                     {activeDeductionOptions.length === 0 ? <div className="worker-dropdown-empty" role="status">Chưa có loại thời gian trừ được cấu hình cho công đoạn này.</div> : activeDeductionOptions.map((item) => (
                         <label key={item.key} className="worker-dropdown-option">
                             <input type="checkbox" checked={selectedDeduction.includes(item.key)} onChange={(event) => onToggleDeduction(item.key, event.target.checked)} />
-                            <span>{item.label}</span>
+                            <span>{displayCode(item)}</span>
                         </label>
                     ))}
                 </div>}
@@ -100,7 +101,7 @@ export default function ProcessTimeDeductionSection({ processCode = "", form, se
             {selectedDeduction.length > 0 && <div className="worker-dynamic-grid worker-deduction-detail-grid">
                 {activeDeductionOptions.filter((item) => selectedDeduction.includes(item.key)).map((item) => (
                     <div key={item.key} className="worker-field-block">
-                        <label className="worker-field-label" htmlFor={String(item.key)}>{item.label}</label>
+                        <label className="worker-field-label" htmlFor={String(item.key)}>{displayCode(item)}</label>
                         <div className="worker-deduction-input-row">
                             <input id={String(item.key)} className="worker-text-input worker-deduction-input" name={String(item.key)} value={deductions[item.key]} onChange={(event) => onUpdateDeduction(item.key, event.target.value)} onBlur={() => onNormalizeDeduction(item.key)} inputMode="decimal" placeholder="Phút" autoComplete="off" />
                             <span className="worker-time-unit" aria-hidden="true">phút</span>

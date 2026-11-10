@@ -17,7 +17,7 @@ async function main(){
   await db.testConnection();
   const [reports] = await db.promise().query(`
     SELECT pr.*, w.worker_code, p.process_code,
-           pr.training_percent_snapshot AS training_percent,
+           pr.training_percent_snapshot AS training_percent
     FROM production_reports pr
     JOIN workers w ON w.id=pr.worker_id
     JOIN processes p ON p.id=pr.process_id

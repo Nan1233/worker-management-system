@@ -9,7 +9,7 @@ const GC_NO_STANDARD_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
 // Cache-key versions deliberately invalidate stale master data after external DB updates.
 const MACHINE_CACHE_VERSION = "v3";
-const PRODUCT_STANDARD_CACHE_VERSION = "v9";
+const PRODUCT_STANDARD_CACHE_VERSION = "v10";
 
 const loadGcProductStandardsDirect = async (processId, processCode) => {
   const where = processCode
@@ -23,9 +23,8 @@ const loadGcProductStandardsDirect = async (processId, processCode) => {
         ps.process_id,
         p.process_code,
         CASE
-          -- Shop-floor rule: every GC product_code beginning with C belongs to Cắt.
-          -- even when an older master row was incorrectly tagged as Lồng.
-          WHEN UPPER(TRIM(COALESCE(ps.product_code, ''))) LIKE 'C%' THEN 'CUT'
+          -- Only the persisted master work_type is authoritative for Cắt/Lồng.
+          -- Never classify by the product-code prefix.
           -- Explicit legacy jobs remain Long Tay exceptions; other GC rows follow
           -- the persisted product_standards.work_type value.
           WHEN UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP') THEN 'LONG'

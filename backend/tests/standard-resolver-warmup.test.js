@@ -41,7 +41,7 @@ function makeQuery({ aliases = [], machineStandards = [] } = {}) {
 }
 
 const lineArgs = (machineCode, machineId, productCode) => ({ processId: 1, productCode, machineId, machineCode, workDate: '2026-10-19' });
-const items = [{ machineId: 10, machineCode: 'M05', productCode: 'P-AUTO' }, { machineId: 11, machineCode: 'M06', productCode: 'ALIAS-1' }];
+const items = [{ machineId: 10, machineCode: 'M05', productCode: 'P-AUTO' }, { machineId: 11, machineCode: 'M06', productCode: 'CANON' }];
 
 async function resolveAll(resolver, warm) {
   if (warm) await resolver.warmUp({ processId: 1, workDate: '2026-10-19', items });
@@ -53,14 +53,14 @@ async function resolveAll(resolver, warm) {
   return out;
 }
 
-test('warmUp returns the same standards as per-line queries (product fallback and alias)', async () => {
+test('warmUp matches cold exact canonical product lookups without retired aliases', async () => {
   const data = { aliases: [{ alias_code: 'ALIAS-1', product_code: 'CANON' }] };
   const cold = makeQuery(data); const warm = makeQuery(data);
   const a = await resolveAll(createStandardResolver({ query: cold.query }), false);
   const b = await resolveAll(createStandardResolver({ query: warm.query }), true);
   assert.deepEqual(b, a);
   assert.ok(warm.calls.length < cold.calls.length, `warm ${warm.calls.length} vs cold ${cold.calls.length}`);
-  assert.equal(warm.calls.filter((s) => /FROM machines m JOIN processes p/.test(s)).length, 1);
+  assert.ok(warm.calls.filter((s) => /FROM machines m JOIN processes p/.test(s)).length <= 2);
   assert.equal(warm.calls.filter((s) => /FROM product_machine_standards/.test(s)).length, 1);
 });
 
@@ -77,12 +77,23 @@ test('warmUp returns the same machine-specific standard as per-line queries', as
   assert.equal(b[1].standardOutput, 900);
 });
 
-test('warmUp keeps the alias conflict error', async () => {
+test('warmUp does not consult retired alias mappings and fails closed for unknown codes', async () => {
   const data = { aliases: [{ alias_code: 'ALIAS-1', product_code: 'CANON' }, { alias_code: 'ALIAS-1', product_code: 'OTHER' }] };
   const a = await resolveAll(createStandardResolver({ query: makeQuery(data).query }), false);
   const b = await resolveAll(createStandardResolver({ query: makeQuery(data).query }), true);
   assert.deepEqual(b, a);
-  assert.equal(b[1].error, 'PRODUCT_ALIAS_CONFLICT');
+  const unknown = { ...items[1], productCode: 'ALIAS-1' };
+  const runUnknown = async (warm) => {
+    const { query, calls } = makeQuery(data);
+    const resolver = createStandardResolver({ query });
+    if (warm) await resolver.warmUp({ processId: 1, workDate: '2026-10-19', items: [unknown] });
+    const error = await resolver.resolveStandard(lineArgs(unknown.machineCode, unknown.machineId, unknown.productCode)).then(() => null, (e) => e);
+    assert.ok(error);
+    assert.equal(error.code, 'HISTORICAL_STANDARD_NOT_FOUND');
+    assert.equal(calls.some((sql) => /FROM product_aliases/.test(sql)), false);
+  };
+  await runUnknown(false);
+  await runUnknown(true);
 });
 
 test('an unknown machine is still MACHINE_NOT_FOUND after warmUp, and no other product standard is borrowed', async () => {

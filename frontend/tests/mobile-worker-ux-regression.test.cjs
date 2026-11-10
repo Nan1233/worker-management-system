@@ -17,5 +17,5 @@ test("worker accepts any Internet path and does not gate on company IP", () => {
   const s = read("src/pages/worker/ProcessPage.tsx");
   assert.doesNotMatch(s, /getCompanyNetworkAccess|networkAllowed|networkChecking/);
   assert.match(s, /if \(!navigator\.onLine\)/);
-  assert.match(s, /enqueueOfflineReport\(payload\)/);
+  assert.match(s, /enqueueOfflineReports\(payloads\)/);
 });

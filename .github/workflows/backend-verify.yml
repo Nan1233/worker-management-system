@@ -1,0 +1,39 @@
+name: KTC backend verification (no deploy)
+
+on:
+  push:
+    branches: [test]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ktc-backend-verify-test
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check KTC-001 transaction regression contract
+        run: node --test tests/proposalReviewTransaction.contract.test.js
+      - name: Check KTC-001 rollback behavior
+        run: node --test tests/proposalReviewRollback.behavior.test.js
+      - name: Verify backend source and run tests
+        run: npm run verify

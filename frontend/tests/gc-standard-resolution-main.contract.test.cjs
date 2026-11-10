@@ -18,12 +18,16 @@ test('GC work type comes from the machine master, never from a machine-code pref
   assert.doesNotMatch(resolver, /inferGcWorkType/);
 });
 
-test('GC resolver fails closed on conflicting standards and aliases', () => {
+test('GC resolver fails closed on conflicting canonical standards without retired aliases', () => {
   assert.doesNotMatch(resolver, /pickHighestDuplicateProductRow/);
   assert.match(resolver, /normalizedWorkType && pid!==1/);
   assert.match(resolver, /STANDARD_EFFECTIVE_RANGE_CONFLICT/);
-  assert.match(resolver, /PRODUCT_ALIAS_CONFLICT/);
-  assert.match(model, /PRODUCT_ALIAS_CONFLICT/);
+  // product_aliases was retired: only explicit product_code / encoding_code may resolve.
+  assert.doesNotMatch(resolver, /FROM product_aliases/i);
+  assert.match(resolver, /BINARY TRIM\(product_code\)/);
+  assert.match(resolver, /BINARY TRIM\(encoding_code\)/);
+  assert.match(resolver, /HISTORICAL_STANDARD_NOT_FOUND/);
+  assert.match(model, /resolveStandard/);
 });
 
 test('standard-resolution API uses the shared resolver and no parallel machine-standard SQL path', () => {

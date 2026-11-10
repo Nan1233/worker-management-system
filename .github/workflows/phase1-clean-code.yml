@@ -1,0 +1,85 @@
+name: Phase 1 clean-code regression
+
+on:
+  pull_request:
+    branches: [test]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/phase1-clean-code.yml'
+  workflow_dispatch: {}
+
+jobs:
+  backend:
+    name: Backend refactor regression
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+      - name: Approved edit concurrency and source-patch removal contract
+        run: node --test tests/source-patch-removal.contract.test.js tests/approved-edit-concurrency.test.js
+      - name: GC physical-machine accounting and Excel export integrity regression
+        run: node --test tests/gc-machine-time-remote-smoke.test.js tests/source-integrity.test.js
+      - name: Historical standard and machine/product ambiguity regressions
+        run: node --test tests/historical-standard-overlap-guard.test.js tests/standard-ambiguity-fail-closed.test.js
+      - name: GC non-product work submission regression
+        run: node --test tests/non-product-work-validation.test.js
+      - name: Report idempotency and logical duplicate regression
+        run: node --test tests/logical-duplicate-transaction.test.js
+      - name: MAI-DO template form and Excel parity
+        run: node --test tests/mai-do-template-form-parity.test.js
+      - name: GC multi-product machine-line validation regression
+        run: node --test tests/machine-line-validation.integration.test.js
+      - name: GC authoritative product suggestion work-type regression
+        run: node --test tests/product-suggestion-scope.test.js
+      - name: Mài-Đo process policy and extra-data regression
+        run: node --test tests/process-extra-data-validation.test.js tests/process-machine-policy.test.js
+      - name: Shared-machine grouping and temp audit snapshot regression
+        run: node --test tests/shared-machine-accounting-flow.test.js tests/temp-report-version-lifecycle.test.js
+      - name: Super-admin permission and lazy DB regression
+        run: node --test tests/permission-service-lazy-import.test.js tests/super-admin-role-support.test.js tests/super-admin-role.test.js tests/permission-override-api.test.js
+      - name: Database archive, audit, GC and warmup contracts
+        run: node --test tests/database-first-no-migrations.test.js tests/production-temp-audit-import.test.js tests/gc-machine-work-type-standard-resolution.test.js tests/gc-product-standard-work-type-match.test.js tests/standard-resolver-warmup.test.js
+      - name: Worker form contract and Cloudflare create subrequest budget
+        run: node --test tests/process-form-template-schema.test.js tests/production-temp-create-subrequest-budget.test.js
+      - name: Phase 2 staging audit safety contracts
+        run: node --test tests/phase2-read-only-audit.test.js
+      - name: Phase 2 offline GC Excel API payload audit
+        run: node --test tests/phase2-gc-excel-payload-audit.test.js
+      - name: Monthly Excel submission timestamp batching regression
+        run: node --test tests/company-submission-timestamps.test.js
+      - name: Full backend regression suite (required)
+        run: npm test
+
+  frontend:
+    name: Frontend lint, typecheck and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Worker report journal account isolation regression
+        run: node --test tests/reliable-report-owner-isolation.test.cjs
+      - name: Offline report flush session and storage race regression
+        run: node --test tests/offline-queue-flush-races.test.cjs
+      - name: Full frontend regression suite (required)
+        run: npm test

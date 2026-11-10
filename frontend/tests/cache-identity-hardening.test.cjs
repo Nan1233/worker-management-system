@@ -31,7 +31,9 @@ test('worker profile response is rejected if it belongs to another authenticated
 test('master data mutation advances browser-wide cache epoch', () => {
   const cache = read('src/services/masterDataCache.ts');
   const page = read('src/pages/admin/MasterData.tsx');
-  assert.match(cache, /MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch\.v18"/);
+  const epoch = cache.match(/MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch\.v(\d+)"/);
+  assert.ok(epoch, 'master cache epoch must be explicitly versioned');
+  assert.ok(Number(epoch[1]) >= 20, 'never revert to an older invalidation namespace');
   assert.match(cache, /epochKey\(`machines:\$\{canonicalId\}`\)/);
   assert.match(cache, /export function bumpMasterDataEpoch/);
   assert.match(page, /bumpMasterDataEpoch\(\)/);

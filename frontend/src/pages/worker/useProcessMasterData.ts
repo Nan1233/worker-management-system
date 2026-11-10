@@ -82,60 +82,6 @@ function filterMaiMasterOptions(
 // Do not apply a hard-coded name allowlist here: real DB labels can differ slightly
 // from historical spellings, and filtering them made the worker dropdown empty.
 // Deduplicate equivalent labels while preserving the canonical MAI_TTH row.
-function dedupeMaiDeductionOptions(options: WorkerMasterOption[], processCode: string, processId: number): WorkerMasterOption[] {
-  const isMai = String(processCode || "").trim().toUpperCase() === "MAI" || Number(processId) === 2;
-  if (!isMai) return options;
-  const unique = new Map<string, WorkerMasterOption>();
-  const priority = (option: WorkerMasterOption): number => {
-    const code = String(option.code || "").trim().toUpperCase();
-    if (code.startsWith("MAI_TTH_")) return 0;
-    if (code.startsWith("KTC_")) return 2;
-    return 1;
-  };
-  for (const option of options) {
-    const key = normalizeMasterLabel(option.label);
-    if (!key) continue;
-    const current = unique.get(key);
-    if (!current || priority(option) < priority(current)) unique.set(key, option);
-  }
-  return Array.from(unique.values());
-}
-
-// GC master data may contain legacy and canonical rows with the same label.
-// Keep one selectable checkbox per normalized label without deleting DB records.
-const dedupeGcDeductionOptions = (options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] => {
-  if (String(processCode || "").trim().toUpperCase() !== "GC") return options;
-  const normalizeLabel = (value: unknown): string => String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/gi, "d")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  const priority = (option: WorkerMasterOption): number => {
-    const code = String(option.code || "").trim().toUpperCase();
-    return code && !code.startsWith("KTC_") ? 0 : code.startsWith("KTC_") ? 2 : 1;
-  };
-  const unique = new Map<string, WorkerMasterOption>();
-  for (const option of options) {
-    const key = normalizeLabel(option.label);
-    if (!key) continue;
-    const existing = unique.get(key);
-    if (!existing || priority(option) < priority(existing)) unique.set(key, option);
-  }
-  return Array.from(unique.values());
-};
-
-const K2_ALLOWED_DEDUCTION_NAMES = new Set([
-  "Nghỉ giải lao",
-  "5s",
-  "chuyển mã",
-  "lau ố, lau gót chống",
-  "lăn mốc",
-  "hỗ trợ",
-  "Xem MGH, mất điện",
-  "lấy hàng và cất hàng",
-].map(normalizeMasterLabel));
-
 const K2_ALLOWED_DEFECT_NAMES = new Set([
   "Nứt vỡ, CSN, KĐĐ",
   "Cắt lẹm, CP, 502",
@@ -201,6 +147,86 @@ function filterK2MasterOptions(
   if (String(processCode || "").trim().toUpperCase() !== "K2") return options;
   // Keep only DB-backed options in the approved K2 list; preserve each DB code/ID.
   return options.filter((option) => allowedNames.has(normalizeMasterLabel(option.label)));
+}
+
+// Only show canonical encoded master entries for the five Excel-driven processes.
+// Legacy codes remain in the DB for historical reports but are not selectable.
+const ENCODED_PREFIXES: Record<string, { ng: string; deduction: string }> = {
+  MAI: { ng: "MAI_NG", deduction: "MAI_TTH" },
+  DO: { ng: "DO_NG", deduction: "DO_TTH" },
+  CAN: { ng: "CAN_NG", deduction: "CAN_TTH" },
+  EP: { ng: "EP_NG", deduction: "EP_TTH" },
+  XLBV: { ng: "XLBV_NG", deduction: "XLBV_TTH" },
+};
+function filterEncodedOptions(options: WorkerMasterOption[], processCode: string, kind: "ng" | "deduction"): WorkerMasterOption[] {
+  const rule = ENCODED_PREFIXES[String(processCode || "").trim().toUpperCase()];
+  if (!rule) return options;
+  const prefix = rule[kind];
+  const canonical = options.filter((option) => {
+    const code = String(option.code || "").trim().toUpperCase();
+    if (!code.startsWith(prefix)) return false;
+    return /^_?[0-9]+$/.test(code.slice(prefix.length));
+  });
+  // Prefer the encoded DB row and collapse duplicate names and duplicate codes.
+  const uniqueLabels = new Set<string>();
+  const uniqueCodes = new Set<string>();
+  return canonical.filter((option) => {
+    const code = String(option.code || "").trim().toUpperCase();
+    const label = normalizeMasterLabel(option.label);
+    if (uniqueCodes.has(code) || (label && uniqueLabels.has(label))) return false;
+    uniqueCodes.add(code);
+    if (label) uniqueLabels.add(label);
+    return true;
+  });
+}
+
+// XLBV codes are stable report keys; show approved Vietnamese defect names even
+// when older DB rows still store placeholder labels such as XLBV_NG_001.
+const XLBV_DEFECT_LABELS: Record<string, string> = {
+  XLBV_NG_001: "CHÂN KHÔNG",
+  XLBV_NG_002: "RÁCH VỠ",
+  XLBV_NG_003: "XLBV",
+  XLBV_NG_004: "BẨN KHUÔN",
+  XLBV_NG_005: "TNL",
+  XLBV_NG_006: "DỊ VẬT",
+  XLBV_NG_007: "DẬP KO HẾT",
+  XLBV_NG_008: "BIẾN DẠNG",
+  XLBV_NG_009: "HỞ SẮT",
+  XLBV_NG_010: "XƯỚC TRỤC",
+  XLBV_NG_011: "CHỜ XL LẠI",
+  XLBV_NG_012: "KHÁC MÀU",
+  XLBV_NG_013: "BẨN",
+};
+
+function displayXlbvDefectNames(options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] {
+  if (String(processCode || "").trim().toUpperCase() !== "XLBV") return options;
+  return options
+    .filter((option) => String(option.code || "").trim().toUpperCase() !== "XLBV_NG_014")
+    .map((option) => {
+      const code = String(option.code || "").trim().toUpperCase();
+      return { ...option, label: XLBV_DEFECT_LABELS[code] || option.label };
+    });
+}
+
+// Keep deduction entry usable until the DB has canonical TG codes.
+// Prefer encoded rows when present; otherwise show unique legacy names.
+function dedupeEncodedOrLegacyDeductions(options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] {
+  const rule = ENCODED_PREFIXES[String(processCode || "").trim().toUpperCase()];
+  if (!rule) return options;
+  const prefix = rule.deduction;
+  const priority = (option: WorkerMasterOption) => {
+    const code = String(option.code || "").trim().toUpperCase();
+    return code.startsWith(prefix) && /^_?[0-9]+$/.test(code.slice(prefix.length)) ? 0 : code.startsWith("KTC_") ? 2 : 1;
+  };
+  // Canonical codes take priority over legacy rows with the same normalized name.
+  const unique = new Map<string, WorkerMasterOption>();
+  for (const option of [...options].sort((a, b) => priority(a) - priority(b))) {
+    const key = normalizeMasterLabel(option.label) || String(option.code || "").toUpperCase();
+    if (key && !unique.has(key)) unique.set(key, option);
+  }
+  // Only canonical entries when present; if not yet available keep legacy options usable.
+  const canonical = [...unique.values()].filter((option) => priority(option) === 0);
+  return canonical.length ? canonical : [...unique.values()];
 }
 
 const PROCESS_ID_BY_CODE: Record<string, number> = {
@@ -307,24 +333,17 @@ export function useProcessMasterData(processId: number, processCode: string) {
         const k2Filtered = Number(resolvedProcessId) === 5 || String(processCode || "").trim().toUpperCase() === "K2"
           ? maiFiltered.filter((option) => /^K2_NG_/i.test(String(option.code || "").trim()))
           : filterK2MasterOptions(maiFiltered, processCode, K2_ALLOWED_DEFECT_NAMES);
-        setActiveNgOptions(k2Filtered);
+        setActiveNgOptions(displayXlbvDefectNames(filterEncodedOptions(k2Filtered, processCode, "ng"), processCode));
       } else {
         setActiveNgOptions([]);
       }
 
       if (deductions) {
         setActiveDeductionOptions(
-          dedupeGcDeductionOptions(
-            filterK2MasterOptions(
-              dedupeMaiDeductionOptions(
-                normalizeDeductionOptions(deductions.value, resolvedProcessId),
-                processCode,
-                resolvedProcessId,
-              ),
-              processCode,
-              K2_ALLOWED_DEDUCTION_NAMES,
-            ),
+          dedupeEncodedOrLegacyDeductions(
+            normalizeDeductionOptions(deductions.value, resolvedProcessId),
             processCode,
+
           ),
         );
       } else {

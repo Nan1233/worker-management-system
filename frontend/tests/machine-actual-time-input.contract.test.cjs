@@ -11,11 +11,11 @@ const basic = fs.readFileSync(path.join(root, "src/pages/worker/components/Proce
 const payload = fs.readFileSync(path.join(root, "src/pages/worker/processReportSubmission.ts"), "utf8");
 const edit = fs.readFileSync(path.join(root, "src/pages/worker/WorkerReportEditV2.tsx"), "utf8");
 
-test("machine line shows actual-time input and deduction input without rendering total-time UI", () => {
+test("machine line allows actual-time entry and shows a computed read-only gross total", () => {
   assert.match(basic, /label>Thời gian chạy thực tế/);
-  assert.match(basic, /label>Thời gian trừ/);
-  assert.doesNotMatch(basic, /data-worker-time="machine-total"/);
-  assert.doesNotMatch(basic, /data-worker-time-value="machine-total"/);
+  assert.match(basic, /isMaiStyleProcess \? "Thời gian dừng máy" : isEpProcess \? "Thời gian trừ giờ" : "Thời gian trừ"/);
+  assert.match(basic, /data-worker-time="machine-total"/);
+  assert.match(basic, /data-worker-time-value="machine-total" value=\{formatMachineHours\(getMachineActualMinutes\(line\) \+ getMachineDeductionMinutes\(line\)\)\} readOnly/);
   assert.match(basic, /worker-time-grid machine-worker-time-grid/);
   assert.match(basic, /data-worker-time="machine-actual"/);
   assert.match(basic, /data-worker-time="machine-deduction"/);

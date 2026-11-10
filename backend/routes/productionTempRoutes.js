@@ -12,6 +12,8 @@ const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const db = require("../config/db");
 const AuditService = require("../services/auditService");
 const ProductionTemp = require("../models/productionTempModel");
+const atomicApprovalModel = require("../models/productionTempApprovalModel");
+const { getConnection, beginReadCommittedTransaction, query: transactionQuery, commit: commitTransaction, rollback: rollbackTransaction } = require("../models/productionTempModelShared");
 
 const { TtlCache } = require("../utils/cache");
 const managerListCache = new TtlCache({ maxEntries: 300 });
@@ -81,34 +83,142 @@ router.post("/edit-proposals", authMiddleware, checkRole("admin", "manager", "le
 });
 
 router.put("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{
-    try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});const reason=String(req.body?.reason??current.reason).trim(),proposedData=req.body?.proposed_data??current.proposed_data;if(reason.length<2||reason.length>1000)return res.status(400).json({success:false,message:"Nội dung đề xuất sửa phải từ 2 đến 1000 ký tự"});await db.promise().query(`UPDATE report_edit_proposals SET reason=?, proposed_data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,[reason,JSON.stringify(proposedData||{}),id]);return res.json({success:true,message:"Đã cập nhật đề xuất sửa",data:await proposalDetail(id)});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể cập nhật đề xuất sửa"});}
+    try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});const reason=String(req.body?.reason??current.reason).trim(),proposedData=req.body?.proposed_data??current.proposed_data;if(reason.length<2||reason.length>1000)return res.status(400).json({success:false,message:"Nội dung đề xuất sửa phải từ 2 đến 1000 ký tự"});const [updated]=await db.promise().query(`UPDATE report_edit_proposals SET reason=?, proposed_data=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'`,[reason,JSON.stringify(proposedData||{}),id]);if(Number(updated.affectedRows)!==1)return res.status(409).json({success:false,code:'PROPOSAL_NOT_PENDING',message:'Đề xuất đã được xử lý, không thể chỉnh sửa'});return res.json({success:true,message:"Đã cập nhật đề xuất sửa",data:await proposalDetail(id)});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể cập nhật đề xuất sửa"});}
 });
 
 router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","admin","lead"), permission("REPORT_APPROVE"), async (req,res)=>{
-    try{
-        const id=Number(req.params.id), decision=String(req.body?.decision||"").toLowerCase(), statusAfter=String(req.body?.status_after||"pending").toLowerCase();
-        const current=await proposalDetail(id); if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});
-        if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});
-        if(current.status!=="pending")return res.status(400).json({success:false,message:"Đề xuất này đã được xử lý"});
-        if(decision==="reject"){
-            const reason=String(req.body?.reason||"").trim(); if(reason.length<2)return res.status(400).json({success:false,message:"Vui lòng nhập lý do từ chối"});
-            await db.promise().query(`UPDATE report_edit_proposals SET status='rejected', updated_at=CURRENT_TIMESTAMP WHERE id=?`,[id]);
-            return res.json({success:true,message:"Đã từ chối đề xuất sửa",data:await proposalDetail(id)});
+    const id = Number(req.params.id);
+    const decision = String(req.body?.decision || "").toLowerCase();
+    const statusAfter = String(req.body?.status_after || "pending").toLowerCase();
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({success:false,message:"ID đề xuất không hợp lệ"});
+    if (!["approve","reject"].includes(decision)) return res.status(400).json({success:false,message:"Thao tác xử lý không hợp lệ"});
+    if (decision === "approve" && !["pending","approved"].includes(statusAfter)) return res.status(400).json({success:false,code:"INVALID_STATUS_AFTER",message:"Trạng thái sau xử lý không hợp lệ"});
+    const rejectReason = String(req.body?.reason || "").trim();
+    if (decision === "reject" && rejectReason.length < 2) return res.status(400).json({success:false,message:"Vui lòng nhập lý do từ chối"});
+
+    let connection;
+    let committed = false;
+    const postCommitCallbacks = [];
+    try {
+        const initial = await proposalDetail(id);
+        if (!initial) return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});
+        if (!(await assertProposalAccess(req, initial.report_id))) return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});
+
+        connection = await getConnection();
+        await beginReadCommittedTransaction(connection);
+        const locked = await transactionQuery(connection,
+            "SELECT id, report_id, proposed_data, status FROM report_edit_proposals WHERE id=? FOR UPDATE", [id]);
+        const current = locked[0];
+        if (!current || Number(current.report_id) !== Number(initial.report_id)) {
+            throw Object.assign(new Error("Đề xuất đã thay đổi"), {status:409,code:"PROPOSAL_CHANGED"});
         }
-        if(decision!=="approve")return res.status(400).json({success:false,message:"Thao tác xử lý không hợp lệ"});
-        const proposed=current.proposed_data&&typeof current.proposed_data==="object"?current.proposed_data:{};
-        let resultPayload=null; let resultStatus=200;
-        const fakeRes={status(code){resultStatus=code;return this;},json(body){resultPayload=body;return this;}};
-        await controller.updateTempReport({params:{id:current.report_id},body:{...proposed,reason:`Duyệt đề xuất sửa #${id}`},user:req.user},fakeRes);
-        if(resultStatus>=400||resultPayload?.success===false)return res.status(resultStatus||400).json(resultPayload||{success:false,message:"Không thể cập nhật báo cáo theo đề xuất"});
-        if(statusAfter==="approved") await ProductionTemp.approveSelected([{id:current.report_id}],Number(req.user.id),req.user.role==="admin");
-        const newStatus=statusAfter==="approved"?"approved":"accepted";
-        await db.promise().query(`UPDATE report_edit_proposals SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,[newStatus,id]);
-        return res.json({success:true,message:statusAfter==="approved"?"Đã sửa và duyệt báo cáo":"Đã áp dụng đề xuất, báo cáo đang chờ duyệt",data:await proposalDetail(id)});
-    }catch(error){console.error("REVIEW EDIT PROPOSAL ERROR:",error);return res.status(error.status||500).json({success:false,message:error.message||"Không thể xử lý đề xuất sửa"});}
+        if (current.status !== "pending") throw Object.assign(new Error("Đề xuất đã được xử lý"), {status:409,code:"PROPOSAL_NOT_PENDING"});
+
+        if (decision === "reject") {
+            const updated = await transactionQuery(connection,
+                "UPDATE report_edit_proposals SET status='rejected', updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'", [id]);
+            if (Number(updated.affectedRows) !== 1) throw Object.assign(new Error("Đề xuất đã được xử lý"), {status:409});
+            await commitTransaction(connection);
+            committed = true;
+            try { invalidateManagerReportLists(); } catch (cacheError) { console.error("PROPOSAL REJECTION POST-COMMIT CACHE ERROR:",cacheError); }
+            let rejectedProposal = {id,report_id:current.report_id,status:"rejected"};
+            try { rejectedProposal = await proposalDetail(id) || rejectedProposal; }
+            catch (readError) { console.error("PROPOSAL REJECTION POST-COMMIT READ ERROR:",readError); }
+            return res.json({success:true,message:"Đã từ chối đề xuất sửa",data:rejectedProposal});
+        }
+
+        let proposed = current.proposed_data;
+        if (typeof proposed === "string") {
+            try { proposed = JSON.parse(proposed); }
+            catch { throw Object.assign(new Error("Dữ liệu đề xuất không hợp lệ"), {status:422}); }
+        }
+        if (!proposed || typeof proposed !== "object" || Array.isArray(proposed)) {
+            throw Object.assign(new Error("Dữ liệu đề xuất không hợp lệ"), {status:422});
+        }
+        let resultPayload = null;
+        let resultStatus = 200;
+        const fakeRes = {
+            status(code) { resultStatus = code; return this; },
+            json(body) { resultPayload = body; return this; }
+        };
+        await controller.updateTempReport({
+            params:{id:current.report_id},
+            body:{...proposed,reason:`Duyệt đề xuất sửa #${id}`},
+            user:req.user,
+            transactionConnection:connection
+        },fakeRes);
+        if (resultStatus >= 400 || resultPayload?.success === false || resultPayload?.success !== true) {
+            throw Object.assign(new Error(resultPayload?.message || "Không thể cập nhật báo cáo theo đề xuất"),
+                {status:resultStatus >= 400 ? resultStatus : 500, code:resultPayload?.code});
+        }
+
+        if (statusAfter === "approved") {
+            // The public ProductionTemp facade runs legacy backfills outside the caller's
+            // transaction and drops the fourth (options) argument. Never call it here.
+            // Fail closed on legacy machine reports rather than mutate them outside atomic review.
+            const legacy = await transactionQuery(connection,
+                `SELECT t.id FROM production_reports_temp t
+                   LEFT JOIN processes p ON p.id=t.process_id
+                  WHERE t.id=? AND UPPER(COALESCE(t.operation_mode,''))='MACHINE'
+                    AND UPPER(TRIM(COALESCE(p.process_code,''))) NOT IN ('CVK','XLBV','SX3')
+                    AND t.process_id NOT IN (30002,60006)
+                    AND NOT EXISTS (SELECT 1 FROM production_temp_machine_lines ml WHERE ml.temp_report_id=t.id)
+                  LIMIT 1`, [current.report_id]);
+            if (legacy.length) throw Object.assign(new Error("Báo cáo máy cũ thiếu dòng máy; cần bổ sung dữ liệu trước khi duyệt đề xuất"), {status:409,code:"LEGACY_MACHINE_LINE_REQUIRES_REVIEW"});
+            // The normal approval facade repairs stale machine references using a separate
+            // connection. In this atomic path, reject instead of performing an out-of-transaction
+            // repair or approving a report with a stale machine identity.
+            const staleMachineRefs = await transactionQuery(connection,
+                `SELECT ml.id
+                   FROM production_temp_machine_lines ml
+                   JOIN production_reports_temp r ON r.id=ml.temp_report_id
+                   LEFT JOIN machines m ON m.id=ml.machine_id
+                  WHERE ml.temp_report_id=?
+                    AND UPPER(COALESCE(r.operation_mode,''))='MACHINE'
+                    AND (ml.machine_id IS NULL OR m.id IS NULL
+                      OR m.process_id<>r.process_id
+                      OR UPPER(TRIM(COALESCE(m.machine_code,'')))<>UPPER(TRIM(COALESCE(ml.machine_code,''))))
+                  LIMIT 1`, [current.report_id]);
+            if (staleMachineRefs.length) throw Object.assign(
+                new Error("Dòng máy có mã tham chiếu không hợp lệ; cần sửa dữ liệu máy trước khi duyệt"),
+                {status:409,code:"STALE_MACHINE_REFERENCE_REQUIRES_REVIEW"});
+            await atomicApprovalModel.approveSelected([{id:current.report_id}],Number(req.user.id),req.user.role === "admin",
+                {connection,postCommitCallbacks});
+        }
+        const newStatus = statusAfter === "approved" ? "approved" : "accepted";
+        const transitioned = await transactionQuery(connection,
+            "UPDATE report_edit_proposals SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'", [newStatus,id]);
+        if (Number(transitioned.affectedRows) !== 1) throw Object.assign(new Error("Đề xuất đã được xử lý đồng thời"), {status:409});
+
+        await commitTransaction(connection);
+        committed = true;
+        try { invalidateManagerReportLists(); } catch (cacheError) { console.error("PROPOSAL REVIEW POST-COMMIT CACHE ERROR:",cacheError); }
+        for (const callback of postCommitCallbacks) {
+            try { await callback(); } catch (notificationError) {
+                console.error("PROPOSAL POST-COMMIT NOTIFICATION ERROR:", notificationError);
+            }
+        }
+        let finalProposal = {id,report_id:current.report_id,status:newStatus};
+        try { finalProposal = await proposalDetail(id) || finalProposal; }
+        catch (readError) { console.error("PROPOSAL POST-COMMIT READ ERROR:", readError); }
+        return res.json({success:true,message:statusAfter === "approved" ? "Đã sửa và duyệt báo cáo" : "Đã áp dụng đề xuất, báo cáo đang chờ duyệt",data:finalProposal});
+    } catch(error) {
+        if (connection && !committed) {
+            try {
+                const rolledBack = await rollbackTransaction(connection);
+                if (rolledBack?.ok === false) console.error("PROPOSAL REVIEW ROLLBACK ERROR:",rolledBack.error);
+            } catch (rollbackError) {
+                console.error("PROPOSAL REVIEW ROLLBACK THREW:",rollbackError);
+            }
+        }
+        console.error("REVIEW EDIT PROPOSAL ERROR:",error);
+        return res.status(error.status || 500).json({success:false,code:error.code || undefined,message:error.message || "Không thể xử lý đề xuất sửa"});
+    } finally {
+        if (connection) connection.release();
+    }
 });
 
-router.delete("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});await db.promise().query(`DELETE FROM report_edit_proposals WHERE id=?`,[id]);return res.json({success:true,message:"Đã xóa đề xuất sửa"});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa đề xuất sửa"});}});
+router.delete("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});const [deleted]=await db.promise().query(`DELETE FROM report_edit_proposals WHERE id=? AND status='pending'`,[id]);if(Number(deleted.affectedRows)!==1)return res.status(409).json({success:false,code:'PROPOSAL_NOT_PENDING',message:'Chỉ có thể xóa đề xuất đang chờ xử lý'});return res.json({success:true,message:"Đã xóa đề xuất sửa"});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa đề xuất sửa"});}});
 
 router.post("/approve-selected",authMiddleware,checkRole("admin","admin_ops","manager","lead"),validate({ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true}}),permission("REPORT_APPROVE"),controller.approveSelectedReports);
 router.post("/reject-selected",authMiddleware,checkRole("admin","admin_ops","manager","lead"),validate({ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true},reason:{required:true,type:"string",minLength:2,maxLength:500}}),permission("REPORT_APPROVE"),controller.rejectSelectedReports);

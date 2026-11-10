@@ -40,6 +40,7 @@ import type {
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
+import type { ProcessDraft } from "./processDraftStorage";
 import {
     clearProcessDraft,
     hasMeaningfulProcessDraft,
@@ -49,7 +50,7 @@ import {
 import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
 import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
-import { enqueueOfflineReport, isTransientNetworkFailure } from "../../services/offlineReportQueue";
+import { enqueueOfflineReports, isTransientNetworkFailure } from "../../services/offlineReportQueue";
 import { workerCanAccessProcess } from "../../utils/processAccess";
 import { getProcessFormSchema } from "./processFormSchemas";
 
@@ -149,6 +150,10 @@ function ProcessPage() {
     const submitLockRef = useRef(false);
     const clientRequestIdRef = useRef<string | null>(null);
     const pendingSplitPayloadsRef = useRef<any[]>([]);
+    // A confirmed primary report must not be submitted again when a later split fails.
+    const duplicatePrimaryCompletedRef = useRef(false);
+    // Reuse the same idempotency key if the server accepted a forced duplicate but its response was lost.
+    const duplicateForceRequestIdRef = useRef<string | null>(null);
     const workerInfoRequestSeqRef = useRef(0);
     const masterDataRequestSeqRef = useRef(0);
     const machineStandardRequestSeqRef = useRef<Record<number, number>>({});
@@ -326,7 +331,7 @@ const machineAutocompleteOptions =
         // Mài cho phép nhập sản phẩm không cần gắn máy. Khi chưa chọn máy,
         // hiển thị toàn bộ sản phẩm thuộc phạm vi công đoạn; khi đã chọn máy
         // vẫn lọc theo mapping/định mức của máy như các công đoạn khác.
-        if (["MAI", "DO"].includes(processCode) && !String(machineCode || "").trim()) {
+        if (["MAI", "DO", "CAN"].includes(processCode) && !String(machineCode || "").trim()) {
             return scopedProductOptions;
         }
         return filterProductsForSelection({
@@ -377,7 +382,7 @@ const machineAutocompleteOptions =
     }, [usesSingleMachine]);
 
     // Cán và Ép chỉ cho phép một máy trong mỗi báo cáo, kể cả khi khôi phục bản nháp cũ.
-    const isSingleMachineReport = processCode === "CAN" || processCode === "EP";
+    const isSingleMachineReport = false;
     const maxMachineCount = isSingleMachineReport ? 1 : getMaxMachineCount(processCode, machineLines, machineOptions);
 
     useEffect(() => {
@@ -415,7 +420,7 @@ const machineAutocompleteOptions =
         const isCurrentRequest = () => machineStandardRequestSeqRef.current[index] === requestSeq;
         // Mài cho phép không chọn máy nhưng vẫn phải tra định mức theo mã sản phẩm.
         // resolveProductStandard hỗ trợ machineCode rỗng và lấy định mức mặc định của sản phẩm.
-        if (!normalizedProduct || (!normalizedMachine && !["MAI", "DO"].includes(processCode))) {
+        if (!normalizedProduct || (!normalizedMachine && !["MAI", "DO", "CAN"].includes(processCode))) {
             updateMachineLine(index, {
                 standardOutputPerHour: 0,
                 standardTimeSeconds: null,
@@ -637,13 +642,24 @@ const machineAutocompleteOptions =
     ]);
 
     const finishDuplicateAction = useCallback(() => {
+        // A confirmed duplicate creation/update is a successful submission.
+        // Cancel any pending autosave and invalidate its snapshot before
+        // clearing, otherwise navigating back can restore an already-sent form.
+        resetVersionRef.current += 1;
+        if (draftSaveTimerRef.current !== null) {
+            window.clearTimeout(draftSaveTimerRef.current);
+            draftSaveTimerRef.current = null;
+        }
+        clearProcessDraft(process);
         setDuplicatePrompt(null);
         pendingSplitPayloadsRef.current = [];
+        duplicatePrimaryCompletedRef.current = false;
+        duplicateForceRequestIdRef.current = null;
         clientRequestIdRef.current = null;
         submitLockRef.current = false;
         setSubmitting(false);
         navigate("/worker", { replace: true });
-    }, [navigate, setDuplicatePrompt]);
+    }, [navigate, process, setDuplicatePrompt]);
 
     const handleCreateDuplicateAnyway = async () => {
         if (submitLockRef.current || !duplicatePrompt) return;
@@ -652,24 +668,46 @@ const machineAutocompleteOptions =
         if (!snapshotMatches) {
             submitLockRef.current = false;
             showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng lưu lại để kiểm tra lại.", "warning");
-            setDuplicatePrompt(null);
+            if (!duplicatePrimaryCompletedRef.current) {
+                duplicateForceRequestIdRef.current = null;
+                setDuplicatePrompt(null);
+            }
             return;
         }
         try {
             setSubmitting(true);
-            await createTempReport({
-                ...duplicatePrompt.payload,
-                client_request_id: crypto.randomUUID(),
-                force_create: true,
-                duplicate_confirmation_token: duplicatePrompt.confirmationToken,
-            });
-            const pendingPayloads = pendingSplitPayloadsRef.current;
-            pendingSplitPayloadsRef.current = [];
-            for (const payload of pendingPayloads) await createTempReport(payload);
-            showToast(pendingPayloads.length ? "Đã xác nhận báo cáo trùng và gửi các báo cáo còn lại." : "Đã tạo báo cáo trùng theo xác nhận.", "success");
+            if (!duplicatePrimaryCompletedRef.current) {
+                duplicateForceRequestIdRef.current ||= createClientRequestId();
+                await createTempReport({
+                    ...duplicatePrompt.payload,
+                    client_request_id: duplicateForceRequestIdRef.current,
+                    force_create: true,
+                    duplicate_confirmation_token: duplicatePrompt.confirmationToken,
+                });
+                duplicatePrimaryCompletedRef.current = true;
+            }
+            const pendingCount = pendingSplitPayloadsRef.current.length;
+            // Persist every remaining machine report BEFORE navigating away.
+            // A browser reload must not discard the rest of this split submit.
+            if (pendingCount) enqueueOfflineReports(pendingSplitPayloadsRef.current);
+            showToast(pendingCount ? "Đã xác nhận báo cáo trùng. Các báo cáo máy còn lại đã lưu an toàn và đang đồng bộ." : "Đã tạo báo cáo trùng theo xác nhận.", pendingCount ? "warning" : "success");
             finishDuplicateAction();
         } catch (error: unknown) {
-            showToast((error as any)?.response?.data?.message || "Không thể tạo báo cáo.", "error");
+            // After the primary report succeeded, preserve the unsent split reports
+            // across a page reload when connectivity becomes unreliable. Their
+            // original client_request_id values make offline retries idempotent.
+            if (duplicatePrimaryCompletedRef.current && isTransientNetworkFailure(error)
+                && !(axios.isAxiosError(error) && error.response?.status === 429)) {
+                try {
+                    enqueueOfflineReports(pendingSplitPayloadsRef.current);
+                    showToast("Báo cáo chính đã lưu. Các báo cáo còn lại đã được đưa vào hàng đợi và sẽ tự đồng bộ khi có mạng.", "warning");
+                    finishDuplicateAction();
+                    return;
+                } catch (queueError: unknown) {
+                    showToast(queueError instanceof Error ? queueError.message : "Không thể lưu báo cáo còn lại trên thiết bị.", "error");
+                }
+            }
+            showToast((error as any)?.response?.data?.message || (duplicatePrimaryCompletedRef.current ? "Báo cáo chính đã được xử lý. Một báo cáo còn lại chưa gửi được; hãy thử lại để tiếp tục phần chưa gửi." : "Không thể tạo báo cáo."), "error");
             submitLockRef.current = false;
             setSubmitting(false);
         }
@@ -682,19 +720,33 @@ const machineAutocompleteOptions =
         if (!snapshotMatches) {
             submitLockRef.current = false;
             showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng kiểm tra lại.", "warning");
-            setDuplicatePrompt(null);
+            if (!duplicatePrimaryCompletedRef.current) setDuplicatePrompt(null);
             return;
         }
         try {
             setSubmitting(true);
-            await updateTempReport(duplicatePrompt.reportId, { ...duplicatePrompt.payload, id: duplicatePrompt.reportId });
-            const pendingPayloads = pendingSplitPayloadsRef.current;
-            pendingSplitPayloadsRef.current = [];
-            for (const payload of pendingPayloads) await createTempReport(payload);
-            showToast(pendingPayloads.length ? "Đã cập nhật báo cáo trùng và gửi các báo cáo còn lại." : "Đã cập nhật báo cáo hiện có.", "success");
+            if (!duplicatePrimaryCompletedRef.current) {
+                await updateTempReport(duplicatePrompt.reportId, { ...duplicatePrompt.payload, id: duplicatePrompt.reportId });
+                duplicatePrimaryCompletedRef.current = true;
+            }
+            const pendingCount = pendingSplitPayloadsRef.current.length;
+            // Save the complete remainder atomically before clearing the form.
+            if (pendingCount) enqueueOfflineReports(pendingSplitPayloadsRef.current);
+            showToast(pendingCount ? "Đã cập nhật báo cáo chính. Các báo cáo máy còn lại đã lưu an toàn và đang đồng bộ." : "Đã cập nhật báo cáo hiện có.", pendingCount ? "warning" : "success");
             finishDuplicateAction();
         } catch (error: unknown) {
-            showToast((error as any)?.response?.data?.message || "Không thể cập nhật báo cáo.", "error");
+            if (duplicatePrimaryCompletedRef.current && isTransientNetworkFailure(error)
+                && !(axios.isAxiosError(error) && error.response?.status === 429)) {
+                try {
+                    enqueueOfflineReports(pendingSplitPayloadsRef.current);
+                    showToast("Báo cáo chính đã cập nhật. Các báo cáo còn lại đã lưu vào hàng đợi offline.", "warning");
+                    finishDuplicateAction();
+                    return;
+                } catch (queueError: unknown) {
+                    showToast(queueError instanceof Error ? queueError.message : "Không thể lưu báo cáo còn lại trên thiết bị.", "error");
+                }
+            }
+            showToast((error as any)?.response?.data?.message || (duplicatePrimaryCompletedRef.current ? "Báo cáo chính đã được cập nhật. Một báo cáo còn lại chưa gửi được; hãy thử lại để tiếp tục phần chưa gửi." : "Không thể cập nhật báo cáo."), "error");
             submitLockRef.current = false;
             setSubmitting(false);
         }
@@ -739,6 +791,30 @@ useLayoutEffect(() => {
             isRestoringDraftRef.current = false;
         }, 0);
     }, [process]);
+
+    // Persist DO immediately on page refresh/close, including edits made within
+    // the 700ms autosave debounce window.
+    const doDraftSnapshotRef = useRef<ProcessDraft | null>(null);
+    useEffect(() => {
+        doDraftSnapshotRef.current = {
+            version: 3, savedAt: Date.now(), process, form, deductions,
+            selectedDeduction, selectedNg, machineLines, machineCount,
+            operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
+        };
+    }, [
+        process, form, deductions, selectedDeduction, selectedNg, machineLines,
+        machineCount, operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
+    ]);
+    useEffect(() => {
+        if (processCode !== "DO") return;
+        const persistOnLeave = () => {
+            if (submitting || isRestoringDraftRef.current) return;
+            const draft = doDraftSnapshotRef.current;
+            if (draft && hasMeaningfulProcessDraft(draft)) saveProcessDraft(draft);
+        };
+        window.addEventListener("pagehide", persistOnLeave);
+        return () => window.removeEventListener("pagehide", persistOnLeave);
+    }, [processCode, submitting]);
 
     useEffect(() => {
         if (loadingWorker || loadingMasterData || submitting) return;
@@ -1520,10 +1596,14 @@ const updateDeductionValue = (
         else if (normalized.includes("ca làm việc")) selector = 'input[name="shift"]';
         else if (normalized.includes("sản phẩm")) selector = usesMultiMachineLines ? '#machineProduct-0' : '#productName';
         else if (normalized.includes("máy")) selector = usesMultiMachineLines ? '#machineNo-0' : '#machineNo';
-        else if (normalized.includes("thời gian")) selector = '.worker-time-parts input';
+        else if (normalized.includes("thời gian") || normalized.includes("số phút")) selector = '.worker-time-parts input';
         else if (normalized.includes("tt ok") || normalized.includes("sản lượng")) selector = '#ttOk';
+        else if (/\\btt ng\\b|\\blỗi ng\\b|\\btổng ng\\b/i.test(normalized)) selector = '#ttNg';
 
-        if (normalized.includes("ng")) setShowNg(true);
+        // Match NG as a separate business abbreviation, not the letters inside
+        // "ngày", "ngừng" or "đang"; otherwise unrelated validation errors
+        // unexpectedly expand the quality panel on mobile.
+        if (/(?:^|[^a-z])(?:tt ng|lỗi ng|tổng ng|ng)(?:$|[^a-z])/i.test(normalized)) setShowNg(true);
         if (normalized.includes("trừ")) setShowDeduction(true);
 
         if (!selector) return;
@@ -1576,7 +1656,7 @@ const updateDeductionValue = (
                 });
 
                 if (!navigator.onLine) {
-                    payloads.forEach((payload) => enqueueOfflineReport(payload));
+                    enqueueOfflineReports(payloads);
                     showToast("Đang mất mạng. Các báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
                     clearProcessDraft(process);
                     clientRequestIdRef.current = null;
@@ -1600,6 +1680,8 @@ const updateDeductionValue = (
                             if (challengeToken) {
                                 const prompt = toDuplicatePrompt(duplicateResponse.data, payload);
                                 if (prompt) {
+                                    duplicatePrimaryCompletedRef.current = false;
+                                    duplicateForceRequestIdRef.current = null;
                                     pendingSplitPayloadsRef.current = payloads.slice(index + 1);
                                     const reportType = duplicateResponse.data?.report_type === "approved" ? "approved" : "temp";
                                     setDuplicatePrompt({ ...prompt, reportType, formSignature: getDuplicateFormSignature() });
@@ -1608,7 +1690,7 @@ const updateDeductionValue = (
                             }
                         }
                         if (isTransientNetworkFailure(error)) {
-                            payloads.slice(index).forEach((payload) => enqueueOfflineReport(payload));
+                            enqueueOfflineReports(payloads.slice(index));
                             showToast("Kết nối Internet bị gián đoạn. Các báo cáo còn lại đã được lưu trên thiết bị và sẽ tự gửi khi có mạng.", "warning");
                             clearProcessDraft(process);
                             clientRequestIdRef.current = null;
@@ -1622,6 +1704,8 @@ const updateDeductionValue = (
                     if (submitOutcome === "similar_report" && response?.data?.id) {
                         const prompt = toDuplicatePrompt(response, payload);
                         if (prompt) {
+                            duplicatePrimaryCompletedRef.current = false;
+                            duplicateForceRequestIdRef.current = null;
                             pendingSplitPayloadsRef.current = payloads.slice(index + 1);
                             setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
                             return;
@@ -1664,6 +1748,10 @@ const updateDeductionValue = (
     // =====================================================
 
     const handleReset = () => {
+        if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
+            showToast("Một phần báo cáo đã gửi thành công. Hãy gửi nốt phần còn lại trước khi làm mới biểu mẫu.", "warning");
+            return;
+        }
         const hasEnteredData = Boolean(
             form.productName.trim()
             || form.machineNo.trim()
@@ -1778,16 +1866,7 @@ const updateDeductionValue = (
 
                 <ProcessBasicInfoSection
                     processCode={processCode}
-                    inlineExtraFields={processCode === "CAN" ? (
-                        <ProcessExtraFieldsSection
-                            inline
-                            fields={currentExtraFields.filter((field) => field.key === "material_code")}
-                            extraData={extraData}
-                            setExtraData={setExtraData}
-                            fieldOptions={extraFieldOptions}
-                            loadingFieldOptions={loadingRelatedMaiMachines}
-                        />
-                    ) : undefined}
+                    inlineExtraFields={undefined}
                     form={form}
                     setForm={setForm}
                     onFormChange={handleChange}
@@ -1891,8 +1970,14 @@ const updateDeductionValue = (
                 submitting={submitting}
                 loadingWorker={loadingWorker}
                 onCancelDuplicate={() => {
+                    if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
+                        showToast("Một phần báo cáo đã gửi thành công. Vui lòng thử lại để gửi nốt các báo cáo còn lại trước khi thoát.", "warning");
+                        return;
+                    }
                     setDuplicatePrompt(null);
                     pendingSplitPayloadsRef.current = [];
+                    duplicatePrimaryCompletedRef.current = false;
+                    duplicateForceRequestIdRef.current = null;
                     submitLockRef.current = false;
                 }}
                 onUpdateExisting={() => void handleUpdateExistingReport()}

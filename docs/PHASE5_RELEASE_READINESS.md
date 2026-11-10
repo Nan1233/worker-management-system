@@ -1,13 +1,13 @@
 # KTC — Phase 5 Release Readiness
 
-**Current decision: BLOCKED for release — source profiles are prepared, but Cloudflare runtime secrets and account-side configuration are not verified.**
+**Current decision: BLOCKED for release — source profiles are prepared, but account-side secrets, production NODE_ENV and runtime acceptance are not verified/approved.**
 
 This phase is performed on branch `test`. It changes source/configuration and adds synthetic tests only. It does not authorize a deployment, database connection, migration, live-data validation, GitHub release, installer distribution, or auto-update publication.
 
 ## Selected production architecture
 
 - Frontend: Cloudflare Workers Static Assets (Worker name `ktc-frontend`).
-- API: Cloudflare Worker (name `ktc-be`).
+- API: Cloudflare Worker (name `ktc-backend`).
 - Database: TiDB Cloud through `@tidbcloud/serverless`.
 - TEST frontend/API remain isolated as `ktc-fe-test` and `ktc-be-test`.
 - The Worker endpoint names in this repository define the intended `workers.dev` URLs; their availability and custom-domain routing have not been checked against the Cloudflare account.
@@ -16,9 +16,9 @@ This phase is performed on branch `test`. It changes source/configuration and ad
 
 | Component | TEST | Production |
 |---|---|---|
-| Backend Worker | `backend/wrangler.jsonc` → `ktc-be-test` | `backend/wrangler.production.jsonc` → `ktc-be` |
+| Backend Worker | `backend/wrangler.jsonc` → `ktc-be-test` | `backend/wrangler.production.jsonc` → `ktc-backend` |
 | Frontend Worker | `frontend/wrangler.jsonc` → `ktc-fe-test` | `frontend/wrangler.production.jsonc` → `ktc-frontend` |
-| Frontend API | `frontend/.env.test` → `https://ktc-be-test.nan978971.workers.dev/api` | `frontend/.env.production` → `https://ktc-be.nan978971.workers.dev/api` |
+| Frontend API | `frontend/.env.test` → `https://ktc-be-test.nan978971.workers.dev/api` | `frontend/.env.production` → `https://ktc-backend.nan978971.workers.dev/api` |
 | Desktop | `desktop/package.json` defaults to TEST | `desktop/electron-builder.production.json` overrides packaged metadata to production |
 
 Frontend API configuration now fails closed:
@@ -38,6 +38,22 @@ Desktop now resolves URLs from packaged metadata. The default package is TEST; t
 - The generic Express CORS allowlist no longer silently includes the old Render frontend hostname.
 - Worker startup validates that TiDB connection material and a JWT secret of at least 32 characters are present. Secret values are never stored in Git.
 - Request-triggered master-data seeding was removed from the Worker request path. Master-data repair/seeding remains a separate operator action; normal API traffic cannot invoke those seed scripts.
+
+## Mandatory encrypted bindings before deployment
+
+Both backend Wrangler profiles now declare `secrets.required` for `JWT_SECRET`, `DB_PASSWORD`, and `TIDB_DATABASE_URL`. Cloudflare's Wrangler validation should reject a new deployment until these names exist as Worker secrets; this **does not migrate the existing account-side plaintext values**.
+
+The 2026-11-10 read-only account recheck still found the three credentials as `plain_text` on both `ktc-be-test` and `ktc-backend`, and `NODE_ENV=test` on `ktc-backend`. Do not infer that configuration is fixed from a passing source test.
+
+To complete migration without exposing existing credentials in chat or CI:
+
+1. Prepare a new TiDB user/password and connection URL with least-privilege access through a secure administrator workflow. Verify that credentials match both Worker environments and that a DB backup/rollback point is available.
+2. In Cloudflare Workers & Pages → each backend Worker → Settings → Variables and Secrets, replace the credential bindings with type **Secret** using new values from the secure administrator workflow. Include `GOOGLE_SERVICE_ACCOUNT` if that optional integration is enabled because account metadata also exposed it as `plain_text`. Do not paste values in issue comments, chat, GitHub commits or logs.
+3. Set `NODE_ENV=production` on `ktc-backend` only; keep `NODE_ENV=test` on `ktc-be-test`. Preserve all other existing bindings. Do not redeploy backend code until secrets and rollback are verified.
+4. Check the binding **names and types only**, record the deployment ID, and test the public unauthenticated health endpoint, then approved synthetic authenticated flows. Coordinate JWT rotation with an expected session sign-out.
+5. Make a controlled decision to roll traffic forward or roll back the Worker version. Rotating a TiDB credential also needs a database-side rollback procedure; reverting Worker code alone does not restore a changed password.
+
+**Critical:** source CI and `--strict` are not production UAT; the source gate remains blocked pending manual runtime evidence.
 
 ## Required Cloudflare secrets (not verified)
 

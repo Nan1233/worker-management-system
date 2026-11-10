@@ -78,11 +78,21 @@ async function main() {
   });
   await check('frontend deploy serves Master Control bundle', async () => {
     await waitFor('frontend deploy', async () => {
-      const page = await call('GET', '/admin/master-control', { base: FRONTEND });
-      if (page.status !== 200 || !/<div id="root">/i.test(page.text)) return `HTTP ${page.status}`;
-      const scripts = [...page.text.matchAll(/src="(\/assets\/[^"]+\.js)"/g)].map((m) => m[1]);
-      for (const src of scripts) { const js = await call('GET', src, { base: FRONTEND }); if (js.text.includes('Master Control Center')) return true; }
-      return 'bundle without Master Control yet';
+      // HashRouter serves routes from the SPA root. Vite base "./" produces
+      // relative asset URLs (./assets/...), while other builds use /assets/...
+      const page = await call('GET', '/', { base: FRONTEND });
+      if (page.status !== 200 || !/<div id="root">/i.test(page.text)) return `HTTP ${page.status} or missing React root`;
+      const scripts = [...page.text.matchAll(/<script\b[^>]*\bsrc=["']([^"']+\.js(?:\?[^"']*)?)["']/gi)]
+        .map((match) => match[1])
+        .filter((src) => /(?:^|\/)assets\//.test(src));
+      if (!scripts.length) return 'no Vite /assets/*.js script references in frontend HTML';
+      for (const src of scripts) {
+        const assetUrl = new URL(src, `${FRONTEND}/`);
+        if (assetUrl.origin !== new URL(FRONTEND).origin) continue;
+        const js = await call('GET', `${assetUrl.pathname}${assetUrl.search}`, { base: FRONTEND });
+        if (js.status === 200 && js.text.includes('Master Control Center')) return true;
+      }
+      return `checked ${scripts.length} Vite script(s); Master Control marker not found`;
     });
     return '/admin/master-control → 200, bundle contains Master Control Center';
   });

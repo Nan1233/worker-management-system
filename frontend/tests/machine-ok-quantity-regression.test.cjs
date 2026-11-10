@@ -13,7 +13,7 @@ test('machine report payload preserves each machine line OK quantity', () => {
   assert.match(basicInfo, /value=\{line\.okQuantity\}/);
   assert.match(basicInfo, /updateMachineLine\(index, \{ okQuantity: event\.target\.value\.replace\(\/\\D\/g, ""\) \}\)/);
   assert.match(submission, /ok_quantity:num\(l\.okQuantity\)/);
-  assert.match(submission, /tt_ok:\([^)]*noStandardLongWork[^)]*isMachineLineAccounting\) \? 0/);
+  assert.match(submission, /tt_ok:\(isCvk \|\| isNonProductWorkWithinProcess \|\| noStandardLongWork \|\| \(isMachineLineAccounting && !isMaiWithoutMachine\)\) \? 0/);
 });
 
 test('single-machine payload does not overwrite line OK/NG with stale parent totals', () => {
@@ -32,5 +32,7 @@ test('backend accepts camelCase machine quantities without defaulting submitted 
 
   assert.match(controller, /ok_quantity:\s*line\?\.ok_quantity\s*\?\?\s*line\?\.okQuantity\s*\?\?\s*0/);
   assert.match(controller, /ng_quantity:\s*line\?\.ng_quantity\s*\?\?\s*line\?\.ngQuantity\s*\?\?\s*0/);
-  assert.match(controller, /Number\(machineValidation\.totals\?\.totalOk\s*\|\|\s*0\)/);
+  const payloadService = read('../backend/services/productionTempReportPayloadService.js');
+  assert.match(controller, /buildProductionTempReportPayload\(/);
+  assert.match(payloadService, /Number\(machineValidation\.totals\?\.totalOk\s*\|\|\s*0\)/);
 });

@@ -13,17 +13,26 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 test('approval copies all persisted child collections before marking the temp report approved', () => {
   const approval = read('models/productionTempApprovalModel.js');
 
-  const mainInsert = approval.indexOf('INSERT INTO production_reports');
-  const defectsCopy = approval.indexOf('INSERT INTO production_report_defects');
-  const deductionsCopy = approval.indexOf('INSERT INTO production_report_deductions');
-  const machineCopy = approval.indexOf('copyMachineLinesToApproved(item.id, approvedReportId');
-  const tempApproved = approval.indexOf("SET status='approved',reviewed_by=?,approved_at=NOW(),updated_at=NOW()");
-  const commit = approval.indexOf('await commit(connection)', tempApproved);
+  const flow = approval.slice(approval.indexOf('async approveSelected('), approval.indexOf('async rejectSelected('));
+  const builders = approval.slice(approval.indexOf('function buildApprovedDetailCopyQuery('), approval.indexOf('function buildApprovedDetailReadQuery('));
+  const parentQuery = approval.slice(approval.indexOf('function buildApprovedParentInsertQuery('), approval.indexOf('function buildApprovedTempTransitionQuery('));
+  const transitionQuery = approval.slice(approval.indexOf('function buildApprovedTempTransitionQuery('), approval.indexOf('module.exports = {'));
+  const mainInsert = flow.indexOf('buildApprovedParentInsertQuery(item, reviewerId)');
+  const defectsCopy = flow.indexOf('copyApprovedReportDetails(connection, approvedReportId, item.id)');
+  const deductionsCopy = defectsCopy;
+  const machineCopy = flow.indexOf('copyMachineLinesToApproved(item.id, approvedReportId');
+  const tempApproved = flow.indexOf('buildApprovedTempTransitionQuery(item, reviewerId)');
+  assert.match(parentQuery, /INSERT INTO production_reports/);
+  assert.match(transitionQuery, /SET status='approved',reviewed_by=\?,approved_at=NOW\(\),updated_at=NOW\(\)/);
+  const commit = flow.indexOf('await commit(connection)', tempApproved);
 
+  assert.match(builders, /INSERT INTO production_report_defects/);
+  assert.match(builders, /INSERT INTO production_report_deductions/);
   assert.ok(mainInsert >= 0, 'approved parent report is inserted');
   assert.ok(defectsCopy > mainInsert, 'defect details are copied after parent insert');
-  assert.ok(deductionsCopy > defectsCopy, 'deduction details are copied after defect details');
-  assert.ok(machineCopy > deductionsCopy, 'machine lines and machine defects are copied');
+  const detailFlow = approval.slice(approval.indexOf('async function copyApprovedReportDetails('),approval.indexOf('async function recordApprovedTempVersion('));
+  assert.ok(detailFlow.indexOf('buildApprovedDetailCopyQuery("deductions"') > detailFlow.indexOf('buildApprovedDetailCopyQuery("defects"'), 'deduction details are copied after defect details');
+  assert.ok(machineCopy > defectsCopy, 'machine lines and machine defects are copied');
   assert.ok(tempApproved > machineCopy, 'temp status is marked approved only after child copies');
   assert.ok(commit > tempApproved, 'the transaction commits after status and detail writes');
   assert.match(approval, /createApprovedReportVersion\(/, 'approved version snapshot is created');

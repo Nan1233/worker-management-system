@@ -67,7 +67,10 @@ export function getDateRangeForMode(
   }
 
   if (mode === "month") {
-    const month = /^\d{4}-\d{2}$/.test(selectedMonth)
+    // A syntactically valid YYYY-MM can still be an impossible month (00/13+).
+    // Reject it before building a date range rather than silently normalizing
+    // the end date into a different month.
+    const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth)
       ? selectedMonth
       : getToday().slice(0, 7);
     const [y, m] = month.split("-").map(Number);
@@ -79,10 +82,19 @@ export function getDateRangeForMode(
   }
 
   if (mode === "range") {
-    return {
-      dateFrom: dateFrom || getToday(),
-      dateTo: dateTo || dateFrom || getToday(),
+    const isValidDate = (value: string): boolean => {
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+      const [year, month, day] = value.split("-").map(Number);
+      if (year < 100 || month < 1 || month > 12 || day < 1) return false;
+      return day <= new Date(year, month, 0).getDate();
     };
+    const start = isValidDate(dateFrom) ? dateFrom : getToday();
+    const end = isValidDate(dateTo) ? dateTo : start;
+    // ISO calendar dates sort lexicographically. Normalize reversed inputs so
+    // the manager never sends a backwards range to the report endpoint.
+    return start <= end
+      ? { dateFrom: start, dateTo: end }
+      : { dateFrom: end, dateTo: start };
   }
 
   return { dateFrom: "", dateTo: "" };

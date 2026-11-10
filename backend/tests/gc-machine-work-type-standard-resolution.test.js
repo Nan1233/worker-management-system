@@ -85,7 +85,7 @@ function createGcFixtureQuery() {
   };
 }
 
-test('GC resolves machine standard through product alias 2801 -> QC3-2801', async () => {
+test('GC resolves the exact configured machine standard QC3-2801 without deprecated aliases', async () => {
   const queries = [];
   const baseQuery = createGcFixtureQuery();
   const query = async (sql, params = []) => {
@@ -95,7 +95,7 @@ test('GC resolves machine standard through product alias 2801 -> QC3-2801', asyn
   const resolver = createStandardResolver({ query });
   const resolved = await resolver.resolveStandard({
     processId: 1,
-    productCode: '2801',
+    productCode: 'QC3-2801',
     machineCode: 'ML4',
     workDate: '2026-10-04'
   });
@@ -106,6 +106,7 @@ test('GC resolves machine standard through product alias 2801 -> QC3-2801', asyn
   );
   assert.ok(machineLookup, 'Expected machine-standard lookup');
   assert.equal(String(machineLookup.params[2]).trim(), 'QC3-2801');
+  assert.equal(queries.some(q => /from\\s+product_aliases/i.test(q.sql)), false);
   assert.equal(resolved.machineStandardId, 8801);
   assert.equal(resolved.standardOutput, 180);
 });
@@ -363,10 +364,11 @@ test('GC conflicting active machine standards fail instead of selecting one row'
 });
 
 
-test('GC alias lookup preserves the requested work_type when resolving the canonical product', async () => {
+test('GC exact product lookup preserves requested LONG work type', async () => {
+  const queries = [];
   const query = async (sql, params = []) => {
-    const text = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
-    if (text.includes('from product_aliases')) return [{ product_code: 'QC3-2801' }];
+    const text = String(sql).replace(/\\s+/g, ' ').trim().toLowerCase();
+    queries.push(text);
     if (text.includes('from product_standards')) {
       const requestedProduct = String(params[1] || '').trim().toUpperCase();
       if (requestedProduct !== 'QC3-2801') return [];
@@ -376,27 +378,36 @@ test('GC alias lookup preserves the requested work_type when resolving the canon
       return [];
     }
     if (text.includes('from product_standard_versions')) return [];
-    throw new Error(`Unexpected SQL: ${text}; params=${JSON.stringify(params)}`);
+    throw new Error(`Unexpected SQL: ${text}`);
   };
   const resolver = createStandardResolver({ query });
   const resolved = await resolver.resolveProduct({
-    processId: 1, productCode: '2801', workType: 'LONG', workDate: '2026-10-04'
+    processId: 1, productCode: 'QC3-2801', workType: 'LONG', workDate: '2026-10-04'
   });
   assert.equal(resolved.productCode, 'QC3-2801');
   assert.equal(resolved.workType, 'LONG');
   assert.equal(resolved.standardOutput, 180);
+  assert.equal(queries.some(q => q.includes('from product_aliases')), false);
 });
 
-test('GC alias mapping to multiple canonical products fails closed', async () => {
-  const query = async (sql) => {
-    const text = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
+test('GC exact canonical product lookup rejects two equally applicable standards', async () => {
+  const query = async (sql, params = []) => {
+    const text = String(sql).replace(/\\s+/g, ' ').trim().toLowerCase();
     if (text.includes('from machines')) return [{ id: 16, machine_code: 'ML4', gc_work_type: 'LONG', process_code: 'GC' }];
-    if (text.includes('from product_aliases')) return [{ product_code: 'QC3-2801' }, { product_code: 'OTHER-2801' }];
+    if (text.includes('from product_machine_standards')) return [];
+    if (text.includes('from product_standards')) {
+      if (String(params[1] || '').trim() !== 'QC3-2801') return [];
+      return [
+        { product_standard_id: 8801, product_code: 'QC3-2801', work_type: 'Lồng', standard_output: 180 },
+        { product_standard_id: 8802, product_code: 'QC3-2801', work_type: 'Lồng', standard_output: 185 },
+      ];
+    }
+    if (text.includes('from product_standard_versions')) return [];
     throw new Error(`Unexpected SQL: ${text}`);
   };
   const resolver = createStandardResolver({ query });
   await assert.rejects(
-    resolver.resolveStandard({ processId: 1, productCode: '2801', machineCode: 'ML4', workDate: '2026-10-04' }),
-    error => error.code === 'PRODUCT_ALIAS_CONFLICT'
+    resolver.resolveStandard({ processId: 1, productCode: 'QC3-2801', machineCode: 'ML4', workDate: '2026-10-04' }),
+    error => error.code === 'STANDARD_EFFECTIVE_RANGE_CONFLICT'
   );
 });

@@ -46,13 +46,16 @@ test("Empty related Mài machine remains optional for Đo", async () => {
     assert.equal(result.valid, true);
 });
 
-test("FE and BE agree that Mài supports up to four machines and Đo requires one", () => {
-    assert.deepEqual(getProcessMachinePolicy(2), { code: "MAI", mode: "MULTI_MACHINE_REQUIRED", minMachines: 1, maxMachines: 4 });
-    assert.deepEqual(getProcessMachinePolicy(3), { code: "DO", mode: "SINGLE_MACHINE_REQUIRED", minMachines: 1, maxMachines: 1 });
+test("FE and BE agree on Mài and Đo multi-machine policy", () => {
+    assert.deepEqual(getProcessMachinePolicy(2), { code: "MAI", mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 10 });
+    assert.deepEqual(getProcessMachinePolicy(3), { code: "DO", mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 10 });
     const domain = read("frontend/src/pages/worker/processPageDomain.ts");
-    assert.match(domain, /return \["GC", "MAI", "CAN", "EP"\]\.includes\(c\.processCode\) && mode === "MACHINE"/);
+    assert.match(domain, /return \["GC", "MAI", "DO", "CAN", "EP"\]\.includes\(c\.processCode\) && mode === "MACHINE"/);
     const fields = read("frontend/src/pages/worker/processExtraFields.ts");
-    assert.match(fields, /grinding_machine_no.*type: "select"/);
+    // Related grinding machine field was deliberately hidden from the worker form.
+    // Backend may still accept old extra_data for existing approved reports.
+    assert.match(fields, /do:\s*\[\s*\]/);
+    assert.doesNotMatch(fields, /key:\s*"grinding_machine_no"/);
     const page = read("frontend/src/pages/worker/ProcessPage.tsx");
     assert.match(page, /getCachedMachines\(2\)/);
     assert.match(page, /Máy Mài liên quan không còn trong danh mục hoạt động/);
@@ -66,7 +69,7 @@ test("Create and edit endpoints both validate the DO related Mài machine", () =
 test("Mài KQSX is sent by FE and checked again by BE", () => {
     const payload = read("frontend/src/pages/worker/processReportSubmission.ts");
     const validator = read("backend/services/machineLineValidationService.js");
-    assert.match(payload, /actual_quantity: num\(l\.actualQuantity\)/);
+    assert.match(payload, /actual_quantity:\s*num\(l\.okQuantity\)\s*\+\s*num\(l\.ngQuantity\)/);
     assert.match(validator, /line\.actual_quantity !== undefined/);
     assert.match(validator, /actualQuantity !== okQuantity \+ ngQuantity/);
 });

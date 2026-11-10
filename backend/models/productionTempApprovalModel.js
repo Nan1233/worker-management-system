@@ -42,48 +42,70 @@ const qRows = async (executor, sql, params = []) => {
   }
 };
 
-async function getTempMachineLines(tempReportId, connection) {
-  const lines = await qRows(
-    connection,
-    `SELECT *
-       FROM production_temp_machine_lines
-      WHERE temp_report_id=?
-      ORDER BY sort_order ASC, id ASC`,
-    [Number(tempReportId)],
-  );
-  if (!lines.length) return [];
-
-  const ids = lines.map((line) => Number(line.id)).filter(Boolean);
-  const defects = await qRows(
-    connection,
-    `SELECT *
-       FROM production_temp_machine_defects
-      WHERE machine_line_id IN (${ids.map(() => "?").join(",")})
-      ORDER BY machine_line_id ASC, id ASC`,
-    ids,
-  );
+// Preserve the database's defect order and attach only matching machine-line defects.
+// Keep this mapping pure so approval snapshots can be regression-tested without a DB.
+function attachMachineLineDefects(lines, defects) {
+  const validLineIds = new Set(lines.map((line) => Number(line.id)));
   const byLine = new Map();
   for (const defect of defects) {
-    const key = Number(defect.machine_line_id);
+    const rawLineId = defect?.machine_line_id;
+    const key = Number(rawLineId);
+    if ((typeof rawLineId !== "number" && (typeof rawLineId !== "string" || !/^[0-9]+$/.test(rawLineId)))
+      || !Number.isSafeInteger(key) || key <= 0 || !validLineIds.has(key)) {
+      const error = new Error("Lỗi NG tham chiếu dòng máy tạm không hợp lệ; đã hủy duyệt để bảo vệ dữ liệu");
+      error.status = 500;
+      error.code = "TEMP_MACHINE_DEFECT_LINEAGE_MISMATCH";
+      error.isPublic = true;
+      throw error;
+    }
     if (!byLine.has(key)) byLine.set(key, []);
     byLine.get(key).push(defect);
   }
   return lines.map((line) => ({ ...line, defects: byLine.get(Number(line.id)) || [] }));
 }
 
-// Copies the temp machine lines (and their defects) into the approved report.
-// Subrequest budget: one multi-row INSERT for all lines + one SELECT to learn the new ids (the caller
-// reuses those rows for the legacy snapshot and the approved version) + one INSERT for all defects,
-// instead of one INSERT per machine line.
-async function copyMachineLinesToApproved(tempReportId, approvedReportId, connection, preloadedTempLines = null) {
-  const tempLines = preloadedTempLines || await getTempMachineLines(tempReportId, connection);
-  if (!tempLines.length) return { ids: [], rows: [] };
+function buildTempMachineLinesRead(tempReportId) {
+  return {
+    sql: `SELECT *
+       FROM production_temp_machine_lines
+      WHERE temp_report_id=?
+      ORDER BY sort_order ASC, id ASC`,
+    params: [Number(tempReportId)],
+  };
+}
 
-  const columns = `report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
-        machine_time_hours,standard_output,standard_time_seconds,standard_source,ok_quantity,ng_quantity,
-        maximum_output,deduction_time_hours,deductions_json,counted_output,earned_standard_hours,defects_json,sort_order`;
-  const rowPlaceholder = `(${new Array(21).fill("?").join(",")})`;
-  const values = tempLines.flatMap((line) => [
+async function getTempMachineLines(tempReportId, connection) {
+  const { sql: lineSql, params: lineParams } = buildTempMachineLinesRead(tempReportId);
+  const lines = await qRows(connection, lineSql, lineParams);
+  if (!lines.length) return [];
+
+  const { sql: defectSql, params: defectParams } = buildTempMachineLineDefectsQuery(lines);
+  const defects = await qRows(connection, defectSql, defectParams);
+  return attachMachineLineDefects(lines, defects);
+}
+
+// Build approved defect rows in machine-line order, preserving the legacy
+// null/default conversions and each line's defect order.
+function buildApprovedMachineDefectRows(tempLines, approvedLinesByInsertOrder) {
+  const rows = [];
+  tempLines.forEach((line, index) => {
+    const approvedLineId = Number(approvedLinesByInsertOrder[index].id);
+    for (const defect of line.defects || []) {
+      rows.push([
+        approvedLineId,
+        defect.defect_type_id || null,
+        defect.defect_code || null,
+        defect.defect_name || null,
+        defect.quantity || 0,
+      ]);
+    }
+  });
+  return rows;
+}
+
+// Keep the approved machine-line INSERT column order and legacy defaults stable.
+function buildApprovedMachineLineValues(tempLines, approvedReportId) {
+  return tempLines.flatMap((line) => [
     approvedReportId,
     line.machine_event_id || null,
     line.machine_id || null,
@@ -106,23 +128,90 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
     serializeExtraData(line.defects_json),
     line.sort_order || 1,
   ]);
-  await query(
-    connection,
-    `INSERT INTO production_report_machine_lines (${columns}) VALUES ${tempLines.map(() => rowPlaceholder).join(",")}`,
-    values,
-  );
+}
 
-  const approvedRows = await qRows(
-    connection,
-    `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
-    [approvedReportId],
-  );
-  // AUTO_INCREMENT hands out ascending ids in row order inside one statement, so the n-th inserted row is the
-  // n-th lowest id. Verify that assumption against machine_code/product_code and fail closed (rollback) if not.
-  const byInsertOrder = [...approvedRows].sort((a, b) => Number(a.id) - Number(b.id));
-  if (byInsertOrder.length !== tempLines.length
+// Verify the bulk INSERT's assumed id ordering before associating defects.
+// This check intentionally fails closed if the database returns unexpected rows.
+function verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, approvedReportId = null) {
+  const validRows = Array.isArray(approvedRows)
+    && approvedRows.every((row) => row !== null && typeof row === "object" && !Array.isArray(row));
+  const byInsertOrder = validRows
+    ? [...approvedRows].sort((a, b) => Number(a.id) - Number(b.id))
+    : [];
+  const parseStrictId = (value) => {
+    if (typeof value !== "number" && (typeof value !== "string" || !/^[0-9]+$/.test(value))) return null;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+  };
+  const ids = byInsertOrder.map((row) => parseStrictId(row.id));
+  const hasInvalidIds = ids.some((id) => id === null) || new Set(ids).size !== ids.length;
+  // Machine/product codes alone cannot distinguish repeated runs of the same product.
+  // Check persisted source identities too, when supplied by the database.
+  const identityColumns = ["machine_event_id", "machine_id", "product_standard_id",
+    "standard_version_id", "machine_standard_id"];
+  const identityMismatch = (persisted, source) => identityColumns.some((column) =>
+    (column !== "machine_event_id" || Boolean(source.machine_event_id))
+      && Object.prototype.hasOwnProperty.call(persisted, column)
+      && Object.prototype.hasOwnProperty.call(source, column)
+      && String(persisted[column] || "") !== String(source[column] || ""));
+  // sort_order is copied with a legacy default of 1. It distinguishes otherwise
+  // identical machine/product runs and must survive the bulk INSERT unchanged.
+  const sortOrderMismatch = (persisted, source) => {
+    if (!Object.prototype.hasOwnProperty.call(persisted, "sort_order")
+      || !Object.prototype.hasOwnProperty.call(source, "sort_order")) return false;
+    // The INSERT uses source.sort_order || 1; the persisted value must still be
+    // a positive safe integer, not a coerced boolean, exponent or fractional ID.
+    const expected = parseStrictId(source.sort_order || 1);
+    const actual = parseStrictId(persisted.sort_order);
+    return expected === null || actual === null || actual !== expected;
+  };
+  // Decimal values may be returned as strings with trailing zeros by TiDB.
+  // Normalize textually to avoid losing DECIMAL(18,6) precision through Number().
+  const canonicalDecimal = (value) => {
+    const raw = String(value ?? "").trim();
+    if (!/^[+-]?(?:[0-9]+)(?:[.][0-9]+)?$/.test(raw)) return null;
+    const negative = raw.startsWith("-");
+    const unsigned = raw.replace(/^[+-]/, "");
+    const [integer, fraction = ""] = unsigned.split(".");
+    const whole = integer.replace(/^0+/, "") || "0";
+    const decimal = fraction.replace(/0+$/, "");
+    const magnitude = whole + (decimal ? "." + decimal : "");
+    return (negative && magnitude !== "0" ? "-" : "") + magnitude;
+  };
+  const quantityColumns = ["machine_time_hours", "standard_output", "standard_time_seconds",
+    "ok_quantity", "ng_quantity", "maximum_output", "deduction_time_hours",
+    "counted_output", "earned_standard_hours"];
+  const quantityMismatch = (persisted, source) => quantityColumns.some((column) => {
+    if (!Object.prototype.hasOwnProperty.call(persisted, column)
+      || !Object.prototype.hasOwnProperty.call(source, column)) return false;
+    const saved = ["deduction_time_hours", "counted_output", "earned_standard_hours"].includes(column)
+      ? source[column] || 0 : source[column];
+    // The approved INSERT stores absent standard_time_seconds as SQL NULL.
+    if (column === "standard_time_seconds" && !saved && persisted[column] == null) return false;
+    const actual = canonicalDecimal(persisted[column]);
+    const expected = canonicalDecimal(saved);
+    return actual === null || expected === null || actual !== expected;
+  });
+  // A changed standard source can silently alter historical rate/audit lineage.
+  // Compare the exact normalized code written by buildApprovedMachineLineValues.
+  const standardSourceMismatch = (persisted, source) =>
+    Object.prototype.hasOwnProperty.call(persisted, "standard_source")
+      && Object.prototype.hasOwnProperty.call(source, "standard_source")
+      && String(persisted.standard_source) !== storedStandardSource(source.standard_source);
+  const wrongReportLineage = approvedReportId != null && byInsertOrder.some((row) =>
+    !Object.prototype.hasOwnProperty.call(row, "report_id")
+      || parseStrictId(row.report_id) === null
+      || parseStrictId(row.report_id) !== parseStrictId(approvedReportId));
+  if (!validRows
+    || byInsertOrder.length !== tempLines.length
+    || hasInvalidIds
+    || wrongReportLineage
     || byInsertOrder.some((row, index) => String(row.machine_code) !== String(tempLines[index].machine_code)
-      || String(row.product_code) !== String(tempLines[index].product_code))) {
+      || String(row.product_code) !== String(tempLines[index].product_code)
+      || identityMismatch(row, tempLines[index])
+      || sortOrderMismatch(row, tempLines[index])
+      || quantityMismatch(row, tempLines[index])
+      || standardSourceMismatch(row, tempLines[index]))) {
     const error = new Error(`Không xác nhận được dòng máy đã sao chép cho báo cáo tạm #${tempReportId}; đã hủy duyệt để bảo vệ dữ liệu`);
     error.status = 500;
     error.code = "APPROVED_MACHINE_LINES_COPY_MISMATCH";
@@ -130,29 +219,31 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
     throw error;
   }
 
-  const pendingDefects = [];
-  tempLines.forEach((line, index) => {
-    const approvedLineId = Number(byInsertOrder[index].id);
-    for (const defect of line.defects || []) {
-      pendingDefects.push([
-        approvedLineId,
-        defect.defect_type_id || null,
-        defect.defect_code || null,
-        defect.defect_name || null,
-        defect.quantity || 0,
-      ]);
-    }
-  });
+  return byInsertOrder;
+}
+
+// Copies the temp machine lines (and their defects) into the approved report.
+// Subrequest budget: one multi-row INSERT for all lines + one SELECT to learn the new ids (the caller
+// reuses those rows for the legacy snapshot and the approved version) + one INSERT for all defects,
+// instead of one INSERT per machine line.
+async function copyMachineLinesToApproved(tempReportId, approvedReportId, connection, preloadedTempLines = null) {
+  const tempLines = preloadedTempLines || await getTempMachineLines(tempReportId, connection);
+  if (!tempLines.length) return { ids: [], rows: [] };
+
+  const { sql: machineInsertSql, params: machineInsertParams } = buildApprovedMachineLinesInsert(tempLines, approvedReportId);
+  await query(connection, machineInsertSql, machineInsertParams);
+
+  const { sql: approvedLinesSql, params: approvedLinesParams } = buildApprovedMachineLinesRead(approvedReportId);
+  const approvedRows = await qRows(connection, approvedLinesSql, approvedLinesParams);
+  // AUTO_INCREMENT hands out ascending ids in row order inside one statement, so the n-th inserted row is the
+  // n-th lowest id. Verify that assumption against machine_code/product_code and fail closed (rollback) if not.
+  const byInsertOrder = verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, approvedReportId);
+
+  const pendingDefects = buildApprovedMachineDefectRows(tempLines, byInsertOrder);
 
   if (pendingDefects.length) {
-    const placeholders = pendingDefects.map(() => "(?,?,?,?,?)").join(",");
-    await query(
-      connection,
-      `INSERT INTO production_report_machine_defects
-       (machine_line_id,defect_type_id,defect_code,defect_name,quantity)
-       VALUES ${placeholders}`,
-      pendingDefects.flat(),
-    );
+    const { sql: defectInsertSql, params: defectInsertParams } = buildApprovedMachineDefectsInsert(pendingDefects);
+    await query(connection, defectInsertSql, defectInsertParams);
   }
 
   return { ids: byInsertOrder.map((row) => Number(row.id)), rows: approvedRows };
@@ -174,63 +265,92 @@ function isParentProcessNonProductWork(item) {
     && Number(item?.process_id) !== 60006;
 }
 
-function assertNonProductWorkSnapshot(item) {
+// Shared zero-standard predicate; each caller retains its own public error message.
+function hasNonProductSnapshotMismatch(item) {
   const output = Number(item?.standard_output || 0);
   const versionId = Number(item?.standard_version_id || 0);
   const machineStandardId = Number(item?.machine_standard_id || 0);
-  if (output !== 0 || versionId !== 0 || machineStandardId !== 0) {
-    const error = new Error("Ảnh chụp công việc khác trong công đoạn không hợp lệ; cần kiểm tra lại báo cáo");
-    error.status = 422;
-    error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
-    error.isPublic = true;
-    throw error;
+  return output !== 0 || versionId !== 0 || machineStandardId !== 0;
+}
+
+function createNonProductSnapshotMismatchError(message) {
+  const error = new Error(message);
+  error.status = 422;
+  error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
+  error.isPublic = true;
+  return error;
+}
+
+function assertNonProductWorkSnapshot(item) {
+  if (hasNonProductSnapshotMismatch(item)) {
+    throw createNonProductSnapshotMismatchError("Ảnh chụp công việc khác trong công đoạn không hợp lệ; cần kiểm tra lại báo cáo");
   }
 }
 
-async function validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache = null) {
-  const isMachineReport = String(item.operation_mode || "").toUpperCase() === "MACHINE";
-  if (!isMachineReport && isParentProcessNonProductWork(item)) {
-    assertNonProductWorkSnapshot(item);
-    return;
-  }
-  if (isMachineReport) {
-    const tempLines = await getTempMachineLines(item.id, connection);
-    if (tempLinesCache) tempLinesCache.set(Number(item.id), tempLines);
-    if (!tempLines.length) {
-      const error = new Error(`Báo cáo máy #${item.id} không có dòng máy để xác minh định mức`);
-      error.status = 422;
-      error.code = "STANDARD_SNAPSHOT_MISSING";
-      error.isPublic = true;
-      throw error;
-    }
-    const eventContext = await prepareApprovedEventContext(connection, { report: item, lines: tempLines });
-    await standardResolver.warmUp({
-      processId: item.process_id,
-      workDate: item.work_date,
-      items: tempLines.map((line) => ({ machineId: line.machine_id, machineCode: line.machine_code, productCode: line.product_code })),
-    });
-    for (const line of tempLines) {
-      await assertApprovedEventForTempLine(connection, { report: item, line, context: eventContext });
-      const resolved = await standardResolver.resolveStandard({
-        processId: item.process_id,
-        productCode: line.product_code,
-        machineId: line.machine_id,
-        machineCode: line.machine_code,
-        workDate: item.work_date,
-        standardVersionId: line.standard_version_id,
-        machineStandardId: line.machine_standard_id,
-      });
-      assertStandardSnapshotConsistency({
-        resolved,
-        standardOutput: line.standard_output,
-        standardVersionId: line.standard_version_id,
-        machineStandardId: line.machine_standard_id,
-      });
-    }
-    return;
-  }
+// Keep standard resolver warm-up input aligned with each saved machine line.
+function buildMachineStandardWarmUpItems(tempLines) {
+  return tempLines.map((line) => ({
+    machineId: line.machine_id,
+    machineCode: line.machine_code,
+    productCode: line.product_code,
+  }));
+}
 
-  const resolved = await standardResolver.resolveStandard({
+// Preserve the saved machine-line standard identity used for approval checks.
+function buildMachineStandardResolutionInput(item, line) {
+  return {
+    processId: item.process_id,
+    productCode: line.product_code,
+    machineId: line.machine_id,
+    machineCode: line.machine_code,
+    workDate: item.work_date,
+    standardVersionId: line.standard_version_id,
+    machineStandardId: line.machine_standard_id,
+  };
+}
+
+// Keep the saved standard snapshot fields identical for machine lines and reports.
+function buildStandardSnapshotConsistencyInput(saved, resolved) {
+  return {
+    resolved,
+    standardOutput: saved.standard_output,
+    standardVersionId: saved.standard_version_id,
+    machineStandardId: saved.machine_standard_id,
+  };
+}
+
+// Validate machine report snapshots before any approval copy occurs.
+function createMissingMachineSnapshotError(reportId) {
+  const error = new Error(`Báo cáo máy #${reportId} không có dòng máy để xác minh định mức`);
+  error.status = 422;
+  error.code = "STANDARD_SNAPSHOT_MISSING";
+  error.isPublic = true;
+  return error;
+}
+
+async function validateMachineApprovalSnapshot(item, connection, standardResolver, tempLinesCache) {
+  const tempLines = await getTempMachineLines(item.id, connection);
+  if (tempLinesCache) tempLinesCache.set(Number(item.id), tempLines);
+  if (!tempLines.length) {
+    throw createMissingMachineSnapshotError(item.id);
+  }
+  const eventContext = await prepareApprovedEventContext(connection, { report: item, lines: tempLines });
+  await standardResolver.warmUp({
+    processId: item.process_id,
+    workDate: item.work_date,
+    items: buildMachineStandardWarmUpItems(tempLines),
+  });
+  for (const line of tempLines) {
+    await assertApprovedEventForTempLine(connection, { report: item, line, context: eventContext });
+    const resolved = await standardResolver.resolveStandard(buildMachineStandardResolutionInput(item, line));
+    assertStandardSnapshotConsistency(buildStandardSnapshotConsistencyInput(line, resolved));
+  }
+  return;
+}
+
+// Resolve the report-level saved standard, including the manual GC Cắt/Lồng choice.
+function buildReportStandardResolutionInput(item) {
+  return {
     processId: item.process_id,
     productCode: item.product_name,
     workDate: item.work_date,
@@ -238,63 +358,49 @@ async function validateApprovalSnapshot(item, connection, standardResolver, temp
     machineStandardId: item.machine_standard_id,
     // GC manual (no machine): the report's saved Cắt/Lồng choice; null for every other process.
     workType: explicitGcWorkType({ isGc: Number(item.process_id) === 1, operationType: item.operation_type }),
-  });
+  };
+}
+
+function isMachineApprovalReport(item) {
+  return String(item.operation_mode || "").toUpperCase() === "MACHINE";
+}
+
+async function validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache = null) {
+  const isMachineReport = isMachineApprovalReport(item);
+  if (!isMachineReport && isParentProcessNonProductWork(item)) {
+    assertNonProductWorkSnapshot(item);
+    return;
+  }
+  if (isMachineReport) {
+    await validateMachineApprovalSnapshot(item, connection, standardResolver, tempLinesCache);
+    return;
+  }
+
+  const resolved = await standardResolver.resolveStandard(buildReportStandardResolutionInput(item));
   // CVK "Công việc khác" reports intentionally have no product standard.
   // Their valid snapshot is zero output with no product/machine standard IDs.
   if (resolved?.nonProductWork) {
-    const savedOutput = Number(item.standard_output || 0);
-    const savedVersionId = Number(item.standard_version_id || 0);
-    const savedMachineStandardId = Number(item.machine_standard_id || 0);
-    if (savedOutput !== 0 || savedVersionId !== 0 || savedMachineStandardId !== 0) {
-      const error = new Error("Ảnh chụp công việc khác không hợp lệ; cần kiểm tra lại báo cáo");
-      error.status = 422;
-      error.code = "NON_PRODUCT_WORK_SNAPSHOT_MISMATCH";
-      error.isPublic = true;
-      throw error;
+    if (hasNonProductSnapshotMismatch(item)) {
+      throw createNonProductSnapshotMismatchError("Ảnh chụp công việc khác không hợp lệ; cần kiểm tra lại báo cáo");
     }
     return;
   }
 
-  assertStandardSnapshotConsistency({
-    resolved,
-    standardOutput: item.standard_output,
-    standardVersionId: item.standard_version_id,
-    machineStandardId: item.machine_standard_id,
-  });
+  assertStandardSnapshotConsistency(buildStandardSnapshotConsistencyInput(item, resolved));
 }
 
-async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection, preloaded = {}) {
-  const preloadedMachineLines = preloaded.machineLines || null;
-  // TiDB Serverless transaction connections must not run concurrent queries.
-  // Keep these snapshot reads sequential on the same transaction connection.
-  const snapshotDefects = preloaded.defects
-    ? preloaded.defects.map((row) => ({ defect_code: row.defect_code, defect_name: row.defect_name, quantity: row.quantity }))
-    : await qRows(
-      connection,
-      `SELECT dt.defect_code, dt.defect_name, d.quantity
-         FROM production_report_defects d
-         LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
-        WHERE d.report_id=? ORDER BY d.id`,
-      [approvedReportId],
-    );
-  const snapshotDeductions = preloaded.deductions
-    ? preloaded.deductions.map((row) => ({ deduction_code: row.deduction_code, deduction_name: row.deduction_name, hours: row.hours }))
-    : await qRows(
-      connection,
-      `SELECT dt.deduction_code, dt.deduction_name, d.hours
-         FROM production_report_deductions d
-         LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
-        WHERE d.report_id=? ORDER BY d.id`,
-      [approvedReportId],
-    );
-  const machineLines = Array.isArray(preloadedMachineLines)
-    ? preloadedMachineLines
-    : await qRows(
-      connection,
-      `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
-      [approvedReportId],
-    );
-  const snapshotData = JSON.stringify({
+// Keep the approved v1 legacy snapshot payload stable for exports and audit history.
+// Preserve the exact v1 legacy snapshot projection of preloaded approved rows.
+function buildLegacySnapshotDefects(rows) {
+  return rows.map((row) => ({ defect_code: row.defect_code, defect_name: row.defect_name, quantity: row.quantity }));
+}
+
+function buildLegacySnapshotDeductions(rows) {
+  return rows.map((row) => ({ deduction_code: row.deduction_code, deduction_name: row.deduction_name, hours: row.hours }));
+}
+
+function buildLegacyApprovedSnapshotPayload(item, approvedReportId, snapshotDefects, snapshotDeductions, machineLines) {
+  return {
     report: {
       id: approvedReportId,
       source_temp_id: item.id,
@@ -321,11 +427,32 @@ async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, 
     defects: snapshotDefects,
     deductions: snapshotDeductions,
     machineLines,
-  });
+  };
+}
 
-  await query(
-    connection,
-    `INSERT INTO production_report_snapshots
+function buildLegacySnapshotDefectsRead(approvedReportId) {
+  return {
+    sql: `SELECT dt.defect_code, dt.defect_name, d.quantity
+         FROM production_report_defects d
+         LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+        WHERE d.report_id=? ORDER BY d.id`,
+    params: [approvedReportId],
+  };
+}
+
+function buildLegacySnapshotDeductionsRead(approvedReportId) {
+  return {
+    sql: `SELECT dt.deduction_code, dt.deduction_name, d.hours
+         FROM production_report_deductions d
+         LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+        WHERE d.report_id=? ORDER BY d.id`,
+    params: [approvedReportId],
+  };
+}
+
+function buildLegacySnapshotInsert(item, approvedReportId, reviewerId, snapshotData) {
+  return {
+    sql: `INSERT INTO production_report_snapshots
       (report_id,snapshot_type,standard_version_id,calculation_version,snapshot_data,created_by)
      VALUES(?,'approved',?,'v1',?,?)
      ON DUPLICATE KEY UPDATE
@@ -333,34 +460,317 @@ async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, 
        standard_version_id=VALUES(standard_version_id),
        created_by=VALUES(created_by),
        created_at=CURRENT_TIMESTAMP`,
-    [approvedReportId, item.standard_version_id || null, snapshotData, reviewerId],
-  );
+    params: [approvedReportId, item.standard_version_id || null, snapshotData, reviewerId],
+  };
 }
 
-module.exports = {
-  async approveSelected(targets, reviewerId, isAdmin = false) {
-    assertReviewBatchSize(targets);
-    const normalizedTargets = Array.isArray(targets)
-      ? targets.map((item) => typeof item === "object" ? item : { id: item, expected_updated_at: null })
-      : [];
-    const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
-    if (!reportIds.length) throw new Error("Danh sách báo cáo không hợp lệ");
-    const expectedById = new Map(normalizedTargets.map((item) => [Number(item.id), item.expected_updated_at || null]));
-    const connection = await getConnection();
-    const postCommitNotifications = [];
-    const postCommitActivities = [];
-    const approvedIds = [];
-    const dates = new Set();
+async function readLegacySnapshotRows(connection, { sql, params }) {
+  return qRows(connection, sql, params);
+}
 
-    try {
-      await beginTransaction(connection);
-      const placeholders = reportIds.map(() => "?").join(",");
-      const scopeJoin = isAdmin ? "" : "LEFT JOIN manager_processes mp ON mp.process_id = temp.process_id";
-      const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";
-      const params = isAdmin ? reportIds : [...reportIds, reviewerId];
-      const rows = await query(
-        connection,
-        `SELECT DISTINCT temp.*, w.user_id AS worker_user_id,
+async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection, preloaded = {}) {
+  const preloadedMachineLines = preloaded.machineLines || null;
+  // TiDB Serverless transaction connections must not run concurrent queries.
+  // Keep these snapshot reads sequential on the same transaction connection.
+  const snapshotDefects = preloaded.defects
+    ? buildLegacySnapshotDefects(preloaded.defects)
+    : await readLegacySnapshotRows(connection, buildLegacySnapshotDefectsRead(approvedReportId));
+  const snapshotDeductions = preloaded.deductions
+    ? buildLegacySnapshotDeductions(preloaded.deductions)
+    : await readLegacySnapshotRows(connection, buildLegacySnapshotDeductionsRead(approvedReportId));
+  const machineLines = Array.isArray(preloadedMachineLines)
+    ? preloadedMachineLines
+    : await readLegacySnapshotRows(connection, buildApprovedMachineLinesRead(approvedReportId));
+  const snapshotData = JSON.stringify(buildLegacyApprovedSnapshotPayload(item, approvedReportId, snapshotDefects, snapshotDeductions, machineLines));
+  const { sql: snapshotSql, params: snapshotParams } = buildLegacySnapshotInsert(item, approvedReportId, reviewerId, snapshotData);
+  await query(connection, snapshotSql, snapshotParams);
+}
+
+// Preserve the positional values of the approved-report INSERT (approved_at remains NOW()).
+function buildApprovedReportInsertValues(item, reviewerId) {
+  return [
+            item.id,item.worker_id,item.process_id,item.work_date,item.entry_date || item.work_date,item.shift,
+            item.operation_type ?? null,item.operation_mode ?? null,item.machine_no,item.product_name,
+            item.total_time,item.actual_time,item.deduction_time,item.standard_output,item.standard_version_id || null,
+            item.machine_standard_id || null,item.training_percent_snapshot ?? null,
+            item.actual_output,item.tt_ok,item.tt_ng,item.kqd_dap_lai,item.kqd_tuot,item.vo_do_long,item.xuoc_do_long,
+            item.cong_gay,item.xoay,item.khong_dut,item.bavia_hut,item.ppcm,item.loi_cao_su,item.ng_kich_thuoc,
+            item.cat_lem,item.note,serializeExtraData(item.extra_data),"approved",item.review_note,reviewerId,
+  ];
+}
+
+// Keep input normalization and duplicate-ID precedence identical to approval's original path.
+function buildApprovalSelection(targets) {
+  const normalizedTargets = Array.isArray(targets)
+    ? targets.map((item) => item !== null && typeof item === "object" ? item : { id: item, expected_updated_at: null })
+    : [];
+  const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
+  if (!reportIds.length || normalizedTargets.some((item) =>
+    (typeof item.id !== "number" && (typeof item.id !== "string" || !/^[0-9]+$/.test(item.id)))
+    || !Number.isSafeInteger(Number(item.id)) || Number(item.id) <= 0)) {
+    throw new Error("Danh sách báo cáo không hợp lệ");
+  }
+  const expectedById = new Map();
+  for (const item of normalizedTargets) {
+    const id = Number(item.id);
+    const supplied = item.expected_updated_at;
+    const expected = supplied == null || supplied === "" ? null : supplied;
+    // A supplied version must be a date/string, not a coerced number, boolean or array.
+    if (expected !== null && !(typeof expected === "string" || expected instanceof Date)) {
+      throw createTempReportVersionConflictError(id);
+    }
+    // Invalid timestamps must not silently disable the optimistic concurrency check (NaN !== NaN).
+    if (expected !== null && !Number.isFinite(new Date(expected).getTime())) {
+      throw createTempReportVersionConflictError(id);
+    }
+    // Missing duplicate timestamps cannot clear a guard; conflicting guards must fail closed.
+    const previous = expectedById.get(id);
+    if (previous && expected && new Date(previous).getTime() !== new Date(expected).getTime()) {
+      throw createTempReportVersionConflictError(id);
+    }
+    if (expected || !expectedById.has(id)) expectedById.set(id, expected);
+  }
+  return { reportIds, expectedById };
+}
+
+function createApprovalSelectionStaleError(reportIds, missingIds) {
+  const error = new Error(
+    "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
+  );
+  error.status = 409;
+  error.code = "APPROVAL_SELECTION_STALE";
+  error.isPublic = true;
+  error.details = { requested_ids: reportIds, missing_ids: missingIds };
+  return error;
+}
+
+function createTempReportVersionConflictError(reportId) {
+  const error = new Error(`Báo cáo #${reportId} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
+  error.status = 409;
+  error.code = "TEMP_REPORT_VERSION_CONFLICT";
+  error.isPublic = true;
+  return error;
+}
+
+function assertApprovalSelectionVisible(rows, reportIds) {
+  const visibleIds = new Set(rows.map((row) => Number(row.id)));
+  const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
+  if (rows.length !== reportIds.length || visibleIds.size !== rows.length || missingIds.length) {
+    throw createApprovalSelectionStaleError(reportIds, missingIds);
+  }
+}
+
+function assertApprovalSelectionVersions(rows, expectedById) {
+  for (const row of rows) {
+    const expected = expectedById.get(Number(row.id));
+    if (expected && (!Number.isFinite(new Date(row.updated_at).getTime())
+      || new Date(expected).getTime() !== new Date(row.updated_at).getTime())) {
+      throw createTempReportVersionConflictError(row.id);
+    }
+  }
+}
+
+// Keep rejection's optimistic version condition and positional SQL parameters paired.
+function buildRejectedReportUpdate(row, expected, cleanReason, reviewerId) {
+  const sql = expected
+    ? `UPDATE production_reports_temp
+                SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW()
+              WHERE id=? AND status IN ('pending','need_fix') AND updated_at=?`
+    : `UPDATE production_reports_temp
+                SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW()
+              WHERE id=? AND status IN ('pending','need_fix')`;
+  const params = expected
+    ? [cleanReason,reviewerId,row.id,expected]
+    : [cleanReason,reviewerId,row.id];
+  return { sql, params };
+}
+
+function buildRejectedReportVersion(row, rejectedSnapshot, cleanReason, reviewerId) {
+  return {
+    reportType:"temp",reportId:row.id,snapshot:rejectedSnapshot,
+    reason:`Bị từ chối: ${cleanReason}`,userId:reviewerId,
+  };
+}
+
+function buildRejectedReportActivity(row, cleanReason, reviewerId) {
+  return {
+    userId: reviewerId,
+    action: "REPORT_REJECTED",
+    entityType: "temp_report",
+    entityId: row.id,
+    description: `Từ chối báo cáo #${row.id}: ${cleanReason}`,
+    metadata: { reason: cleanReason, worker_id: row.worker_id, process_id: row.process_id },
+  };
+}
+
+function buildRejectedReportNotification(row, cleanReason) {
+  return {
+    userIds:[row.worker_user_id],
+    payload:{
+      type:"report_rejected",title:"Báo cáo đã bị từ chối",
+      message:`Báo cáo ngày ${toDateKey(row.work_date)}, ca ${row.shift || "-"} bị từ chối: ${cleanReason}`,
+      linkUrl:`/worker/history/${row.id}?source=pending`,entityType:"temp_report",entityId:row.id,
+    },
+  };
+}
+
+function getApprovedWorkDate(item) {
+  return item.work_date instanceof Date
+    ? `${item.work_date.getFullYear()}-${String(item.work_date.getMonth()+1).padStart(2,"0")}-${String(item.work_date.getDate()).padStart(2,"0")}`
+    : String(item.work_date).slice(0,10);
+}
+
+function byApprovedTypeThenId(key) {
+  return (a, b) => (Number(a[key] ?? -Infinity) - Number(b[key] ?? -Infinity)) || (Number(a.id) - Number(b.id));
+}
+
+function buildApprovedVersionPreloaded(machineLines, defects, deductions) {
+  return {
+    machineLines,
+    defects: [...defects].sort(byApprovedTypeThenId("defect_type_id")).map((row) => ({ defect_type_id: row.defect_type_id, quantity: row.quantity })),
+    deductions: [...deductions].sort(byApprovedTypeThenId("deduction_type_id")).map((row) => ({ deduction_type_id: row.deduction_type_id, hours: row.hours })),
+  };
+}
+
+function buildApprovedPostCommitActivities(item, approvedReportId, reviewerId) {
+  return [
+    {
+      userId: reviewerId,
+      action: "REPORT_APPROVED",
+      entityType: "temp_report",
+      entityId: item.id,
+      description: `Duyệt báo cáo thành công #${approvedReportId}`,
+      metadata: { approved_report_id: approvedReportId },
+    },
+    {
+      userId: reviewerId,
+      action: "REPORT_CREATED",
+      entityType: "approved_report",
+      entityId: approvedReportId,
+      description: `Tạo báo cáo đã duyệt từ #${item.id}`,
+      metadata: { temp_report_id: item.id },
+    },
+    {
+      userId: reviewerId,
+      action: "REPORT_APPROVED",
+      entityType: "approved_report",
+      entityId: approvedReportId,
+      description: `Duyệt báo cáo #${item.id} thành báo cáo đã duyệt #${approvedReportId}`,
+      metadata: {
+        temp_report_id: item.id,
+        approved_report_id: approvedReportId,
+        worker_id: item.worker_id,
+        process_id: item.process_id,
+        work_date: item.work_date,
+        shift: item.shift,
+      },
+    },
+  ];
+}
+
+function buildApprovedPostCommitNotification(item, approvedReportId, workDate) {
+  return {
+    userIds:[item.worker_user_id],
+    payload:{
+      type:"report_approved",
+      title:"Báo cáo đã được duyệt",
+      message:`Báo cáo ngày ${workDate}, ca ${item.shift || "-"}, sản phẩm ${item.product_name || "-"} đã được duyệt.`,
+      linkUrl:`/worker/history/${approvedReportId}?source=approved`,
+      entityType:"approved_report",
+      entityId:approvedReportId,
+    },
+  };
+}
+
+async function rollbackReviewTransaction(connection, error) {
+  try {
+    const rollbackResult = await rollback(connection);
+    if (rollbackResult?.ok === false) {
+      error.rollbackError = rollbackResult.error;
+      console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackResult.error?.message || rollbackResult.error}`);
+    }
+  } catch (rollbackError) {
+    // Never replace the original approval/rejection failure with a rollback failure.
+    error.rollbackError = rollbackError;
+    console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackError?.message || rollbackError}`);
+  }
+}
+
+function createReviewTransitionConflictError(reportId, code) {
+  const error = new Error(`Báo cáo #${reportId} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
+  error.status = 409;
+  error.code = code;
+  error.isPublic = true;
+  return error;
+}
+
+function hasExactlyOneAffectedRow(result) {
+  return Number(result?.affectedRows || 0) === 1;
+}
+
+function assertApprovedTempTransition(statusUpdate, item) {
+  if (!hasExactlyOneAffectedRow(statusUpdate)) {
+    throw createReviewTransitionConflictError(item.id, "APPROVAL_SELECTION_STALE");
+  }
+}
+
+function buildApprovedTempSnapshotOptions(item, tempLinesCache) {
+  return tempLinesCache.has(Number(item.id))
+    ? { machineLines: tempLinesCache.get(Number(item.id)) }
+    : null;
+}
+
+function buildApprovedTempReportVersion(item, approvedReportId, reviewerId, approvedTempSnapshot) {
+  return {
+    reportType:"temp",
+    reportId:item.id,
+    snapshot:approvedTempSnapshot,
+    reason:`Được duyệt thành báo cáo chính thức #${approvedReportId}`,
+    userId:reviewerId,
+  };
+}
+
+function buildApprovalBatchResult(rows, approvedIds, dates) {
+  return {
+    count: rows.length,
+    temp_ids: rows.map((row) => row.id),
+    approved_ids: approvedIds,
+    dates: [...dates],
+  };
+}
+
+function assertRejectedTempTransition(updateResult, row) {
+  if (!hasExactlyOneAffectedRow(updateResult)) {
+    throw createReviewTransitionConflictError(row.id, "TEMP_REPORT_VERSION_CONFLICT");
+  }
+}
+
+function buildRejectionBatchResult(rows) {
+  return {count:rows.length,ids:rows.map((row)=>row.id)};
+}
+
+async function deliverRejectedPostCommitNotifications(notifications) {
+  for (const notification of notifications) {
+    try { await AuditService.notifyUsers(notification.userIds,notification.payload); }
+    catch (error) { console.warn(`[KTC] Post-commit rejection notification failed: ${error.message}`); }
+  }
+}
+
+async function deliverApprovedPostCommitNotifications(notifications) {
+  try {
+    await AuditService.notifyBatch(notifications);
+  } catch (error) {
+    console.warn(`[KTC] Post-commit approval notification batch failed: ${error.message}`);
+  }
+}
+
+function buildApprovalScopeQuery(reportIds, reviewerId, isAdmin) {
+  const placeholders = reportIds.map(() => "?").join(",");
+  const scopeJoin = isAdmin ? "" : "LEFT JOIN manager_processes mp ON mp.process_id = temp.process_id";
+  const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";
+  const params = isAdmin ? reportIds : [...reportIds, reviewerId];
+  return {
+    sql: `SELECT DISTINCT temp.*, w.user_id AS worker_user_id,
                 (SELECT p.process_code FROM processes p WHERE p.id=temp.process_id LIMIT 1) AS process_code
            FROM production_reports_temp temp
            JOIN workers w ON w.id=temp.worker_id
@@ -370,31 +780,206 @@ module.exports = {
             ${scopeWhere}
           ORDER BY temp.id ASC
           FOR UPDATE`,
-        params,
-      );
-      if (rows.length !== reportIds.length) {
-        const visibleIds = new Set(rows.map((row) => Number(row.id)));
-        const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
-        const error = new Error(
-          "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
-        );
-        error.status = 409;
-        error.code = "APPROVAL_SELECTION_STALE";
-        error.isPublic = true; // the "reload the list" guidance must reach the user in production too
-        error.details = { requested_ids: reportIds, missing_ids: missingIds };
-        throw error;
-      }
+    params,
+  };
+}
 
-      for (const row of rows) {
-        const expected = expectedById.get(Number(row.id));
-        if (expected && new Date(expected).getTime() !== new Date(row.updated_at).getTime()) {
-          const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
-          error.status = 409;
-          error.code = "TEMP_REPORT_VERSION_CONFLICT";
-          error.isPublic = true;
-          throw error;
-        }
-      }
+function buildRejectionScopeQuery(reportIds, reviewerId, isAdmin) {
+  const placeholders = reportIds.map(() => "?").join(",");
+  const scopeJoin = isAdmin ? "" : "JOIN manager_processes mp ON mp.process_id=temp.process_id";
+  const scopeWhere = isAdmin ? "" : "AND mp.manager_id=?";
+  const params = isAdmin ? [...reportIds] : [...reportIds,reviewerId];
+  return {
+    sql: `SELECT DISTINCT temp.id,temp.worker_id,temp.process_id,temp.work_date,temp.shift,temp.updated_at,
+                w.user_id AS worker_user_id
+           FROM production_reports_temp temp
+           JOIN workers w ON w.id=temp.worker_id
+           ${scopeJoin}
+          WHERE temp.id IN (${placeholders})
+            AND temp.status IN ('pending','need_fix')
+            ${scopeWhere}
+          ORDER BY temp.id ASC
+          FOR UPDATE`,
+    params,
+  };
+}
+
+function buildTempMachineLineDefectsQuery(lines) {
+  const ids = lines.map((line) => {
+    const rawId = line?.id;
+    const id = Number(rawId);
+    if ((typeof rawId !== "number" && (typeof rawId !== "string" || !/^[0-9]+$/.test(rawId)))
+      || !Number.isSafeInteger(id) || id <= 0) {
+      const error = new Error("Dòng máy tạm có ID không hợp lệ; đã hủy duyệt để bảo vệ dữ liệu");
+      error.status = 500;
+      error.code = "TEMP_MACHINE_LINE_INVALID_ID";
+      error.isPublic = true;
+      throw error;
+    }
+    return id;
+  });
+  if (new Set(ids).size !== ids.length) {
+    const error = new Error("Dòng máy tạm có ID trùng lặp; đã hủy duyệt để bảo vệ dữ liệu");
+    error.status = 500;
+    error.code = "TEMP_MACHINE_LINE_DUPLICATE_ID";
+    error.isPublic = true;
+    throw error;
+  }
+  return {
+    sql: `SELECT *
+       FROM production_temp_machine_defects
+      WHERE machine_line_id IN (${ids.map(() => "?").join(",")})
+      ORDER BY machine_line_id ASC, id ASC`,
+    params: ids,
+  };
+}
+
+function buildApprovedMachineDefectsInsert(pendingDefects) {
+  return {
+    sql: `INSERT INTO production_report_machine_defects
+       (machine_line_id,defect_type_id,defect_code,defect_name,quantity)
+       VALUES ${pendingDefects.map(() => "(?,?,?,?,?)").join(",")}`,
+    params: pendingDefects.flat(),
+  };
+}
+
+function buildApprovedMachineLinesInsert(tempLines, approvedReportId) {
+  const columns = `report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
+        machine_time_hours,standard_output,standard_time_seconds,standard_source,ok_quantity,ng_quantity,
+        maximum_output,deduction_time_hours,deductions_json,counted_output,earned_standard_hours,defects_json,sort_order`;
+  const rowPlaceholder = `(${new Array(21).fill("?").join(",")})`;
+  return {
+    sql: `INSERT INTO production_report_machine_lines (${columns}) VALUES ${tempLines.map(() => rowPlaceholder).join(",")}`,
+    params: buildApprovedMachineLineValues(tempLines, approvedReportId),
+  };
+}
+
+function buildApprovedMachineLinesRead(approvedReportId) {
+  return {
+    sql: `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
+    params: [approvedReportId],
+  };
+}
+
+function buildApprovedDetailCopyQuery(kind, approvedReportId, tempReportId) {
+  if (kind === "defects") {
+    return {
+      sql: `INSERT INTO production_report_defects (report_id,defect_type_id,quantity)
+           SELECT ?,defect_type_id,quantity FROM production_temp_defects WHERE temp_report_id=?`,
+      params: [approvedReportId, tempReportId],
+    };
+  }
+  if (kind === "deductions") {
+    return {
+      sql: `INSERT INTO production_report_deductions (report_id,deduction_type_id,hours)
+           SELECT ?,deduction_type_id,hours FROM production_temp_deductions WHERE temp_report_id=?`,
+      params: [approvedReportId, tempReportId],
+    };
+  }
+  throw new Error("Unsupported approved detail kind");
+}
+
+function buildApprovedDetailReadQuery(kind, approvedReportId) {
+  if (kind === "defects") {
+    return {
+      sql: `SELECT d.id, d.defect_type_id, dt.defect_code, dt.defect_name, d.quantity
+             FROM production_report_defects d
+             LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+            WHERE d.report_id=? ORDER BY d.id`,
+      params: [approvedReportId],
+    };
+  }
+  if (kind === "deductions") {
+    return {
+      sql: `SELECT d.id, d.deduction_type_id, dt.deduction_code, dt.deduction_name, d.hours
+             FROM production_report_deductions d
+             LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+            WHERE d.report_id=? ORDER BY d.id`,
+      params: [approvedReportId],
+    };
+  }
+  throw new Error("Unsupported approved detail kind");
+}
+
+function buildApprovedVersionRequest(item, approvedReportId, reviewerId, machineLines, defects, deductions) {
+  return {
+    reportId: approvedReportId,
+    reason: `Tạo từ báo cáo tạm #${item.id}`,
+    userId: reviewerId,
+    preloaded: buildApprovedVersionPreloaded(machineLines, defects, deductions),
+  };
+}
+
+function buildApprovedParentInsertQuery(item, reviewerId) {
+  return {
+    sql: `INSERT INTO production_reports
+           (source_temp_id,worker_id,process_id,work_date,entry_date,shift,operation_type,operation_mode,machine_no,
+            product_name,total_time,actual_time,deduction_time,standard_output,standard_version_id,machine_standard_id,
+            training_percent_snapshot,actual_output,tt_ok,tt_ng,kqd_dap_lai,kqd_tuot,
+            vo_do_long,xuoc_do_long,cong_gay,xoay,khong_dut,bavia_hut,ppcm,loi_cao_su,ng_kich_thuoc,cat_lem,note,
+            extra_data,status,review_note,reviewed_by,approved_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
+    params: buildApprovedReportInsertValues(item, reviewerId),
+  };
+}
+
+function buildApprovedTempTransitionQuery(item, reviewerId) {
+  return {
+    sql: `UPDATE production_reports_temp
+              SET status='approved',reviewed_by=?,approved_at=NOW(),updated_at=NOW()
+            WHERE id=? AND status IN ('pending','need_fix') AND updated_at=?`,
+    params: [reviewerId, item.id, item.updated_at],
+  };
+}
+
+async function copyApprovedReportDetails(connection, approvedReportId, tempReportId) {
+  const { sql: defectsCopySql, params: defectsCopyParams } = buildApprovedDetailCopyQuery("defects", approvedReportId, tempReportId);
+  await query(connection, defectsCopySql, defectsCopyParams);
+  const { sql: deductionsCopySql, params: deductionsCopyParams } = buildApprovedDetailCopyQuery("deductions", approvedReportId, tempReportId);
+  await query(connection, deductionsCopySql, deductionsCopyParams);
+  // Sequential reads share the same TiDB transaction connection and serve both snapshot formats.
+  const { sql: defectsReadSql, params: defectsReadParams } = buildApprovedDetailReadQuery("defects", approvedReportId);
+  const approvedDefects = await qRows(connection, defectsReadSql, defectsReadParams);
+  const { sql: deductionsReadSql, params: deductionsReadParams } = buildApprovedDetailReadQuery("deductions", approvedReportId);
+  const approvedDeductions = await qRows(connection, deductionsReadSql, deductionsReadParams);
+  return { approvedDefects, approvedDeductions };
+}
+
+async function recordApprovedTempVersion(item, approvedReportId, reviewerId, connection, tempLinesCache) {
+  const approvedTempSnapshot = await AuditService.loadTempReportSnapshot(
+    item.id,
+    connection,
+    buildApprovedTempSnapshotOptions(item, tempLinesCache),
+  );
+  if (approvedTempSnapshot) {
+    await AuditService.createReportVersion(buildApprovedTempReportVersion(item, approvedReportId, reviewerId, approvedTempSnapshot), connection);
+  }
+}
+
+async function recordRejectedTempVersion(row, cleanReason, reviewerId, connection) {
+  const rejectedSnapshot = await AuditService.loadTempReportSnapshot(row.id, connection);
+  if (rejectedSnapshot) {
+    await AuditService.createReportVersion(buildRejectedReportVersion(row, rejectedSnapshot, cleanReason, reviewerId), connection);
+  }
+}
+
+module.exports = {
+  async approveSelected(targets, reviewerId, isAdmin = false, options = {}) {
+    assertReviewBatchSize(targets);
+    const { reportIds, expectedById } = buildApprovalSelection(targets);
+    const connection = options.connection || await getConnection();
+    const ownsTransaction = !options.connection;
+    const postCommitNotifications = [];
+    const postCommitActivities = [];
+    const approvedIds = [];
+    const dates = new Set();
+
+    try {
+      if (ownsTransaction) await beginTransaction(connection);
+      const { sql: selectionSql, params: selectionParams } = buildApprovalScopeQuery(reportIds, reviewerId, isAdmin);
+      const rows = await query(connection, selectionSql, selectionParams);
+      assertApprovalSelectionVisible(rows, reportIds);
+      assertApprovalSelectionVersions(rows, expectedById);
 
       const standardResolver = createStandardResolver({
         query: (sql, params = []) => qRows(connection, sql, params),
@@ -404,288 +989,95 @@ module.exports = {
       for (const item of rows) {
         await validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache);
 
-        const insertResult = await query(
-          connection,
-          `INSERT INTO production_reports
-           (source_temp_id,worker_id,process_id,work_date,entry_date,shift,operation_type,operation_mode,machine_no,
-            product_name,total_time,actual_time,deduction_time,standard_output,standard_version_id,machine_standard_id,
-            training_percent_snapshot,actual_output,tt_ok,tt_ng,kqd_dap_lai,kqd_tuot,
-            vo_do_long,xuoc_do_long,cong_gay,xoay,khong_dut,bavia_hut,ppcm,loi_cao_su,ng_kich_thuoc,cat_lem,note,
-            extra_data,status,review_note,reviewed_by,approved_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
-          [
-            item.id,item.worker_id,item.process_id,item.work_date,item.entry_date || item.work_date,item.shift,
-            item.operation_type ?? null,item.operation_mode ?? null,item.machine_no,item.product_name,
-            item.total_time,item.actual_time,item.deduction_time,item.standard_output,item.standard_version_id || null,
-            item.machine_standard_id || null,item.training_percent_snapshot ?? null,
-            item.actual_output,item.tt_ok,item.tt_ng,item.kqd_dap_lai,item.kqd_tuot,item.vo_do_long,item.xuoc_do_long,
-            item.cong_gay,item.xoay,item.khong_dut,item.bavia_hut,item.ppcm,item.loi_cao_su,item.ng_kich_thuoc,
-            item.cat_lem,item.note,serializeExtraData(item.extra_data),"approved",item.review_note,reviewerId,
-          ],
-        );
+        const { sql: parentInsertSql, params: parentInsertParams } = buildApprovedParentInsertQuery(item, reviewerId);
+        const insertResult = await query(connection, parentInsertSql, parentInsertParams);
         const approvedReportId = Number(insertResult.insertId);
+        if (!Number.isSafeInteger(approvedReportId) || approvedReportId <= 0) {
+          const error = new Error(`Không xác nhận được ID báo cáo đã duyệt cho báo cáo tạm #${item.id}; đã hủy duyệt để bảo vệ dữ liệu`);
+          error.status = 500;
+          error.code = "APPROVED_PARENT_INSERT_ID_INVALID";
+          error.isPublic = true;
+          throw error;
+        }
         approvedIds.push(approvedReportId);
 
-        const workDate = item.work_date instanceof Date
-          ? `${item.work_date.getFullYear()}-${String(item.work_date.getMonth()+1).padStart(2,"0")}-${String(item.work_date.getDate()).padStart(2,"0")}`
-          : String(item.work_date).slice(0,10);
+        const workDate = getApprovedWorkDate(item);
         dates.add(workDate);
 
-        await query(
-          connection,
-          `INSERT INTO production_report_defects (report_id,defect_type_id,quantity)
-           SELECT ?,defect_type_id,quantity FROM production_temp_defects WHERE temp_report_id=?`,
-          [approvedReportId,item.id],
-        );
-        await query(
-          connection,
-          `INSERT INTO production_report_deductions (report_id,deduction_type_id,hours)
-           SELECT ?,deduction_type_id,hours FROM production_temp_deductions WHERE temp_report_id=?`,
-          [approvedReportId,item.id],
-        );
-        // One read of the approved defects/deductions serves both the legacy snapshot (name columns, id order)
-        // and the approved version (type id + value, ordered by type id then id).
-        const approvedDefects = await qRows(
-          connection,
-          `SELECT d.id, d.defect_type_id, dt.defect_code, dt.defect_name, d.quantity
-             FROM production_report_defects d
-             LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
-            WHERE d.report_id=? ORDER BY d.id`,
-          [approvedReportId],
-        );
-        const approvedDeductions = await qRows(
-          connection,
-          `SELECT d.id, d.deduction_type_id, dt.deduction_code, dt.deduction_name, d.hours
-             FROM production_report_deductions d
-             LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
-            WHERE d.report_id=? ORDER BY d.id`,
-          [approvedReportId],
-        );
+        const { approvedDefects, approvedDeductions } = await copyApprovedReportDetails(connection, approvedReportId, item.id);
         const copied = await copyMachineLinesToApproved(item.id, approvedReportId, connection, tempLinesCache.get(Number(item.id)) || null);
         // Without machine lines nothing was inserted, so an empty array is the correct "just read" result.
         const approvedMachineLines = copied.rows;
-        const byTypeThenId = (key) => (a, b) => (Number(a[key] ?? -Infinity) - Number(b[key] ?? -Infinity)) || (Number(a.id) - Number(b.id));
         await createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection, {
           machineLines: approvedMachineLines,
           defects: approvedDefects,
           deductions: approvedDeductions,
         });
         await createApprovedReportVersion(
-          {
-            reportId: approvedReportId,
-            reason: `Tạo từ báo cáo tạm #${item.id}`,
-            userId: reviewerId,
-            preloaded: {
-              machineLines: approvedMachineLines,
-              defects: [...approvedDefects].sort(byTypeThenId("defect_type_id")).map((row) => ({ defect_type_id: row.defect_type_id, quantity: row.quantity })),
-              deductions: [...approvedDeductions].sort(byTypeThenId("deduction_type_id")).map((row) => ({ deduction_type_id: row.deduction_type_id, hours: row.hours })),
-            },
-          },
+          buildApprovedVersionRequest(item, approvedReportId, reviewerId, approvedMachineLines, approvedDefects, approvedDeductions),
           connection,
         );
 
-        postCommitActivities.push(
-          {
-            userId: reviewerId,
-            action: "REPORT_APPROVED",
-            entityType: "temp_report",
-            entityId: item.id,
-            description: `Duyệt báo cáo thành công #${approvedReportId}`,
-            metadata: { approved_report_id: approvedReportId },
-          },
-          {
-            userId: reviewerId,
-            action: "REPORT_CREATED",
-            entityType: "approved_report",
-            entityId: approvedReportId,
-            description: `Tạo báo cáo đã duyệt từ #${item.id}`,
-            metadata: { temp_report_id: item.id },
-          },
-          {
-            userId: reviewerId,
-            action: "REPORT_APPROVED",
-            entityType: "approved_report",
-            entityId: approvedReportId,
-            description: `Duyệt báo cáo #${item.id} thành báo cáo đã duyệt #${approvedReportId}`,
-            metadata: {
-              temp_report_id: item.id,
-              approved_report_id: approvedReportId,
-              worker_id: item.worker_id,
-              process_id: item.process_id,
-              work_date: item.work_date,
-              shift: item.shift,
-            },
-          },
-        );
+        postCommitActivities.push(...buildApprovedPostCommitActivities(item, approvedReportId, reviewerId));
 
-        await query(
-          connection,
-          `UPDATE production_reports_temp
-              SET status='approved',reviewed_by=?,approved_at=NOW(),updated_at=NOW()
-            WHERE id=?`,
-          [reviewerId,item.id],
-        );
+        // The final temp transition must succeed before committing the
+        // approved report, copied lines, snapshots and audit records.
+        // A lost status race must roll back the entire transaction.
+        const { sql: statusSql, params: statusParams } = buildApprovedTempTransitionQuery(item, reviewerId);
+        const statusUpdate = await query(connection, statusSql, statusParams);
+        assertApprovedTempTransition(statusUpdate, item);
 
-        const approvedTempSnapshot = await AuditService.loadTempReportSnapshot(
-          item.id,
-          connection,
-          tempLinesCache.has(Number(item.id)) ? { machineLines: tempLinesCache.get(Number(item.id)) } : null,
-        );
-        if (approvedTempSnapshot) {
-          await AuditService.createReportVersion({
-            reportType:"temp",
-            reportId:item.id,
-            snapshot:approvedTempSnapshot,
-            reason:`Được duyệt thành báo cáo chính thức #${approvedReportId}`,
-            userId:reviewerId,
-          }, connection);
-        }
+        await recordApprovedTempVersion(item, approvedReportId, reviewerId, connection, tempLinesCache);
 
-        postCommitNotifications.push({
-          userIds:[item.worker_user_id],
-          payload:{
-            type:"report_approved",
-            title:"Báo cáo đã được duyệt",
-            message:`Báo cáo ngày ${workDate}, ca ${item.shift || "-"}, sản phẩm ${item.product_name || "-"} đã được duyệt.`,
-            linkUrl:`/worker/history/${approvedReportId}?source=approved`,
-            entityType:"approved_report",
-            entityId:approvedReportId,
-          },
-        });
+        postCommitNotifications.push(buildApprovedPostCommitNotification(item, approvedReportId, workDate));
       }
 
       await AuditService.logActivities(postCommitActivities, connection);
-      await commit(connection);
-      try {
-        await AuditService.notifyBatch(postCommitNotifications);
-      } catch (error) {
-        console.warn(`[KTC] Post-commit approval notification batch failed: ${error.message}`);
+      if (ownsTransaction) {
+        await commit(connection);
+        await deliverApprovedPostCommitNotifications(postCommitNotifications);
+      } else if (Array.isArray(options.postCommitCallbacks)) {
+        options.postCommitCallbacks.push(() => deliverApprovedPostCommitNotifications(postCommitNotifications));
+      } else {
+        throw new Error('Shared approval transaction requires postCommitCallbacks');
       }
-      return {
-        count: rows.length,
-        temp_ids: rows.map((row) => row.id),
-        approved_ids: approvedIds,
-        dates: [...dates],
-      };
+      return buildApprovalBatchResult(rows, approvedIds, dates);
     } catch (error) {
-      const rollbackResult = await rollback(connection);
-      if (rollbackResult?.ok === false) {
-        error.rollbackError = rollbackResult.error;
-        console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackResult.error?.message || rollbackResult.error}`);
-      }
+      if (ownsTransaction) await rollbackReviewTransaction(connection, error);
       throw error;
     } finally {
-      connection.release();
+      if (ownsTransaction) connection.release();
     }
   },
 
   async rejectSelected(targets, reviewerId, reason, isAdmin = false) {
     assertReviewBatchSize(targets);
-    const normalizedTargets = Array.isArray(targets)
-      ? targets.map((item) => typeof item === "object" ? item : { id:item, expected_updated_at:null })
-      : [];
-    const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
-    const expectedById = new Map(normalizedTargets.map((item) => [Number(item.id), item.expected_updated_at || null]));
+    const { reportIds, expectedById } = buildApprovalSelection(targets);
     const cleanReason = String(reason || "").trim();
-    if (!reportIds.length) throw new Error("Danh sách báo cáo không hợp lệ");
     if (!cleanReason) throw new Error("Vui lòng nhập lý do từ chối");
 
     const connection = await getConnection();
     const postCommitNotifications = [];
     try {
       await beginTransaction(connection);
-      const placeholders = reportIds.map(() => "?").join(",");
-      const scopeJoin = isAdmin ? "" : "JOIN manager_processes mp ON mp.process_id=temp.process_id";
-      const scopeWhere = isAdmin ? "" : "AND mp.manager_id=?";
-      const params = isAdmin ? [...reportIds] : [...reportIds,reviewerId];
-      const rows = await query(
-        connection,
-        `SELECT DISTINCT temp.id,temp.worker_id,temp.process_id,temp.work_date,temp.shift,temp.updated_at,
-                w.user_id AS worker_user_id
-           FROM production_reports_temp temp
-           JOIN workers w ON w.id=temp.worker_id
-           ${scopeJoin}
-          WHERE temp.id IN (${placeholders})
-            AND temp.status IN ('pending','need_fix')
-            ${scopeWhere}
-          ORDER BY temp.id ASC`,
-        params,
-      );
-      if (rows.length !== reportIds.length) {
-        const visibleIds = new Set(rows.map((row) => Number(row.id)));
-        const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
-        const error = new Error(
-          "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
-        );
-        error.status = 409;
-        error.code = "APPROVAL_SELECTION_STALE";
-        error.details = { requested_ids: reportIds, missing_ids: missingIds };
-        throw error;
-      }
+      const { sql: selectionSql, params: selectionParams } = buildRejectionScopeQuery(reportIds, reviewerId, isAdmin);
+      const rows = await query(connection, selectionSql, selectionParams);
+      assertApprovalSelectionVisible(rows, reportIds);
+      assertApprovalSelectionVersions(rows, expectedById);
       for (const row of rows) {
         const expected = expectedById.get(Number(row.id));
-        if (expected && new Date(expected).getTime() !== new Date(row.updated_at).getTime()) {
-          const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
-          error.status = 409;
-          error.code = "TEMP_REPORT_VERSION_CONFLICT";
-          throw error;
-        }
-      }
-      for (const row of rows) {
-        const expected = expectedById.get(Number(row.id));
-        const updateSql = expected
-          ? `UPDATE production_reports_temp
-                SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW()
-              WHERE id=? AND status IN ('pending','need_fix') AND updated_at=?`
-          : `UPDATE production_reports_temp
-                SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW()
-              WHERE id=? AND status IN ('pending','need_fix')`;
-        const updateParams = expected
-          ? [cleanReason,reviewerId,row.id,expected]
-          : [cleanReason,reviewerId,row.id];
+        const { sql: updateSql, params: updateParams } = buildRejectedReportUpdate(row, expected, cleanReason, reviewerId);
         const updateResult = await query(connection,updateSql,updateParams);
-        if (Number(updateResult?.affectedRows || 0) !== 1) {
-          const error = new Error(`Báo cáo #${row.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
-          error.status = 409;
-          error.code = "TEMP_REPORT_VERSION_CONFLICT";
-          throw error;
-        }
-        const rejectedSnapshot = await AuditService.loadTempReportSnapshot(row.id, connection);
-        if (rejectedSnapshot) {
-          await AuditService.createReportVersion({
-            reportType:"temp",reportId:row.id,snapshot:rejectedSnapshot,
-            reason:`Bị từ chối: ${cleanReason}`,userId:reviewerId,
-          },connection);
-        }
-        await AuditService.logActivity({
-          userId: reviewerId,
-          action: "REPORT_REJECTED",
-          entityType: "temp_report",
-          entityId: row.id,
-          description: `Từ chối báo cáo #${row.id}: ${cleanReason}`,
-          metadata: { reason: cleanReason, worker_id: row.worker_id, process_id: row.process_id },
-        }, connection);
-        postCommitNotifications.push({
-          userIds:[row.worker_user_id],
-          payload:{
-            type:"report_rejected",title:"Báo cáo đã bị từ chối",
-            message:`Báo cáo ngày ${toDateKey(row.work_date)}, ca ${row.shift || "-"} bị từ chối: ${cleanReason}`,
-            linkUrl:`/worker/history/${row.id}?source=pending`,entityType:"temp_report",entityId:row.id,
-          },
-        });
+        assertRejectedTempTransition(updateResult, row);
+        await recordRejectedTempVersion(row, cleanReason, reviewerId, connection);
+        await AuditService.logActivity(buildRejectedReportActivity(row, cleanReason, reviewerId), connection);
+        postCommitNotifications.push(buildRejectedReportNotification(row, cleanReason));
       }
       await commit(connection);
-      for (const notification of postCommitNotifications) {
-        try { await AuditService.notifyUsers(notification.userIds,notification.payload); }
-        catch (error) { console.warn(`[KTC] Post-commit rejection notification failed: ${error.message}`); }
-      }
-      return {count:rows.length,ids:rows.map((row)=>row.id)};
+      await deliverRejectedPostCommitNotifications(postCommitNotifications);
+      return buildRejectionBatchResult(rows);
     } catch (error) {
-      const rollbackResult = await rollback(connection);
-      if (rollbackResult?.ok === false) {
-        error.rollbackError = rollbackResult.error;
-        console.error(`[KTC][APPROVAL_ROLLBACK_FAILED] ${rollbackResult.error?.message || rollbackResult.error}`);
-      }
+      await rollbackReviewTransaction(connection, error);
       throw error;
     } finally {
       connection.release();

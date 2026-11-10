@@ -15,8 +15,8 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   const model = read('backend/models/productStandardModel.js');
   const rules = read('frontend/src/pages/worker/productSuggestionRules.ts');
 
-  assert.match(service, /process_code:\s*processCode/);
-  assert.match(controller, /findByProcessCode\(processCode\)/);
+  assert.match(service, /params: \{ process_id: processId \}/);
+  assert.match(controller, /findByProcess\(processId\)/);
   assert.match(model, /p\.process_code/);
   assert.match(model, /ps\.work_type/);
   assert.match(domain, /returnedProcessCode === expectedProcessCode/);
@@ -39,4 +39,10 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   // The current master-data contract no longer depends on the obsolete
   // 2801-LT migration fixture. Lồng selection must remain source-driven.
   assert.doesNotMatch(rules, /2801-LT/);
+  // Product code prefixes are not authoritative for Cắt/Lồng. Trust the
+  // configured work_type, including master rows whose product code starts C.
+  assert.doesNotMatch(rules, /code\.startsWith\("C"\)/);
+  assert.doesNotMatch(controller, /LIKE 'C%'/);
+  assert.match(controller, /ps\.work_type/);
+  assert.match(rules, /normalizeWorkType\(product\.work_type\) === selectedMachineWorkType/);
 });

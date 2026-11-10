@@ -53,7 +53,7 @@ try {
 }
 
 const expectedTestApi = 'https://ktc-be-test.nan978971.workers.dev/api';
-const expectedProductionApi = 'https://ktc-be.nan978971.workers.dev/api';
+const expectedProductionApi = 'https://ktc-backend.nan978971.workers.dev/api';
 const testFrontendApi = envValue('frontend/.env.test', 'VITE_API_URL');
 const productionFrontendApi = envValue('frontend/.env.production', 'VITE_API_URL');
 const testProfileOk = Boolean(
@@ -71,7 +71,7 @@ const testProfileOk = Boolean(
   testBackendProfile?.environment === 'test'
 );
 const productionProfileOk = Boolean(
-  backendProduction.name === 'ktc-be' &&
+  backendProduction.name === 'ktc-backend' &&
   backendProduction.vars?.KTC_ENVIRONMENT === 'production' &&
   backendProduction.vars?.KTC_FRONTEND_ORIGIN === 'https://ktc-frontend.nan978971.workers.dev' &&
   backendProduction.vars?.KTC_RUN_MASTER_DATA_BOOTSTRAP === 'false' &&
@@ -80,7 +80,7 @@ const productionProfileOk = Boolean(
   frontendPackage.scripts?.['build:cloudflare:production']?.includes('--mode production') &&
   desktopProductionBuilder.extraMetadata?.ktcDeploymentEnvironment === 'production' &&
   desktopPackage.scripts?.['dist:win:production']?.includes('electron-builder.production.json') &&
-  /ktc-be\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
+  /ktc-backend\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   /ktc-frontend\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   productionBackendProfile?.environment === 'production'
 );
@@ -106,6 +106,18 @@ if (productionProfileOk) {
   checks.push({ id: 'PRODUCTION_ENVIRONMENT_PROFILE', status: 'PASS' });
 } else {
   add(blockers, 'PRODUCTION_ENVIRONMENT_PROFILE', 'Thiếu profile Cloudflare production rõ ràng cho FE, BE hoặc Desktop.', null);
+}
+
+const requiredCredentials = ['JWT_SECRET', 'DB_PASSWORD', 'TIDB_DATABASE_URL'];
+const declaresRequiredSecrets = [backendTest, backendProduction].every((config) =>
+  requiredCredentials.every((name) => config.secrets?.required?.includes(name)) &&
+  requiredCredentials.every((name) => !Object.hasOwn(config.vars || {}, name))
+);
+if (declaresRequiredSecrets) {
+  checks.push({ id: 'CLOUDFLARE_REQUIRED_SECRETS_DECLARED', status: 'PASS' });
+} else {
+  add(blockers, 'CLOUDFLARE_REQUIRED_SECRETS_MISSING',
+    'Wrangler TEST/production phải khai báo đủ tên credential bắt buộc trong secrets.required, không lưu giá trị trong vars.', requiredCredentials);
 }
 
 // Cloudflare secret values intentionally do not belong in Git. Their presence in the

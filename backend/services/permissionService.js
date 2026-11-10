@@ -1,4 +1,4 @@
-const db = require('../config/db');
+const getDb = () => require('../config/db'); // open the pool only when DB-backed permissions are used
 
 const PERMISSIONS = [
   ['DASHBOARD_VIEW','Tổng quan','dashboard'],
@@ -122,7 +122,7 @@ async function ensureSchemaAvailable() {
   // Missing override tables are a supported legacy-schema state: the metadata
   // query succeeds and returns a count below 2. A query/connection/privilege
   // error is different: do not silently ignore configured permission overrides.
-  const [rows] = await db.promise().query(`SELECT COUNT(*) total FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('role_permission_overrides','user_permission_overrides')`);
+  const [rows] = await getDb().promise().query(`SELECT COUNT(*) total FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('role_permission_overrides','user_permission_overrides')`);
   schemaAvailable = Number(rows?.[0]?.total || 0) === 2;
   return schemaAvailable;
 }
@@ -136,8 +136,8 @@ async function getEffectivePermissions(user) {
   const result = defaultSet(role);
   if (await ensureSchemaAvailable()) {
     const [roleRows, userRows] = await Promise.all([
-      db.promise().query('SELECT permission_code,allowed FROM role_permission_overrides WHERE role=?',[role]),
-      userId ? db.promise().query('SELECT permission_code,allowed FROM user_permission_overrides WHERE user_id=?',[userId]) : Promise.resolve([[]])
+      getDb().promise().query('SELECT permission_code,allowed FROM role_permission_overrides WHERE role=?',[role]),
+      userId ? getDb().promise().query('SELECT permission_code,allowed FROM user_permission_overrides WHERE user_id=?',[userId]) : Promise.resolve([[]])
     ]);
     // Precedence: Default Role → Role Override → User Override → Mandatory.
     for (const row of roleRows[0] || []) {
@@ -170,8 +170,8 @@ async function hasPermission(user, code) {
 async function getAdminMatrix() {
   const roles = ['admin','admin_ops','manager','lead','worker']; const roleOverrides = {}; const userOverrides = {};
   if (await ensureSchemaAvailable()) {
-    const [r] = await db.promise().query('SELECT role,permission_code,allowed FROM role_permission_overrides');
-    const [u] = await db.promise().query('SELECT user_id,permission_code,allowed FROM user_permission_overrides');
+    const [r] = await getDb().promise().query('SELECT role,permission_code,allowed FROM role_permission_overrides');
+    const [u] = await getDb().promise().query('SELECT user_id,permission_code,allowed FROM user_permission_overrides');
     for (const row of r) (roleOverrides[row.role] ||= {})[row.permission_code] = Boolean(row.allowed);
     for (const row of u) (userOverrides[row.user_id] ||= {})[row.permission_code] = Boolean(row.allowed);
   }
@@ -203,7 +203,7 @@ function assertOverrideAllowed(role, code, allowed) {
 const toOverrideState = (row) => (row ? Number(row.allowed) === 1 : null);
 
 async function writeOverride({ table, keyColumn, keyValue, code, allowed, audit }) {
-  const connection = await db.promise().getConnection();
+  const connection = await getDb().promise().getConnection();
   try {
     await connection.beginTransaction();
     const [beforeRows] = await connection.query(`SELECT allowed FROM ${table} WHERE ${keyColumn}=? AND permission_code=? LIMIT 1`, [keyValue, code]);
@@ -234,7 +234,7 @@ async function setUserPermission(userId, permissionCode, allowed, { audit } = {}
   if (!Number.isInteger(id) || id <= 0) throw permissionError(400, 'PERMISSION_USER_INVALID', 'User không hợp lệ');
   const code = normalizeCode(permissionCode);
   const value = normalizeOverrideValue(allowed);
-  const [userRows] = await db.promise().query('SELECT id,role FROM users WHERE id=? LIMIT 1', [id]);
+  const [userRows] = await getDb().promise().query('SELECT id,role FROM users WHERE id=? LIMIT 1', [id]);
   const targetRole = normalizeRole(userRows?.[0]?.role);
   if (!targetRole) throw permissionError(404, 'PERMISSION_USER_NOT_FOUND', 'User không tồn tại');
   assertOverrideAllowed(targetRole, code, value);

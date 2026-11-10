@@ -32,7 +32,7 @@ test('worker 429 preserves form and is not put into the offline mutation queue',
   const catchIndex = page.indexOf('} catch (error: any) {');
   const rateIndex = page.indexOf('=== 429', catchIndex);
   const transientIndex = page.indexOf('isTransientNetworkFailure(error)', catchIndex);
-  const enqueueIndex = page.indexOf('enqueueOfflineReport(payload)', catchIndex);
+  const enqueueIndex = page.indexOf('enqueueOfflineReports(payloads.slice(index))', catchIndex);
   assert.ok(rateIndex > catchIndex && rateIndex < transientIndex, '429 must be handled before transient/offline classification');
   assert.ok(enqueueIndex > transientIndex, 'offline queue must remain only on transient path');
   assert.match(page.slice(rateIndex, transientIndex), /showToast\([\s\S]*"warning"\)/);
@@ -51,7 +51,7 @@ test('duplicate confirmation is bound to the current form snapshot and synchrono
 test('manager pending flow keeps admin navigation inside the admin route family', () => {
   const reports = read('src/pages/manager/Reports.tsx');
   assert.match(reports, /currentUser\?\.role === "admin"[\s\S]{0,80}\? "\/admin"/);
-  assert.match(reports, /navigate\(`\$\{basePath\}\/report\/\$\{Number\(detail\.id\)\}\?source=pending`\)/);
+  assert.ok(reports.includes('navigate(`${basePath}/report/${approvedId}?source=pending`)'));
 });
 
 test('manager approve and reject mutations share a synchronous action lock', () => {

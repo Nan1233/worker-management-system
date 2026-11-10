@@ -1,6 +1,12 @@
 const mysql = require("mysql2");
 const dotenv = require("dotenv");
 
+const {
+  normalizeCloudflareResult,
+  normalizeNotificationBackfillQuery,
+  normalizeApprovedMachineEventQuery,
+} = require("./cloudflareTidbCompatibility.cjs");
+
 dotenv.config();
 
 const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === "true" || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
@@ -149,51 +155,6 @@ function splitQueryArgs(args) {
   return { sql: String(sql ?? ""), params: Array.isArray(params) ? params : params == null ? [] : [params], callback };
 }
 
-function normalizeCloudflareResult(result) {
-  if (result && typeof result === "object" && !Array.isArray(result)) {
-    if (Array.isArray(result.rows)) return [result.rows, result.fields || []];
-    return [{ affectedRows: Number(result.rowsAffected ?? 0), insertId: Number(result.lastInsertId ?? 0), changedRows: Number(result.rowsAffected ?? 0), warningStatus: 0 }, result.fields || []];
-  }
-  return [Array.isArray(result) ? result : [], []];
-}
-
-function normalizeNotificationBackfillQuery(sql, params) {
-  if (!/^\s*INSERT\s+INTO\s+notifications\b/i.test(sql) || !/\bSELECT\s+\?/i.test(sql)) return { sql, params };
-  let paramIndex = 0;
-  let quote = null;
-  let output = "";
-  for (let i = 0; i < sql.length; i += 1) {
-    const ch = sql[i];
-    if (quote) {
-      output += ch;
-      if (ch === quote) {
-        if (sql[i + 1] === quote) { output += sql[i + 1]; i += 1; }
-        else quote = null;
-      }
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === "`") { quote = ch; output += ch; continue; }
-    if (ch === "?" && paramIndex < params.length) {
-      const numeric = Number(params[paramIndex]);
-      if (!Number.isInteger(numeric) || numeric <= 0) return { sql, params };
-      output += String(numeric);
-      paramIndex += 1;
-      continue;
-    }
-    output += ch;
-  }
-  output = output.replace(/'\?source=approved'/g, "CONCAT(CHAR(63), 'source=approved')").replace(/'\?source=pending'/g, "CONCAT(CHAR(63), 'source=pending')");
-  return { sql: output, params: [] };
-}
-
-function normalizeApprovedMachineEventQuery(sql, params) {
-  if (!/FROM\s+machine_production_events\b/i.test(sql) || !/status\s*=\s*'approved'/i.test(sql)) return { sql, params };
-  if (!/UPPER\(TRIM\(machine_code\)\)\s*=\s*UPPER\(TRIM\(\?\)\)/i.test(sql)) return { sql, params };
-  const canonicalSql = "REGEXP_REPLACE(UPPER(TRIM(machine_code)), '^(MÁY|MAY|MACHINE|GC|G|M)\\s*[-_]?', '')";
-  const normalizedSql = sql.replace(/REPLACE\(REPLACE\(REPLACE\(UPPER\(TRIM\(machine_code\)\),' ',' '\),'-',''\),'_',''\)=\?/i, `${canonicalSql}=?`);
-  return { sql: normalizedSql, params };
-}
-
 function createCloudflareConnection() {
   if (typeof tidbConnect !== "function") throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
   const databaseUrl = getTidbDatabaseUrl();
@@ -251,7 +212,7 @@ function createCloudflareConnection() {
     const run = () => executeRaw(sql, params);
     const current = queryQueue.then(run, run);
     queryQueue = current.catch(() => {});
-    return normalizeCloudflareResult(await current);
+    return normalizeCloudflareResult(await current, sql);
   }
 
   const connection = {

@@ -66,12 +66,23 @@ function normalizeStoredItem(item: OfflineReportQueueItem): OfflineReportQueueIt
     return item;
 }
 
-function readAll(): OfflineReportQueueItem[] {
+function readAll(options: { failOnCorrupt?: boolean } = {}): OfflineReportQueueItem[] {
     try {
-        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as OfflineReportQueueItem[];
-        if (!Array.isArray(parsed)) return [];
-        return parsed.map(normalizeStoredItem).filter((item): item is OfflineReportQueueItem => Boolean(item));
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === null) return [];
+        const parsed = JSON.parse(stored) as OfflineReportQueueItem[];
+        if (!Array.isArray(parsed)) throw new Error("Offline queue is not an array");
+        const normalized = parsed.map(normalizeStoredItem).filter((item): item is OfflineReportQueueItem => Boolean(item));
+        if (options.failOnCorrupt && normalized.length !== parsed.length) {
+            throw new Error("Offline queue contains invalid items");
+        }
+        return normalized;
     } catch {
+        // Readers may show an empty state when storage is inaccessible, but
+        // writers MUST NOT overwrite a corrupt queue and destroy unsent reports.
+        if (options.failOnCorrupt) {
+            throw new Error("Dữ liệu báo cáo offline trên thiết bị đang lỗi. Không thể ghi đè vì có nguy cơ mất báo cáo chưa gửi.");
+        }
         return [];
     }
 }
@@ -148,7 +159,14 @@ export async function serverAlreadyHasQueuedReport(payload: ProductionReport): P
             work_type: payload.work_type,
             operation_type: payload.operation_type,
         });
-        return result?.duplicate && result?.data?.id ? "exists" : "absent";
+        // A similar report is not proof that THIS client_request_id was saved.
+        // Never discard a worker's unsent payload because another report has
+        // the same date, shift, machine and product.
+        const existingRequestId = String((result?.data as { client_request_id?: string } | null)?.client_request_id || "").trim();
+        const submittedRequestId = String(payload.client_request_id || "").trim();
+        return result?.duplicate && result?.data?.id
+            && existingRequestId && submittedRequestId && existingRequestId === submittedRequestId
+            ? "exists" : "absent";
     } catch (error) {
         return isTransientNetworkFailure(error) ? "unknown-transient" : "unknown-business";
     }
@@ -166,6 +184,7 @@ export function getCurrentOfflineQueueItems(): OfflineReportQueueItem[] {
 }
 
 let activeFlushPromise: Promise<{ sent: number; remaining: number }> | null = null;
+let activeFlushOwner: QueueOwner | null = null;
 
 export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQueueItem {
     const owner = currentOwner();
@@ -173,7 +192,7 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
     const clientRequestId = String(payload.client_request_id || "").trim();
     if (!clientRequestId) throw new Error("Báo cáo offline phải có client_request_id.");
 
-    const all = readAll();
+    const all = readAll({ failOnCorrupt: true });
     const existing = all.find((item) => ownerMatches(item.owner, owner) && item.payload.client_request_id === clientRequestId);
     if (existing) {
         void flushOfflineReportQueue();
@@ -201,6 +220,58 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
     return item;
 }
 
+/**
+ * Atomically stage a multi-machine submission. Capacity and request IDs are
+ * checked for the entire batch BEFORE a single localStorage write. A partial
+ * queue is never presented to the worker as a fully saved submission.
+ */
+export function enqueueOfflineReports(payloads: ProductionReport[]): OfflineReportQueueItem[] {
+    if (!payloads.length) return [];
+    const owner = currentOwner();
+    if (!owner) throw new Error("Không xác định được công nhân cho hàng đợi offline.");
+
+    const all = readAll({ failOnCorrupt: true });
+    const newlyQueued: OfflineReportQueueItem[] = [];
+    const result: OfflineReportQueueItem[] = [];
+    const known = new Map(
+        all.filter((item) => ownerMatches(item.owner, owner))
+            .map((item) => [String(item.payload.client_request_id || "").trim(), item] as const)
+    );
+
+    for (const payload of payloads) {
+        const requestId = String(payload.client_request_id || "").trim();
+        if (!requestId) throw new Error("Báo cáo offline phải có client_request_id.");
+        const existing = known.get(requestId);
+        if (existing) {
+            result.push(existing);
+            continue;
+        }
+        const item: OfflineReportQueueItem = {
+            id: crypto.randomUUID(),
+            owner,
+            createdAt: Date.now(),
+            attempts: 0,
+            status: "queued",
+            nextRetryAt: Date.now(),
+            payload
+        };
+        newlyQueued.push(item);
+        known.set(requestId, item);
+        result.push(item);
+    }
+
+    const mineCount = all.filter((item) => ownerMatches(item.owner, owner)).length;
+    if (mineCount + newlyQueued.length > MAX_ITEMS_PER_OWNER) {
+        throw new Error("Hàng đợi offline của công nhân không đủ chỗ cho toàn bộ báo cáo. Hãy đồng bộ trước khi lưu.");
+    }
+    if (all.length + newlyQueued.length > MAX_TOTAL_ITEMS) {
+        throw new Error("Thiết bị không đủ chỗ cho toàn bộ nhóm báo cáo offline. Chưa có báo cáo mới nào được lưu.");
+    }
+    if (newlyQueued.length) writeAll([...all, ...newlyQueued]);
+    void flushOfflineReportQueue();
+    return result;
+}
+
 export function getCurrentOfflineQueueCount(): number {
     const owner = currentOwner();
     if (!owner) return 0;
@@ -211,7 +282,7 @@ export function retryBlockedOfflineReport(id: string): boolean {
     const owner = currentOwner();
     if (!owner) return false;
     let changed = false;
-    const next = readAll().map((item) => {
+    const next = readAll({ failOnCorrupt: true }).map((item) => {
         if (item.id !== id || !ownerMatches(item.owner, owner)) return item;
         changed = true;
         return { ...item, status: "queued" as const, nextRetryAt: Date.now(), lastError: undefined };
@@ -223,7 +294,7 @@ export function retryBlockedOfflineReport(id: string): boolean {
 export function removeOfflineReport(id: string): boolean {
     const owner = currentOwner();
     if (!owner) return false;
-    const all = readAll();
+    const all = readAll({ failOnCorrupt: true });
     const next = all.filter((item) => item.id !== id || !ownerMatches(item.owner, owner));
     if (next.length === all.length) return false;
     writeAll(next);
@@ -237,14 +308,20 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
         return { sent: 0, remaining: 0 };
     }
 
-    const all = readAll();
+    const all = readAll({ failOnCorrupt: true });
     const mine = all.filter((item) => ownerMatches(item.owner, owner));
-    const others = all.filter((item) => !ownerMatches(item.owner, owner));
     const remaining: OfflineReportQueueItem[] = [];
+    const sameSignedInWorker = () => {
+        const current = currentOwner();
+        return current !== null && ownerMatches(current, owner);
+    };
     let sent = 0;
     const now = Date.now();
 
     for (let index = 0; index < mine.length; index += 1) {
+        // The login may have changed while a previous request was pending.
+        // Never send the next worker's payload under another account's token.
+        if (!sameSignedInWorker()) return { sent, remaining: getCurrentOfflineQueueCount() };
         const item = mine[index];
         if ((!force && item.status === "blocked") || (!force && Number(item.nextRetryAt || 0) > now)) {
             remaining.push(item);
@@ -252,11 +329,13 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
         }
         try {
             const result = await createTempReport(item.payload);
+            if (!sameSignedInWorker()) return { sent, remaining: getCurrentOfflineQueueCount() };
             if (result?.success === false) {
                 throw new Error(result.message || "Backend từ chối báo cáo chưa đồng bộ.");
             }
             sent += 1;
         } catch (error) {
+            if (!sameSignedInWorker()) return { sent, remaining: getCurrentOfflineQueueCount() };
             if (isAlreadyCreatedDuplicate(error, item.payload)) {
                 sent += 1;
                 continue;
@@ -268,6 +347,7 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
             let similarCheck: OfflineReportQueueItem["similarCheck"];
             if (status === 422) {
                 const outcome = await serverAlreadyHasQueuedReport(item.payload);
+                if (!sameSignedInWorker()) return { sent, remaining: getCurrentOfflineQueueCount() };
                 if (outcome === "exists") {
                     sent += 1;
                     continue;
@@ -316,14 +396,45 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
         }
     }
 
-    writeAll([...others, ...remaining]);
-    return { sent, remaining: remaining.length };
+    if (!sameSignedInWorker()) return { sent, remaining: getCurrentOfflineQueueCount() };
+
+    // Merge against CURRENT storage, not the snapshot taken before API awaits.
+    // Otherwise a new submission, another owner's queue or a manual removal
+    // during the flush can be silently overwritten or resurrected.
+    const originalIds = new Set(mine.map((item) => item.id));
+    const pendingById = new Map(remaining.map((item) => [item.id, item]));
+    const latest = readAll({ failOnCorrupt: true });
+    const merged: OfflineReportQueueItem[] = [];
+    for (const item of latest) {
+        if (!originalIds.has(item.id) || !ownerMatches(item.owner, owner)) {
+            merged.push(item);
+            continue;
+        }
+        const pending = pendingById.get(item.id);
+        if (pending) merged.push(pending);
+        // No pending entry means this exact request was confirmed by the API.
+    }
+    // Read/write stays synchronous after this account check; preserve records
+    // added while the original network request was in flight.
+    if (JSON.stringify(latest) !== JSON.stringify(merged)) writeAll(merged);
+    return { sent, remaining: merged.filter((item) => ownerMatches(item.owner, owner)).length };
 }
 
 export function flushOfflineReportQueue(options: { force?: boolean } = {}): Promise<{ sent: number; remaining: number }> {
-    if (activeFlushPromise) return activeFlushPromise;
+    const requestedOwner = currentOwner();
+    if (activeFlushPromise) {
+        // A new session must never receive A's in-flight result as if it were
+        // B's completed flush. Queue B's flush after the old session settles.
+        if (requestedOwner && activeFlushOwner && !ownerMatches(requestedOwner, activeFlushOwner)) {
+            return activeFlushPromise.catch(() => ({ sent: 0, remaining: 0 }))
+                .then(() => flushOfflineReportQueue(options));
+        }
+        return activeFlushPromise;
+    }
+    activeFlushOwner = requestedOwner;
     activeFlushPromise = flushOfflineReportQueueInternal(options).finally(() => {
         activeFlushPromise = null;
+        activeFlushOwner = null;
     });
     return activeFlushPromise;
 }

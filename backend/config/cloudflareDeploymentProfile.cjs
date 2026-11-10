@@ -53,12 +53,30 @@ function resolveCloudflareDeploymentProfile(env = process.env) {
     throw error;
   }
 
+  // Refuse to start a production Worker with test-mode Node behavior.
+  // A matching KTC_ENVIRONMENT alone does not prove NODE_ENV is safe.
+  const nodeEnvironment = String(env.NODE_ENV || '').trim().toLowerCase();
+  if (nodeEnvironment !== environment) {
+    const error = new Error('NODE_ENV must match KTC_ENVIRONMENT for Cloudflare Workers');
+    error.code = 'CLOUDFLARE_NODE_ENV_MISMATCH';
+    throw error;
+  }
+
+  // Master data must never be seeded by a production Worker, even if an
+  // account-side variable drifts from the reviewed Wrangler source profile.
+  const masterDataBootstrapEnabled = String(env.KTC_RUN_MASTER_DATA_BOOTSTRAP || '').trim().toLowerCase() === 'true';
+  if (environment === 'production' && masterDataBootstrapEnabled) {
+    const error = new Error('KTC_RUN_MASTER_DATA_BOOTSTRAP must be disabled in production');
+    error.code = 'CLOUDFLARE_PRODUCTION_BOOTSTRAP_FORBIDDEN';
+    throw error;
+  }
+
   return Object.freeze({
     environment,
     frontendOrigin,
     allowedOrigins: Object.freeze([...new Set([frontendOrigin, ...extraOrigins])]),
     mobileOrigins: MOBILE_ORIGINS,
-    masterDataBootstrapEnabled: String(env.KTC_RUN_MASTER_DATA_BOOTSTRAP || '').trim().toLowerCase() === 'true',
+    masterDataBootstrapEnabled,
   });
 }
 

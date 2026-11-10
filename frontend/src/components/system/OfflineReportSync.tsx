@@ -23,9 +23,14 @@ export default function OfflineReportSync() {
     const [items, setItems] = useState<OfflineReportQueueItem[]>(() => getCurrentOfflineQueueItems());
     const [open, setOpen] = useState(false);
     const [manualWaiting, setManualWaiting] = useState(false);
+    const [online, setOnline] = useState(() => navigator.onLine);
     const refreshItems = useCallback(() => setItems(getCurrentOfflineQueueItems()), []);
 
     const sync = useCallback(async (manual = false, force = false) => {
+        if (!navigator.onLine) {
+            if (manual) showToast("Thiết bị đang mất mạng. Báo cáo chờ đồng bộ vẫn ở trên thiết bị; hãy kết nối mạng rồi thử lại.", "warning");
+            return;
+        }
         if (syncing.current) {
             // A background sync may already be waiting on the server. Keep the
             // manual action instead of silently dropping the user's click.
@@ -48,8 +53,12 @@ export default function OfflineReportSync() {
             const queue = getCurrentOfflineQueueItems();
             setItems(queue);
             const blocked = queue.filter((item) => item.status === "blocked").length;
+            const waiting = queue.length - blocked;
             if (result.sent > 0) {
-                showToast(`Đã đồng bộ ${result.sent} báo cáo chờ gửi${result.remaining ? `, còn ${result.remaining} báo cáo` : ""}.`, result.remaining ? "warning" : "success");
+                const remainingText = blocked && waiting
+                    ? `, còn ${waiting} chờ đồng bộ và ${blocked} cần kiểm tra`
+                    : blocked ? `, còn ${blocked} cần kiểm tra` : waiting ? `, còn ${waiting} chờ đồng bộ` : "";
+                showToast(`Đã đồng bộ ${result.sent} báo cáo${remainingText}.`, queue.length ? "warning" : "success");
             } else if (blocked > 0 && manual) {
                 showToast(`${blocked} báo cáo cần kiểm tra trước khi gửi lại. Dữ liệu vẫn được giữ trên thiết bị.`, "warning");
             } else if (manual && result.remaining > 0) {
@@ -77,18 +86,21 @@ export default function OfflineReportSync() {
     }, [sync]);
 
     useEffect(() => {
-        const onOnline = () => void sync(false, false);
+        const onOnline = () => { setOnline(true); void sync(false, false); };
+        const onOffline = () => setOnline(false);
         const onQueueChanged = () => {
             refreshItems();
             void sync(false, false);
         };
         window.addEventListener("online", onOnline);
+        window.addEventListener("offline", onOffline);
         window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, onQueueChanged);
         window.addEventListener("storage", onQueueChanged);
         const timer = window.setInterval(() => void sync(false, false), 15_000);
         void sync(false, false);
         return () => {
             window.removeEventListener("online", onOnline);
+            window.removeEventListener("offline", onOffline);
             window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, onQueueChanged);
             window.removeEventListener("storage", onQueueChanged);
             window.clearInterval(timer);
@@ -96,6 +108,10 @@ export default function OfflineReportSync() {
     }, [refreshItems, sync]);
 
     const blocked = useMemo(() => items.filter(item => item.status === "blocked").length, [items]);
+    const waiting = items.length - blocked;
+    const statusSummary = blocked && waiting
+        ? `${waiting} chờ đồng bộ · ${blocked} cần kiểm tra`
+        : blocked ? `${blocked} cần kiểm tra trước khi gửi lại` : `${waiting} chờ đồng bộ`;
     if (!items.length) return null;
 
     return (
@@ -107,7 +123,7 @@ export default function OfflineReportSync() {
         >
             <button type="button" className="offline-sync__summary" onClick={() => setOpen(value => !value)} aria-expanded={open}>
                 <span className="offline-sync__dot" />
-                <span><strong>{items.length} báo cáo chưa đồng bộ</strong>{blocked ? ` · ${blocked} cần kiểm tra` : " · đang kiểm tra kết nối máy chủ"}</span>
+                <span><strong>{items.length} báo cáo chưa đồng bộ</strong> · {statusSummary}</span>
                 <span aria-hidden="true">{open ? "▴" : "▾"}</span>
             </button>
             {open && <div className="offline-sync__panel" style={{ position: "relative", zIndex: 10001 }}>
@@ -124,13 +140,14 @@ export default function OfflineReportSync() {
                 </article>)}
                 <button
                     type="button"
+                    disabled={!online}
                     className="offline-sync__retry"
                     onClick={handleManualSync}
                     onPointerDown={(event) => event.stopPropagation()}
                     aria-label="Đồng bộ ngay các báo cáo đang chờ"
                     style={{ position: "relative", zIndex: 10002, pointerEvents: "auto", cursor: "pointer" }}
                 >
-                    {manualWaiting ? "Đang chờ lượt đồng bộ hiện tại…" : "Đồng bộ ngay"}
+                    {!online ? "Đang mất mạng" : manualWaiting ? "Đang chờ lượt đồng bộ hiện tại…" : "Đồng bộ ngay"}
                 </button>
             </div>}
         </div>

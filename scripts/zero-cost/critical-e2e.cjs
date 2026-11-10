@@ -1,15 +1,62 @@
 #!/usr/bin/env node
 const fs=require('fs'),path=require('path'),crypto=require('crypto'); const {Client}=require('./http.cjs');
+const {spawnSync}=require('node:child_process');
+const target=String(process.env.LOCAL_BACKEND_URL||'http://127.0.0.1:19080');
+let parsed;
+try { parsed=new URL(target); } catch { console.error('KTC_CRITICAL_E2E_BLOCKED: invalid API URL'); process.exit(2); }
+if (!['http:','https:'].includes(parsed.protocol) ||
+    !['localhost','127.0.0.1','[::1]'].includes(parsed.hostname.toLowerCase()) ||
+    parsed.username || parsed.password || parsed.pathname!=='/' || parsed.search || parsed.hash) {
+  console.error('KTC_CRITICAL_E2E_BLOCKED: only loopback API allowed');
+  process.exit(2);
+}
+const guard=spawnSync(process.execPath,[path.resolve(__dirname,'../../backend/scripts/e2e-db-guard.cjs')],{env:process.env,stdio:'inherit'});
+if (guard.error || guard.status!==0) {
+  console.error('KTC_CRITICAL_E2E_BLOCKED: isolated E2E DB guard failed');
+  process.exit(2);
+}
 const mysql=require('../../backend/node_modules/mysql2/promise');
 const fixture=JSON.parse(fs.readFileSync(path.resolve(process.env.KTC_ZERO_COST_FIXTURE||'validation-artifacts/fixture.json'),'utf8'));
 const outDir=path.resolve(process.env.KTC_VALIDATION_DIR||'validation-artifacts'); fs.mkdirSync(outDir,{recursive:true});
-const runId=`KTC_E2E_LOCAL_${new Date().toISOString().replace(/[-:.TZ]/g,'')}`; const base=process.env.LOCAL_BACKEND_URL||'http://127.0.0.1:19080'; const w=new Client(base),m=new Client(base); const rows=[]; const artifacts={runId,tempIds:[],approvedIds:[],machineEventIds:[],excel:[]};
-const dbCfg={host:process.env.DB_HOST,port:Number(process.env.DB_PORT||3306),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME};
+const runId=`KTC_E2E_LOCAL_${new Date().toISOString().replace(/[-:.TZ]/g,'')}_${crypto.randomUUID().replace(/-/g,'')}`; const base=process.env.LOCAL_BACKEND_URL||'http://127.0.0.1:19080'; const w=new Client(base),m=new Client(base); const rows=[]; const artifacts={runId,tempIds:[],approvedIds:[],machineEventIds:[],excel:[]};
+const dbCfg={host:process.env.DB_HOST,port:Number(process.env.DB_PORT||3306),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME,ssl:{rejectUnauthorized:true}};
 function d(days){const x=new Date();x.setUTCDate(x.getUTCDate()+days);return x.toISOString().slice(0,10)}
 function basePayload(p,days=0,extra={}){const proc=fixture.processes[p]; const one=proc.machines[0]; return {process_id:proc.id,work_date:d(days),shift:'A',operation_type:'NORMAL',operation_mode:one?'MACHINE':'MANUAL',machine_no:one?.code||'',product_name:proc.product,training_percent:100,total_time:1,deduction_time:0,actual_time:1,standard_output:100,actual_output:10,tt_ok:10,tt_ng:0,defects:[],deductions:[],client_request_id:crypto.randomUUID(),note:`${runId} ${p}`,...extra};}
 async function tc(n,name,fn){try{const ev=await fn(); const ok=ev.ok!==false; rows.push({n,name,result:ok?'PASS':'FAIL',...ev}); if(!ok)process.exitCode=1;}catch(e){rows.push({n,name,result:'FAIL',evidence:e.message});process.exitCode=1}}
-async function cleanupRun(db){if(process.env.KTC_E2E_KEEP_DATA==='1')return;const like=`%${runId}%`;for(const [table,column] of [['production_reports_temp','note'],['production_reports','note'],['machine_production_events','note']]){try{const [tables]=await db.query(`SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?`,[table]);if(Number(tables[0]?.n||0)>0)await db.query(`DELETE FROM \`${table}\` WHERE \`${column}\` LIKE ?`,[like])}catch(error){console.warn(`[KTC] E2E cleanup skipped for ${table}: ${error.message}`)}}}
+async function cleanupRun(db){
+  if(process.env.KTC_E2E_KEEP_DATA==='1'){
+    console.warn('KTC_E2E_KEEP_DATA=1: E2E fixtures intentionally retained in isolated database');
+    return;
+  }
+  const like=`%${runId.replace(/[!%_]/g, char=>`!${char}`)}%`;
+  const errors=[];
+  for(const [table,column] of [['production_reports_temp','note'],['production_reports','note'],['machine_production_events','note']]){
+    try{
+      const [tables]=await db.query(`SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?`,[table]);
+      if(Number(tables[0]?.n||0)>0)await db.query(`DELETE FROM \`${table}\` WHERE \`${column}\` LIKE ? ESCAPE '!'`,[like]);
+    }catch(error){
+      errors.push(`${table}: ${error.message}`);
+      console.error(`KTC_E2E_CLEANUP_FAILED ${table}: ${error.message}`);
+    }
+  }
+  if(errors.length)throw new Error(`E2E cleanup failed for ${errors.length} table(s): ${errors.join('; ')}`);
+}
+async function verifyWriterDatabaseSession(db){
+ const [rows]=await db.query('SELECT DATABASE() AS database_name');
+ const actual=String(rows?.[0]?.database_name||'').trim();
+ if(actual!=='worker_management_e2e'){
+   throw new Error('KTC_E2E_WRITER_BLOCKED: unexpected active database');
+ }
+}
 async function main(){const db=await mysql.createConnection(dbCfg);
+ try {
+   await verifyWriterDatabaseSession(db);
+ } catch(error) {
+   try { await db.end(); } catch(closeError) { throw new AggregateError([error,closeError],'E2E writer DB verification and close failed'); }
+   throw error;
+ }
+ let executionError=null;
+ try {
  await tc(1,'Worker login',async()=>{const r=await w.req('POST','/api/auth/login',{username:fixture.worker.code,access_type:'worker'});return {ok:r.status===200,status:r.status}});
  const oldCookie=w.cookies; await tc(2,'Refresh',async()=>{const r=await w.req('POST','/api/auth/refresh',{});return {ok:r.status===200&&w.cookies!==oldCookie,status:r.status}});
  await tc(3,'Logout + relogin',async()=>{const a=await w.req('POST','/api/auth/logout',{});const old=w.token;w.token='';w.cookies='';const b=await w.req('POST','/api/auth/login',{username:fixture.worker.code,access_type:'worker'});return {ok:[200,204].includes(a.status)&&b.status===200&&w.token!==old,status:b.status}});
@@ -32,5 +79,20 @@ async function main(){const db=await mysql.createConnection(dbCfg);
  await tc(22,'Excel import real-diff',async()=>{if(!approvedId)return {ok:false,status:0};const g=await m.req('GET',`/api/production/${approvedId}`);const unchanged=await m.req('POST','/api/production/excel-sync',{changes:[]});const changed=await m.req('POST','/api/production/excel-sync',{changes:[{id:approvedId,expected_updated_at:g.data?.data?.updated_at,patch:{note:`${runId} excel-diff`},source:{file:'KTC_E2E.xlsx'}}]});return {ok:[200,204,422].includes(unchanged.status)&&changed.status===200,status:changed.status}});
  await tc(23,'Final logout cleanup',async()=>{const a=await w.req('POST','/api/auth/logout',{});w.token='';w.cookies='';const b=await w.req('GET','/api/production-temp/my');return {ok:[200,204].includes(a.status)&&[401,403].includes(b.status),status:b.status}});
  await tc(24,'All selectable products have standards',async()=>{const [tables]=await db.query(`SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('product_standards','processes')`);if(Number(tables[0]?.n)!==2)return {ok:false,evidence:'required tables missing'};const [rows]=await db.query(`SELECT ps.process_id, ps.work_type, ps.product_code, ps.standard_output FROM product_standards ps WHERE LOWER(COALESCE(ps.status,'active'))='active' AND (ps.standard_output IS NULL OR ps.standard_output<=0)`);return {ok:rows.length===0,status:rows.length,evidence:rows.length?JSON.stringify(rows.slice(0,20)):'no active standard with null/zero output'}});
- await cleanupRun(db);await db.end();fs.writeFileSync(path.join(outDir,'critical-e2e.json'),JSON.stringify({runId,rows,artifacts},null,2));console.table(rows.map(({n,name,result,status,code,recordId})=>({n,name,result,status,code,recordId})));console.log(`KTC_CRITICAL_E2E=${rows.every(x=>x.result==='PASS')?'PASS':'FAIL'}`)}
+ } catch(error) {
+   executionError=error;
+ } finally {
+   const cleanupErrors=[];
+   try { await cleanupRun(db); } catch(error) { cleanupErrors.push(error); }
+   try { await db.end(); } catch(error) { cleanupErrors.push(error); }
+   try {
+     fs.writeFileSync(path.join(outDir,'critical-e2e.json'),JSON.stringify({runId,rows,artifacts,executionError:executionError?.message||null,cleanupErrors:cleanupErrors.map(e=>e.message)},null,2));
+   } catch(error) { cleanupErrors.push(error); }
+   console.table(rows.map(({n,name,result,status,code,recordId})=>({n,name,result,status,code,recordId})));
+   const success=!executionError&&cleanupErrors.length===0&&rows.length===24&&rows.every(x=>x.result==='PASS');
+   console.log(`KTC_CRITICAL_E2E=${success?'PASS':'FAIL'}`);
+   if(!success)process.exitCode=1;
+   if(executionError||cleanupErrors.length)throw new AggregateError([...(executionError?[executionError]:[]),...cleanupErrors],'E2E execution or cleanup failed');
+ }
+}
 main().catch(e=>{console.error('KTC_CRITICAL_E2E_FATAL',e.stack||e);process.exit(1)});

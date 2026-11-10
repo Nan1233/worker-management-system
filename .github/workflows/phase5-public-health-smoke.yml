@@ -1,0 +1,32 @@
+name: Phase 5 Public Health Smoke (read-only)
+on:
+  push:
+    branches: [test]
+    paths:
+      - 'scripts/phase5PublicHealthSmoke.cjs'
+      - 'tests/phase5-public-health-smoke.test.cjs'
+      - '.github/workflows/phase5-public-health-smoke.yml'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Worker to check without authentication or data writes'
+        type: choice
+        required: true
+        options: [test, production]
+permissions:
+  contents: read
+jobs:
+  public-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate probe implementation
+        run: node --test tests/phase5-public-health-smoke.test.cjs
+      - name: Check public live and ready endpoints
+        env:
+          KTC_HEALTH_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'test' }}
+        run: node scripts/phase5PublicHealthSmoke.cjs "$KTC_HEALTH_TARGET"
