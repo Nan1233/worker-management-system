@@ -237,15 +237,22 @@ function filterEncodedOptions(options: WorkerMasterOption[], processCode: string
 // Keep deduction entry usable until the DB has canonical TG codes.
 // Prefer encoded rows when present; otherwise show unique legacy names.
 function dedupeEncodedOrLegacyDeductions(options: WorkerMasterOption[], processCode: string, kind: "deduction"): WorkerMasterOption[] {
-  const canonical = filterEncodedOptions(options, processCode, kind);
-  const candidates = canonical.length ? canonical : options;
-  const seen = new Set<string>();
-  return candidates.filter((option) => {
+  const rule = ENCODED_PREFIXES[String(processCode || "").trim().toUpperCase()];
+  if (!rule) return options;
+  const prefix = rule.deduction;
+  const priority = (option: WorkerMasterOption) => {
+    const code = String(option.code || "").trim().toUpperCase();
+    return code.startsWith(prefix) && /^_?[0-9]+$/.test(code.slice(prefix.length)) ? 0 : code.startsWith("KTC_") ? 2 : 1;
+  };
+  // Canonical codes take priority over legacy rows with the same normalized name.
+  const unique = new Map<string, WorkerMasterOption>();
+  for (const option of [...options].sort((a, b) => priority(a) - priority(b))) {
     const key = normalizeMasterLabel(option.label) || String(option.code || "").toUpperCase();
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    if (key && !unique.has(key)) unique.set(key, option);
+  }
+  // Only canonical entries when present; if not yet available keep legacy options usable.
+  const canonical = [...unique.values()].filter((option) => priority(option) === 0);
+  return canonical.length ? canonical : [...unique.values()];
 }
 
 const PROCESS_ID_BY_CODE: Record<string, number> = {
@@ -359,18 +366,11 @@ export function useProcessMasterData(processId: number, processCode: string) {
 
       if (deductions) {
         setActiveDeductionOptions(
-          dedupeEncodedOrLegacyDeductions(dedupeGcDeductionOptions(
-            filterK2MasterOptions(
-              dedupeMaiDeductionOptions(
-                normalizeDeductionOptions(deductions.value, resolvedProcessId),
-                processCode,
-                resolvedProcessId,
-              ),
-              processCode,
-              K2_ALLOWED_DEDUCTION_NAMES,
-            ),
+          dedupeEncodedOrLegacyDeductions(
+            normalizeDeductionOptions(deductions.value, resolvedProcessId),
             processCode,
-          ), processCode, "deduction"),
+            "deduction",
+          ),
         );
       } else {
         setActiveDeductionOptions([]);
