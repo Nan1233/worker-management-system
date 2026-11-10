@@ -82,60 +82,6 @@ function filterMaiMasterOptions(
 // Do not apply a hard-coded name allowlist here: real DB labels can differ slightly
 // from historical spellings, and filtering them made the worker dropdown empty.
 // Deduplicate equivalent labels while preserving the canonical MAI_TTH row.
-function dedupeMaiDeductionOptions(options: WorkerMasterOption[], processCode: string, processId: number): WorkerMasterOption[] {
-  const isMai = String(processCode || "").trim().toUpperCase() === "MAI" || Number(processId) === 2;
-  if (!isMai) return options;
-  const unique = new Map<string, WorkerMasterOption>();
-  const priority = (option: WorkerMasterOption): number => {
-    const code = String(option.code || "").trim().toUpperCase();
-    if (code.startsWith("MAI_TTH_")) return 0;
-    if (code.startsWith("KTC_")) return 2;
-    return 1;
-  };
-  for (const option of options) {
-    const key = normalizeMasterLabel(option.label);
-    if (!key) continue;
-    const current = unique.get(key);
-    if (!current || priority(option) < priority(current)) unique.set(key, option);
-  }
-  return Array.from(unique.values());
-}
-
-// GC master data may contain legacy and canonical rows with the same label.
-// Keep one selectable checkbox per normalized label without deleting DB records.
-const dedupeGcDeductionOptions = (options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] => {
-  if (String(processCode || "").trim().toUpperCase() !== "GC") return options;
-  const normalizeLabel = (value: unknown): string => String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/gi, "d")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  const priority = (option: WorkerMasterOption): number => {
-    const code = String(option.code || "").trim().toUpperCase();
-    return code && !code.startsWith("KTC_") ? 0 : code.startsWith("KTC_") ? 2 : 1;
-  };
-  const unique = new Map<string, WorkerMasterOption>();
-  for (const option of options) {
-    const key = normalizeLabel(option.label);
-    if (!key) continue;
-    const existing = unique.get(key);
-    if (!existing || priority(option) < priority(existing)) unique.set(key, option);
-  }
-  return Array.from(unique.values());
-};
-
-const K2_ALLOWED_DEDUCTION_NAMES = new Set([
-  "Nghỉ giải lao",
-  "5s",
-  "chuyển mã",
-  "lau ố, lau gót chống",
-  "lăn mốc",
-  "hỗ trợ",
-  "Xem MGH, mất điện",
-  "lấy hàng và cất hàng",
-].map(normalizeMasterLabel));
-
 const K2_ALLOWED_DEFECT_NAMES = new Set([
   "Nứt vỡ, CSN, KĐĐ",
   "Cắt lẹm, CP, 502",
