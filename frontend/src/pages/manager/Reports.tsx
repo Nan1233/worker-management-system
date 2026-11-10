@@ -145,7 +145,9 @@ export default function Reports() {
     // A bulk request may finish after the user changes filters or pages.
     // Never restore its failed IDs into a different selection scope.
     const selectionScopeRef = useRef("");
-    selectionScopeRef.current = JSON.stringify([filterKey, page]);
+    useEffect(() => {
+        selectionScopeRef.current = JSON.stringify([filterKey, page]);
+    }, [filterKey, page]);
 
     useEffect(() => {
         const filtersChanged = previousFilterKeyRef.current !== filterKey;
