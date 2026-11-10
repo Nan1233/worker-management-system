@@ -554,3 +554,47 @@
   .worker-form-card .worker-time-item{padding:9px!important;}
   .worker-form-page .worker-action-group{padding:10px!important;}
 }
+
+
+/* Responsive time fields: each card needs a full row on narrow phones.
+   Previous three-column !important rules squashed the hour/minute controls. */
+@media (max-width: 700px) {
+  .worker-form-page .worker-form-card .worker-time-grid:not(.machine-worker-time-grid),
+  .worker-form-page .machine-line .machine-data-grid .worker-time-grid.machine-worker-time-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .worker-form-page .worker-form-card .worker-time-grid > .worker-time-item,
+  .worker-form-page .machine-line .machine-data-grid .worker-time-grid.machine-worker-time-grid > .worker-time-item,
+  .worker-form-page .machine-line .machine-worker-time-grid .worker-time-item[data-worker-time="machine-actual"],
+  .worker-form-page .machine-line .machine-worker-time-grid .worker-time-item[data-worker-time="machine-deduction"],
+  .worker-form-page .machine-line .machine-worker-time-grid .worker-time-item[data-worker-time="machine-total"] {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+  .worker-form-page .worker-time-grid .worker-time-split,
+  .worker-form-page .worker-time-grid .worker-time-parts {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .worker-form-page .worker-time-grid .worker-time-part,
+  .worker-form-page .worker-time-grid .worker-time-part input,
+  .worker-form-page .worker-time-grid .worker-time-value-with-unit,
+  .worker-form-page .worker-time-grid .worker-time-value-with-unit input {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .worker-form-page .worker-time-grid .worker-time-item > label {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+}

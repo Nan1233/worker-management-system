@@ -76,7 +76,6 @@ import {
 } from "./processPageConfig";
 import { processExtraFields } from "./processExtraFields";
 import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";
-import AppIcon from "../../components/common/AppIcon";
 import ProcessTimeDeductionSection from "./components/ProcessTimeDeductionSection";
 import ProcessWorkerHeader from "./components/ProcessWorkerHeader";
 import ProcessQualitySection from "./components/ProcessQualitySection";
@@ -1909,29 +1908,6 @@ const updateDeductionValue = (
                     fieldOptions={extraFieldOptions}
                     loadingFieldOptions={loadingRelatedMaiMachines}
                 />}
-
-                {usesMachineLineAccounting && (
-                    <section className="worker-form-card" aria-label="Thời gian làm việc thực tế">
-                        <h2 className="worker-card-title"><span><AppIcon name="clock" size={15} /></span> Thời gian làm việc thực tế</h2>
-                        <div className="worker-time-item" data-worker-time="actual-machine-derived">
-                            <label>Thời gian làm việc thực tế của công nhân (tự tính)</label>
-                            <div className="worker-time-value-with-unit">
-                                <output data-worker-time-value="actual-machine-derived">
-                                    {(() => {
-                                        // Các máy có thể chạy đồng thời: không cộng chồng giờ máy.
-                                        // Cùng quy tắc với machineElapsedHours khi gửi báo cáo.
-                                        const minutes = machineLines.reduce((max, line) => Math.max(
-                                            max,
-                                            (Number(line.hours) || 0) * 60 + (Number(line.minutes) || 0)
-                                        ), 0);
-                                        return `${Math.floor(minutes / 60)} giờ ${minutes % 60} phút`;
-                                    })()}
-                                </output>
-                            </div>
-                            <small>Tự tính từ thời gian chạy thực tế dài nhất trong các máy; nhập thời gian tại từng máy bên trên.</small>
-                        </div>
-                    </section>
-                )}
 
                 {!usesMachineLineAccounting && (
                     <ProcessTimeDeductionSection
