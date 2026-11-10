@@ -1351,7 +1351,7 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
   if (ORIGINAL_KTC_FORMS[code]) {
     const original = await renderOriginalProcessTemplate({
       ExcelJS, code, processData, yearMonth, settings: formulaSettingsFor(payload,code),
-      helpers: { sortReports, processDetailTypes, reportSnapshot, settingsForReport,
+      helpers: { sortReports, dateKey, processDetailTypes, reportSnapshot, settingsForReport,
         parseExtraData, detailMap, reportDetailItems }, onTemplateLoaded
     });
     addExcelDbSyncMetadata(original.workbook, code, config, processData, yearMonth, original.mapping);
