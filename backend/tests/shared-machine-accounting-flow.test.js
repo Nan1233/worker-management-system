@@ -118,7 +118,9 @@ test('Excel company payload carries physical events separately from worker repor
   assert.match(loader, /physicalMachineEvents/);
   assert.match(loader, /FROM machine_production_events e/);
   assert.match(backend, /processes: processData/);
-  assert.match(desktop, /_KTC_MACHINE_EVENTS/);
+  const physicalMetadata = fs.readFileSync(path.join(repo, 'desktop/electron/monthlyWorkbookPhysicalEvents.cjs'), 'utf8');
+  assert.match(desktop, /createPhysicalMachineMetadata/);
+  assert.match(physicalMetadata, /_KTC_MACHINE_EVENTS/);
   assert.match(desktop, /physical_counted_output/);
 });
 
