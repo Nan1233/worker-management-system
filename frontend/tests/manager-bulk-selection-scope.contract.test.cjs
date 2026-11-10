@@ -6,7 +6,7 @@ const source = fs.readFileSync(path.resolve(__dirname, '../src/pages/manager/Rep
 
 test('bulk selection scope includes filters and page', () => {
   assert.match(source, /selectionScopeRef\.current = JSON\.stringify\(\[filterKey, page\]\)/);
-  assert.equal((source.match(/const selectionScope = selectionScopeRef\.current/g) || []).length, 2);
+  assert.equal((source.match(/const selectionScope = selectionScopeRef\.current/g) || []).length, 3);
 });
 test('bulk approve and reject cannot reselect failed reports in another scope', () => {
   assert.match(source, /if \(selectionScopeRef\.current === selectionScope\) setSelectedIds\(failedIds\)/);
