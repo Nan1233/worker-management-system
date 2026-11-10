@@ -204,8 +204,12 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
         return res.json({success:true,message:statusAfter === "approved" ? "Đã sửa và duyệt báo cáo" : "Đã áp dụng đề xuất, báo cáo đang chờ duyệt",data:finalProposal});
     } catch(error) {
         if (connection && !committed) {
-            const rolledBack = await rollbackTransaction(connection);
-            if (rolledBack?.ok === false) console.error("PROPOSAL REVIEW ROLLBACK ERROR:",rolledBack.error);
+            try {
+                const rolledBack = await rollbackTransaction(connection);
+                if (rolledBack?.ok === false) console.error("PROPOSAL REVIEW ROLLBACK ERROR:",rolledBack.error);
+            } catch (rollbackError) {
+                console.error("PROPOSAL REVIEW ROLLBACK THREW:",rollbackError);
+            }
         }
         console.error("REVIEW EDIT PROPOSAL ERROR:",error);
         return res.status(error.status || 500).json({success:false,code:error.code || undefined,message:error.message || "Không thể xử lý đề xuất sửa"});
