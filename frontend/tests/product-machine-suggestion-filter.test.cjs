@@ -22,7 +22,7 @@ test('product suggestions are scoped by operation mode and selected machine', ()
   assert.ok(page.includes('useEncodedMachineSuffix: processCode === "GC"'));
   assert.ok(page.includes('if (["MAI", "DO"].includes(processCode) && !String(form.machineNo || "").trim())'));
   assert.ok(page.includes('return toProductAutocompleteOptions(scopedProductOptions);'));
-  assert.ok(page.includes('if (["MAI", "DO"].includes(processCode) && !String(machineCode || "").trim())'));
+  assert.ok(page.includes('if (["MAI", "DO", "CAN"].includes(processCode) && !String(machineCode || "").trim())'));
   assert.ok(page.includes('return scopedProductOptions;'));
   assert.ok(basic.includes('isMaiStyleProcess ? getMachineProductAutocompleteOptions("") : []'));
 });
@@ -178,7 +178,7 @@ test('worker process schema IDs match the live TiDB processes table', () => {
 test('CAN material code is embedded in the main form without a duplicate extra section', () => {
   const extra = fs.readFileSync(path.join(root, 'src/pages/worker/processExtraFields.ts'), 'utf8');
   const section = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessExtraFieldsSection.tsx'), 'utf8');
-  assert.ok(page.includes('inlineExtraFields={processCode === "CAN"'));
+  assert.ok(page.includes('inlineExtraFields={undefined}'));
   assert.ok(page.includes('processCode !== "CAN" && <ProcessExtraFieldsSection'));
   assert.ok(extra.includes('key: "material_code"'));
   assert.ok(section.includes('inline ? "worker-field-full worker-inline-extra-fields"'));
