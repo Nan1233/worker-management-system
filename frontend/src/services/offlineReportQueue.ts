@@ -66,12 +66,23 @@ function normalizeStoredItem(item: OfflineReportQueueItem): OfflineReportQueueIt
     return item;
 }
 
-function readAll(): OfflineReportQueueItem[] {
+function readAll(options: { failOnCorrupt?: boolean } = {}): OfflineReportQueueItem[] {
     try {
-        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as OfflineReportQueueItem[];
-        if (!Array.isArray(parsed)) return [];
-        return parsed.map(normalizeStoredItem).filter((item): item is OfflineReportQueueItem => Boolean(item));
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === null) return [];
+        const parsed = JSON.parse(stored) as OfflineReportQueueItem[];
+        if (!Array.isArray(parsed)) throw new Error("Offline queue is not an array");
+        const normalized = parsed.map(normalizeStoredItem).filter((item): item is OfflineReportQueueItem => Boolean(item));
+        if (options.failOnCorrupt && normalized.length !== parsed.length) {
+            throw new Error("Offline queue contains invalid items");
+        }
+        return normalized;
     } catch {
+        // Readers may show an empty state when storage is inaccessible, but
+        // writers MUST NOT overwrite a corrupt queue and destroy unsent reports.
+        if (options.failOnCorrupt) {
+            throw new Error("Dữ liệu báo cáo offline trên thiết bị đang lỗi. Không thể ghi đè vì có nguy cơ mất báo cáo chưa gửi.");
+        }
         return [];
     }
 }
@@ -181,7 +192,7 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
     const clientRequestId = String(payload.client_request_id || "").trim();
     if (!clientRequestId) throw new Error("Báo cáo offline phải có client_request_id.");
 
-    const all = readAll();
+    const all = readAll({ failOnCorrupt: true });
     const existing = all.find((item) => ownerMatches(item.owner, owner) && item.payload.client_request_id === clientRequestId);
     if (existing) {
         void flushOfflineReportQueue();
@@ -219,7 +230,7 @@ export function enqueueOfflineReports(payloads: ProductionReport[]): OfflineRepo
     const owner = currentOwner();
     if (!owner) throw new Error("Không xác định được công nhân cho hàng đợi offline.");
 
-    const all = readAll();
+    const all = readAll({ failOnCorrupt: true });
     const newlyQueued: OfflineReportQueueItem[] = [];
     const result: OfflineReportQueueItem[] = [];
     const known = new Map(
