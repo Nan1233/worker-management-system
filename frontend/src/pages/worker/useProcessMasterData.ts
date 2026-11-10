@@ -236,7 +236,7 @@ function filterEncodedOptions(options: WorkerMasterOption[], processCode: string
 
 // Keep deduction entry usable until the DB has canonical TG codes.
 // Prefer encoded rows when present; otherwise show unique legacy names.
-function dedupeEncodedOrLegacyDeductions(options: WorkerMasterOption[], processCode: string, kind: "deduction"): WorkerMasterOption[] {
+function dedupeEncodedOrLegacyDeductions(options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] {
   const rule = ENCODED_PREFIXES[String(processCode || "").trim().toUpperCase()];
   if (!rule) return options;
   const prefix = rule.deduction;
