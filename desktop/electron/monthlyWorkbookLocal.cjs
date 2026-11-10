@@ -1,4 +1,5 @@
 const ExcelJS = require('exceljs');
+const { FORMS: ORIGINAL_KTC_FORMS, renderOriginalProcessTemplate } = require('./originalProcessExcelTemplate.cjs');
 const { calculateProductionMetrics, DEFAULT_SETTINGS, trainingFactor, calculateNg } = require('./productionCalculationEngine.cjs');
 const { EXCEL_SYNC_CONTRACT_VERSION } = require('../../shared/excelSyncContract.cjs');
 
@@ -1284,12 +1285,12 @@ function addPhysicalMachineEventsMetadata(workbook, processData) {
   return sheet;
 }
 
-function addExcelDbSyncMetadata(workbook, code, processConfig, processData, yearMonth) {
+function addExcelDbSyncMetadata(workbook, code, processConfig, processData, yearMonth, templateMapping = null) {
   const deductionTypes = processDetailTypes(code, processData, 'deductionTypes', 'deductions', 'deduction');
   const defectTypes = processDetailTypes(code, processData, 'defectTypes', 'defects', 'defect');
   const columns = makeColumns(code, deductionTypes, defectTypes);
-  const editable = columns.map((column, index) => {
-    const entry = { index: index + 1, key: column.key, header: column.header };
+  const editable = (templateMapping || columns.map((column, index) => ({ ...column, index: index + 1 }))).map((column) => {
+    const entry = { index: column.index, key: column.key, header: column.header };
     if (column.key.startsWith('deduction:')) entry.typeId = typeIdFromSyncKey(column.key.slice('deduction:'.length));
     if (column.key.startsWith('defect:')) entry.typeId = typeIdFromSyncKey(column.key.slice('defect:'.length));
     return entry;
@@ -1346,6 +1347,20 @@ async function buildProcessWorkbookLocal({ date, payload, processCode }) {
   if (!config) throw new Error(`Công đoạn không hợp lệ: ${processCode}`);
 
   const yearMonth = String(payload.yearMonth || date || '').slice(0, 7);
+  const processData = payload.processes?.[code] || {};
+  if (ORIGINAL_KTC_FORMS[code]) {
+    const original = await renderOriginalProcessTemplate({
+      ExcelJS, code, processData, yearMonth, settings: formulaSettingsFor(payload,code),
+      helpers: { sortReports, processDetailTypes, reportSnapshot, settingsForReport,
+        parseExtraData, detailMap, reportDetailItems }
+    });
+    addExcelDbSyncMetadata(original.workbook, code, config, processData, yearMonth, original.mapping);
+    addPhysicalMachineEventsMetadata(original.workbook, processData);
+    const buffer = Buffer.from(await original.workbook.xlsx.writeBuffer());
+    return {buffer, result:original.result, processCode:code, processName:config.title,
+      fileName:processWorkbookFileName(code,date,payload), formulaReplacementCount:0,
+      templateKind:"original-company"};
+  }
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'KTC Production Control';
   workbook.created = new Date();
