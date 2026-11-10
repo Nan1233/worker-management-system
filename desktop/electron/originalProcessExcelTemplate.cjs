@@ -131,43 +131,29 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     }
     sheet.getColumn(d.col).hidden=false;
   }
-  // Include every NG type configured for this process in FE, even if no report
-  // has used it yet. Append missing types after the source template's last
-  // column so we never overwrite the daily separators or original headers.
+  // FE/API master list is authoritative; retain every configured NG even at zero.
   const usedDefectKeys=new Set(mappedDefects.filter(d=>d.type).map(d=>String(d.type.key)));
-  const configuredDefects=Array.isArray(processData?.defectTypes)?processData.defectTypes:[];
   const extraDefects=[];
-  let nextDefectCol=sheet.columnCount+1;
-  for(const item of configuredDefects){
-    const aliases=masterAliases(item);
-    const match=defectTypes.find(t=>{
-      const known=new Set([t.key,...(t.aliases||[])].map(String));
-      return aliases.some(alias=>known.has(alias));
-    });
-    if(!match)continue;
-    const key=String(match.key);
-    if(usedDefectKeys.has(key))continue;
-    usedDefectKeys.add(key);
-    const label=String(match.label||defectDisplayName(item)||key);
-    const col=nextDefectCol++;
-    const cell=sheet.getCell(config.header,col);
-    cell.value=label;
-    sheet.getColumn(col).width=Math.max(12,Math.min(30,label.length+3));
-    sheet.getColumn(col).hidden=false;
-    extraDefects.push({col,header:label,type:match});
-    mapping.push({index:col,key:"defect:"+key,header:label});
-  }
-  // Some source workbooks append sample day-by-day OK / NG / % blocks
-  // after the actual defect columns. Hide only those triplets, not named NG.
   const lastDefectCol=config.defects?toNumber(config.defects[1]):0;
   const lastMappedCol=Math.max(...Object.keys(config.fields).map(toNumber),lastDefectCol);
-  for(let col=lastMappedCol+1;col+2<=sheet.columnCount;col++){
-    const titles=[0,1,2].map(offset=>norm(sheet.getCell(config.header,col+offset).value));
-    if(titles[0]==="ok"&&titles[1]==="ng"&&
-       (titles[2]===""||titles[2]==="%"||titles[2]==="percent"||titles[2]==="tyle")){
-      for(let offset=0;offset<3;offset++)sheet.getColumn(col+offset).hidden=true;
-      col+=2;
-    }
+  const originalColumnCount=sheet.columnCount;
+  let nextDefectCol=originalColumnCount+1;
+  for(const type of defectTypes){
+    const key=String(type.key);
+    if(usedDefectKeys.has(key))continue;
+    usedDefectKeys.add(key);
+    const label=String(type.label||key);
+    const col=nextDefectCol++;
+    sheet.getCell(config.header,col).value=label;
+    sheet.getColumn(col).width=Math.max(12,Math.min(30,label.length+3));
+    sheet.getColumn(col).hidden=false;
+    extraDefects.push({col,header:label,type});
+    mapping.push({index:col,key:"defect:"+key,header:label});
+  }
+  // Hide obsolete right-hand daily OK/NG/% statistics and sample columns.
+  // The original left-hand headings, their colors and date separator rows stay.
+  for(let col=lastMappedCol+1;col<=originalColumnCount;col++){
+    sheet.getColumn(col).hidden=true;
   }
   const distinct = new Set();
   for (const field of mapping) {
@@ -176,12 +162,42 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   }
   // A copied source template has 50 blank styled rows. Additional rows
   // are made with the same styles without altering source headers/column widths.
+  const dateOf=(report)=>{
+    const raw=report?.work_date;
+    if(raw instanceof Date&&!Number.isNaN(raw.getTime()))return raw.toISOString().slice(0,10);
+    const match=String(raw??"").match(/^\\d{4}-\\d{2}-\\d{2}/);
+    if(!match)throw new Error("Báo cáo "+code+" thiếu ngày sản xuất hợp lệ");
+    return match[0];
+  };
+  // Clear old sample body cells, while preserving each company's formatting.
+  const bodyEnd=sheet.rowCount;
+  for(let r=config.first;r<=bodyEnd;r++){
+    const row=sheet.getRow(r);
+    row.eachCell({includeEmpty:false},cell=>{if(cell.type!==ExcelJS.ValueType.Merge)cell.value=null;});
+  }
+  let rowIndex=config.first;
+  let currentDay=null;
+  let dayStt=0;
   for (let index=0;index<reports.length;index++) {
     const report=reports[index];
-    const rowIndex=config.first+index;
+    const day=dateOf(report);
+    if(day!==currentDay){
+      currentDay=day;dayStt=0;
+      const separator=sheet.getRow(rowIndex++);
+      separator.height=18;
+      const first=separator.getCell(1);
+      first.value=day.slice(8,10)+"/"+day.slice(5,7)+"/"+day.slice(0,4);
+      first.font={...(first.font||{}),bold:true};
+      // Keep the source workbook palette rather than importing GC's pink.
+      const sourceFill=sheet.getCell(config.header,1).fill;
+      if(sourceFill&&sourceFill.type==="pattern"){
+        for(let col=1;col<=lastMappedCol;col++)separator.getCell(col).fill=JSON.parse(JSON.stringify(sourceFill));
+      }
+    }
+    const targetRowIndex=rowIndex++;
     const baseStyle=sheet.getRow(config.first);
-    const row=sheet.getRow(rowIndex);
-    if (rowIndex>config.first+49) {
+    const row=sheet.getRow(targetRowIndex);
+    if (targetRowIndex>config.first+49) {
       row.height=baseStyle.height;
       for(let col=1;col<=sheet.columnCount;col++){
         const seed=baseStyle.getCell(col), cell=row.getCell(col);
@@ -190,7 +206,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     }
     const snapshot=helpers.reportSnapshot(report,helpers.settingsForReport(report,settings,processData?.settingsByDate||{}));
     const extra=helpers.parseExtraData(report);
-    const values={...snapshot,stt:index+1,expectedOutput:(asNumeric(snapshot.standard)||0)*(asNumeric(snapshot.actualTime)||0)};
+    const values={...snapshot,stt:++dayStt,expectedOutput:(asNumeric(snapshot.standard)||0)*(asNumeric(snapshot.actualTime)||0)};
     for (const [col,key] of Object.entries(config.fields)) {
       const value=key.startsWith("extra:")?extra[key.slice(6)]:values[key];
       if(value!==undefined && value!==null) {
