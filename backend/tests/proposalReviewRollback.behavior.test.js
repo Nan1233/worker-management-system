@@ -15,7 +15,7 @@ const handlerStart = section.indexOf(prefix);
 assert.ok(handlerStart >= 0, "review handler must be registered");
 const handlerSource = section.slice(handlerStart + prefix.length, section.lastIndexOf("\n});") + 2);
 
-function harness({ approvalFails = false, updateFails = false, decision = "approve", statusAfter = "approved", postCommitReadFails = false, transitionFails = false, commitFails = false, legacyMachine = false } = {}) {
+function harness({ approvalFails = false, updateFails = false, decision = "approve", statusAfter = "approved", postCommitReadFails = false, transitionFails = false, commitFails = false, legacyMachine = false, cacheFails = false } = {}) {
   const events = [];
   const proposal = { id: 9, report_id: 31, status: "pending", proposed_data: JSON.stringify({ actual_output: 12 }) };
   const connection = { release() { events.push("release"); } };
@@ -45,7 +45,7 @@ function harness({ approvalFails = false, updateFails = false, decision = "appro
     },
     commitTransaction: async () => { events.push("commit"); if (commitFails) throw new Error("Commit failed"); },
     rollbackTransaction: async () => { events.push("rollback"); return { ok: true }; },
-    invalidateManagerReportLists: () => { events.push("invalidate"); },
+    invalidateManagerReportLists: () => { events.push("invalidate"); if (cacheFails) throw new Error("Cache unavailable"); },
     console: { error() {} },
   };
   const handler = vm.runInNewContext("(" + handlerSource + ")", context);
@@ -123,4 +123,12 @@ test("accepted pending edit commits without approving the report", async () => {
   const res = await h.run();
   assert.equal(res.body.success, true);
   assert.deepEqual(h.events, ["begin", "update", "commit", "invalidate", "release"]);
+});
+
+test("cache failure after commit must not turn a successful review into HTTP 500", async () => {
+  const h = harness({ cacheFails: true });
+  const res = await h.run();
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.deepEqual(h.events, ["begin", "update", "approve", "commit", "invalidate", "release"]);
 });
