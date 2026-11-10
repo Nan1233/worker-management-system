@@ -34,6 +34,7 @@ const PROCESS_PRODUCT_CACHE_TTL_MS = 30_000;
 const processProductRowsCache = new Map<number, { expiresAt: number; rows: ProductStandardOption[] }>();
 
 export const getProductStandardsByProcess = async (processId: number, _processCode?: string): Promise<ProductStandardOption[]> => {
+    void _processCode; // Retain the public call signature; process ID is authoritative.
     // The process ID is the canonical selector. Do not merge process_id and
     // process_code responses: that can duplicate rows and silently replace a
     // product's real standard with the highest value from another row.
@@ -160,7 +161,8 @@ const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProd
     return undefined;
 };
 
-const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string): ResolvedProductStandard => {
+const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string, requestedProductCode?: string): ResolvedProductStandard => {
+    void requestedProductCode; // Kept for existing callers; canonical row already supplies product_code.
     const output = Number(row.standard_output);
     return {
         product_standard_id: Number(row.id), process_id: Number(row.process_id || processId), product_code: String(row.product_code),
@@ -237,9 +239,9 @@ export const resolveProductStandard = async (processId: number, machineCode: str
             if (!refreshedProduct) {
                 throw new Error(`Không xác định duy nhất định mức sản phẩm ${normalizedProduct} trong công đoạn`);
             }
-            return toLocalResolvedStandard(refreshedProduct, processId, "");
+            return toLocalResolvedStandard(refreshedProduct, processId, "", normalizedProduct);
         }
-        return toLocalResolvedStandard(product, processId, "");
+        return toLocalResolvedStandard(product, processId, "", normalizedProduct);
     }
 
     try {
@@ -258,7 +260,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     } catch (error: any) {
         // Machine-specific standard is optional. If it is absent or zero, use the
         // product/process standard for the machine's inferred Cắt/Lồng type.
-        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine);
+        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
 
         // If the cached product list was stale, re-read it before failing a machine
         // lookup. Mài permits machine-optional reporting, so its process-level
@@ -272,7 +274,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
             // standard rather than blocking the worker's report.
             localStandard = findPositiveLocalStandard(rows, normalizedProduct.toUpperCase(), normalizedProduct, null);
         }
-        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine);
+        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
 
         if (!productExistsInProcess) {
             throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn và không có định mức máy/phương án fallback`, { cause: error });
