@@ -109,6 +109,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run smoke:excel
       - run: node --test tests/phase2-gc-xlsx-roundtrip.test.cjs tests/monthly-workbook-physical-events.test.cjs tests/company-excel-shared-machine.test.cjs tests/production-calculation-engine.test.cjs
+      - run: npm audit --omit=dev --audit-level=high
   staging-safety:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -118,6 +119,9 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --prefix backend --no-audit --no-fund
+      - run: node --check scripts/stagingReleaseGate.cjs
+      - run: node --check scripts/performanceLargeData.cjs
+      - run: node --check scripts/securityRuntimeAudit.cjs
       - run: node --test tests/staging-release-gate-guard.test.cjs tests/staging-release-gate-timeout.test.cjs tests/staging-e2e-api-target.test.cjs tests/critical-e2e-direct-guard.test.cjs tests/critical-e2e-cleanup-contract.test.cjs tests/critical-e2e-finally-cleanup.test.cjs tests/critical-e2e-db-tls.test.cjs tests/e2e-db-port-and-run-id.test.cjs tests/critical-e2e-writer-session.test.cjs tests/critical-e2e-cleanup-like.test.cjs tests/phase3-exit-evidence.test.cjs tests/performance-db-isolation.test.cjs tests/performance-failure-evidence.test.cjs tests/security-runtime-audit-target.test.cjs tests/zero-cost-http-redirect.test.cjs
   source-acceptance:
     needs: [backend, frontend, desktop, desktop-windows, staging-safety]
