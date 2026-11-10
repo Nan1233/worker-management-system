@@ -282,7 +282,7 @@ export function retryBlockedOfflineReport(id: string): boolean {
     const owner = currentOwner();
     if (!owner) return false;
     let changed = false;
-    const next = readAll().map((item) => {
+    const next = readAll({ failOnCorrupt: true }).map((item) => {
         if (item.id !== id || !ownerMatches(item.owner, owner)) return item;
         changed = true;
         return { ...item, status: "queued" as const, nextRetryAt: Date.now(), lastError: undefined };
@@ -294,7 +294,7 @@ export function retryBlockedOfflineReport(id: string): boolean {
 export function removeOfflineReport(id: string): boolean {
     const owner = currentOwner();
     if (!owner) return false;
-    const all = readAll();
+    const all = readAll({ failOnCorrupt: true });
     const next = all.filter((item) => item.id !== id || !ownerMatches(item.owner, owner));
     if (next.length === all.length) return false;
     writeAll(next);
@@ -308,7 +308,7 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
         return { sent: 0, remaining: 0 };
     }
 
-    const all = readAll();
+    const all = readAll({ failOnCorrupt: true });
     const mine = all.filter((item) => ownerMatches(item.owner, owner));
     const remaining: OfflineReportQueueItem[] = [];
     const sameSignedInWorker = () => {
@@ -403,7 +403,7 @@ async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}
     // during the flush can be silently overwritten or resurrected.
     const originalIds = new Set(mine.map((item) => item.id));
     const pendingById = new Map(remaining.map((item) => [item.id, item]));
-    const latest = readAll();
+    const latest = readAll({ failOnCorrupt: true });
     const merged: OfflineReportQueueItem[] = [];
     for (const item of latest) {
         if (!originalIds.has(item.id) || !ownerMatches(item.owner, owner)) {

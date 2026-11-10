@@ -9,7 +9,7 @@ const ts = require('typescript');
 
 // Run the real TypeScript queue module with fake browser storage and an
 // indefinitely pending API call. No network, credentials or test database.
-function makeQueue({ failWrite = false, initialRaw = null } = {}) {
+function makeQueue({ failWrite = false, initialRaw = null, createReport = () => new Promise(() => {}) } = {}) {
   const source = fs.readFileSync(path.join(__dirname, '../src/services/offlineReportQueue.ts'), 'utf8');
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
@@ -39,7 +39,7 @@ function makeQueue({ failWrite = false, initialRaw = null } = {}) {
         return { getStoredUser: () => ({ id: 1, role: 'worker', worker_id: 2, worker_code: '49-001' }) };
       }
       if (id === './productionService') {
-        return { createTempReport: () => new Promise(() => {}), checkSimilarTempReport: async () => ({}) };
+        return { createTempReport: createReport, checkSimilarTempReport: async () => ({}) };
       }
       throw new Error('Unexpected dependency: ' + id);
     },
@@ -53,6 +53,7 @@ function makeQueue({ failWrite = false, initialRaw = null } = {}) {
   }, { filename: 'offlineReportQueue.js' });
   return {
     queue: module.exports,
+    setRaw: (value) => values.set('ktcOfflineReportQueueV1', value),
     state: () => ({
       writes,
       events,
@@ -112,6 +113,51 @@ test('malformed existing queue records are preserved rather than silently discar
   const corrupt = JSON.stringify([{ id: 'old', payload: null, owner: null }]);
   const { queue, state } = makeQueue({ initialRaw: corrupt });
   assert.throws(() => queue.enqueueOfflineReports(payloads('a')), /Không thể ghi đè/);
+  assert.equal(state().raw, corrupt);
+  assert.equal(state().writes, 0);
+});
+
+test('manual retry and removal fail closed when stored queue is corrupted', () => {
+  const corrupt = '{"partial":';
+  const { queue, state } = makeQueue({ initialRaw: corrupt });
+  assert.throws(() => queue.retryBlockedOfflineReport('old'), /Không thể ghi đè/);
+  assert.throws(() => queue.removeOfflineReport('old'), /Không thể ghi đè/);
+  assert.equal(state().raw, corrupt);
+  assert.equal(state().writes, 0);
+  assert.equal(state().events, 0);
+  // Read-only UI queries remain tolerant.
+  assert.equal(queue.getCurrentOfflineQueueCount(), 0);
+});
+
+test('automatic replay refuses to overwrite corrupted storage', async () => {
+  const corrupt = '[{"id":';
+  const { queue, state } = makeQueue({ initialRaw: corrupt });
+  await assert.rejects(queue.flushOfflineReportQueue(), /Không thể ghi đè/);
+  assert.equal(state().raw, corrupt);
+  assert.equal(state().writes, 0);
+});
+
+test('automatic replay detects corruption introduced while awaiting the backend', async () => {
+  let resolveCreate;
+  const createPending = new Promise(resolve => { resolveCreate = resolve; });
+  const existing = [{
+    id: 'original-queue-item',
+    owner: { userId: 1, workerId: 2, workerCode: '49-001' },
+    createdAt: Date.now(),
+    attempts: 0,
+    status: 'queued',
+    nextRetryAt: 0,
+    payload: payloads('already-sent')[0],
+  }];
+  const { queue, state, setRaw } = makeQueue({
+    initialRaw: JSON.stringify(existing),
+    createReport: () => createPending,
+  });
+  const flush = queue.flushOfflineReportQueue();
+  const corrupt = '[{"id":"partial"';
+  setRaw(corrupt);
+  resolveCreate({ success: true });
+  await assert.rejects(flush, /Không thể ghi đè/);
   assert.equal(state().raw, corrupt);
   assert.equal(state().writes, 0);
 });
