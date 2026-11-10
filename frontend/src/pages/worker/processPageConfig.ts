@@ -62,6 +62,7 @@ export type OperationMode = "MANUAL" | "MACHINE";
 export type MachineLineState = {
     machineCode: string;
     productCode: string;
+    materialCode: string;
     hours: string;
     minutes: string;
     adjustmentMinutes: string;
@@ -83,6 +84,7 @@ export type MachineLineState = {
 export const createEmptyMachineLine = (): MachineLineState => ({
     machineCode: "",
     productCode: "",
+    materialCode: "",
     hours: "",
     minutes: "",
     adjustmentMinutes: "",
