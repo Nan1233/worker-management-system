@@ -269,6 +269,8 @@ async function patch(buffer, payload) {
 }
 
 const originalBuildProcess = monthly.buildProcessWorkbookLocal;
+// Preserve the original company-template builder before GC-specific wrappers replace it.
+monthly.buildCompanyOriginalProcessWorkbookLocal = originalBuildProcess;
 const originalBuildSplit = monthly.buildSplitMonthlyWorkbooksLocal;
 if (typeof originalBuildProcess === 'function') {
   monthly.buildProcessWorkbookLocal = async (args) => {
