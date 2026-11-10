@@ -15,11 +15,12 @@ const budgetMs = Number(process.env.KTC_PERF_DB_P95_MS || 500);
 if (!Number.isInteger(iterations) || iterations < 20 || iterations > 5000) throw new Error('KTC_PERF_DB_ITERATIONS must be 20..5000');
 async function main() {
   if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME) throw new Error('DB_HOST, DB_USER and DB_NAME are required');
-  const db = await mysql.createConnection({host:process.env.DB_HOST,port:Number(process.env.DB_PORT||3306),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME,ssl:{rejectUnauthorized:true}});
+  let db=null;
   let executionError=null;
   let counts=null;
   const timings={};
   try {
+  db=await mysql.createConnection({host:process.env.DB_HOST,port:Number(process.env.DB_PORT||3306),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME,ssl:{rejectUnauthorized:true}});
   const [identityRows]=await db.query('SELECT DATABASE() AS database_name');
   if(String(identityRows?.[0]?.database_name||'').trim()!=='worker_management_e2e'){
     throw new Error('KTC_PERFORMANCE_LARGE_DATA_BLOCKED: wrong active database');
@@ -42,7 +43,7 @@ async function main() {
     executionError=error;
   }
   try {
-    await db.end();
+    if(db)await db.end();
   } catch(error) {
     executionError=executionError
       ? new AggregateError([executionError,error],'Performance query and connection close failed')
