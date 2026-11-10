@@ -28,6 +28,6 @@ test('duplicate create and update resume pending split payloads without replayin
 test('completed primary is reset on successful finish and new duplicate challenge', () => {
   const finish = section('const finishDuplicateAction = useCallback(', 'const handleCreateDuplicateAnyway = async () => {');
   assert.match(finish, /duplicatePrimaryCompletedRef\.current = false;/);
-  const submit = section('const handleSubmit =', 'const detailKpi =');
+  const submit = section('const handleSubmit =', 'showToast("Lưu báo cáo thành công. Các báo cáo đã được gửi chờ duyệt."');
   assert.match(submit, /duplicatePrimaryCompletedRef\.current = false;/);
 });
