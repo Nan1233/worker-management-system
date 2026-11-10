@@ -98,6 +98,23 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       }
     }
   }
+  // Replace fixed October sample dates/month captions with the requested period.
+  const [reportYear,reportMonth]=yearMonth.split("-").map(Number);
+  if (code==="MAI" || code==="DO") {
+    const dateRow=sheet.getRow(1);
+    dateRow.eachCell({includeEmpty:false},cell=>{
+      if(typeof cell.value==="number" && cell.value>=46296 && cell.value<=46326) {
+        const day=cell.value-46295;
+        const candidate=new Date(reportYear,reportMonth-1,day);
+        cell.value=(candidate.getMonth()===reportMonth-1) ? candidate : null;
+      }
+    });
+  }
+  if (code==="EP") {
+    sheet.getCell("A2").value=new Date(reportYear,reportMonth-1,1);
+    sheet.getCell("M3").value=new Date(reportYear,reportMonth-1,1);
+  }
+  if(code==="K1" || code==="XLBV") sheet.getCell("A1").value="THÁNG "+reportMonth+"/"+reportYear;
   // Label the actual report month without replacing the original headers.
   sheet.headerFooter.oddHeader = "KTC "+code+" - "+yearMonth;
   sheet.views=[{state:"frozen",ySplit:config.header,xSplit:3,showGridLines:false}];
