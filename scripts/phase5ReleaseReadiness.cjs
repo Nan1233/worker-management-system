@@ -80,7 +80,7 @@ const productionProfileOk = Boolean(
   frontendPackage.scripts?.['build:cloudflare:production']?.includes('--mode production') &&
   desktopProductionBuilder.extraMetadata?.ktcDeploymentEnvironment === 'production' &&
   desktopPackage.scripts?.['dist:win:production']?.includes('electron-builder.production.json') &&
-  /ktc-be\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
+  /ktc-backend\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   /ktc-frontend\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   productionBackendProfile?.environment === 'production'
 );
