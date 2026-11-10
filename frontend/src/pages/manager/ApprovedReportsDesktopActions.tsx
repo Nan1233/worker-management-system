@@ -14,7 +14,7 @@ function useApprovedFooter(): HTMLElement | null {
 
         const find = () => {
             const element = document.querySelector<HTMLElement>(".pending-table-footer");
-            if (element) setFooter(element);
+            setFooter(current => current === element ? current : element);
         };
 
         const observer = new MutationObserver(find);
@@ -25,6 +25,7 @@ function useApprovedFooter(): HTMLElement | null {
         return () => {
             observer.disconnect();
             timers.forEach(window.clearTimeout);
+            setFooter(null);
         };
     }, []);
 
