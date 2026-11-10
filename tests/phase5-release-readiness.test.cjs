@@ -21,6 +21,7 @@ test('Phase 5 gate recognizes isolated Cloudflare TEST and production source pro
   assert.equal(report.blockers.some((item) => item.id === 'PRODUCTION_ENVIRONMENT_PROFILE'), false);
   assert.equal(report.blockers.some((item) => item.id === 'CLOUDFLARE_PROFILE_CONFIGURATION'), false);
   assert.ok(report.checks.some((item) => item.id === 'CLOUDFLARE_RUNTIME_GUARDS'));
+  assert.ok(report.checks.some((item) => item.id === 'CLOUDFLARE_REQUIRED_SECRETS_DECLARED'));
   assert.ok(report.checks.some((item) => item.id === 'CROSS_ENVIRONMENT_ENDPOINT_GUARD'));
   assert.ok(report.warnings.some((item) => item.id === 'DESKTOP_DEFAULT_TEST_PROFILE'));
   assert.ok(report.blockers.some((item) => item.id === 'CLOUDFLARE_RUNTIME_SECRETS_UNVERIFIED'));

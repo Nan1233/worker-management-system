@@ -108,6 +108,18 @@ if (productionProfileOk) {
   add(blockers, 'PRODUCTION_ENVIRONMENT_PROFILE', 'Thiếu profile Cloudflare production rõ ràng cho FE, BE hoặc Desktop.', null);
 }
 
+const requiredCredentials = ['JWT_SECRET', 'DB_PASSWORD', 'TIDB_DATABASE_URL'];
+const declaresRequiredSecrets = [backendTest, backendProduction].every((config) =>
+  requiredCredentials.every((name) => config.secrets?.required?.includes(name)) &&
+  requiredCredentials.every((name) => !Object.hasOwn(config.vars || {}, name))
+);
+if (declaresRequiredSecrets) {
+  checks.push({ id: 'CLOUDFLARE_REQUIRED_SECRETS_DECLARED', status: 'PASS' });
+} else {
+  add(blockers, 'CLOUDFLARE_REQUIRED_SECRETS_MISSING',
+    'Wrangler TEST/production phải khai báo đủ tên credential bắt buộc trong secrets.required, không lưu giá trị trong vars.', requiredCredentials);
+}
+
 // Cloudflare secret values intentionally do not belong in Git. Their presence in the
 // Cloudflare account cannot be verified by this source-only gate.
 add(blockers, 'CLOUDFLARE_RUNTIME_SECRETS_UNVERIFIED', 'Chưa thể xác minh trong tài khoản Cloudflare rằng TIDB_DATABASE_URL (hoặc DB_*), JWT_SECRET và các secret tích hợp đã được cấu hình cho cả Worker TEST và production. Cần xác minh thủ công trước khi phát hành.', [

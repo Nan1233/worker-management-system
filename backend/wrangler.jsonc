@@ -10,6 +10,9 @@
   "workers_dev": true,
   "previews": {},
   "keep_vars": true,
+  "secrets": {
+    "required": ["JWT_SECRET", "DB_PASSWORD", "TIDB_DATABASE_URL"]
+  },
   "observability": {
     "enabled": true,
     "redact_query_string": true
