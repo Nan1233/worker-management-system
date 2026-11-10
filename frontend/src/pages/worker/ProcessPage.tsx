@@ -381,7 +381,7 @@ const machineAutocompleteOptions =
     }, [usesSingleMachine]);
 
     // Cán và Ép chỉ cho phép một máy trong mỗi báo cáo, kể cả khi khôi phục bản nháp cũ.
-    const isSingleMachineReport = processCode === "CAN" || processCode === "EP";
+    const isSingleMachineReport = false;
     const maxMachineCount = isSingleMachineReport ? 1 : getMaxMachineCount(processCode, machineLines, machineOptions);
 
     useEffect(() => {
