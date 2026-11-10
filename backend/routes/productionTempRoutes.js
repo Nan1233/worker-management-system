@@ -163,7 +163,10 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
                 console.error("PROPOSAL POST-COMMIT NOTIFICATION ERROR:", notificationError);
             }
         }
-        return res.json({success:true,message:statusAfter === "approved" ? "Đã sửa và duyệt báo cáo" : "Đã áp dụng đề xuất, báo cáo đang chờ duyệt",data:await proposalDetail(id)});
+        let finalProposal = {id,report_id:current.report_id,status:newStatus};
+        try { finalProposal = await proposalDetail(id) || finalProposal; }
+        catch (readError) { console.error("PROPOSAL POST-COMMIT READ ERROR:", readError); }
+        return res.json({success:true,message:statusAfter === "approved" ? "Đã sửa và duyệt báo cáo" : "Đã áp dụng đề xuất, báo cáo đang chờ duyệt",data:finalProposal});
     } catch(error) {
         if (connection && !committed) {
             const rolledBack = await rollbackTransaction(connection);
