@@ -10,6 +10,7 @@ on:
       - 'scripts/**'
       - 'tests/**'
       - 'docs/PHASE3_EXIT_GATE.md'
+      - 'RELEASE-VALIDATION.md'
       - '.github/workflows/staging-release-gate-safety.yml'
       - '.github/workflows/phase3-source-acceptance.yml'
   push:
@@ -19,6 +20,11 @@ on:
       - 'frontend/**'
       - 'desktop/**'
       - 'shared/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'docs/PHASE3_EXIT_GATE.md'
+      - 'RELEASE-VALIDATION.md'
+      - '.github/workflows/staging-release-gate-safety.yml'
       - '.github/workflows/phase3-source-acceptance.yml'
   workflow_dispatch:
 permissions:
