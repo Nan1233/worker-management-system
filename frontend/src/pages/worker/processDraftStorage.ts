@@ -268,7 +268,8 @@ export function loadProcessDraft(process: string): ProcessDraft | null {
 
     const value = normalizeDraftForResume(parsed);
 
-    if (isDefaultSameDayShiftDraft(value)) {
+    // DO work-in-progress should always resume automatically after refresh.
+    if (String(process).toLowerCase() === "do" || isDefaultSameDayShiftDraft(value)) {
       return value;
     }
 
