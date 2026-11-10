@@ -234,6 +234,32 @@ function filterEncodedOptions(options: WorkerMasterOption[], processCode: string
   });
 }
 
+// XLBV codes are stable report keys; show approved Vietnamese defect names even
+// when older DB rows still store placeholder labels such as XLBV_NG_001.
+const XLBV_DEFECT_LABELS: Record<string, string> = {
+  XLBV_NG_001: "CHÂN KHÔNG",
+  XLBV_NG_002: "RÁCH VỠ",
+  XLBV_NG_003: "XLBV",
+  XLBV_NG_004: "BẨN KHUÔN",
+  XLBV_NG_005: "TNL",
+  XLBV_NG_006: "DỊ VẬT",
+  XLBV_NG_007: "DẬP KO HẾT",
+  XLBV_NG_008: "BIẾN DẠNG",
+  XLBV_NG_009: "HỞ SẮT",
+  XLBV_NG_010: "XƯỚC TRỤC",
+  XLBV_NG_011: "CHỜ XL LẠI",
+  XLBV_NG_012: "KHÁC MÀU",
+  XLBV_NG_013: "BẨN",
+};
+
+function displayXlbvDefectNames(options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] {
+  if (String(processCode || "").trim().toUpperCase() !== "XLBV") return options;
+  return options.map((option) => {
+    const code = String(option.code || "").trim().toUpperCase();
+    return { ...option, label: XLBV_DEFECT_LABELS[code] || (code === "XLBV_NG_014" ? "CHƯA XÁC ĐỊNH (014)" : option.label) };
+  });
+}
+
 // Keep deduction entry usable until the DB has canonical TG codes.
 // Prefer encoded rows when present; otherwise show unique legacy names.
 function dedupeEncodedOrLegacyDeductions(options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] {
@@ -359,7 +385,7 @@ export function useProcessMasterData(processId: number, processCode: string) {
         const k2Filtered = Number(resolvedProcessId) === 5 || String(processCode || "").trim().toUpperCase() === "K2"
           ? maiFiltered.filter((option) => /^K2_NG_/i.test(String(option.code || "").trim()))
           : filterK2MasterOptions(maiFiltered, processCode, K2_ALLOWED_DEFECT_NAMES);
-        setActiveNgOptions(filterEncodedOptions(k2Filtered, processCode, "ng"));
+        setActiveNgOptions(displayXlbvDefectNames(filterEncodedOptions(k2Filtered, processCode, "ng"), processCode));
       } else {
         setActiveNgOptions([]);
       }
