@@ -149,6 +149,8 @@ function ProcessPage() {
     const submitLockRef = useRef(false);
     const clientRequestIdRef = useRef<string | null>(null);
     const pendingSplitPayloadsRef = useRef<any[]>([]);
+    // A confirmed primary report must not be submitted again when a later split fails.
+    const duplicatePrimaryCompletedRef = useRef(false);
     const workerInfoRequestSeqRef = useRef(0);
     const masterDataRequestSeqRef = useRef(0);
     const machineStandardRequestSeqRef = useRef<Record<number, number>>({});
@@ -648,6 +650,7 @@ const machineAutocompleteOptions =
         clearProcessDraft(process);
         setDuplicatePrompt(null);
         pendingSplitPayloadsRef.current = [];
+        duplicatePrimaryCompletedRef.current = false;
         clientRequestIdRef.current = null;
         submitLockRef.current = false;
         setSubmitting(false);
@@ -666,16 +669,21 @@ const machineAutocompleteOptions =
         }
         try {
             setSubmitting(true);
-            await createTempReport({
-                ...duplicatePrompt.payload,
-                client_request_id: crypto.randomUUID(),
-                force_create: true,
-                duplicate_confirmation_token: duplicatePrompt.confirmationToken,
-            });
-            const pendingPayloads = pendingSplitPayloadsRef.current;
-            pendingSplitPayloadsRef.current = [];
-            for (const payload of pendingPayloads) await createTempReport(payload);
-            showToast(pendingPayloads.length ? "Đã xác nhận báo cáo trùng và gửi các báo cáo còn lại." : "Đã tạo báo cáo trùng theo xác nhận.", "success");
+            if (!duplicatePrimaryCompletedRef.current) {
+                await createTempReport({
+                    ...duplicatePrompt.payload,
+                    client_request_id: crypto.randomUUID(),
+                    force_create: true,
+                    duplicate_confirmation_token: duplicatePrompt.confirmationToken,
+                });
+                duplicatePrimaryCompletedRef.current = true;
+            }
+            const pendingCount = pendingSplitPayloadsRef.current.length;
+            while (pendingSplitPayloadsRef.current.length) {
+                await createTempReport(pendingSplitPayloadsRef.current[0]);
+                pendingSplitPayloadsRef.current.shift();
+            }
+            showToast(pendingCount ? "Đã xác nhận báo cáo trùng và gửi các báo cáo còn lại." : "Đã tạo báo cáo trùng theo xác nhận.", "success");
             finishDuplicateAction();
         } catch (error: unknown) {
             showToast((error as any)?.response?.data?.message || "Không thể tạo báo cáo.", "error");
@@ -696,11 +704,16 @@ const machineAutocompleteOptions =
         }
         try {
             setSubmitting(true);
-            await updateTempReport(duplicatePrompt.reportId, { ...duplicatePrompt.payload, id: duplicatePrompt.reportId });
-            const pendingPayloads = pendingSplitPayloadsRef.current;
-            pendingSplitPayloadsRef.current = [];
-            for (const payload of pendingPayloads) await createTempReport(payload);
-            showToast(pendingPayloads.length ? "Đã cập nhật báo cáo trùng và gửi các báo cáo còn lại." : "Đã cập nhật báo cáo hiện có.", "success");
+            if (!duplicatePrimaryCompletedRef.current) {
+                await updateTempReport(duplicatePrompt.reportId, { ...duplicatePrompt.payload, id: duplicatePrompt.reportId });
+                duplicatePrimaryCompletedRef.current = true;
+            }
+            const pendingCount = pendingSplitPayloadsRef.current.length;
+            while (pendingSplitPayloadsRef.current.length) {
+                await createTempReport(pendingSplitPayloadsRef.current[0]);
+                pendingSplitPayloadsRef.current.shift();
+            }
+            showToast(pendingCount ? "Đã cập nhật báo cáo trùng và gửi các báo cáo còn lại." : "Đã cập nhật báo cáo hiện có.", "success");
             finishDuplicateAction();
         } catch (error: unknown) {
             showToast((error as any)?.response?.data?.message || "Không thể cập nhật báo cáo.", "error");
@@ -1613,6 +1626,7 @@ const updateDeductionValue = (
                             if (challengeToken) {
                                 const prompt = toDuplicatePrompt(duplicateResponse.data, payload);
                                 if (prompt) {
+                                    duplicatePrimaryCompletedRef.current = false;
                                     pendingSplitPayloadsRef.current = payloads.slice(index + 1);
                                     const reportType = duplicateResponse.data?.report_type === "approved" ? "approved" : "temp";
                                     setDuplicatePrompt({ ...prompt, reportType, formSignature: getDuplicateFormSignature() });
@@ -1635,7 +1649,8 @@ const updateDeductionValue = (
                     if (submitOutcome === "similar_report" && response?.data?.id) {
                         const prompt = toDuplicatePrompt(response, payload);
                         if (prompt) {
-                            pendingSplitPayloadsRef.current = payloads.slice(index + 1);
+                            duplicatePrimaryCompletedRef.current = false;
+                                    pendingSplitPayloadsRef.current = payloads.slice(index + 1);
                             setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
                             return;
                         }
