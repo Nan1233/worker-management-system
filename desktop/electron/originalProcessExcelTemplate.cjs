@@ -113,15 +113,27 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   // Preserve every named NG category in the company's form, including zero-count types.
   // Resolve its display label from the FE/API master list, never from sample daily totals.
   const defectCols=buildDetailColumns("defect",config.defects);
+  // MAI's production form has exactly seven active NG types (AN:AT).
+  // Historical/inactive API masters must not generate duplicate, unstyled columns.
+  const maiDefectLabels=["KQD ĐẢO","Xô cs","PPCM Mất điện","Hàng rơi","K-coleet","Thiếu - lẫn cs CSH","Lỗi cao su"];
+  if(code==="MAI"){
+    for(let i=0;i<7;i++){
+      const col=toNumber("AN")+i;
+      sheet.getCell(config.header,col).value=maiDefectLabels[i];
+      sheet.getColumn(col).hidden=false;
+    }
+  }
   const mappedDefects=[];
-  for(const d of defectCols){
+  for(const [defectIndex,d] of defectCols.entries()){
     const headerNorm=norm(d.header);
-    const matches=defectTypes.filter(t=>[t.label,...(t.aliases||[])].some(v=>{
-      const raw=String(v);return !raw.startsWith("id:")&&!raw.startsWith("code:")&&norm(raw.replace(/^name:/,""))===headerNorm;
-    }));
+    const matches=code==="MAI"
+      ? defectTypes.filter(t=>[t.key,...(t.aliases||[])].some(v=>String(v).toLowerCase().includes("mai_ng_"+String(defectIndex+1).padStart(3,"0"))))
+      : defectTypes.filter(t=>[t.label,...(t.aliases||[])].some(v=>{
+          const raw=String(v);return !raw.startsWith("id:")&&!raw.startsWith("code:")&&norm(raw.replace(/^name:/,""))===headerNorm;
+        }));
     if(matches.length===1){
       const type=matches[0];
-      const label=String(type.label||d.header);
+      const label=code==="MAI"?maiDefectLabels[defectIndex]:String(type.label||d.header);
       sheet.getCell(config.header,d.col).value=label;
       mappedDefects.push({...d,type});
       mapping.push({index:d.col,key:"defect:"+type.key,header:label});
@@ -138,7 +150,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   const lastMappedCol=Math.max(...Object.keys(config.fields).map(toNumber),lastDefectCol);
   const originalColumnCount=sheet.columnCount;
   let nextDefectCol=originalColumnCount+1;
-  for(const type of defectTypes){
+  for(const type of (code==="MAI"?[]:defectTypes)){
     const key=String(type.key);
     if(usedDefectKeys.has(key))continue;
     usedDefectKeys.add(key);
