@@ -5,7 +5,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
-test('separate-run request sends server duplicate challenge and fresh client request id', () => {
+test('separate-run request sends server duplicate challenge and a stable fresh idempotency key', () => {
   const page = read('src/pages/worker/ProcessPage.tsx');
   assert.match(page, /client_request_id:\s*crypto\.randomUUID\(\)/);
   assert.match(page, /force_create:\s*true/);
