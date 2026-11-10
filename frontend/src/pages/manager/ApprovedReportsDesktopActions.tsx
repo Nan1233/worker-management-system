@@ -1,39 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { getToday } from "./managerReportDateLogic";
-import { createPortal } from "react-dom";
 import ApprovedReports from "./ApprovedReports";
 import { getAccessToken } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 import DesktopExcelNotice from "../../components/system/DesktopExcelNotice";
 
-function useApprovedFooter(): HTMLElement | null {
-    const [footer, setFooter] = useState<HTMLElement | null>(null);
-
-    useEffect(() => {
-        if (!window.ktcDesktop?.isDesktop) return;
-
-        const find = () => {
-            const element = document.querySelector<HTMLElement>(".pending-table-footer");
-            setFooter(current => current === element ? current : element);
-        };
-
-        const observer = new MutationObserver(find);
-        observer.observe(document.documentElement, { childList: true, subtree: true });
-        find();
-        const timers = [250, 750, 1500].map((delay) => window.setTimeout(find, delay));
-
-        return () => {
-            observer.disconnect();
-            timers.forEach(window.clearTimeout);
-            setFooter(null);
-        };
-    }, []);
-
-    return footer;
-}
-
 export default function ApprovedReportsDesktopActions() {
-    const footer = useApprovedFooter();
     const { can } = usePermissions();
     const canExport = can("REPORT_EXPORT");
     const [busy, setBusy] = useState(false);
@@ -79,12 +51,10 @@ export default function ApprovedReportsDesktopActions() {
     if (!canExport) return <ApprovedReports />;
     // In a browser there is no Excel button at all: say why and where to get the Desktop app.
     if (!window.ktcDesktop?.isDesktop) return <><DesktopExcelNotice compact /><ApprovedReports /></>;
-    if (!footer) return <ApprovedReports />;
 
     return (
         <>
-            <ApprovedReports />
-            {createPortal(
+            <div className="ktc-desktop-excel-actions" style={{ display: "flex", justifyContent: "flex-end", padding: "8px 0" }}>
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
                 <button
                     type="button"
@@ -110,9 +80,8 @@ export default function ApprovedReportsDesktopActions() {
                     {busy ? "↻ Đang cập nhật…" : "↻ Cập nhật Excel"}
                 </button>
                 {syncMessage && <span role="status" aria-live="polite" style={{ fontSize: 12, color: syncSuccess ? "#166534" : "#b42323" }}>{syncMessage}</span>}
-                </div>,
-                footer.lastElementChild && footer.lastElementChild.tagName === "DIV" ? footer.lastElementChild : footer
-            )}
+                </div></div>
+            <ApprovedReports />
         </>
     );
 }
