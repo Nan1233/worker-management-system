@@ -10,7 +10,7 @@ After PR #270, stop opening incremental approved-machine-copy hardening PRs unle
 
 | Gate | Evidence required | Status |
 | --- | --- | --- |
-| Source integrity | `test` merge commit `4b9fd11805269e9980361e8e256111c9dd036581`; PR #295 HEAD `220bfc1bc1296020bcbdbdae847e449e44a58e0f` passed full Phase 3 source acceptance and RBAC | FULL PR-HEAD SOURCE CI PASS; POST-MERGE CHECK PENDING |
+| Source integrity | `test` merge commit `4b9fd11805269e9980361e8e256111c9dd036581`; PR #295 HEAD `220bfc1bc1296020bcbdbdae847e449e44a58e0f` passed full Phase 3 source acceptance and RBAC | FULL PR-HEAD SOURCE CI PASS; LATEST MERGE-COMMIT CI NOT YET VERIFIED |
 | Business regression | Approve/reject/edit, RBAC, historical standard snapshots, decimal precision, machine/worker credit, NG associations | AUTOMATED BACKEND/FRONTEND CI PASS; STAGING UAT PENDING |
 | GC shared machines | Physical machine output and machine hours counted once, worker credits tracked separately | XLSX/CONTRACT CI PASS; LIVE DB RECONCILIATION PENDING |
 | Desktop Excel | Monthly export smoke, totals, dates, dynamic NG/deductions, sync metadata, no duplicate shared-machine hours | LINUX + WINDOWS RUNNER SMOKE/XLSX CI PASS; PHYSICAL DEVICE/UAT PENDING |
@@ -81,6 +81,13 @@ On [PR #295](https://github.com/Nan1233/worker-management-system/pull/295), HEAD
 - Source CI and Windows runner Excel checks are automated; a Windows CI runner is **not** the KTC target workstation.
 - **User-approved sequence:** continue non-DB development phases now; schedule isolated TiDB staging, write-capable E2E, database reconciliation and production release decision only after the development phases.
 - Do not change production data, run destructive remote E2E, or claim final Phase 3 operational acceptance without the deferred evidence.
+
+## Latest Phase 3 source gate (2026-11-10)
+
+- [PR #299](https://github.com/Nan1233/worker-management-system/pull/299) added Windows production dependency audit and syntax checks for staging release scripts; all PR-head workflows passed; merged as `2fa2d43a12668423b7c2cae9e1159d763d40b3a3`.
+- [PR #300](https://github.com/Nan1233/worker-management-system/pull/300) fixed missing failure evidence when the performance benchmark cannot connect to staging DB; after correcting the regression assertions, all three PR-head workflows passed; merged as `6d3fb35918b87f7bb146124216dca702e07e5c86`.
+- This is the latest known **source-verified development baseline**, not confirmation of post-merge CI on the squash commit, a completed live E2E run, or production approval.
+- Handoff: continue source-only development and regression testing; defer TiDB provisioning, write-capable UAT and production release until final integration.
 
 ## Repeatable verification commands
 
