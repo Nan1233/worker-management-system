@@ -254,10 +254,12 @@ const XLBV_DEFECT_LABELS: Record<string, string> = {
 
 function displayXlbvDefectNames(options: WorkerMasterOption[], processCode: string): WorkerMasterOption[] {
   if (String(processCode || "").trim().toUpperCase() !== "XLBV") return options;
-  return options.map((option) => {
-    const code = String(option.code || "").trim().toUpperCase();
-    return { ...option, label: XLBV_DEFECT_LABELS[code] || (code === "XLBV_NG_014" ? "CHƯA XÁC ĐỊNH (014)" : option.label) };
-  });
+  return options
+    .filter((option) => String(option.code || "").trim().toUpperCase() !== "XLBV_NG_014")
+    .map((option) => {
+      const code = String(option.code || "").trim().toUpperCase();
+      return { ...option, label: XLBV_DEFECT_LABELS[code] || option.label };
+    });
 }
 
 // Keep deduction entry usable until the DB has canonical TG codes.
