@@ -1,6 +1,6 @@
 # KTC Phase 3 Exit Gate — evidence-first handoff
 
-Status: **SOURCE CI EVIDENCE COLLECTED; PHASE 3 NOT YET ACCEPTED**. The complete Phase 3 source-acceptance suite passed on PR #295 HEAD, including Windows CI Excel smoke; isolated TiDB staging UAT, physical Windows device acceptance and release approval remain unverified.
+Status: **SOURCE CI EVIDENCE COLLECTED; FINAL OPERATIONAL ACCEPTANCE DEFERRED**. The complete Phase 3 source-acceptance suite passed on PR #295 HEAD, including Windows CI Excel smoke; isolated TiDB staging UAT, physical Windows device acceptance and release approval remain unverified.
 
 ## Scope freeze
 
@@ -17,7 +17,7 @@ After PR #270, stop opening incremental approved-machine-copy hardening PRs unle
 | Security | No privilege escalation, secrets in source, or unauthorized export | RBAC/DEPENDENCY HIGH AUDIT PASS; LIVE SECURITY UAT PENDING |
 | Staging readiness | Isolated non-production TiDB, migration/restore plan, credentials and test identities verified | PENDING |
 
-Phase 3 source acceptance requires the first five gates PASS, with dated evidence linked to the exact commit. Staging readiness may be handed off as a Phase 4 prerequisite, but **Phase 4 UAT cannot pass without real isolated staging verification**.
+Phase 3 source acceptance is separate from final operational acceptance. Source checks can be completed and development may proceed to the next phase while isolated staging is deferred to the final integration/acceptance milestone. **Do not mark live UAT or production approval PASS before isolated staging evidence exists.**
 
 ## Verified CI evidence (2026-11-09)
 
@@ -75,6 +75,13 @@ On [PR #295](https://github.com/Nan1233/worker-management-system/pull/295), HEAD
 
 **Do not close Phase 3 or deploy to production until all required evidence is collected.** CI green alone cannot satisfy these acceptance items.
 
+## Source-only development handoff (2026-11-10)
+
+- [PR #297](https://github.com/Nan1233/worker-management-system/pull/297) aligned `push` and `pull_request` source-acceptance triggers for scripts, tests and release documentation; merged into `test` at `1113b4d65a6fdbd60356fdeb810a9f61af0f8343`.
+- Source CI and Windows runner Excel checks are automated; a Windows CI runner is **not** the KTC target workstation.
+- **User-approved sequence:** continue non-DB development phases now; schedule isolated TiDB staging, write-capable E2E, database reconciliation and production release decision only after the development phases.
+- Do not change production data, run destructive remote E2E, or claim final Phase 3 operational acceptance without the deferred evidence.
+
 ## Repeatable verification commands
 
 From a clean checkout of `test`, install dependencies using the checked-in lockfiles, then run the applicable scripts:
@@ -86,7 +93,7 @@ cd desktop && npm run smoke:excel
 
 Also verify both required GitHub Actions workflows (Admin Ops RBAC Checks and Phase 1 clean-code regression) on the final `test` commit. If a command is unsupported on the current OS, run it on the intended CI runner and attach its logs; do not mark PASS without evidence.
 
-## Phase 4 isolated staging handoff
+## Final integration and isolated staging handoff (deferred until development phases complete)
 
 Use `RELEASE-VALIDATION.md` and `scripts/stagingE2E.cjs`. Write-path tests MUST target disposable staging, never production TiDB or the live production API. Record migration checks, role-based UAT, report approval, Excel reconciliation and rollback/restore evidence. Never commit tokens, passwords, connection strings, or real employee data.
 
@@ -95,4 +102,4 @@ Use `RELEASE-VALIDATION.md` and `scripts/stagingE2E.cjs`. Write-path tests MUST 
 - Phase 3 accepted: **NO — awaiting evidence**
 - Live staging UAT completed: **NO**
 - Production release authorized: **NO**
-- Next action: run and attach the final source/CI evidence, then begin isolated Phase 4 UAT.
+- Next action: finish remaining source-only review and proceed with the next development phase. Defer isolated TiDB setup, 24 write-capable E2E scenarios, live UAT and release decision until the final integration milestone.

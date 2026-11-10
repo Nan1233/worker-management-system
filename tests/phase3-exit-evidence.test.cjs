@@ -16,3 +16,10 @@ test('latest documented source evidence includes merged E2E security changes',()
  assert.match(doc,/24 write-capable E2E scenarios/);
  assert.match(doc,/Windows export/);
 });
+
+test('TiDB acceptance is explicitly deferred without claiming production approval',()=>{
+ assert.match(doc,/User-approved sequence:/);
+ assert.match(doc,/only after the development phases/);
+ assert.match(doc,/Do not change production data/);
+ assert.match(doc,/FINAL OPERATIONAL ACCEPTANCE DEFERRED/);
+});
