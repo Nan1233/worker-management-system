@@ -25,7 +25,7 @@ export default function ProcessBasicInfoSection({ inlineExtraFields, processCode
     const [longExecutionMode, setLongExecutionMode] = useState<LongExecutionMode>(operationMode === "MACHINE" ? "MACHINE" : "MANUAL");
     const [openMachineDeductionIndex, setOpenMachineDeductionIndex] = useState<number | null>(null);
     const [openMachineNgIndex, setOpenMachineNgIndex] = useState<number | null>(null);
-    const isMaiStyleProcess = ["MAI", "DO"].includes(String(processCode || "").trim().toUpperCase());
+    const isMaiStyleProcess = ["MAI", "DO", "CAN"].includes(String(processCode || "").trim().toUpperCase());
     const isCanProcess = String(processCode || "").trim().toUpperCase() === "CAN";
     const isEpProcess = String(processCode || "").trim().toUpperCase() === "EP";
     const isCanEpProcess = isCanProcess || isEpProcess;
