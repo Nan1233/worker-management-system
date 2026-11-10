@@ -110,6 +110,7 @@ export default function Reports() {
     const reportLoadSeqRef = useRef(0);
     const reportAbortRef = useRef<AbortController | null>(null);
     const managerActionLockRef = useRef(false);
+    const detailRequestSeqRef = useRef(0);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -159,23 +160,34 @@ export default function Reports() {
         if (loading) return;
         window.dispatchEvent(new CustomEvent("ktc:manager-pending-page-data", { detail: { reports } }));
     }, [reports, loading]);
-    useEffect(() => { setPage(1); setDetail(null); setSelectedIds([]); }, [date, range, process, shift, searchQuery]);
+    useEffect(() => {
+        detailRequestSeqRef.current += 1;
+        setPage(1); setDetail(null); setDetailLoading(false); setSelectedIds([]);
+    }, [date, range, process, shift, searchQuery]);
     useEffect(() => { setSelectedIds([]); }, [page]);
 
     const processes = processOptions;
     const shifts = useMemo(() => Array.from(new Set(reports.map(r => r.shift).filter(Boolean))).sort(), [reports]);
     const quick = (type: "day" | "week" | "month" | "year") => { const today = getToday(); setDate(today); setRange(type === "day" ? null : rangeFor(today, type)); };
 
+    const closeDetail = () => {
+        detailRequestSeqRef.current += 1;
+        setDetail(null);
+        setDetailLoading(false);
+    };
+
     const openDetail = async (report: ProductionReport) => {
+        const requestSeq = ++detailRequestSeqRef.current;
+        const isCurrent = () => detailRequestSeqRef.current === requestSeq;
         setDetail(report);
         setDetailLoading(true);
         try {
             const full = await getTempReportDetail(Number(report.id));
-            setDetail(full || report);
+            if (isCurrent()) setDetail(full || report);
         } catch {
-            setDetail(report);
+            if (isCurrent()) setDetail(report);
         } finally {
-            setDetailLoading(false);
+            if (isCurrent()) setDetailLoading(false);
         }
     };
 
@@ -344,7 +356,7 @@ export default function Reports() {
                 {detail && <aside className="pending-detail-card pending-detail-card-compact">
                     <div className="pending-detail-head">
                         <div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span><span className="pending-detail-code">#{detail.id}</span></div>
-                        <button type="button" className="pending-detail-close" onClick={() => setDetail(null)} aria-label="Đóng">×</button>
+                        <button type="button" className="pending-detail-close" onClick={closeDetail} aria-label="Đóng">×</button>
                     </div>
                     {detailLoading ? <div className="pending-detail-loading">Đang tải chi tiết...</div> : detailKpi && <div className="pending-detail-body">
                         <section className="pending-detail-section"><h3>Thông tin chung</h3><div className="pending-detail-grid">
@@ -376,7 +388,7 @@ export default function Reports() {
                         <section className="pending-detail-section"><h3>Ghi chú</h3><div className="pending-detail-field"><span>Ghi chú</span><strong>{text(detail.note || (detail as any).notes, "Không có ghi chú")}</strong></div></section>
                     </div>}
                     <div className="pending-detail-actions pending-detail-actions-compact">
-                        <button type="button" className="pending-detail-cancel" onClick={() => setDetail(null)}>Đóng</button>
+                        <button type="button" className="pending-detail-cancel" onClick={closeDetail}>Đóng</button>
                         <button type="button" onClick={() => openRejectDialog([Number(detail.id)])} disabled={rejecting || detailLoading} style={{ border: "1px solid #dc5656", background: "#fff1f1", color: "#b42323", borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: rejecting || detailLoading ? "not-allowed" : "pointer" }}>{rejecting ? "Đang từ chối..." : "Từ chối báo cáo"}</button>
                         <button type="button" className="pending-detail-approve" onClick={() => void approveDetail()} disabled={approving || detailLoading || rejecting}>{approving ? "Đang duyệt..." : "Duyệt báo cáo"}</button>
                     </div>
