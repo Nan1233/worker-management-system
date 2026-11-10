@@ -17,7 +17,7 @@ test('worker schemas preserve process-specific input and database-managed deduct
   // Ép's hâm/sửa/dừng machine deductions are dynamic master data, not fixed
   // independent inputs in the worker form. Keep the actual process-specific
   // fields while avoiding a duplicate static entry for each deduction type.
-  assert.match(schema, /Hâm khuôn, Sửa khuôn, Sửa máy, Dừng máy, Lý do dừng máy/);
+  assert.match(schema, /Trừ giờ Ép:.*hâm khuôn, sửa khuôn, sửa máy.*dừng máy/);
   assert.match(schema, /kind: "deduction-list"/);
   assert.match(schema, /Ngày tháng Ép/);
   assert.match(schema, /Công việc trừ giờ/);
