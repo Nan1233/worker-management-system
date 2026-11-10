@@ -46,9 +46,9 @@ test("Empty related Mài machine remains optional for Đo", async () => {
     assert.equal(result.valid, true);
 });
 
-test("FE and BE agree on Mài multi-run and Đo optional single-machine policy", () => {
-    assert.deepEqual(getProcessMachinePolicy(2), { code: "MAI", mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 6 });
-    assert.deepEqual(getProcessMachinePolicy(3), { code: "DO", mode: "SINGLE_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 1 });
+test("FE and BE agree on Mài and Đo multi-machine policy", () => {
+    assert.deepEqual(getProcessMachinePolicy(2), { code: "MAI", mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 10 });
+    assert.deepEqual(getProcessMachinePolicy(3), { code: "DO", mode: "MULTI_MACHINE_OPTIONAL", minMachines: 0, maxMachines: 10 });
     const domain = read("frontend/src/pages/worker/processPageDomain.ts");
     assert.match(domain, /return \["GC", "MAI", "DO", "CAN", "EP"\]\.includes\(c\.processCode\) && mode === "MACHINE"/);
     const fields = read("frontend/src/pages/worker/processExtraFields.ts");
