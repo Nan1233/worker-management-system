@@ -39,6 +39,22 @@ Desktop now resolves URLs from packaged metadata. The default package is TEST; t
 - Worker startup validates that TiDB connection material and a JWT secret of at least 32 characters are present. Secret values are never stored in Git.
 - Request-triggered master-data seeding was removed from the Worker request path. Master-data repair/seeding remains a separate operator action; normal API traffic cannot invoke those seed scripts.
 
+## Mandatory encrypted bindings before deployment
+
+Both backend Wrangler profiles now declare `secrets.required` for `JWT_SECRET`, `DB_PASSWORD`, and `TIDB_DATABASE_URL`. Cloudflare's Wrangler validation should reject a new deployment until these names exist as Worker secrets; this **does not migrate the existing account-side plaintext values**.
+
+The 2026-11-10 read-only account recheck still found the three credentials as `plain_text` on both `ktc-be-test` and `ktc-backend`, and `NODE_ENV=test` on `ktc-backend`. Do not infer that configuration is fixed from a passing source test.
+
+To complete migration without exposing existing credentials in chat or CI:
+
+1. Prepare a new TiDB user/password and connection URL with least-privilege access through a secure administrator workflow. Verify that credentials match both Worker environments and that a DB backup/rollback point is available.
+2. In Cloudflare Workers & Pages → each backend Worker → Settings → Variables and Secrets, replace the credential bindings with type **Secret** using new values from the secure administrator workflow. Include `GOOGLE_SERVICE_ACCOUNT` if that optional integration is enabled because account metadata also exposed it as `plain_text`. Do not paste values in issue comments, chat, GitHub commits or logs.
+3. Set `NODE_ENV=production` on `ktc-backend` only; keep `NODE_ENV=test` on `ktc-be-test`. Preserve all other existing bindings. Do not redeploy backend code until secrets and rollback are verified.
+4. Check the binding **names and types only**, record the deployment ID, and test the public unauthenticated health endpoint, then approved synthetic authenticated flows. Coordinate JWT rotation with an expected session sign-out.
+5. Make a controlled decision to roll traffic forward or roll back the Worker version. Rotating a TiDB credential also needs a database-side rollback procedure; reverting Worker code alone does not restore a changed password.
+
+**Critical:** source CI and `--strict` are not production UAT; the source gate remains blocked pending manual runtime evidence.
+
 ## Required Cloudflare secrets (not verified)
 
 Configure these through Cloudflare secret storage separately for TEST and production; never add values to `wrangler*.jsonc`, `.env.example`, or Git:
