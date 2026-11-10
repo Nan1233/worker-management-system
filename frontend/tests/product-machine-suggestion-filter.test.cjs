@@ -78,10 +78,12 @@ test('worker quality section runs hooks before mode-dependent early returns', ()
   assert.ok(!quality.includes('if (usesMultiMachineLines) return null;'));
 });
 
-test('DO, EP and CAN remain limited to one machine and mode helpers cannot both be true', () => {
+test('DO, EP and CAN support up to ten machines and mode helpers cannot both be true', () => {
   const machineLines = fs.readFileSync(path.join(root, 'src/pages/worker/processMachineLines.ts'), 'utf8');
-  assert.ok(machineLines.includes('if (["DO", "EP", "CAN"].includes(processCode)) return 1;'));
+  assert.match(machineLines, /(?:DO|EP|CAN)/);
+  assert.match(machineLines, /10/);
   assert.ok(domain.includes('return !resolveUsesMultiMachineLines(c, mode);'));
+  assert.ok(domain.includes('["GC", "MAI", "DO", "CAN", "EP"].includes(c.processCode)'));
 });
 
 // Only GC accounts time per machine line; Mài/Đo/Ép keep the worker-level time (audit BUG-01: zeroing it made those workers' reports fail with 422).
@@ -120,7 +122,7 @@ test('Mài worker master only exposes the approved time deductions and NG types'
   // Mài deductions come from active process-scoped DB rows; hard-coded lists
   // made the dropdown empty when master labels changed.
   assert.ok(!hook.includes('MAI_ALLOWED_DEDUCTION_NAMES'));
-  assert.ok(hook.includes('dedupeMaiDeductionOptions'));
+  assert.ok(hook.includes('dedupeEncodedOrLegacyDeductions'));
   assert.ok(hook.includes('MAI_ALLOWED_DEFECT_NAMES'));
   assert.ok(hook.includes('MAI_DISPLAY_LABELS'));
   assert.ok(hook.includes('PPCM Mất điện'));
@@ -128,7 +130,7 @@ test('Mài worker master only exposes the approved time deductions and NG types'
   assert.ok(hook.includes('filterMaiMasterOptions(normalized, processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES'));
   assert.ok(hook.includes('normalizeDeductionOptions(deductions.value, resolvedProcessId)'));
   assert.ok(hook.includes('normalizeDeductionOptions(deductions.value, resolvedProcessId)'));
-  assert.ok(hook.includes('dedupeMaiDeductionOptions('));
+  assert.ok(hook.includes('dedupeEncodedOrLegacyDeductions('));
 });
 
 test('production bundle version replacement matches the frontend and service-worker version', () => {
