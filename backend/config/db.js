@@ -149,10 +149,20 @@ function splitQueryArgs(args) {
   return { sql: String(sql ?? ""), params: Array.isArray(params) ? params : params == null ? [] : [params], callback };
 }
 
-function normalizeCloudflareResult(result) {
+function normalizeCloudflareResult(result, sql) {
   if (result && typeof result === "object" && !Array.isArray(result)) {
-    if (Array.isArray(result.rows)) return [result.rows, result.fields || []];
-    return [{ affectedRows: Number(result.rowsAffected ?? 0), insertId: Number(result.lastInsertId ?? 0), changedRows: Number(result.rowsAffected ?? 0), warningStatus: 0 }, result.fields || []];
+    // TiDB Serverless fullResult can include rows: [] even for UPDATE/INSERT/DELETE.
+    // Do not mistake that empty rowset for a SELECT result: approval's optimistic
+    // transition relies on affectedRows === 1, and inserts need lastInsertId.
+    const isWrite = /^\s*(?:INSERT|REPLACE|UPDATE|DELETE)\b/i.test(String(sql || ""));
+    if (!isWrite && Array.isArray(result.rows)) return [result.rows, result.fields || []];
+    const affectedRows = Number(result.rowsAffected ?? result.affectedRows ?? 0);
+    return [{
+      affectedRows,
+      insertId: Number(result.lastInsertId ?? result.insertId ?? 0),
+      changedRows: affectedRows,
+      warningStatus: 0,
+    }, result.fields || []];
   }
   return [Array.isArray(result) ? result : [], []];
 }
@@ -251,7 +261,7 @@ function createCloudflareConnection() {
     const run = () => executeRaw(sql, params);
     const current = queryQueue.then(run, run);
     queryQueue = current.catch(() => {});
-    return normalizeCloudflareResult(await current);
+    return normalizeCloudflareResult(await current, sql);
   }
 
   const connection = {
