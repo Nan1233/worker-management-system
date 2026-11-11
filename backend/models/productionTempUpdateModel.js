@@ -5,11 +5,13 @@ const { validateMachineLines } = require("../services/machineLineValidationServi
 const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback, editableFields } = require("./productionTempModelShared");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
-const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { DAILY_HOURS_ENFORCEMENT_ENABLED, DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 const { WORKER_EDIT_TIME_LIMIT_ENABLED, WORKER_EDIT_WINDOW_MS, WORKER_EDITABLE_STATUSES } = require("../utils/workerEditWindowPolicy");
 
 const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isParallelMachineProcess = false, isGc = false, excludeTempReportId = null }) => {
+    // Follow the same temporary cross-report daily-hours policy as create().
+    if (!DAILY_HOURS_ENFORCEMENT_ENABLED) return null;
     const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     const existingHours = await queryCountedDailyHours((sql, params) => query(connection, sql, params), { workerId: worker, workDate: date, excludeTempReportId });
