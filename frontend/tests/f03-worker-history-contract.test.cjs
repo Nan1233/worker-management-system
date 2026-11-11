@@ -28,3 +28,14 @@ test('unlimited edit mode does not disable save button after 10 minutes', () => 
   assert.match(edit, /TEMP_REPORT_VERSION_CONFLICT/);
   assert.match(edit, /validateMachineLines\(/);
 });
+
+test('legacy need_fix is removed from history filters, and rejected stays view-only', () => {
+  const history = read('ProductionHistory.tsx');
+  const compact = read('ProductionHistoryCompact.tsx');
+  const callout = read('WorkerReportEditCallout.tsx');
+  const policy = read('reportEditWindow.ts');
+  assert.doesNotMatch(history, /<option value="need_fix">/);
+  assert.doesNotMatch(compact, /<option value="need_fix">/);
+  assert.match(policy, /EDITABLE_STATUSES = new Set\(\["pending"\]\)/);
+  assert.match(callout, /!editWindow\.editable/);
+});
