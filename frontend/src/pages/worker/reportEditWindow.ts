@@ -1,15 +1,13 @@
 // Worker self-edit policy for temporary reports. Mirrors backend/utils/workerEditWindowPolicy.js.
 // (backend/models/productionTempUpdateModel.js + middleware/notifyWorkerOnTempEdit.js):
-//   - pending / need_fix : 10 minutes from creation
-//   - rejected           : 10 minutes from the moment it was rejected
-//                          (lifecycle pending -> rejected -> edit -> pending)
-//   - approved / other   : not editable by the worker
+//   - pending: editable (time restriction currently disabled)
+//   - rejected, need_fix, approved and other statuses: view only
 // The backend remains the authority; this only decides what the UI offers.
 
 export const WORKER_EDIT_TIME_LIMIT_ENABLED = false;
 export const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
-const EDITABLE_STATUSES = new Set(["pending", "need_fix", "rejected"]);
+const EDITABLE_STATUSES = new Set(["pending"]);
 
 export type WorkerEditWindow = {
     editable: boolean;
