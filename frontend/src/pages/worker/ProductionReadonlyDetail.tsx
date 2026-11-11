@@ -1,19 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { getWorkerEditWindow, WORKER_EDIT_TIME_LIMIT_ENABLED, formatRemaining } from "./reportEditWindow";
 import { getWorkerDeclaredDefects } from "../../utils/workerDeclaredDefects";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById } from "../../services/productionService";
 
-const EDIT_WINDOW_MS = 10 * 60 * 1000;
 const num = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const fmt = (v: any, digits = 0) => num(v).toLocaleString("vi-VN", { maximumFractionDigits: digits });
 const pct = (v: any) => `${fmt(v, 2)}%`;
-const dbDateMs = (value?: string | null) => {
-  if (!value) return NaN;
-  const text = String(value).trim();
-  const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text) ? `${text.replace(" ", "T")}Z` : text;
-  const ms = new Date(normalized).getTime();
-  return Number.isFinite(ms) ? ms : NaN;
-};
 
 function parseDefects(value: any): any[] {
   if (!value) return [];
@@ -70,11 +63,8 @@ export default function ProductionReadonlyDetail() {
 
   useEffect(() => { setNow(Date.now()); const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
 
-  const remainingMs = useMemo(() => {
-    if (!report || source === "approved") return 0;
-    const created = dbDateMs(report.created_at);
-    return Number.isFinite(created) ? Math.max(0, created + EDIT_WINDOW_MS - now) : 0;
-  }, [report, source, now]);
+  const editWindow = getWorkerEditWindow(report, now || Date.now());
+  const remainingText = formatRemaining(editWindow.remainingMs);
 
   if (loading) return <main className="worker-form-page"><div className="rod-shell"><div className="rod-card">Đang tải chi tiết báo cáo...</div></div></main>;
   if (error) return <main className="worker-form-page"><div className="rod-shell"><div className="rod-card rod-error">{error}</div></div></main>;
@@ -92,15 +82,12 @@ export default function ProductionReadonlyDetail() {
   const achievementStored = r.achievement_percent ?? r.attainment_percent ?? r.percent_achieved;
   const performanceStored = r.performance_percent ?? r.productivity_percent ?? r.percent_performance;
   const ppStored = r.pp_percent ?? r.pp;
-  const seconds = Math.ceil(remainingMs / 1000);
-  const remainingText = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-  const status = String(r.status || "pending").toLowerCase();
-  const canEdit = source !== "approved" && ["pending", "need_fix"].includes(status) && remainingMs > 0;
+  const canEdit = source !== "approved" && editWindow.editable;
 
   return <main className="worker-form-page rod-page"><div className="rod-shell">
     <div className="rod-toolbar">
       <button type="button" className="rod-back" onClick={() => navigate(-1)}>←</button>
-      <div className="rod-toolbar-title"><strong>Chi tiết báo cáo</strong><span>{canEdit ? `Có thể sửa · còn ${remainingText}` : "Chỉ xem · không thể thay đổi dữ liệu"}</span></div>
+      <div className="rod-toolbar-title"><strong>Chi tiết báo cáo</strong><span>{canEdit ? WORKER_EDIT_TIME_LIMIT_ENABLED ? `Có thể sửa · còn ${remainingText}` : "Có thể sửa · không giới hạn thời gian" : "Chỉ xem · không thể thay đổi dữ liệu"}</span></div>
       {canEdit && <button type="button" className="rod-edit" onClick={() => navigate(`/worker/history/${id}/edit`)}>Sửa báo cáo</button>}
     </div>
 
