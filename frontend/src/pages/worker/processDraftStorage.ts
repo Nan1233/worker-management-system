@@ -328,7 +328,16 @@ export function saveProcessDraft(draft: ProcessDraft): void {
     if (localStorage.getItem(storageKey) !== serialized) {
       throw new Error("Draft write verification failed");
     }
-  } catch {
+  } catch (error) {
+    // Do not log the draft itself: it may contain worker and production data.
+    // Keep the previous draft intact and expose only the storage failure reason.
+    const failureName = error instanceof Error ? error.name : "UnknownError";
+    const failureMessage = error instanceof Error ? error.message : String(error);
+    console.warn("[KTC draft] Autosave failed", {
+      reason: failureName,
+      message: failureMessage,
+      process: draft.process,
+    });
     // Autosave cannot throw inside a timer or pagehide. Notify the form once
     // instead of claiming an unsaved draft will survive a reload.
     try { window.dispatchEvent(new Event(PROCESS_DRAFT_SAVE_FAILED_EVENT)); } catch { /* unavailable */ }
