@@ -1,25 +1,39 @@
 'use strict';
 
 const { LAST_COLUMN, MAX_DEDUCTIONS, MAX_DEFECTS } = require('./commonProcessExcelColumns');
-function clone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
+function clone(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
 
 function clearSheetData(sheet) {
   // ExcelJS has no `sheet.mergedCells`: the old `[...(sheet.mergedCells || [])]` was always empty, so no
   // template merge was ever removed and the first writeDateRow() -> mergeCells() on a merged template row
   // threw "Cannot merge already merged cells" as soon as the (previously hung) clear loop finished.
   // The merge registry is `sheet._merges` ({masterAddress: Range}); it is the same data ExcelJS serialises.
-  for (const merge of Object.values(sheet._merges || {})) { try { sheet.unMergeCells(merge.range); } catch (_) {} }
+  for (const merge of Object.values(sheet._merges || {})) {
+    try {
+      sheet.unMergeCells(merge.range);
+    } catch (_) {
+      // Preserve best-effort cleanup for malformed template merges.
+    }
+  }
   // Only visit cells that exist in the template. The previous nested loop used
   // `c <= sheet.columnCount` as its condition: ExcelJS recomputes columnCount by scanning EVERY row on
   // each access, and getRow()/getCell() materialise a cell at every (row, column) position, so a
   // template whose used range is ~1M cells made the export O(n^2) and pinned the CPU at 100 % for
   // minutes (POST /api/reports/export-excel never answered). Styles are kept; only values are cleared.
   sheet.eachRow({ includeEmpty: true }, (row) => {
-    row.eachCell({ includeEmpty: true }, (cell) => { cell.value = null; });
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.value = null;
+    });
   });
-  if (Array.isArray(sheet.conditionalFormattings)) sheet.conditionalFormattings.length = 0;
+  if (Array.isArray(sheet.conditionalFormattings)) {
+    sheet.conditionalFormattings.length = 0;
+  }
   const columnCount = sheet.columnCount; // read once: see above
-  for (let c = LAST_COLUMN + 1; c <= columnCount; c += 1) sheet.getColumn(c).hidden = true;
+  for (let column = LAST_COLUMN + 1; column <= columnCount; column += 1) {
+    sheet.getColumn(column).hidden = true;
+  }
 }
 
 function captureRowStyles(sheet, rowNumber) {
@@ -27,7 +41,15 @@ function captureRowStyles(sheet, rowNumber) {
   const row = sheet.getRow(rowNumber);
   for (let c = 1; c <= LAST_COLUMN; c += 1) {
     const cell = row.getCell(c);
-    result.push({ style: clone(cell.style), font: clone(cell.font), fill: clone(cell.fill), border: clone(cell.border), alignment: clone(cell.alignment), protection: clone(cell.protection), numFmt: cell.numFmt });
+    result.push({
+      style: clone(cell.style),
+      font: clone(cell.font),
+      fill: clone(cell.fill),
+      border: clone(cell.border),
+      alignment: clone(cell.alignment),
+      protection: clone(cell.protection),
+      numFmt: cell.numFmt
+    });
   }
   return result;
 }
@@ -42,8 +64,11 @@ function applyStyle(cell, source) {
   if (source.numFmt) cell.numFmt = source.numFmt;
 }
 function copyTemplateStyles(sheet, sourceRow, targetRow, styles) {
-  const row = sheet.getRow(targetRow); row.height = sheet.getRow(sourceRow).height || 18;
-  for (let c = 1; c <= LAST_COLUMN; c += 1) applyStyle(row.getCell(c), styles[c - 1]);
+  const row = sheet.getRow(targetRow);
+  row.height = sheet.getRow(sourceRow).height || 18;
+  for (let column = 1; column <= LAST_COLUMN; column += 1) {
+    applyStyle(row.getCell(column), styles[column - 1]);
+  }
 }
 function setHeader(sheet, rowNumber, styles, deductions, defects) {
   copyTemplateStyles(sheet, 3, rowNumber, styles);
@@ -55,23 +80,36 @@ function setHeader(sheet, rowNumber, styles, deductions, defects) {
   ];
   headers.forEach((value, index) => {
     const cell = sheet.getRow(rowNumber).getCell(index + 1);
-    cell.value = value; cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; cell.font = { ...(cell.font || {}), bold: true };
+    cell.value = value;
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.font = { ...(cell.font || {}), bold: true };
   });
   sheet.getRow(rowNumber).height = 44;
 }
 function writeDateRow(sheet, rowNumber, text, style) {
-  const row = sheet.getRow(rowNumber); row.height = 25;
-  for (let c = 1; c <= LAST_COLUMN; c += 1) applyStyle(row.getCell(c), style[c - 1]);
+  const row = sheet.getRow(rowNumber);
+  row.height = 25;
+  for (let column = 1; column <= LAST_COLUMN; column += 1) {
+    applyStyle(row.getCell(column), style[column - 1]);
+  }
   sheet.mergeCells(rowNumber, 1, rowNumber, LAST_COLUMN);
-  const cell = row.getCell(1); cell.value = text;
+  const cell = row.getCell(1);
+  cell.value = text;
   cell.font = { ...(cell.font || {}), bold: true, size: Math.max(11, Number(cell.font?.size || 10) + 1) };
   cell.alignment = { horizontal: 'left', vertical: 'middle' };
 }
 
 function prepareSheet(sheet) {
-  const headerStyles = captureRowStyles(sheet, 3), dataStyles = captureRowStyles(sheet, Math.min(6, sheet.rowCount)), dateStyles = captureRowStyles(sheet, 1);
-  const widths = Array.from({ length: LAST_COLUMN }, (_, i) => sheet.getColumn(i + 1).width);
-  clearSheetData(sheet); widths.forEach((width, i) => { if (width != null) sheet.getColumn(i + 1).width = width; });
+  const headerStyles = captureRowStyles(sheet, 3);
+  const dataStyles = captureRowStyles(sheet, Math.min(6, sheet.rowCount));
+  const dateStyles = captureRowStyles(sheet, 1);
+  const widths = Array.from({ length: LAST_COLUMN }, (_, index) => sheet.getColumn(index + 1).width);
+
+  clearSheetData(sheet);
+  widths.forEach((width, index) => {
+    if (width != null) sheet.getColumn(index + 1).width = width;
+  });
+
   return { headerStyles, dataStyles, dateStyles };
 }
 
