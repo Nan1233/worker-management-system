@@ -37,7 +37,6 @@ function Login() {
         const passiveCrossTabRedirect = sessionStorage.getItem(CROSS_TAB_LOGIN_MARKER_KEY) === "1";
         sessionStorage.removeItem(CROSS_TAB_LOGIN_MARKER_KEY);
         if (passiveCrossTabRedirect) clearCurrentTabAuthSession(); else { preservePreviousRefreshTokenForLogin(); beginLoginTransition(); clearAuthSession({ bumpEpoch: false }); finishLoginTransition(); }
-        sessionStorage.removeItem("redirectAfterLogin");
         if (/\/login\/?$/.test(window.location.pathname)) {
             const canonicalUrl = `${window.location.origin}/#${window.location.hash.replace(/^#/, "") || "/login"}`;
             window.history.replaceState(null, "", canonicalUrl);
@@ -75,7 +74,16 @@ function Login() {
             if (!user?.role) throw new Error("Đăng nhập thành công nhưng máy chủ không trả về thông tin tài khoản.");
             if (rememberAccount) localStorage.setItem(REMEMBERED_CODE_KEY, rawUsername); else localStorage.removeItem(REMEMBERED_CODE_KEY);
             const redirectAfterLogin = sessionStorage.getItem("redirectAfterLogin"); sessionStorage.removeItem("redirectAfterLogin");
-            navigate(redirectAfterLogin && redirectAfterLogin !== "/login" ? redirectAfterLogin : homeByRole[user.role] || "/", { replace: true });
+            // Only restore an internal route belonging to the authenticated role.
+            // Never use arbitrary external, protocol-relative or cross-role paths.
+            const roleHome = homeByRole[user.role] || "/login";
+            const safeRedirect = redirectAfterLogin
+                && redirectAfterLogin.startsWith("/")
+                && !redirectAfterLogin.startsWith("//")
+                && (redirectAfterLogin === roleHome || redirectAfterLogin.startsWith(roleHome + "/"))
+                ? redirectAfterLogin
+                : roleHome;
+            navigate(safeRedirect, { replace: true });
         } catch (err: unknown) {
             if (axios.isCancel(err)) return;
             blurActiveLoginField();
