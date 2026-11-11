@@ -5,7 +5,7 @@
 - Backend là nguồn xác nhận cuối cùng. Quyền sở hữu vẫn bắt buộc; FE chỉ hiển thị nút.
 - Khi sửa `rejected` thành công, báo cáo quay lại `pending` theo nghiệp vụ hiện có.
 - Mọi thao tác công nhân sửa phải gửi `expected_updated_at`, thiếu hoặc phiên bản cũ bị từ chối HTTP 409 trước khi cập nhật dữ liệu.
-- **Không thay đổi** giới hạn giờ cộng dồn/ngày và quy tắc máy dùng chung theo quyết định F02.
+- Giới hạn giờ **cộng dồn/ngày** tiếp tục tắt cho cả tạo và sửa theo quyết định F02; vẫn kiểm tra thời gian hợp lệ của từng dòng máy. Không sửa quy tắc máy dùng chung.
 
 Để bật lại 10 phút trong tương lai: cùng lúc đổi `WORKER_EDIT_TIME_LIMIT_ENABLED` sang `true` ở:
 - `backend/utils/workerEditWindowPolicy.js`
@@ -27,7 +27,6 @@ git switch test
 git pull origin test
 cd backend
 node scripts/runFlowTests.cjs --flow worker-history
-node --test tests\temp-edit-regressions.test.js
 cd ..\frontend
 node --test tests\worker-edit-window.behavior.test.cjs tests\f03-worker-history-contract.test.cjs tests\worker-history-states.contract.test.cjs tests\report-edit-parity.test.cjs
 npx tsc --noEmit
