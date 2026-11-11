@@ -1371,7 +1371,12 @@ function startTokenDiscovery() {
   if (excelDbSyncTimer) clearInterval(excelDbSyncTimer);
   excelDbSyncTimer = null;
   void discoverRendererToken();
-  tokenDiscoveryTimer = setInterval(() => void discoverRendererToken(), 5000);
+  // Avoid continuously executing JavaScript against the renderer while it is
+  // loading or the user is interacting with the application.
+  tokenDiscoveryTimer = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isLoading()) return;
+    void discoverRendererToken();
+  }, 15000);
   tokenDiscoveryTimer.unref?.();
 }
 
