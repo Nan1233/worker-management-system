@@ -2,6 +2,7 @@ const { parseJsonArray } = require("./machineAccountingJson");
 const { classifyGiaCongMachineSource } = require("./giaCongMachineSource");
 const { calculateMachineLineDeductionHours } = require("./giaCongMachineDeductionHours");
 const { appendGiaCongMachineDeductions } = require("./giaCongMachineDeductionDetails");
+const { addGiaCongPhysicalMachineHours } = require("./giaCongPhysicalMachineHours");
 
 const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
@@ -30,17 +31,10 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
     && !hasLineBreakdown;
 
   lines.forEach((line, lineIndex) => {
-    const eventId = Number(line.machine_event_id) || 0;
-    const event = eventId ? events.get(eventId) : null;
-    if (event) {
-      hasPhysicalEvent = true;
-      if (!seenEvents.has(eventId)) {
-        seenEvents.add(eventId);
-        grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
-      }
-    } else if (!eventId) {
-      grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
-    }
+    const physical = addGiaCongPhysicalMachineHours({ line, events, seenEvents, grossHours });
+    const eventId = physical.eventId;
+    grossHours = physical.grossHours;
+    if (physical.hasPhysicalEvent) hasPhysicalEvent = true;
 
     const storedLineDeductions = parseJsonArray(line.deductions_json);
     const hasPositiveStoredDeduction = storedLineDeductions.some(
