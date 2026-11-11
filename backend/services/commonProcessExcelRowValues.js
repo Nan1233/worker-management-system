@@ -51,6 +51,9 @@ function buildCommonProcessExcelRowValues(report, deductionTypes, defectTypes, i
     ...defectValues, ok, ng
   ];
 
+  if (values.length !== LAST_COLUMN) {
+    throw new Error(`Invalid common-process Excel row width: expected ${LAST_COLUMN}, received ${values.length}`);
+  }
   return values;
 }
 module.exports = { buildCommonProcessExcelRowValues };
