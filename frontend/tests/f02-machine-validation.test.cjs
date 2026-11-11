@@ -42,6 +42,12 @@ test('FE rejects missing and excessive actual machine runtime', () => {
   assert.match(validate({ hours: '13' }), /không quá 12 giờ/);
 });
 
+test('FE rejects invalid minutes and negative line deductions', () => {
+  assert.match(validate({ hours: '8', minutes: '60' }), /phút phải từ 0 đến 59/);
+  assert.match(validate({ hours: '8', minutes: '-1' }), /phút phải từ 0 đến 59/);
+  assert.match(validate({ hours: '8', deductions: { adjustment: '-15' } }), /thời gian trừ phải không âm/);
+});
+
 test('FE rejects gross machine hours above 12 including deductions', () => {
   assert.match(validate({ hours: '11', deductions: { change: '120' } }), /thời gian thực tế cộng trừ giờ/);
 });
