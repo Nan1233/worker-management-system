@@ -71,9 +71,21 @@ function auditGcExportPayload(payload, { requireSharedEvent = false } = {}) {
       addError('GC_MISSING_LINKED_PHYSICAL_EVENT');
     }
 
-    const reportEvents = new Map((Array.isArray(report.eventLines) ? report.eventLines : [])
-      .map((item) => [Number(item?.id), item])
-      .filter(([id]) => Number.isSafeInteger(id) && id > 0));
+    // Reject duplicate physical-event IDs before creating the lookup map:
+    // a plain Map constructor would silently replace an earlier event row.
+    const reportEvents = new Map();
+    for (const event of (Array.isArray(report.eventLines) ? report.eventLines : [])) {
+      const eventId = Number(event?.id);
+      if (!Number.isSafeInteger(eventId) || eventId <= 0) {
+        addError('GC_INVALID_PHYSICAL_EVENT_ID');
+        continue;
+      }
+      if (reportEvents.has(eventId)) {
+        addError('GC_DUPLICATE_PHYSICAL_EVENT_ID_IN_REPORT');
+        continue;
+      }
+      reportEvents.set(eventId, event);
+    }
 
     const idsInReport = new Set();
     for (const line of lines) {
