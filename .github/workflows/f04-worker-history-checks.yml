@@ -5,10 +5,17 @@ on:
   push:
     branches:
       - test
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/f04-worker-history-checks.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: f04-worker-history-checks-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   worker-history:
