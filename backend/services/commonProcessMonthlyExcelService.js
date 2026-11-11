@@ -7,6 +7,7 @@ const { getMonthlyTarget } = require('./consolidatedExcelExportService');
 const { resolveTemplatePath, normalizeLabel } = require('./excelTemplateContractService');
 const { resolveReportExportTimes } = require('./commonProcessExportTimes');
 const { expandGiaCongMachineLines } = require('./gcCommonProcessExcelRows');
+const { detailValue } = require('./commonProcessExcelDetailValue');
 
 const TEMPLATE_SHEETS = ['CÁN', 'EP', 'XLBV', 'Cắt lồng', 'TT Mài', 'TT Đo', 'TT Kiểm 1', 'TT Kiểm 2'];
 const MAX_DEDUCTIONS = 15;
@@ -118,14 +119,7 @@ function writeDateRow(sheet, rowNumber, text, style) {
   cell.font = { ...(cell.font || {}), bold: true, size: Math.max(11, Number(cell.font?.size || 10) + 1) };
   cell.alignment = { horizontal: 'left', vertical: 'middle' };
 }
-function detailValue(items, id, name, key) {
-  const target = alias(name);
-  return (items || []).filter((item) => {
-    const itemId = Number(item?.[key === 'hours' ? 'deduction_type_id' : 'defect_type_id'] ?? item?.id);
-    const itemName = alias(item?.name || item?.deduction_name || item?.defect_name || item?.code || item?.deduction_code || item?.defect_code);
-    return (id && itemId === Number(id)) || (target && itemName && (itemName === target || itemName.includes(target) || target.includes(itemName)));
-  }).reduce((sum, item) => sum + num(item?.[key] ?? item?.quantity ?? item?.value), 0);
-}
+
 function writeReportRow(sheet, rowNumber, report, deductionTypes, defectTypes, dataStyles, index) {
   copyTemplateStyles(sheet, 6, rowNumber, dataStyles);
   const row = sheet.getRow(rowNumber);
