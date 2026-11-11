@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById } from "../../services/productionService";
-import { formatRemaining, getWorkerEditWindow } from "./reportEditWindow";
+import { formatRemaining, getWorkerEditWindow, WORKER_EDIT_TIME_LIMIT_ENABLED } from "./reportEditWindow";
 
 type CalloutReport = { status?: string; review_note?: string | null; created_at?: string; updated_at?: string };
 
 /**
  * Entry point to the worker edit screen from the report detail page.
  * Shows the rejection reason and a "edit and resubmit" action while the
- * worker's edit window is open (pending/need_fix: 10 min from creation,
- * rejected: 10 min from rejection). Approved reports render nothing.
+ * worker has permission to edit a pending/need_fix/rejected report.
+ * The time limit can be re-enabled centrally. Approved reports render nothing.
  */
 export default function WorkerReportEditCallout() {
   const { id } = useParams();
@@ -30,6 +30,7 @@ export default function WorkerReportEditCallout() {
   }, [id, source]);
 
   useEffect(() => {
+    if (!WORKER_EDIT_TIME_LIMIT_ENABLED) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
@@ -55,8 +56,10 @@ export default function WorkerReportEditCallout() {
         {rejected && report.review_note ? <div>Lý do: {report.review_note}</div> : null}
         <div>
           {editWindow.editable
-            ? `${rejected ? "Sửa và gửi lại" : "Có thể sửa"} trong ${formatRemaining(editWindow.remainingMs)} nữa.`
-            : "Đã hết 10 phút sửa báo cáo. Vui lòng liên hệ quản lý nếu cần sửa hoặc tạo báo cáo mới."}
+            ? WORKER_EDIT_TIME_LIMIT_ENABLED
+              ? `${rejected ? "Sửa và gửi lại" : "Có thể sửa"} trong ${formatRemaining(editWindow.remainingMs)} nữa.`
+              : "Có thể chỉnh sửa báo cáo không giới hạn thời gian khi chưa được duyệt."
+            : "Trạng thái báo cáo hiện không cho phép chỉnh sửa."}
         </div>
       </div>
       {editWindow.editable && (
