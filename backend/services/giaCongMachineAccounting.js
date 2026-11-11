@@ -1,4 +1,5 @@
 const { parseJsonArray } = require("./machineAccountingJson");
+const { classifyGiaCongMachineSource } = require("./giaCongMachineSource");
 
 const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
@@ -79,9 +80,7 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
     const eventId = Number(line.machine_event_id) || 0;
     return eventId > 0 && !events.has(eventId);
   });
-  const source = hasPhysicalEvent
-    ? (hasMissingLinkedEvent ? 'MACHINE_EVENT_PARTIAL' : 'MACHINE_EVENT')
-    : (hasMissingLinkedEvent ? 'MACHINE_EVENT_MISSING' : (hasMachineLines ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING'));
+  const source = classifyGiaCongMachineSource({ hasPhysicalEvent, hasMissingLinkedEvent, hasMachineLines });
 
   return {
     source,
