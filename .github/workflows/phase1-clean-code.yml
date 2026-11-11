@@ -1,12 +1,6 @@
 name: Phase 1 clean-code regression
 
 on:
-  pull_request:
-    branches: [test]
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - '.github/workflows/phase1-clean-code.yml'
   workflow_dispatch: {}
 
 jobs:

@@ -1,11 +1,6 @@
 name: Refresh frontend security lockfile
 
 on:
-  push:
-    branches:
-      - test
-    paths:
-      - "frontend/package.json"
   workflow_dispatch:
 
 permissions:

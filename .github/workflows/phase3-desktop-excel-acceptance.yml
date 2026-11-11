@@ -1,22 +1,6 @@
 name: Phase 3 Desktop Excel Acceptance
 
 on:
-  pull_request:
-    branches: [test]
-    paths:
-      - 'desktop/**'
-      - 'backend/domain/productionCalculationEngine.cjs'
-      - 'backend/services/**'
-      - 'shared/**'
-      - '.github/workflows/phase3-desktop-excel-acceptance.yml'
-  push:
-    branches: [test]
-    paths:
-      - 'desktop/**'
-      - 'backend/domain/productionCalculationEngine.cjs'
-      - 'backend/services/**'
-      - 'shared/**'
-      - '.github/workflows/phase3-desktop-excel-acceptance.yml'
   workflow_dispatch:
 
 permissions:

@@ -1,11 +1,6 @@
 name: Refresh backend security lockfile
 
 on:
-  push:
-    branches:
-      - test
-    paths:
-      - "backend/package.json"
   workflow_dispatch:
 
 permissions:

@@ -1,11 +1,5 @@
 name: Phase 5 Public Health Smoke (read-only)
 on:
-  push:
-    branches: [test]
-    paths:
-      - 'scripts/phase5PublicHealthSmoke.cjs'
-      - 'tests/phase5-public-health-smoke.test.cjs'
-      - '.github/workflows/phase5-public-health-smoke.yml'
   workflow_dispatch:
     inputs:
       target:

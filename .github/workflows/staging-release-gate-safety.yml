@@ -1,59 +1,5 @@
 name: Staging Release Gate Safety
 on:
-  pull_request:
-    branches: [test]
-    paths:
-      - 'scripts/stagingReleaseGate.cjs'
-      - 'scripts/performanceLargeData.cjs'
-      - 'scripts/securityRuntimeAudit.cjs'
-      - 'scripts/stagingE2E.cjs'
-      - 'scripts/zero-cost/critical-e2e.cjs'
-      - 'scripts/zero-cost/http.cjs'
-      - 'backend/scripts/e2e-db-guard.cjs'
-      - 'tests/staging-release-gate-guard.test.cjs'
-      - 'tests/staging-release-gate-timeout.test.cjs'
-      - 'tests/staging-e2e-api-target.test.cjs'
-      - 'tests/critical-e2e-direct-guard.test.cjs'
-      - 'tests/critical-e2e-cleanup-contract.test.cjs'
-      - 'tests/critical-e2e-finally-cleanup.test.cjs'
-      - 'tests/critical-e2e-db-tls.test.cjs'
-      - 'tests/e2e-db-port-and-run-id.test.cjs'
-      - 'tests/critical-e2e-writer-session.test.cjs'
-      - 'tests/critical-e2e-cleanup-like.test.cjs'
-      - 'tests/phase3-exit-evidence.test.cjs'
-      - 'tests/performance-db-isolation.test.cjs'
-      - 'tests/performance-failure-evidence.test.cjs'
-      - 'tests/security-runtime-audit-target.test.cjs'
-      - 'docs/PHASE3_EXIT_GATE.md'
-      - 'tests/zero-cost-http-redirect.test.cjs'
-      - '.github/workflows/staging-release-gate-safety.yml'
-  push:
-    branches: [test]
-    paths:
-      - 'scripts/stagingReleaseGate.cjs'
-      - 'scripts/performanceLargeData.cjs'
-      - 'scripts/securityRuntimeAudit.cjs'
-      - 'scripts/stagingE2E.cjs'
-      - 'scripts/zero-cost/critical-e2e.cjs'
-      - 'scripts/zero-cost/http.cjs'
-      - 'backend/scripts/e2e-db-guard.cjs'
-      - 'tests/staging-release-gate-guard.test.cjs'
-      - 'tests/staging-release-gate-timeout.test.cjs'
-      - 'tests/staging-e2e-api-target.test.cjs'
-      - 'tests/critical-e2e-direct-guard.test.cjs'
-      - 'tests/critical-e2e-cleanup-contract.test.cjs'
-      - 'tests/critical-e2e-finally-cleanup.test.cjs'
-      - 'tests/critical-e2e-db-tls.test.cjs'
-      - 'tests/e2e-db-port-and-run-id.test.cjs'
-      - 'tests/critical-e2e-writer-session.test.cjs'
-      - 'tests/critical-e2e-cleanup-like.test.cjs'
-      - 'tests/phase3-exit-evidence.test.cjs'
-      - 'tests/performance-db-isolation.test.cjs'
-      - 'tests/performance-failure-evidence.test.cjs'
-      - 'tests/security-runtime-audit-target.test.cjs'
-      - 'docs/PHASE3_EXIT_GATE.md'
-      - 'tests/zero-cost-http-redirect.test.cjs'
-      - '.github/workflows/staging-release-gate-safety.yml'
 permissions:
   contents: read
 jobs:

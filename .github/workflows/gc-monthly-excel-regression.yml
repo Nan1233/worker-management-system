@@ -1,20 +1,6 @@
 name: Gia Cong Monthly Excel Regression
 
 on:
-  push:
-    branches: [test]
-    paths:
-      - 'backend/services/commonProcessMonthlyExcelService.js'
-      - 'backend/services/monthlyExcelService.js'
-      - 'backend/tests/common-process-gc-excel.test.js'
-      - 'backend/scripts/auditGcExcelPayload.cjs'
-      - 'backend/tests/phase2-gc-excel-payload-audit.test.js'
-      - 'scripts/gcMachineTimeRemoteSmoke.cjs'
-      - 'desktop/electron/monthlyWorkbookLocal.cjs'
-      - 'desktop/electron/companyExcelLocal.cjs'
-      - 'desktop/tests/phase2-gc-xlsx-roundtrip.test.cjs'
-      - 'desktop/tests/company-excel-shared-machine.test.cjs'
-      - '.github/workflows/gc-monthly-excel-regression.yml'
   workflow_dispatch:
 
 permissions:

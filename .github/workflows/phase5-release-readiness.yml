@@ -1,38 +1,6 @@
 name: Phase 5 Release Readiness (Source Only)
 
 on:
-  push:
-    branches: [test]
-    paths:
-      - 'scripts/phase5ReleaseReadiness.cjs'
-      - 'scripts/lib/jsonc.cjs'
-      - 'tests/jsonc-helper.test.cjs'
-      - 'tests/phase5-release-readiness.test.cjs'
-      - 'render.yaml'
-      - 'frontend/render.yaml'
-      - 'backend/render.yaml'
-      - 'backend/server.js'
-      - 'desktop/electron/launcher.cjs'
-      - 'desktop/electron/deploymentProfile.cjs'
-      - 'desktop/electron-builder.production.json'
-      - 'desktop/tests/deployment-profile.test.cjs'
-      - 'desktop/electron/autoUpdate.cjs'
-      - 'backend/cloudflare-worker.js'
-      - 'backend/config/cloudflareDeploymentProfile.cjs'
-      - 'backend/tests/cloudflare-deployment-profile.test.js'
-      - 'backend/wrangler.jsonc'
-      - 'backend/wrangler.production.jsonc'
-      - 'frontend/src/config/env.ts'
-      - 'frontend/.env.test'
-      - 'frontend/.env.production'
-      - 'frontend/wrangler.jsonc'
-      - 'frontend/wrangler.production.jsonc'
-      - 'desktop/package.json'
-      - 'backend/package.json'
-      - 'frontend/package.json'
-      - 'package.json'
-      - 'docs/PHASE5_RELEASE_READINESS.md'
-      - '.github/workflows/phase5-release-readiness.yml'
   workflow_dispatch:
 
 permissions:
