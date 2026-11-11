@@ -1,13 +1,4 @@
-const parseJsonArray = (value) => {
-  if (Array.isArray(value)) return value;
-  if (!value) return [];
-  try {
-    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (_error) {
-    return [];
-  }
-};
+const { parseJsonArray } = require("./machineAccountingJson");
 
 const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
