@@ -1,5 +1,7 @@
 'use strict';
 
+const { calculateProductionNgRate } = require('./productionNgRate.cjs');
+
 const DEFAULT_SETTINGS = Object.freeze({
   apply_training_percent: 1,
   output_formula: 'ENTERED_X_TRAINING',
@@ -135,13 +137,12 @@ function calculateProductionMetrics(report = {}, settings = {}) {
       : null;
   }
 
-  let ngRate = null;
-  if (resolved.ng_rate_formula === 'NG_DIV_ENTERED_OUTPUT') {
-    ngRate = enteredOutput ? ng.allNg / enteredOutput : null;
-  } else {
-    const denominator = ok !== null && ng.allNg !== null ? ok + ng.allNg : null;
-    ngRate = denominator ? ng.allNg / denominator : null;
-  }
+  const ngRate = calculateProductionNgRate({
+    formula: resolved.ng_rate_formula,
+    enteredOutput,
+    ok,
+    allNg: ng.allNg
+  });
 
   return {
     trainingPercent,
