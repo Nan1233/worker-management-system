@@ -5,10 +5,17 @@ on:
   push:
     branches:
       - test
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/f02-worker-home-checks.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: f02-worker-home-checks-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   worker-home-stats:
