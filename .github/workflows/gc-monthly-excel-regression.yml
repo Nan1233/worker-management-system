@@ -10,6 +10,10 @@ on:
       - 'backend/scripts/auditGcExcelPayload.cjs'
       - 'backend/tests/phase2-gc-excel-payload-audit.test.js'
       - 'scripts/gcMachineTimeRemoteSmoke.cjs'
+      - 'desktop/electron/monthlyWorkbookLocal.cjs'
+      - 'desktop/electron/companyExcelLocal.cjs'
+      - 'desktop/tests/phase2-gc-xlsx-roundtrip.test.cjs'
+      - 'desktop/tests/company-excel-shared-machine.test.cjs'
       - '.github/workflows/gc-monthly-excel-regression.yml'
   workflow_dispatch:
 
@@ -35,3 +39,19 @@ jobs:
       - run: node --check services/monthlyExcelService.js
       - run: node --check scripts/auditGcExcelPayload.cjs
       - run: node --test tests/common-process-gc-excel.test.js tests/gc-worker-report-excel.test.js tests/phase2-gc-excel-payload-audit.test.js tests/gc-machine-time-remote-smoke.test.js
+
+  gc-desktop-xlsx-roundtrip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test tests/phase2-gc-xlsx-roundtrip.test.cjs tests/company-excel-shared-machine.test.cjs
