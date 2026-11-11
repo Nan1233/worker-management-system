@@ -20,7 +20,7 @@ const { verifyDuplicateConfirmation } = require("./duplicateConfirmationService"
 const { DAILY_HOURS_ENFORCEMENT_ENABLED, DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 
-const submissionQueues = new Map();
+const { submissionQueueKey, runSerializedSubmission } = require('./productionSubmissionQueue');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const rollbackOrThrow = async (connection, originalError) => {
@@ -52,38 +52,6 @@ const rollbackOrThrow = async (connection, originalError) => {
     return result;
 };
 
-// Serialize submissions for the same logical request. Always release the
-// queue slot even when the task fails, so future submissions are not blocked.
-const runSerialized = async (key, task) => {
-    const previous = submissionQueues.get(key) || Promise.resolve();
-
-    let release;
-    const current = new Promise((resolve) => {
-        release = resolve;
-    });
-    submissionQueues.set(key, current);
-
-    await previous;
-    try {
-        return await task();
-    } finally {
-        release();
-        if (submissionQueues.get(key) === current) {
-            submissionQueues.delete(key);
-        }
-    }
-};
-
-const queueKey = (data, machineLines = []) => {
-    const workerId = Number(data?.worker_id || data?.workerId || 0);
-    const client = String(data?.client_request_id || "").trim();
-    if (client) return `client:${workerId}:${client}`;
-    const logical = String(data?.logical_duplicate_key || "").trim();
-    if (logical) return `logical:${workerId}:${logical}`;
-    const machines = [...new Set((Array.isArray(machineLines) ? machineLines : [])
-        .map((x) => String(x?.machine_code || "").trim().toUpperCase()).filter(Boolean))].sort().join(",");
-    return `capacity:${workerId}:${Number(data?.process_id || 0)}:${String(data?.work_date || "").slice(0,10)}:${String(data?.shift || "").trim().toUpperCase()}:${machines}`;
-};
 
 const findExistingClientRequest = async (data, executor = db) => {
     const workerId = Number(data?.worker_id);
@@ -428,7 +396,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         ? groupMaiMachineProductLines(machineLines)
         : machineLines;
     const splitMachines = shouldSplitMachineReports(data, reportMachineLines);
-    return runSerialized(queueKey(data, machineLines), async () => {
+    return runSerializedSubmission(submissionQueueKey(data, machineLines), async () => {
         // No second pre-transaction idempotency lookup here: sequential retries already returned above,
         // and a concurrent duplicate is resolved authoritatively inside the transaction under the
         // client_request_id lock (findExistingClientRequest(data, parentConnection)). Each statement is one
