@@ -10,5 +10,6 @@ test('login prioritizes exact username and rejects ambiguous worker code', () =>
   assert.match(model, /findAllByWorkerCode/);
   assert.match(controller, /resolveLoginAccount/);
   assert.match(controller, /ACCOUNT_AMBIGUOUS/);
-  assert.match(controller, /đăng nhập bằng tên đăng nhập cụ thể/i);
+  assert.match(controller, /code:\s*"INVALID_CREDENTIALS"/);
+  assert.doesNotMatch(controller, /message:\s*"Mã công nhân này đang có nhiều tài khoản/);
 });
