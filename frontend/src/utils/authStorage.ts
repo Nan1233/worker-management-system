@@ -52,33 +52,20 @@ export function clearPreviousRefreshTokenForLogin(): void {
     pendingPreviousRefreshTokenForLogin = null;
 }
 
-/**
- * Keep the web access token/user in localStorage so the PWA/browser can be
- * reopened without forcing the user through the login screen every time.
- * Refresh credentials remain HttpOnly on the web; Electron uses localStorage
- * for its native fallback as before.
- */
+/** Browser access tokens are tab-scoped; Electron retains native persistence. */
 function authStorage(): Storage {
-    return localStorage;
+    return isElectronRuntime() ? localStorage : sessionStorage;
 }
 
 function readAuthValue(key: string, legacyKey?: string): string | null {
     const store = authStorage();
     const current = store.getItem(key) || (legacyKey ? store.getItem(legacyKey) : null);
-    if (current) return current;
-
     if (!isElectronRuntime()) {
-        const legacy = sessionStorage.getItem(key) || (legacyKey ? sessionStorage.getItem(legacyKey) : null);
-        if (legacy) {
-            store.setItem(key, legacy);
-            if (legacyKey) store.setItem(legacyKey, legacy);
-            sessionStorage.removeItem(key);
-            if (legacyKey) sessionStorage.removeItem(legacyKey);
-            return legacy;
-        }
+        // Retire persistent web credentials left by older versions.
+        localStorage.removeItem(key);
+        if (legacyKey) localStorage.removeItem(legacyKey);
     }
-
-    return null;
+    return current;
 }
 
 function removeAuthValue(key: string): void {
@@ -121,8 +108,10 @@ export function setAccessToken(token: string): void {
     const store = authStorage();
     store.setItem(ACCESS_TOKEN_KEY, token);
     store.setItem(LEGACY_TOKEN_KEY, token);
-    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-    sessionStorage.removeItem(LEGACY_TOKEN_KEY);
+    if (store !== sessionStorage) {
+        sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+        sessionStorage.removeItem(LEGACY_TOKEN_KEY);
+    }
 }
 
 export function hasRefreshSessionHint(): boolean {
@@ -236,7 +225,7 @@ export function setStoredUser(user: AuthUser): void {
             worker_code: user.worker_code?.trim() || null
         })
     );
-    sessionStorage.removeItem(USER_KEY);
+    if (authStorage() !== sessionStorage) sessionStorage.removeItem(USER_KEY);
     setSessionCacheScope(cacheScopeForUser(user));
 }
 
