@@ -102,3 +102,33 @@ test('shared-machine sample can be made mandatory before certifying an Excel mon
   assert.equal(result.passed, false);
   assert.ok(result.errors.includes('REQUIRED_SHARED_MACHINE_SAMPLE_MISSING'));
 });
+
+test('duplicate physical event IDs in a single report fail closed instead of silently overwriting', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, {
+      eventLines: [event, { ...event, machine_time_hours: 10 }],
+    }),
+  ]));
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.includes('GC_DUPLICATE_PHYSICAL_EVENT_ID_IN_REPORT'));
+});
+
+test('even identical duplicate physical event IDs are rejected as ambiguous export data', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, {
+      eventLines: [event, { ...event }],
+    }),
+  ]));
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.includes('GC_DUPLICATE_PHYSICAL_EVENT_ID_IN_REPORT'));
+});
+
+test('invalid physical event IDs are rejected rather than hidden by Map filtering', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, {
+      eventLines: [event, { ...event, id: 'invalid' }],
+    }),
+  ]));
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.includes('GC_INVALID_PHYSICAL_EVENT_ID'));
+});
