@@ -89,8 +89,16 @@ function auditGcExportPayload(payload, { requireSharedEvent = false } = {}) {
 
     const idsInReport = new Set();
     for (const line of lines) {
-      const eventId = Number(line?.machine_event_id);
-      if (!Number.isSafeInteger(eventId) || eventId <= 0) continue;
+      const rawEventId = line?.machine_event_id;
+      // Null/empty/zero means an intentionally unlinked legacy machine line.
+      // A malformed nonempty reference is different: it must not silently
+      // become an unlinked line and escape the physical-event audit.
+      if (rawEventId === null || rawEventId === undefined || rawEventId === '' || rawEventId === 0 || rawEventId === '0') continue;
+      const eventId = Number(rawEventId);
+      if (!Number.isSafeInteger(eventId) || eventId <= 0) {
+        addError('GC_INVALID_MACHINE_EVENT_REFERENCE');
+        continue;
+      }
       if (idsInReport.has(eventId)) continue;
       idsInReport.add(eventId);
 
