@@ -21,12 +21,13 @@ test('pending report is editable after 10 minutes while the feature flag is off'
   assert.equal(result.remainingMs, Number.POSITIVE_INFINITY);
 });
 
-test('rejected report is editable after rejection without timestamp expiry', async () => {
+test('rejected and obsolete need_fix reports are never editable', async () => {
   const { getWorkerEditWindow } = await load();
-  const report = { status: 'rejected', created_at: '2026-10-07T07:00:00.000Z', updated_at: '2026-10-07T10:00:00.000Z' };
-  const result = getWorkerEditWindow(report, at('2026-11-07T10:00:00.000Z'));
-  assert.equal(result.editable, true);
-  assert.equal(result.fromRejection, true);
+  for (const status of ['rejected', 'need_fix']) {
+    const result = getWorkerEditWindow({ status }, Date.now());
+    assert.equal(result.editable, false);
+    assert.equal(result.reason, 'STATUS_NOT_EDITABLE');
+  }
 });
 
 test('approved and unknown statuses are never editable by the worker', async () => {
@@ -39,11 +40,11 @@ test('approved and unknown statuses are never editable by the worker', async () 
   }
 });
 
-test('disabled time limit does not require a timestamp for editable statuses', async () => {
+test('disabled time limit allows pending without timestamp but never other statuses', async () => {
   const { getWorkerEditWindow } = await load();
   assert.equal(getWorkerEditWindow({ status: 'pending' }).editable, true);
-  assert.equal(getWorkerEditWindow({ status: 'need_fix', created_at: 'not a date' }).editable, true);
-  assert.equal(getWorkerEditWindow({ status: 'rejected' }).editable, true);
+  assert.equal(getWorkerEditWindow({ status: 'need_fix', created_at: 'not a date' }).editable, false);
+  assert.equal(getWorkerEditWindow({ status: 'rejected' }).editable, false);
   assert.equal(getWorkerEditWindow(null).editable, false);
 });
 
