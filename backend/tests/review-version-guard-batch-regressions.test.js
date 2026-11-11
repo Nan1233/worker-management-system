@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalSelection.js'), 'utf8');
 const start = source.indexOf('function buildApprovalSelection(');
 const end = source.indexOf('module.exports = {', start);
 assert.ok(start >= 0 && end > start);
