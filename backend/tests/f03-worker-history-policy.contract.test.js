@@ -9,7 +9,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 test('F03 temporarily disables the edit expiry in both backend guards, not authorization', () => {
   const policy = require('../utils/workerEditWindowPolicy');
   assert.equal(policy.WORKER_EDIT_TIME_LIMIT_ENABLED, false);
-  assert.deepEqual([...policy.WORKER_EDITABLE_STATUSES], ['pending', 'need_fix', 'rejected']);
+  assert.deepEqual([...policy.WORKER_EDITABLE_STATUSES], ['pending']);
   const middleware = read('backend/middleware/notifyWorkerOnTempEdit.js');
   const model = read('backend/models/productionTempUpdateModel.js');
   assert.match(middleware, /WORKER_EDIT_TIME_LIMIT_ENABLED/);
@@ -26,8 +26,7 @@ test('F03 writes still use row locking and reject old edit versions', () => {
   assert.match(model, /FOR UPDATE/);
   assert.match(model, /options\.expectedUpdatedAt/);
   assert.match(model, /TEMP_REPORT_VERSION_CONFLICT/);
-  assert.match(model, /resubmittingRejected = isWorkerEdit && current\.status === "rejected"/);
-  assert.match(model, /status='pending'/);
+  assert.match(model, /!WORKER_EDITABLE_STATUSES\.includes\(status\)/);
 });
 
 test('F03 edit and create share the same machine line validation contract', () => {
