@@ -3,10 +3,7 @@ import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 
 import App from "./App";
-import "./pages/worker/ProcessPage.compact.css";
-import "./pages/worker/ProcessPage.polished.css";
-import "./pages/worker/ProcessPage.ng-layout.css";
-import "./pages/worker/ProcessPage.time-layout.css";
+import "./pages/worker/ProcessPage.layout-legacy.css";
 import "./pages/worker/ProcessPage.form-controls.css";
 import "./pages/worker/ProcessPage.ui-redesign.css";
 import "./pages/worker/NonProductWorkPage.consistency.css";
