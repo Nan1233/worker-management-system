@@ -46,6 +46,7 @@ import {
     hasMeaningfulProcessDraft,
     loadProcessDraft,
     saveProcessDraft,
+    PROCESS_DRAFT_SAVE_FAILED_EVENT,
 } from "./processDraftStorage";
 import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
@@ -159,6 +160,17 @@ function ProcessPage() {
     const isRestoringDraftRef = useRef(false);
     const draftSaveTimerRef = useRef<number | null>(null);
     const resetVersionRef = useRef(0);
+    const draftSaveWarningShownRef = useRef(false);
+    useEffect(() => {
+        const onDraftSaveFailed = () => {
+            if (draftSaveWarningShownRef.current) return;
+            draftSaveWarningShownRef.current = true;
+            showToast("Không thể lưu bản nháp trên thiết bị. Hãy giữ trang này mở và kiểm tra bộ nhớ trước khi rời trang.", "warning");
+        };
+        window.addEventListener(PROCESS_DRAFT_SAVE_FAILED_EVENT, onDraftSaveFailed);
+        return () => window.removeEventListener(PROCESS_DRAFT_SAVE_FAILED_EVENT, onDraftSaveFailed);
+    }, [showToast]);
+
 
     const navigate =
         useNavigate();
