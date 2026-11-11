@@ -1,19 +1,10 @@
 'use strict';
 
+const { parseExcelDetailArray } = require('./excelDetailArray');
+
 const { calculateMachineLinePerformance } = require('./machinePerformanceService');
 
-const parseArray = (value) => {
-  if (Array.isArray(value)) return value;
-  if (!value) return [];
-  try {
-    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-    if (Array.isArray(parsed)) return parsed;
-    if (parsed && Array.isArray(parsed.defects)) return parsed.defects;
-  } catch (_error) {
-    // Legacy rows may contain malformed JSON; fall back to the saved line totals.
-  }
-  return [];
-};
+const parseArray = parseExcelDetailArray;
 
 const toNumber = (value) => {
   const number = Number(value);
