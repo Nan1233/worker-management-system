@@ -20,7 +20,7 @@ class MemoryStorage {
   removeItem(key) { this.values.delete(key); }
 }
 
-function withAuthStorage(userAgent, callback) {
+function withAuthStorage(userAgent, callback, originOverride = null) {
   const globals = ['localStorage', 'sessionStorage', 'window', 'navigator', 'CustomEvent'];
   const previous = Object.fromEntries(globals.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   const local = new MemoryStorage({ accessToken: 'legacy-persistent-token', token: 'legacy-persistent-token' });
@@ -29,7 +29,7 @@ function withAuthStorage(userAgent, callback) {
     localStorage: local,
     sessionStorage: session,
     navigator: { userAgent },
-    window: { location: { origin: userAgent.includes('Electron') ? 'null' : 'https://example.test' }, dispatchEvent() {} },
+    window: { location: { origin: originOverride || (userAgent.includes('Electron') ? 'null' : 'https://example.test') }, dispatchEvent() {} },
     CustomEvent: class CustomEvent { constructor(type) { this.type = type; } }
   };
   for (const [key, value] of Object.entries(installed)) {
@@ -83,6 +83,16 @@ test('Electron keeps native persistent token compatibility', () => {
     assert.equal(local.getItem('accessToken'), 'native-token');
     assert.equal(auth.getAccessToken(), 'native-token');
   });
+});
+
+test('hosted HTTPS Electron uses session-scoped access tokens and cookie refresh', () => {
+  withAuthStorage('Electron/40.0', ({ auth, local, session }) => {
+    auth.setAccessToken('hosted-electron-token');
+    assert.equal(local.getItem('accessToken'), 'legacy-persistent-token');
+    assert.equal(session.getItem('accessToken'), 'hosted-electron-token');
+    assert.equal(auth.getAccessToken(), 'hosted-electron-token');
+    assert.equal(local.getItem('accessToken'), null);
+  }, 'https://ktc.example.test');
 });
 
 test('permission fetch failure does not grant role default capabilities', () => {
