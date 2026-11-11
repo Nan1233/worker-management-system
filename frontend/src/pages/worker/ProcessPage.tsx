@@ -43,9 +43,12 @@ import { getApiError } from "../../utils/apiError";
 import type { ProcessDraft } from "./processDraftStorage";
 import {
     clearProcessDraft,
+    clearProcessDraftAsync,
     hasMeaningfulProcessDraft,
     loadProcessDraft,
+    loadProcessDraftAsync,
     saveProcessDraft,
+    saveProcessDraftAsync,
     PROCESS_DRAFT_SAVE_FAILED_EVENT,
 } from "./processDraftStorage";
 import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
@@ -775,8 +778,11 @@ const machineAutocompleteOptions =
 
 
 useLayoutEffect(() => {
-        const draft = loadProcessDraft(process);
-        if (!draft) return;
+        let cancelled = false;
+        isRestoringDraftRef.current = true;
+        void loadProcessDraftAsync(process).then((draft) => {
+        if (cancelled) return;
+        if (!draft) { isRestoringDraftRef.current = false; return; }
 
         // Restore the draft in a layout effect so the initialization effects
         // below cannot reset the restored machine lines during the same mount.
@@ -805,8 +811,10 @@ useLayoutEffect(() => {
         setExtraData(draft.extraData || {});
 
         window.setTimeout(() => {
-            isRestoringDraftRef.current = false;
+            if (!cancelled) isRestoringDraftRef.current = false;
         }, 0);
+        }).catch(() => { if (!cancelled) isRestoringDraftRef.current = false; });
+        return () => { cancelled = true; };
     }, [process]);
 
     // Persist DO immediately on page refresh/close, including edits made within
@@ -827,7 +835,7 @@ useLayoutEffect(() => {
         const persistOnLeave = () => {
             if (submitting || isRestoringDraftRef.current) return;
             const draft = doDraftSnapshotRef.current;
-            if (draft && hasMeaningfulProcessDraft(draft)) saveProcessDraft(draft);
+            if (draft && hasMeaningfulProcessDraft(draft)) void saveProcessDraftAsync(draft);
         };
         window.addEventListener("pagehide", persistOnLeave);
         return () => window.removeEventListener("pagehide", persistOnLeave);
@@ -857,9 +865,9 @@ useLayoutEffect(() => {
         const timer = window.setTimeout(() => {
             if (resetVersionRef.current !== resetVersion) return;
             if (hasMeaningfulProcessDraft(snapshot)) {
-                saveProcessDraft(snapshot);
+                void saveProcessDraftAsync(snapshot);
             } else {
-                clearProcessDraft(process);
+                void clearProcessDraftAsync(process);
             }
             draftSaveTimerRef.current = null;
         }, 700);
