@@ -42,12 +42,9 @@ import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
 import type { ProcessDraft } from "./processDraftStorage";
 import {
-    clearProcessDraft,
     clearProcessDraftAsync,
     hasMeaningfulProcessDraft,
-    loadProcessDraft,
     loadProcessDraftAsync,
-    saveProcessDraft,
     saveProcessDraftAsync,
     PROCESS_DRAFT_SAVE_FAILED_EVENT,
 } from "./processDraftStorage";
@@ -670,7 +667,7 @@ const machineAutocompleteOptions =
             window.clearTimeout(draftSaveTimerRef.current);
             draftSaveTimerRef.current = null;
         }
-        clearProcessDraft(process);
+        void clearProcessDraftAsync(process);
         setDuplicatePrompt(null);
         pendingSplitPayloadsRef.current = [];
         duplicatePrimaryCompletedRef.current = false;
@@ -842,7 +839,7 @@ useLayoutEffect(() => {
     }, [processCode, submitting]);
 
     useEffect(() => {
-        if (loadingWorker || loadingMasterData || submitting) return;
+        if (loadingWorker || loadingMasterData || submitting || isRestoringDraftRef.current) return;
 
         const resetVersion = resetVersionRef.current;
         const snapshot = {
@@ -1583,7 +1580,7 @@ const updateDeductionValue = (
                 if (!navigator.onLine) {
                     enqueueOfflineReports(payloads);
                     showToast("Đang mất mạng. Các báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
-                    clearProcessDraft(process);
+                    void clearProcessDraftAsync(process);
                     clientRequestIdRef.current = null;
                     window.setTimeout(() => navigate("/worker", { replace: true }), 900);
                     return;
@@ -1617,7 +1614,7 @@ const updateDeductionValue = (
                         if (isTransientNetworkFailure(error)) {
                             enqueueOfflineReports(payloads.slice(index));
                             showToast("Kết nối Internet bị gián đoạn. Các báo cáo còn lại đã được lưu trên thiết bị và sẽ tự gửi khi có mạng.", "warning");
-                            clearProcessDraft(process);
+                            void clearProcessDraftAsync(process);
                             clientRequestIdRef.current = null;
                             window.setTimeout(() => navigate("/worker", { replace: true }), 900);
                             return;
@@ -1640,7 +1637,7 @@ const updateDeductionValue = (
 
                 pendingSplitPayloadsRef.current = [];
                 showToast("Lưu báo cáo thành công. Các báo cáo đã được gửi chờ duyệt.", "success");
-                clearProcessDraft(process);
+                void clearProcessDraftAsync(process);
                 clientRequestIdRef.current = null;
                 window.setTimeout(() => navigate("/worker", { replace: true }), 900);
 
@@ -1706,7 +1703,7 @@ const updateDeductionValue = (
             window.clearTimeout(draftSaveTimerRef.current);
             draftSaveTimerRef.current = null;
         }
-        clearProcessDraft(process);
+        void clearProcessDraftAsync(process);
 
         setForm((prev) => ({
 
