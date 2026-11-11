@@ -2,7 +2,7 @@ const ExcelJS = require('exceljs');
 const { createPhysicalMachineMetadata } = require('./monthlyWorkbookPhysicalEvents.cjs');
 const { FORMS: ORIGINAL_KTC_FORMS, renderOriginalProcessTemplate } = require('./originalProcessExcelTemplate.cjs');
 const { calculateProductionMetrics, DEFAULT_SETTINGS, trainingFactor, calculateNg } = require('./productionCalculationEngine.cjs');
-const { EXCEL_SYNC_CONTRACT_VERSION } = require('../../shared/excelSyncContract.cjs');
+const { EXCEL_SYNC_CONTRACT_VERSION } = require(require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs') : '../../shared/excelSyncContract.cjs');
 
 const PROCESS_SHEETS = Object.freeze({
   CAN: { sheet: 'CÁN', title: 'CÁN', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
