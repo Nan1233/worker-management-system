@@ -1,8 +1,6 @@
 'use strict';
 
-const LAST_COLUMN = 53;
-const MAX_DEDUCTIONS = 15;
-const MAX_DEFECTS = 16;
+const { LAST_COLUMN, MAX_DEDUCTIONS, MAX_DEFECTS } = require('./commonProcessExcelColumns');
 function clone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
 
 function clearSheetData(sheet) {
