@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalSelection.js'), 'utf8');
+const approvalSource = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
 const start = source.indexOf('function buildApprovalSelection(');
 const end = source.indexOf('module.exports = {', start);
 assert.ok(start >= 0 && end > start);
@@ -137,7 +138,7 @@ test('falsy expected timestamps and invalid-date comparisons remain unchanged', 
 });
 
 test('transaction approval calls checks in original order after SELECT FOR UPDATE', () => {
-  const approval = source.slice(source.indexOf('async approveSelected('));
+  const approval = approvalSource.slice(approvalSource.indexOf('async approveSelected('));
   const select = approval.indexOf('await query(connection, selectionSql, selectionParams)');
   const visibleCall = approval.indexOf('assertApprovalSelectionVisible(rows, reportIds)');
   const versionCall = approval.indexOf('assertApprovalSelectionVersions(rows, expectedById)');
