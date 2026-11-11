@@ -44,6 +44,7 @@ test('disabled time limit does not require a timestamp for editable statuses', a
   assert.equal(getWorkerEditWindow({ status: 'pending' }).editable, true);
   assert.equal(getWorkerEditWindow({ status: 'need_fix', created_at: 'not a date' }).editable, true);
   assert.equal(getWorkerEditWindow({ status: 'rejected' }).editable, true);
+  assert.equal(getWorkerEditWindow(null).editable, false);
 });
 
 test('DB timestamp strings without a zone are read as UTC (same as the backend parser)', async () => {
