@@ -1,5 +1,6 @@
 const { parseJsonArray } = require("./machineAccountingJson");
 const { classifyGiaCongMachineSource } = require("./giaCongMachineSource");
+const { calculateMachineLineDeductionHours } = require("./giaCongMachineDeductionHours");
 
 const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
@@ -45,14 +46,13 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       (item) => Math.max(0, Number(item?.hours) || 0) > 0
     );
     const lineDeductions = hasPositiveStoredDeduction ? storedLineDeductions : safeReportFallback;
-    const detailDeductionHours = lineDeductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
-    const lineDeductionHours = Math.max(
-      0,
-      Number(line.deduction_time_hours) || 0,
-      (Number(line.adjustment_minutes) || 0) / 60,
-      detailDeductionHours,
-      hasLegacySingleLineDeduction ? Math.max(0, Number(report.machineDeductionTime) || 0) : 0
-    );
+    const lineDeductionHours = calculateMachineLineDeductionHours({
+      line,
+      lineDeductions,
+      legacyMachineDeductionTime: hasLegacySingleLineDeduction
+        ? Math.max(0, Number(report.machineDeductionTime) || 0)
+        : 0
+    });
     if (lineDeductionHours > 0) {
       const deductionKey = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || lineIndex);
       if (!seenDeductionKeys.has(deductionKey)) {
