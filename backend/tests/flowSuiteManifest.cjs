@@ -10,7 +10,8 @@ const FLOW_SUITES = Object.freeze({
     tests: [
       'production-submission-queue.test.js',
       'production-daily-hours-calculation.test.js',
-      'shared-production-metric-primitives.test.js'
+      'shared-production-metric-primitives.test.js',
+      'f02-submission-contract.test.js'
     ]
   },
   'worker-history': {
