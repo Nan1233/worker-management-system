@@ -53,59 +53,103 @@ const rangeFor = (value: string, type: "day" | "week" | "month" | "year") => {
     return { dateFrom: dateValue(start), dateTo: dateValue(end) };
 };
 
-const kpi = (r: ProductionReport) => {
-    const x = r as ProductionReport & Record<string, unknown>;
-    const ok = num(x.tt_ok); const ng = num(x.tt_ng);
-    const actual = num(x.actual_output) || ok + ng;
-    const extra = getStoredExtraData(x.extra_data);
-    const standard = num(x.standard_output)
-        || num(x.target_output)
-        || num(x.standard_output_per_hour)
-        || num(x.standardOutput)
-        || num(extra.standard_output)
-        || num(extra.target_output);
-    const machineLines = Array.isArray(x.machine_lines) ? x.machine_lines as Array<Record<string, unknown>> : [];
-    const machineNetHours = machineLines.reduce((sum, line) => {
+type ReportFields = ProductionReport & Record<string, unknown>;
+
+function machinePerformanceTotals(lines: Array<Record<string, unknown>>) {
+    const machineNetHours = lines.reduce((sum, line) => {
         const gross = Math.max(0, num(line.machine_time_hours));
         const deduction = Math.max(0, num(line.deduction_time_hours));
         return sum + Math.max(0, gross - deduction);
     }, 0);
-    const machineStandardTime = machineLines.reduce((sum, line) => {
+
+    const machineStandardTime = lines.reduce((sum, line) => {
         const netHours = Math.max(0, num(line.machine_time_hours) - num(line.deduction_time_hours));
         const lineStandard = Math.max(0, num(line.standard_output));
         return sum + (netHours > 0 && lineStandard > 0 ? netHours * lineStandard : 0);
     }, 0);
-    const actualTime = num(x.actual_time)
-        || num(x.actual_hours)
-        || num(x.working_hours)
-        || num(x.total_working_hours)
-        || num(x.tt_gio)
+
+    return { machineNetHours, machineStandardTime };
+}
+
+function resolveReportStandard(report: ReportFields, extra: Record<string, unknown>) {
+    return num(report.standard_output)
+        || num(report.target_output)
+        || num(report.standard_output_per_hour)
+        || num(report.standardOutput)
+        || num(extra.standard_output)
+        || num(extra.target_output);
+}
+
+function resolveReportHours(
+    report: ReportFields,
+    extra: Record<string, unknown>,
+    machineNetHours: number,
+) {
+    return num(report.actual_time)
+        || num(report.actual_hours)
+        || num(report.working_hours)
+        || num(report.total_working_hours)
+        || num(report.tt_gio)
         || num(extra.actual_time)
         || num(extra.actual_hours)
         || num(extra.working_hours)
         || machineNetHours;
-    // Prefer the persisted KPI snapshot when present; otherwise calculate only
-    // when both inputs are available. Do not silently turn missing fields into
-    // a fabricated zero when the pending detail uses legacy field names.
-    const storedTtDinhMuc = x.tt_dinh_muc ?? x.tt_dinh_muc_snapshot ?? x.standard_time_total ?? x.standardTimeTotal;
-    const storedTtDinhMucValue = storedTtDinhMuc !== null && storedTtDinhMuc !== undefined && storedTtDinhMuc !== "" ? num(storedTtDinhMuc) : 0;
-    const ttDinhMuc = storedTtDinhMucValue > 0
-        ? storedTtDinhMucValue
-        : (machineStandardTime > 0 ? machineStandardTime : (standard > 0 && actualTime > 0 ? standard * actualTime : 0));
-    const storedNangSuat = x.nang_suat_percent ?? x.nang_suat_percent_snapshot ?? x.productivity_percent;
-    const storedNangSuatValue = storedNangSuat !== null && storedNangSuat !== undefined && storedNangSuat !== "" ? num(storedNangSuat) : 0;
-    const nangSuat = storedNangSuatValue > 0
-        ? storedNangSuatValue
+}
+
+function positiveSnapshot(value: unknown) {
+    return value !== null && value !== undefined && value !== "" ? num(value) : 0;
+}
+
+const kpi = (report: ProductionReport) => {
+    const fields = report as ReportFields;
+    const ok = num(fields.tt_ok);
+    const ng = num(fields.tt_ng);
+    const actual = num(fields.actual_output) || ok + ng;
+    const extra = getStoredExtraData(fields.extra_data);
+    const standard = resolveReportStandard(fields, extra);
+    const machineLines = Array.isArray(fields.machine_lines)
+        ? fields.machine_lines as Array<Record<string, unknown>>
+        : [];
+    const { machineNetHours, machineStandardTime } = machinePerformanceTotals(machineLines);
+    const actualTime = resolveReportHours(fields, extra, machineNetHours);
+
+    // Persisted KPI snapshots take priority. Missing or nonpositive snapshots
+    // fall back to machine-level standards, then the worker-level calculation.
+    const storedStandard = fields.tt_dinh_muc
+        ?? fields.tt_dinh_muc_snapshot
+        ?? fields.standard_time_total
+        ?? fields.standardTimeTotal;
+    const standardSnapshot = positiveSnapshot(storedStandard);
+    const ttDinhMuc = standardSnapshot > 0
+        ? standardSnapshot
+        : (machineStandardTime > 0
+            ? machineStandardTime
+            : (standard > 0 && actualTime > 0 ? standard * actualTime : 0));
+
+    const storedProductivity = fields.nang_suat_percent
+        ?? fields.nang_suat_percent_snapshot
+        ?? fields.productivity_percent;
+    const productivitySnapshot = positiveSnapshot(storedProductivity);
+    const nangSuat = productivitySnapshot > 0
+        ? productivitySnapshot
         : (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0);
+
     const dat = actual > 0 ? ok / actual * 100 : 0;
-    const pp = num(x.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
-    // Pending API returns the snapshot as training_percent_snapshot (the
-    // detail page already reads this field). Keep the list consistent with it.
-    const hv = x.training_percent ?? x.training_percent_snapshot ?? x.worker_training_percent ?? x.hv_percent ?? x.learning_percent ?? x.hoc_viec_percent ?? 100;
-    const ngTypeCount = Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count));
-    // Machine lines that ran without a usable standard: there is nothing to compare against, so the screen must say
-    // so ("Thiếu định mức") instead of showing a 0 that looks like a real zero productivity.
-    const standardMissing = ttDinhMuc <= 0 && num(x.standard_missing_lines) > 0;
+    const pp = num(fields.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
+    const hv = fields.training_percent
+        ?? fields.training_percent_snapshot
+        ?? fields.worker_training_percent
+        ?? fields.hv_percent
+        ?? fields.learning_percent
+        ?? fields.hoc_viec_percent
+        ?? 100;
+    const ngTypeCount = Math.max(
+        num(fields.ng_defect_type_count),
+        num(fields.worker_ng_type_count),
+        num(fields.machine_ng_type_count),
+    );
+    const standardMissing = ttDinhMuc <= 0 && num(fields.standard_missing_lines) > 0;
+
     return { ok, ng, actual, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount, standardMissing };
 };
 
