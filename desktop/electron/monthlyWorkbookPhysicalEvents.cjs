@@ -3,18 +3,18 @@
 // Physical event metadata belongs to the XLSX audit layer, not layout rendering.
 // Reuse the workbook's converters for unchanged number/string semantics.
 function createPhysicalMachineMetadata({ asText, asNumber }) {
-function parseMachineDeductionDetails(value) {
-  if (Array.isArray(value)) return value;
-  if (!value) return [];
-  try {
-    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (_) {
-    return [];
+  function parseMachineDeductionDetails(value) {
+    if (Array.isArray(value)) return value;
+    if (!value) return [];
+    try {
+      const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
   }
-}
 
-function machineEventDeductionSnapshot(lines) {
+  function machineEventDeductionSnapshot(lines) {
   if (!lines.length) return { hours: null, detailsJson: null, status: 'NO_PARTICIPANT_LINE' };
   const snapshots = lines.map((line) => {
     const details = parseMachineDeductionDetails(line.deductions_json ?? line.deductions)
@@ -49,6 +49,20 @@ function machineEventDeductionSnapshot(lines) {
   };
 }
 
+  function groupParticipantLinesByEvent(reports) {
+    const linesByEvent = new Map();
+    for (const report of reports || []) {
+      const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
+      for (const line of lines) {
+        const eventId = Number(line.machine_event_id) || 0;
+        if (!eventId) continue;
+        if (!linesByEvent.has(eventId)) linesByEvent.set(eventId, []);
+        linesByEvent.get(eventId).push(line);
+      }
+    }
+    return linesByEvent;
+  }
+
 function addPhysicalMachineEventsMetadata(workbook, processData) {
   const existing = workbook.getWorksheet('_KTC_MACHINE_EVENTS');
   if (existing) workbook.removeWorksheet(existing.id);
@@ -61,16 +75,7 @@ function addPhysicalMachineEventsMetadata(workbook, processData) {
     'status','machine_deduction_hours','machine_deductions_json','machine_deduction_status'
   ]);
 
-  const linesByEvent = new Map();
-  for (const report of processData?.reports || []) {
-    for (const line of (Array.isArray(report.machineLines) ? report.machineLines : [])) {
-      const eventId = Number(line.machine_event_id) || 0;
-      if (!eventId) continue;
-      if (!linesByEvent.has(eventId)) linesByEvent.set(eventId, []);
-      linesByEvent.get(eventId).push(line);
-    }
-  }
-
+  const linesByEvent = groupParticipantLinesByEvent(processData?.reports);
   const seen = new Set();
   for (const event of processData?.physicalMachineEvents || []) {
     const id = Number(event.id || 0);
