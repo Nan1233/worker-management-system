@@ -7,7 +7,7 @@ const { validateMachineWorkerCapacityLocked } = require("../services/factoryMach
 
 const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
-const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
+const { WORKER_EDIT_TIME_LIMIT_ENABLED, WORKER_EDIT_WINDOW_MS, WORKER_EDITABLE_STATUSES } = require("../utils/workerEditWindowPolicy");
 
 const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isParallelMachineProcess = false, isGc = false, excludeTempReportId = null }) => {
     const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
@@ -79,20 +79,31 @@ module.exports = {
             }
 
             if (isWorkerEdit) {
-                const windowStart = getWorkerEditWindowStart(current);
-                if (!Number.isFinite(windowStart.startMs)) {
-                    const error = new Error("Không xác định được thời điểm tạo báo cáo để kiểm tra thời gian sửa.");
-                    error.status = 422; error.code = "TEMP_REPORT_EDIT_TIME_INVALID"; error.isPublic = true;
+                const status = String(current.status || "").trim().toLowerCase();
+                if (!WORKER_EDITABLE_STATUSES.includes(status)) {
+                    const error = new Error("Trạng thái báo cáo không cho phép công nhân chỉnh sửa.");
+                    error.status = 422; error.code = "TEMP_REPORT_STATUS_NOT_EDITABLE"; error.isPublic = true;
                     throw error;
                 }
-                const remainingMs = windowStart.startMs + WORKER_EDIT_WINDOW_MS - Date.now();
-                if (remainingMs <= 0) {
-                    const error = new Error(windowStart.fromRejection
-                        ? "Báo cáo bị từ chối chỉ được sửa trong vòng 10 phút kể từ lúc bị từ chối."
-                        : "Báo cáo chỉ được sửa trong vòng 10 phút kể từ lúc tạo.");
-                    error.status = 422; error.code = "TEMP_REPORT_EDIT_WINDOW_EXPIRED"; error.isPublic = true;
-                    error.details = { created_at: current.created_at, window_started_at: windowStart.value, window_from: windowStart.fromRejection ? "rejection" : "creation", edit_window_ms: WORKER_EDIT_WINDOW_MS };
-                    throw error;
+                // Ownership is enforced in SELECT ... WHERE pr.worker_id = ? FOR UPDATE.
+                // Keep the edit-window algorithm for reactivation, but skip its
+                // restriction while the temporary policy flag is disabled.
+                if (WORKER_EDIT_TIME_LIMIT_ENABLED) {
+                    const windowStart = getWorkerEditWindowStart(current);
+                    if (!Number.isFinite(windowStart.startMs)) {
+                        const error = new Error("Không xác định được thời điểm tạo báo cáo để kiểm tra thời gian sửa.");
+                        error.status = 422; error.code = "TEMP_REPORT_EDIT_TIME_INVALID"; error.isPublic = true;
+                        throw error;
+                    }
+                    const remainingMs = windowStart.startMs + WORKER_EDIT_WINDOW_MS - Date.now();
+                    if (remainingMs <= 0) {
+                        const error = new Error(windowStart.fromRejection
+                            ? "Báo cáo bị từ chối chỉ được sửa trong vòng 10 phút kể từ lúc bị từ chối."
+                            : "Báo cáo chỉ được sửa trong vòng 10 phút kể từ lúc tạo.");
+                        error.status = 422; error.code = "TEMP_REPORT_EDIT_WINDOW_EXPIRED"; error.isPublic = true;
+                        error.details = { created_at: current.created_at, window_started_at: windowStart.value, window_from: windowStart.fromRejection ? "rejection" : "creation", edit_window_ms: WORKER_EDIT_WINDOW_MS };
+                        throw error;
+                    }
                 }
             }
 
