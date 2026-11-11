@@ -59,3 +59,31 @@ test('failed submission releases queue for a later task', async () => {
   await assert.rejects(first, /submission failed/);
   assert.equal(await second, 'recovered');
 });
+
+test('different queue keys can run concurrently', async () => {
+  const events = [];
+  let unblockFirst;
+  let signalFirst;
+  const started = new Promise((resolve) => { signalFirst = resolve; });
+  const first = runSerializedSubmission('independent-A', async () => {
+    events.push('A-start');
+    signalFirst();
+    await new Promise((resolve) => { unblockFirst = resolve; });
+    events.push('A-end');
+  });
+
+  await started;
+  const second = runSerializedSubmission('independent-B', async () => {
+    events.push('B-start');
+  });
+  await second;
+  assert.deepEqual(events, ['A-start', 'B-start']);
+  unblockFirst();
+  await first;
+});
+
+test('a queue remains usable after a completed submission', async () => {
+  const first = await runSerializedSubmission('reuse-after-success', async () => 1);
+  const second = await runSerializedSubmission('reuse-after-success', async () => 2);
+  assert.deepEqual([first, second], [1, 2]);
+});
