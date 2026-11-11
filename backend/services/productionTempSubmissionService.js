@@ -52,16 +52,25 @@ const rollbackOrThrow = async (connection, originalError) => {
     return result;
 };
 
+// Serialize submissions for the same logical request. Always release the
+// queue slot even when the task fails, so future submissions are not blocked.
 const runSerialized = async (key, task) => {
     const previous = submissionQueues.get(key) || Promise.resolve();
+
     let release;
-    const current = new Promise((resolve) => { release = resolve; });
+    const current = new Promise((resolve) => {
+        release = resolve;
+    });
     submissionQueues.set(key, current);
+
     await previous;
-    try { return await task(); }
-    finally {
+    try {
+        return await task();
+    } finally {
         release();
-        if (submissionQueues.get(key) === current) submissionQueues.delete(key);
+        if (submissionQueues.get(key) === current) {
+            submissionQueues.delete(key);
+        }
     }
 };
 
