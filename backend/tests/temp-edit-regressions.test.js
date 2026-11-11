@@ -50,10 +50,10 @@ test('a manager outside the process scope is refused before any write', async ()
   assert.equal(writes(r.sqls).length, 0);
 });
 
-test('worker edit window (10 minutes) is still enforced', async () => {
+test('worker may edit an older report while time restriction is disabled', async () => {
   const r = await put(body(2), { createdAgoMs: 11 * 60e3 });
-  assert.equal(r.status, 422, JSON.stringify(r.json));
-  assert.equal(writes(r.sqls).length, 0);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.committed, 1);
 });
 
 test('GC: explicit work type that contradicts the machine type is still rejected (master check not skipped)', async () => {
