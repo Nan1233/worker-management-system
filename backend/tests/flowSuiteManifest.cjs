@@ -15,10 +15,13 @@ const FLOW_SUITES = Object.freeze({
     ]
   },
   'worker-history': {
-    label: 'Công nhân · lịch sử và sửa báo cáo',
+    label: 'F03 · lịch sử, chi tiết, chỉnh sửa báo cáo',
     routes: ['/worker/history', '/worker/history/:id', '/worker/history/:id/edit'],
-    tests: [],
-    status: 'NEEDS_ISOLATED_TESTS'
+    tests: [
+      'f03-worker-history-policy.contract.test.js',
+      'worker-report-edit-flow.test.js'
+    ],
+    status: 'PARTIAL_MOCK_COVERAGE'
   },
   'manager-review': {
     label: 'Tổ trưởng / quản lý · chờ duyệt, duyệt, từ chối',
