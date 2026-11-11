@@ -80,7 +80,7 @@ const assignedValue = (stmt, field) => {
 };
 
 const machineLine = { machine_code: 'M05', product_code: 'P1', ok_quantity: 90, ng_quantity: 10, defects: [{ defect_code: 'X', defect_name: 'Vỡ', quantity: 10 }] };
-const ADMIN = { isAdmin: false, workerId: 7 };
+const ADMIN = { isAdmin: false, workerId: 7, expectedUpdatedAt: '2026-10-23T01:00:00.000Z' };
 
 test('machine report edit keeps the machine-line NG total when the parent defect list is empty', async () => {
   const { Model, calls } = build();
@@ -155,6 +155,15 @@ test('worker cannot edit a non-editable temp report status', async () => {
   await assert.rejects(
     () => quiet(() => Model.updateReport(900001, { note: 'x' }, 70, null, ADMIN)),
     (e) => e.code === 'TEMP_REPORT_STATUS_NOT_EDITABLE'
+  );
+  assert.equal(updateSql(calls), undefined);
+});
+
+test('worker edit with no expected_updated_at fails closed before writing', async () => {
+  const { Model, calls } = build();
+  await assert.rejects(
+    () => quiet(() => Model.updateReport(900001, { note: 'x' }, 70, null, { isAdmin: false, workerId: 7 })),
+    (e) => e.status === 409 && e.code === 'TEMP_REPORT_VERSION_REQUIRED'
   );
   assert.equal(updateSql(calls), undefined);
 });
