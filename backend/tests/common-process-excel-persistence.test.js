@@ -39,3 +39,38 @@ test('Excel persistence removes temporary file when workbook write fails', async
   assert.equal(calls.length, 1);
   assert.ok(calls[0].endsWith('.tmp'));
 });
+
+
+test('Excel persistence distinguishes metadata failure after workbook was saved', async () => {
+  const calls = [];
+  const fs = {
+    async mkdir() {},
+    async rename(_from, to) { calls.push(['rename', to]); },
+    async writeFile() { throw Error('permission denied'); },
+    async unlink() { throw Error('must not delete completed workbook'); }
+  };
+  const workbook = { xlsx: { async writeFile() {} } };
+  await assert.rejects(
+    saveCommonProcessMonthlyWorkbook(workbook, '2026-11', '/templates/common.xlsx', 4,
+      { fs, getMonthlyTarget: () => target }),
+    error => error.code === 'EXCEL_METADATA_WRITE_FAILED'
+      && error.archivePath === target.filePath
+      && error.cause?.message === 'permission denied'
+  );
+  assert.deepEqual(calls, [['rename', target.filePath]]);
+});
+
+test('Excel persistence cleans up temporary workbook if rename fails', async () => {
+  const calls = [];
+  const fs = {
+    async mkdir() {},
+    async rename() { throw Error('rename denied'); },
+    async writeFile() { throw Error('metadata must not run'); },
+    async unlink(file) { calls.push(file); }
+  };
+  const workbook = { xlsx: { async writeFile() {} } };
+  await assert.rejects(saveCommonProcessMonthlyWorkbook(workbook, '2026-11', '/templates/common.xlsx', 4,
+    { fs, getMonthlyTarget: () => target }), /rename denied/);
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].endsWith('.tmp'));
+});
