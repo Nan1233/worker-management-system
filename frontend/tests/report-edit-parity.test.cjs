@@ -46,7 +46,9 @@ test('approved multi-machine patch only carries permitted fields', () => {
 test('edit form: no silent returns, no extra status card, shared sections only', () => {
   const edit = read('pages/worker/WorkerReportEditV2.tsx');
   assert.doesNotMatch(edit, /Đã tải dữ liệu báo cáo/);
-  assert.match(edit, /Đã hết thời gian 10 phút/);
+  assert.match(edit, /getWorkerEditWindow\(report\)\.editable/);
+  assert.match(edit, /validateMachineLines\(/);
+  assert.match(edit, /TEMP_REPORT_VERSION_CONFLICT/);
   assert.match(edit, /\{!usesMultiMachineLines && <ProcessTimeDeductionSection/);
   assert.match(edit, /if \(approvedMachineNoteOnly\)/);
   assert.match(edit, /<fieldset disabled=\{approvedMachineNoteOnly\}/);
