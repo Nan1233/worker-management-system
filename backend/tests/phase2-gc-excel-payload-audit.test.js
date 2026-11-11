@@ -157,3 +157,26 @@ test('legacy unlinked machine line is not rejected solely for a null event refer
   ]));
   assert.equal(result.passed, true, result.errors.join(', '));
 });
+
+test('linked event on a different production date is rejected', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, { work_date: '2026-10-31', shift: 'A' }),
+  ]));
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.includes('GC_EVENT_REPORT_DATE_MISMATCH'));
+});
+
+test('linked event on a different shift is rejected', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, { work_date: '2026-10-30', shift: 'B' }),
+  ]));
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.includes('GC_EVENT_REPORT_SHIFT_MISMATCH'));
+});
+
+test('linked event with matching date and shift remains valid', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, { work_date: '2026-10-30', shift: 'A' }),
+  ]));
+  assert.equal(result.passed, true, result.errors.join(', '));
+});
