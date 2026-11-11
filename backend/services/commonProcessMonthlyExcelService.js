@@ -1,10 +1,8 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const { getMonthlyTarget } = require('./consolidatedExcelExportService');
-const { resolveTemplatePath, normalizeLabel } = require('./excelTemplateContractService');
+const { resolveTemplatePath } = require('./excelTemplateContractService');
+const { saveCommonProcessMonthlyWorkbook } = require('./commonProcessExcelPersistence');
 const { resolveReportExportTimes } = require('./commonProcessExportTimes');
 const { expandGiaCongMachineLines } = require('./gcCommonProcessExcelRows');
 const { buildCommonProcessExcelRowValues } = require('./commonProcessExcelRowValues');
@@ -71,10 +69,7 @@ async function buildCommonProcessMonthlyWorkbook(reports, yearMonth, options = {
     sheet.pageSetup = { ...(sheet.pageSetup || {}), orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
   }
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
-  const target = getMonthlyTarget(yearMonth, { stageFolder: 'BC công đoạn' }); await fs.mkdir(target.folder, { recursive: true });
-  const tempPath = `${target.filePath}.${process.pid}.${Date.now()}.tmp`; await workbook.xlsx.writeFile(tempPath); await fs.rename(tempPath, target.filePath);
-  await fs.writeFile(target.metadataPath, JSON.stringify({ version: 1, template: path.basename(templatePath), layout: 'common-process-daily-blocks', yearMonth, reportCount: reportList.length, updatedAt: new Date().toISOString() }), 'utf8');
-  return { archivePath: target.filePath, fileName: target.fileName, reportCount: reportList.length, templateFile: path.basename(templatePath), layout: 'common-process-daily-blocks' };
+  return saveCommonProcessMonthlyWorkbook(workbook, yearMonth, templatePath, reportList.length);
 }
 
 module.exports = { buildCommonProcessMonthlyWorkbook, __test: { clearSheetData, expandGiaCongMachineLines } };
