@@ -5,10 +5,17 @@ on:
   push:
     branches:
       - test
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/f03-worker-report-submission-checks.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: f03-worker-report-submission-checks-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   worker-report-submission:
