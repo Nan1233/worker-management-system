@@ -34,7 +34,7 @@ export function getWorkerEditWindow(
     if (!report) {
         return { editable: false, remainingMs: 0, fromRejection: false, reason: "TIME_UNKNOWN" };
     }
-    const status = String(report?.status ?? "pending").trim().toLowerCase();
+    const status = String(report.status ?? "").trim().toLowerCase();
     const fromRejection = status === "rejected";
     if (!EDITABLE_STATUSES.has(status)) {
         return { editable: false, remainingMs: 0, fromRejection, reason: "STATUS_NOT_EDITABLE" };
