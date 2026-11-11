@@ -1264,11 +1264,18 @@ async function readRendererAccessToken() {
 
 async function resolveDesktopToken(candidateToken) {
   // Renderer là nguồn ưu tiên vì frontend cập nhật localStorage ngay sau /auth/refresh.
-  const rendererToken = await readRendererAccessToken();
-  if (isUsableAccessToken(rendererToken)) return normalizeAccessToken(rendererToken);
-
   const supplied = normalizeAccessToken(candidateToken);
   if (isUsableAccessToken(supplied)) return supplied;
+
+  // Renderer navigation, reload or an offline page can make executeJavaScript
+  // reject. Keep the last valid token available rather than failing IPC.
+  let rendererToken = '';
+  try {
+    rendererToken = await readRendererAccessToken();
+  } catch (error) {
+    await writeLog('WARN', 'RENDERER_TOKEN_READ_FAILED', normalizeError(error));
+  }
+  if (isUsableAccessToken(rendererToken)) return normalizeAccessToken(rendererToken);
 
   const cached = normalizeAccessToken(currentToken);
   if (isUsableAccessToken(cached)) return cached;
