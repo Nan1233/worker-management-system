@@ -59,7 +59,7 @@ export default function WorkerReportEditCallout() {
             ? WORKER_EDIT_TIME_LIMIT_ENABLED
               ? `${rejected ? "Sửa và gửi lại" : "Có thể sửa"} trong ${formatRemaining(editWindow.remainingMs)} nữa.`
               : "Có thể chỉnh sửa báo cáo không giới hạn thời gian khi chưa được duyệt."
-            : "Trạng thái báo cáo hiện không cho phép chỉnh sửa."}
+            : "Báo cáo bị từ chối chỉ có thể xem, không thể sửa."}
         </div>
       </div>
       {editWindow.editable && (
