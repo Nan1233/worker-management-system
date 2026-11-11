@@ -1,4 +1,4 @@
-name: Build KTC Desktop EXE
+name: Build KTC Desktop Setup
 
 on:
   workflow_dispatch:
@@ -28,13 +28,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build portable EXE
-        run: npm run dist:portable:fast
+      - name: Build Windows Setup
+        run: npm run dist:setup:fast
 
-      - name: Upload EXE artifact
+      - name: Upload Setup artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KTC-Desktop-EXE-test
-          path: desktop/release/*.exe
+          name: KTC-Desktop-Setup-test
+          path: desktop/release/KTC-Production-Control-Setup.exe
           if-no-files-found: error
           retention-days: 14
