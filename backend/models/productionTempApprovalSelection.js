@@ -1,35 +1,58 @@
-const { normalizeIds } = require("./productionTempIdNormalization");
+'use strict';
+
+const { normalizeIds } = require('./productionTempIdNormalization');
+
+function isValidReportId(id) {
+  const correctType = typeof id === 'number'
+    || (typeof id === 'string' && /^[0-9]+$/.test(id));
+  const numericId = Number(id);
+  return correctType && Number.isSafeInteger(numericId) && numericId > 0;
+}
+
+function normalizeApprovalTargets(targets) {
+  if (!Array.isArray(targets)) return [];
+  return targets.map((item) => (
+    item !== null && typeof item === 'object'
+      ? item
+      : { id: item, expected_updated_at: null }
+  ));
+}
+
+function normalizeExpectedVersion(value, reportId) {
+  const expected = value == null || value === '' ? null : value;
+  if (expected === null) return null;
+
+  // Versions must be valid strings or dates; never silently drop an invalid guard.
+  if (!(typeof expected === 'string' || expected instanceof Date)
+      || !Number.isFinite(new Date(expected).getTime())) {
+    throw createTempReportVersionConflictError(reportId);
+  }
+  return expected;
+}
+
 
 // Keep input normalization and duplicate-ID precedence identical to approval's original path.
 function buildApprovalSelection(targets) {
-  const normalizedTargets = Array.isArray(targets)
-    ? targets.map((item) => item !== null && typeof item === "object" ? item : { id: item, expected_updated_at: null })
-    : [];
+  const normalizedTargets = normalizeApprovalTargets(targets);
   const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
-  if (!reportIds.length || normalizedTargets.some((item) =>
-    (typeof item.id !== "number" && (typeof item.id !== "string" || !/^[0-9]+$/.test(item.id)))
-    || !Number.isSafeInteger(Number(item.id)) || Number(item.id) <= 0)) {
-    throw new Error("Danh sách báo cáo không hợp lệ");
+
+  if (reportIds.length === 0 || normalizedTargets.some((item) => !isValidReportId(item.id))) {
+    throw new Error('Danh sách báo cáo không hợp lệ');
   }
+
   const expectedById = new Map();
   for (const item of normalizedTargets) {
     const id = Number(item.id);
-    const supplied = item.expected_updated_at;
-    const expected = supplied == null || supplied === "" ? null : supplied;
-    // A supplied version must be a date/string, not a coerced number, boolean or array.
-    if (expected !== null && !(typeof expected === "string" || expected instanceof Date)) {
-      throw createTempReportVersionConflictError(id);
-    }
-    // Invalid timestamps must not silently disable the optimistic concurrency check (NaN !== NaN).
-    if (expected !== null && !Number.isFinite(new Date(expected).getTime())) {
-      throw createTempReportVersionConflictError(id);
-    }
-    // Missing duplicate timestamps cannot clear a guard; conflicting guards must fail closed.
+    const expected = normalizeExpectedVersion(item.expected_updated_at, id);
     const previous = expectedById.get(id);
+
+    // Duplicate IDs cannot erase an existing version or supply a conflicting one.
     if (previous && expected && new Date(previous).getTime() !== new Date(expected).getTime()) {
       throw createTempReportVersionConflictError(id);
     }
-    if (expected || !expectedById.has(id)) expectedById.set(id, expected);
+    if (expected || !expectedById.has(id)) {
+      expectedById.set(id, expected);
+    }
   }
   return { reportIds, expectedById };
 }
