@@ -1,18 +1,6 @@
 name: Backend report refactor checks
 
 on:
-  push:
-    branches: [test]
-    paths:
-      - 'backend/controllers/productionTempWorkerController.js'
-      - 'backend/controllers/productionTempControllerUtils.js'
-      - 'backend/services/productionTempReportPayloadService.js'
-      - 'backend/services/logicalDuplicateReportService.js'
-      - 'backend/tests/productionTempReportPayloadService.test.js'
-      - 'backend/package.json'
-      - 'backend/package-lock.json'
-      - 'shared/productionOutput.cjs'
-      - '.github/workflows/backend-report-refactor.yml'
   workflow_dispatch:
 
 permissions:

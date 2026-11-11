@@ -1,25 +1,6 @@
 name: Desktop CVK Excel Regression
 
 on:
-  push:
-    branches: [test]
-    paths:
-      - 'desktop/electron/**'
-      - 'desktop/scripts/**'
-      - 'shared/**'
-      - 'desktop/tests/**'
-      - 'desktop/package.json'
-      - 'desktop/package-lock.json'
-      - 'backend/templates/Mau_Bao_Cao_Cong_Nhan_DB_day_du_chi_tiet_STT_FIX.xlsx'
-      - '.github/workflows/desktop-cvk-excel-regression.yml'
-      - 'build-exe.bat'
-  pull_request:
-    branches: [test]
-    paths:
-      - 'desktop/**'
-      - 'shared/**'
-      - 'backend/templates/**'
-      - '.github/workflows/desktop-cvk-excel-regression.yml'
   workflow_dispatch:
 
 permissions:

@@ -2,12 +2,6 @@ name: F03 Worker Report Submission Checks
 run-name: F03 Worker Report Submission Checks / ${{ github.ref_name }} / ${{ github.sha }}
 
 on:
-  push:
-    branches:
-      - test
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/f03-worker-report-submission-checks.yml'
   workflow_dispatch:
 
 permissions:

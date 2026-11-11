@@ -4,7 +4,6 @@ run-name: F01 Electron Auth Checks / ${{ github.ref_name }} / ${{ github.sha }}
 on:
   push:
     branches:
-      - test
       - fix/f01-electron-account-switch-20261015
   workflow_dispatch:
 

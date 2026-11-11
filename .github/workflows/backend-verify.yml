@@ -1,11 +1,6 @@
 name: KTC backend verification (no deploy)
 
 on:
-  push:
-    branches: [test]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend-verify.yml'
   workflow_dispatch:
 
 permissions:

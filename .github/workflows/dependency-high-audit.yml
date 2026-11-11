@@ -1,14 +1,6 @@
 name: Dependency High Vulnerability Audit
 
 on:
-  push:
-    branches: [test]
-    paths:
-      - "backend/package.json"
-      - "backend/package-lock.json"
-      - "frontend/package.json"
-      - "frontend/package-lock.json"
-      - ".github/workflows/dependency-high-audit.yml"
   workflow_dispatch:
 
 permissions:

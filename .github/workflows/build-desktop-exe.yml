@@ -2,13 +2,6 @@ name: Build KTC Desktop EXE
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - test
-    paths:
-      - "desktop/**"
-      - ".github/workflows/build-desktop-exe.yml"
-
 permissions:
   contents: read
 

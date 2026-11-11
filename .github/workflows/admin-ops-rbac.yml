@@ -1,10 +1,8 @@
 name: Admin Ops RBAC Checks
 
 on:
-  pull_request:
-    branches: [test]
   push:
-    branches: ['test', 'safe/admin-ops-**', 'ci/admin-ops-**']
+    branches: ['safe/admin-ops-**', 'ci/admin-ops-**']
   workflow_dispatch: {}
 
 jobs:
