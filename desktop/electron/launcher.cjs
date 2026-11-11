@@ -60,9 +60,8 @@ app.on('browser-window-created', (_event, window) => {
     const resolved = path.resolve(String(filePath || ''));
     const fileName = path.basename(resolved).toLowerCase();
     if (fileName === 'index.html') {
-      try {
-        await window.webContents.session.clearCache();
-      } catch (_) {}
+      // Avoid delaying the first navigation for cache cleanup. The request
+      // headers below still ask the remote frontend for fresh content.
       await window.loadURL(FRONTEND_URL, {
         extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n'
       });
