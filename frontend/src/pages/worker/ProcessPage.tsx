@@ -72,7 +72,6 @@ import {
     initialDeduction,
     initialForm,
     processMap,
-    shiftLocalDate,
 } from "./processPageConfig";
 import { processExtraFields } from "./processExtraFields";
 import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";
@@ -120,13 +119,12 @@ import {
 } from "./processQualityLogic";
 
 import {
-    resolveWorkDateForShiftChange,
     validateWorkerWorkDate,
 } from "./processWorkDateLogic";
 
 import {
+    applyProcessFormChange,
     clearZeroNumberField,
-    updateTotalTimeField,
 } from "./processInputLogic";
 import {
     toDuplicatePrompt,
@@ -1036,88 +1034,11 @@ useLayoutEffect(() => {
     // =====================================================
 
     const handleChange = (
-
-        event:
-            React.ChangeEvent<
-                HTMLInputElement
-                |
-                HTMLSelectElement
-                |
-                HTMLTextAreaElement
-            >
-
+        event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
     ) => {
-
-        const {
-            name,
-            value
-        } = event.target;
-
-
-        setForm((prev) => {
-
-            const next = {
-
-                ...prev,
-
-                [name]:
-                    value
-
-            } as FormState;
-
-
-            /*
-                Ca C làm qua đêm và thuộc ngày sản xuất hôm trước.
-                Khi chuyển sang ca C: lùi ngày 1 ngày.
-                Khi rời ca C: trả ngày về 1 ngày để tránh bị lệch khi chọn lại ca.
-            */
-
-            if (name === "shift") {
-                next.workDate = resolveWorkDateForShiftChange({
-                    currentWorkDate: prev.workDate,
-                    previousShift: prev.shift,
-                    nextShift: value,
-                    shiftDate: shiftLocalDate,
-                    clampDate: clampWorkerWorkDate,
-                });
-            }
-
-
-            /*
-                Khi thay đổi TT OK hoặc TT NG,
-                tự động tính tổng sản phẩm thực tế.
-            */
-
-            if (
-                name === "ttOk"
-                ||
-                name === "ttNg"
-            ) {
-
-                next.actualOutput = String(calculateActualOutput(next));
-
-            }
-
-
-            /*
-                Khi thay đổi tổng thời gian,
-                tự tính thời gian thực tế:
-
-                actualTime =
-                totalTime - deductionTime
-            */
-
-            if (name === "totalTime") {
-                return updateTotalTimeField(next, value);
-            }
-
-
-            return next;
-
-        });
-
+        const { name, value } = event.target;
+        setForm((prev) => applyProcessFormChange(prev, name, value, calculateActualOutput));
     };
-
 
     // =====================================================
     // CHỈ CHO PHÉP NHẬP SỐ THẬP PHÂN
