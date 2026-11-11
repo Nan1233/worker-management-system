@@ -746,14 +746,17 @@ function rowValues(processCode, report, deductionTypes, defectTypes, settings) {
   return values;
 }
 
+function compareReportsForWorkbook(left, right) {
+  return dateKey(left.work_date).localeCompare(dateKey(right.work_date))
+    || reportTimeKey(left).localeCompare(reportTimeKey(right))
+    || asText(left.worker_code).localeCompare(asText(right.worker_code), undefined, { numeric: true })
+    || machineDisplay(left).localeCompare(machineDisplay(right), undefined, { numeric: true })
+    || Number(left.id || 0) - Number(right.id || 0);
+}
+
 function sortReports(reports) {
-  return [...(reports || [])].sort((a, b) =>
-    dateKey(a.work_date).localeCompare(dateKey(b.work_date)) ||
-    reportTimeKey(a).localeCompare(reportTimeKey(b)) ||
-    asText(a.worker_code).localeCompare(asText(b.worker_code), undefined, { numeric: true }) ||
-    machineDisplay(a).localeCompare(machineDisplay(b), undefined, { numeric: true }) ||
-    Number(a.id || 0) - Number(b.id || 0)
-  );
+  // Do not mutate the caller's report order.
+  return [...(reports || [])].sort(compareReportsForWorkbook);
 }
 
 function settingsForReport(report, fallback = {}, settingsByDate = {}) {
