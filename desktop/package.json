@@ -127,7 +127,8 @@
         "to": "shared",
         "filter": [
           "excelSyncContract.cjs",
-          "productionOutput.cjs"
+          "productionOutput.cjs",
+          "productionMetricPrimitives.cjs"
         ]
       }
     ]
