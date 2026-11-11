@@ -3,21 +3,13 @@
 const ExcelJS = require('exceljs');
 const { resolveTemplatePath } = require('./excelTemplateContractService');
 const { saveCommonProcessMonthlyWorkbook } = require('./commonProcessExcelPersistence');
-const { resolveReportExportTimes } = require('./commonProcessExportTimes');
+const { dateKey, prepareCommonProcessExcelReports } = require('./commonProcessExcelReportPreparation');
 const { expandGiaCongMachineLines } = require('./gcCommonProcessExcelRows');
 const { buildCommonProcessExcelRowValues } = require('./commonProcessExcelRowValues');
 const { TEMPLATE_SHEETS, safeSheetName, groupReportsByProcessSheet, getProcessDetailTypes } = require('./commonProcessExcelGrouping');
 const { clearSheetData, copyTemplateStyles, setHeader, writeDateRow, prepareSheet } = require('./commonProcessExcelSheetFormatting');
 
 const LAST_COLUMN = 53;
-function num(value) { const n = Number(value ?? 0); return Number.isFinite(n) ? n : 0; }
-function dateKey(value) {
-  if (!value) return '';
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 function displayDate(value) {
   const key = dateKey(value); if (!key) return '';
   const [y, m, d] = key.split('-'); return `NGÀY ${d}/${m}/${y}`;
@@ -43,8 +35,7 @@ function writeReportRow(sheet, rowNumber, report, deductionTypes, defectTypes, d
 async function buildCommonProcessMonthlyWorkbook(reports, yearMonth, options = {}) {
   const templatePath = await resolveTemplatePath();
   const workbook = new ExcelJS.Workbook(); await workbook.xlsx.readFile(templatePath);
-  const reportList = expandGiaCongMachineLines(reports).sort((a, b) => dateKey(a.work_date).localeCompare(dateKey(b.work_date)) || String(a.worker_code || '').localeCompare(String(b.worker_code || ''), undefined, { numeric: true }) || Number(a.id) - Number(b.id) || num(a._gcMachineLineId) - num(b._gcMachineLineId));
-  for (const report of reportList) { if (!report.excelExportTimes) report.excelExportTimes = resolveReportExportTimes(report); }
+  const reportList = prepareCommonProcessExcelReports(reports);
   const grouped = groupReportsByProcessSheet(reportList);
   const allSheetNames = new Set(TEMPLATE_SHEETS); for (const name of grouped.keys()) allSheetNames.add(name);
   for (const name of [...allSheetNames]) {
