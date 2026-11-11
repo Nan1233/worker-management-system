@@ -13,7 +13,7 @@ const fmtDate = (v?: string) => {
 };
 const fmt = (v?: number | null) => new Intl.NumberFormat("vi-VN").format(Number(v ?? 0));
 const norm = (v?: string) => String(v ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
-const status = (v?: string) => v === "approved" ? ["Đã duyệt", "approved"] : v === "need_fix" ? ["Cần sửa", "need-fix"] : v === "rejected" ? ["Từ chối", "rejected"] : ["Chờ duyệt", "pending"];
+const status = (v?: string) => v === "approved" ? ["Đã duyệt", "approved"] : v === "need_fix" ? ["Trạng thái cũ", "need-fix"] : v === "rejected" ? ["Từ chối", "rejected"] : ["Chờ duyệt", "pending"];
 
 export default function ProductionHistoryCompact() {
   const navigate = useNavigate();
@@ -71,13 +71,13 @@ export default function ProductionHistoryCompact() {
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Tìm máy, sản phẩm, công đoạn..." />
       <input type="date" value={date} onChange={e => setDate(e.target.value)} aria-label="Ngày" />
       <select value={shift} onChange={e => setShift(e.target.value)} aria-label="Ca"><option value="">Tất cả ca</option><option value="A">Ca A</option><option value="B">Ca B</option><option value="C">Ca C</option><option value="D">Ca D</option></select>
-      <select value={state} onChange={e => setState(e.target.value)} aria-label="Trạng thái"><option value="">Tất cả trạng thái</option><option value="pending">Chờ duyệt</option><option value="approved">Đã duyệt</option><option value="need_fix">Cần sửa</option><option value="rejected">Từ chối</option></select>
+      <select value={state} onChange={e => setState(e.target.value)} aria-label="Trạng thái"><option value="">Tất cả trạng thái</option><option value="pending">Chờ duyệt</option><option value="approved">Đã duyệt</option><option value="rejected">Từ chối</option></select>
       {(q || date || shift || state) && <button type="button" className="whc-clear" onClick={clear}>Xóa lọc</button>}
     </section>
 
     <section className="whc-table-wrap">
       <table><thead><tr><th>Ngày</th><th>Ca</th><th>Máy</th><th>Sản phẩm</th><th className="num ok">OK</th><th className="num ng">NG</th><th>Trạng thái</th><th></th></tr></thead>
-        <tbody>{rows.length ? rows.map((r, i) => { const [label, cls] = status(r.status); return <tr key={r.id ?? `${r.work_date}-${i}`}>
+        <tbody>{rows.length ? rows.map((r, i) => { const [label, cls] = status(r.status); return <tr key={`${r.source || (r.status === "approved" ? "approved" : "temp")}:${r.id ?? `${r.work_date}-${i}`}`}>
           <td>{fmtDate(r.work_date)}</td><td>{r.shift || "—"}</td><td title={r.machine_no}>{r.machine_no || "—"}</td><td title={r.product_name}>{r.product_name || "—"}</td>
           <td className="num ok">{fmt(r.tt_ok)}</td><td className="num ng">{fmt(r.tt_ng)}</td><td><span className={`whc-status ${cls}`}>{label}</span></td><td><button type="button" className="whc-detail" onClick={() => open(r)}>Chi tiết</button></td>
         </tr>; }) : <tr><td colSpan={8} className="whc-empty">Không có báo cáo phù hợp.</td></tr>}</tbody>
