@@ -87,12 +87,26 @@ function readAll(options: { failOnCorrupt?: boolean } = {}): OfflineReportQueueI
     }
 }
 
+function assertSameQueuedSubmission(existing: OfflineReportQueueItem, incoming: ProductionReport): void {
+    if (JSON.stringify(existing.payload) !== JSON.stringify(incoming)) {
+        // A request ID is an idempotency identity, not permission to discard
+        // a different report under the same identifier.
+        throw new Error("Mã gửi báo cáo đã được dùng cho dữ liệu khác. Báo cáo chưa được lưu offline; vui lòng kiểm tra lại.");
+    }
+}
+
 function writeAll(items: OfflineReportQueueItem[]): void {
     try {
-        if (!items.length) localStorage.removeItem(STORAGE_KEY);
-        else localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+        const expected = items.length ? JSON.stringify(items) : null;
+        if (expected === null) localStorage.removeItem(STORAGE_KEY);
+        else localStorage.setItem(STORAGE_KEY, expected);
+        // Some embedded browsers/storage shims can fail without throwing.
+        // Never tell the worker the batch was saved without read-back.
+        if (localStorage.getItem(STORAGE_KEY) !== expected) {
+            throw new Error("offline write verification failed");
+        }
     } catch {
-        throw new Error("Không còn đủ bộ nhớ trên thiết bị để giữ báo cáo offline. Hãy kết nối mạng và đồng bộ trước khi nhập thêm.");
+        throw new Error("Không xác nhận được việc lưu báo cáo offline trên thiết bị. Dữ liệu vẫn ở biểu mẫu; vui lòng kiểm tra bộ nhớ trước khi thử lại.");
     }
     window.dispatchEvent(new CustomEvent(OFFLINE_QUEUE_CHANGED_EVENT));
 }
@@ -195,6 +209,7 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
     const all = readAll({ failOnCorrupt: true });
     const existing = all.find((item) => ownerMatches(item.owner, owner) && item.payload.client_request_id === clientRequestId);
     if (existing) {
+        assertSameQueuedSubmission(existing, payload);
         void flushOfflineReportQueue();
         return existing;
     }
@@ -243,6 +258,7 @@ export function enqueueOfflineReports(payloads: ProductionReport[]): OfflineRepo
         if (!requestId) throw new Error("Báo cáo offline phải có client_request_id.");
         const existing = known.get(requestId);
         if (existing) {
+            assertSameQueuedSubmission(existing, payload);
             result.push(existing);
             continue;
         }
