@@ -1,10 +1,15 @@
 'use strict';
 
-const db = require('../config/db');
-
 // CVK uses process 30002; retain 60006 for historical reports.
 // Pending/need_fix reports are preferred to approved reports.
-async function findExistingCvkReport({ workerId, workDate, shift, workType }, query = (sql, params) => db.promise().query(sql, params)) {
+// Load the database adapter only when using the production query path.
+// Tests can inject an isolated query function without loading TiDB config.
+function defaultQuery(sql, params) {
+  const db = require('../config/db');
+  return db.promise().query(sql, params);
+}
+
+async function findExistingCvkReport({ workerId, workDate, shift, workType }, query = defaultQuery) {
   if (!Number.isInteger(workerId) || workerId <= 0
       || !/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !shift || !workType) {
     return null;
