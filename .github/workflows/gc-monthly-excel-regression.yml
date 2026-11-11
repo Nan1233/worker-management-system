@@ -7,6 +7,9 @@ on:
       - 'backend/services/commonProcessMonthlyExcelService.js'
       - 'backend/services/monthlyExcelService.js'
       - 'backend/tests/common-process-gc-excel.test.js'
+      - 'backend/scripts/auditGcExcelPayload.cjs'
+      - 'backend/tests/phase2-gc-excel-payload-audit.test.js'
+      - 'scripts/gcMachineTimeRemoteSmoke.cjs'
       - '.github/workflows/gc-monthly-excel-regression.yml'
   workflow_dispatch:
 
@@ -30,4 +33,5 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node --check services/commonProcessMonthlyExcelService.js
       - run: node --check services/monthlyExcelService.js
-      - run: node --test tests/common-process-gc-excel.test.js tests/gc-worker-report-excel.test.js
+      - run: node --check scripts/auditGcExcelPayload.cjs
+      - run: node --test tests/common-process-gc-excel.test.js tests/gc-worker-report-excel.test.js tests/phase2-gc-excel-payload-audit.test.js tests/gc-machine-time-remote-smoke.test.js
