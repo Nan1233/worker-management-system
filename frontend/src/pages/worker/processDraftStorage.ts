@@ -385,3 +385,116 @@ export function hasMeaningfulProcessDraft(draft: ProcessDraft): boolean {
     Object.values(draft.extraData || {}).some(Boolean)
   );
 }
+/** Durable async draft store. localStorage is read only for migration. */
+const DB_NAME = "ktc-process-drafts";
+const DB_STORE = "drafts";
+let databasePromise: Promise<IDBDatabase> | null = null;
+
+const openDraftDatabase = (): Promise<IDBDatabase> => {
+  if (typeof indexedDB === "undefined") return Promise.reject(new Error("IndexedDB unavailable"));
+  if (!databasePromise) {
+    databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onversionchange = () => { db.close(); databasePromise = null; };
+        resolve(db);
+      };
+      request.onerror = () => reject(request.error || new Error("IndexedDB open failed"));
+      request.onblocked = () => reject(new Error("IndexedDB upgrade blocked"));
+    }).catch((error) => { databasePromise = null; throw error; });
+  }
+  return databasePromise;
+};
+
+const draftRequest = async <T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> => {
+  const db = await openDraftDatabase();
+  return new Promise<T>((resolve, reject) => {
+    const transaction = db.transaction(DB_STORE, mode);
+    const request = action(transaction.objectStore(DB_STORE));
+    let result: T;
+    request.onsuccess = () => { result = request.result; };
+    transaction.oncomplete = () => resolve(result);
+    transaction.onerror = () => reject(transaction.error || new Error("IndexedDB transaction failed"));
+    transaction.onabort = () => reject(transaction.error || new Error("IndexedDB transaction aborted"));
+  });
+};
+
+const validDraftForOwner = (value: ProcessDraft | null, process: string, workerId: number | null, workerCode: string | null): value is ProcessDraft =>
+  Boolean(value && value.version === 3 && value.process === process &&
+    (value.ownerWorkerId == null || workerId == null || Number(value.ownerWorkerId) === workerId) &&
+    (!value.ownerWorkerCode || !workerCode || String(value.ownerWorkerCode).trim() === workerCode));
+
+const prepareOwnedDraft = (draft: ProcessDraft, workerId: number | null, workerCode: string | null): ProcessDraft => {
+  const lines = Array.isArray(draft.machineLines) ? draft.machineLines : [];
+  const owned = {
+    ...draft, version: 3 as const, ownerWorkerId: workerId, ownerWorkerCode: workerCode,
+    machineLines: lines.map(line => compactMachineLine(line) as MachineLineState),
+    machineCount: Math.max(1, Number(draft.machineCount) || 1, lines.length),
+  };
+  const first = owned.machineLines[0];
+  if (first) owned.form = {
+    ...owned.form,
+    machineNo: String(first.machineCode || owned.form.machineNo || ""),
+    productName: String(first.productCode || owned.form.productName || ""),
+  };
+  return owned;
+};
+
+export async function loadProcessDraftAsync(process: string): Promise<ProcessDraft | null> {
+  const { workerId, workerCode } = getCurrentWorkerIdentity();
+  if (workerId == null && !workerCode) return null;
+  const key = keyFor(process, workerId, workerCode);
+  try {
+    const stored = await draftRequest<ProcessDraft | undefined>("readonly", store => store.get(key));
+    let draft = stored || null;
+    if (!draft) {
+      // Preserve legacy data until IndexedDB write has committed.
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const legacy = JSON.parse(raw) as ProcessDraft;
+        if (validDraftForOwner(legacy, process, workerId, workerCode)) {
+          await draftRequest("readwrite", store => store.put(legacy, key));
+          draft = legacy;
+          try { localStorage.removeItem(key); } catch { /* legacy copy is safe */ }
+        }
+      }
+    }
+    if (!validDraftForOwner(draft, process, workerId, workerCode) || !hasMeaningfulProcessDraft(draft)) return null;
+    const normalized = normalizeDraftForResume(draft);
+    if (String(process).toLowerCase() === "do" || isDefaultSameDayShiftDraft(normalized)) return normalized;
+    if (!window.confirm(buildDraftResumeMessage(normalized))) {
+      await draftRequest("readwrite", store => store.delete(key));
+      return null;
+    }
+    return normalized;
+  } catch (error) {
+    console.warn("[KTC draft] IndexedDB restore failed", error instanceof Error ? error.name : "UnknownError");
+    // Do not erase the legacy draft when storage is unavailable.
+    return loadProcessDraft(process);
+  }
+}
+
+export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> {
+  const { workerId, workerCode } = getCurrentWorkerIdentity();
+  if (workerId == null && !workerCode) return;
+  try {
+    const owned = prepareOwnedDraft(draft, workerId, workerCode);
+    await draftRequest("readwrite", store => store.put(owned, keyFor(draft.process, workerId, workerCode)));
+  } catch (error) {
+    console.warn("[KTC draft] IndexedDB save failed", error instanceof Error ? error.name : "UnknownError");
+    // Existing localStorage draft is never deleted on failure.
+    try { window.dispatchEvent(new Event(PROCESS_DRAFT_SAVE_FAILED_EVENT)); } catch { /* noop */ }
+  }
+}
+
+export async function clearProcessDraftAsync(process: string): Promise<void> {
+  const { workerId, workerCode } = getCurrentWorkerIdentity();
+  if (workerId == null && !workerCode) return;
+  await draftRequest("readwrite", store => store.delete(keyFor(process, workerId, workerCode)));
+  clearProcessDraft(process);
+}
