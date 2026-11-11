@@ -1,5 +1,7 @@
 'use strict';
 
+const { parseExcelDetailArray } = require('./excelDetailArray');
+
 // Pure row model for the Gia công "Báo cáo công nhân" sheet (04_CAT_LONG layout).
 //
 // One Excel row per machine line; reports without machine lines (manual work)
@@ -14,18 +16,7 @@ const toNumber = (value) => {
 };
 const round2 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
 
-const parseArray = (value) => {
-  if (Array.isArray(value)) return value;
-  if (!value) return [];
-  try {
-    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-    if (Array.isArray(parsed)) return parsed;
-    if (parsed && Array.isArray(parsed.defects)) return parsed.defects;
-    return [];
-  } catch (_error) {
-    return [];
-  }
-};
+const parseArray = parseExcelDetailArray;
 
 const normalizeDeductions = (items) => parseArray(items)
   .map((item) => ({
