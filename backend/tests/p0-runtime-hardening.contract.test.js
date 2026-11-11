@@ -9,8 +9,10 @@ const root = path.resolve(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 test('P0 approval batches acquire target IDs in deterministic order', () => {
+  const normalization = read('models/productionTempIdNormalization.js');
   const shared = read('models/productionTempModelShared.js');
-  assert.match(shared, /\.sort\(\(a, b\) => a - b\)/);
+  assert.match(normalization, /\.sort\(\(a, b\) => a - b\)/);
+  assert.match(shared, /require\("\.\/productionTempIdNormalization"\)/);
 });
 
 test('P0 runtime verifier checks canonical schema and real row-lock semantics', () => {
