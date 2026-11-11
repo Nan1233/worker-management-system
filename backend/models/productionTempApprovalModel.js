@@ -33,18 +33,28 @@ const { storedStandardSource } = require('../utils/standardSourceCode');
 
 
 
-const qRows = async (executor, sql, params = []) => {
+const APPROVAL_SLOW_QUERY_MS = 750;
+
+function sqlForApprovalLog(sql) {
+  return String(sql).replace(/\s+/g, " ").slice(0, 260);
+}
+
+async function qRows(executor, sql, params = []) {
   const started = Date.now();
   try {
     const result = await query(executor, sql, params);
     const elapsed = Date.now() - started;
-    if (elapsed >= 750) console.warn(`[KTC][APPROVAL_QUERY] ms=${elapsed} sql=${String(sql).replace(/\s+/g, " ").slice(0, 260)}`);
+    if (elapsed >= APPROVAL_SLOW_QUERY_MS) {
+      console.warn(`[KTC][APPROVAL_QUERY] ms=${elapsed} sql=${sqlForApprovalLog(sql)}`);
+    }
     return result;
   } catch (error) {
-    console.error(`[KTC][APPROVAL_QUERY_ERROR] ms=${Date.now() - started} code=${error?.code || ""} sql=${String(sql).replace(/\s+/g, " ").slice(0, 260)} message=${String(error?.message || error).slice(0, 200)}`);
+    console.error(
+      `[KTC][APPROVAL_QUERY_ERROR] ms=${Date.now() - started} code=${error?.code || ""} sql=${sqlForApprovalLog(sql)} message=${String(error?.message || error).slice(0, 200)}`
+    );
     throw error;
   }
-};
+}
 
 // Preserve the database's defect order and attach only matching machine-line defects.
 // Keep this mapping pure so approval snapshots can be regression-tested without a DB.
