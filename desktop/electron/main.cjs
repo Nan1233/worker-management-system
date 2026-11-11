@@ -1382,7 +1382,8 @@ function createWindow() {
     height: 900,
     minWidth: 900,
     minHeight: 620,
-    show: false,
+    // Show the window immediately so a slow remote frontend cannot leave the app invisible.
+    show: true,
     backgroundColor: '#f3f6fb',
     autoHideMenuBar: true,
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
@@ -1634,19 +1635,15 @@ ipcMain.handle('ktc-open-log-folder', async () => {
 
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  try {
-    await session.defaultSession.clearCache();
-    await session.defaultSession.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
-  } catch (error) {
-    await writeLog('WARN', 'CACHE_CLEAR_FAILED', normalizeError(error));
-  }
-  await writeLog('INFO', 'APP_READY', {
+  // Do not block window creation on disk/cache operations. The remote frontend
+  // already requests fresh content with no-cache headers in launcher.cjs.
+  createWindow();
+  void writeLog('INFO', 'APP_READY', {
     version: app.getVersion(),
     exportRoot: getExportRoot(),
     userData: app.getPath('userData'),
     api: API_BASE_URL
   });
-  createWindow();
   startExcelDbSyncWatcher();
   powerMonitor.on('resume', () => {
     void writeLog('INFO', 'SYSTEM_RESUME_AUTO_SYNC_SKIPPED');
