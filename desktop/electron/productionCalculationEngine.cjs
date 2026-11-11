@@ -6,7 +6,7 @@ const {
   asInteger,
   normalizeTrainingPercent,
   trainingFactor
-} = require('../../shared/productionMetricPrimitives.cjs');
+} = require(require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'productionMetricPrimitives.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'productionMetricPrimitives.cjs') : '../../shared/productionMetricPrimitives.cjs');
 
 // Process/operation codes are compared case-insensitively (e.g. 'gc' / 'GC',
 // 'machine' / 'MACHINE'). Restored after 7d2fe072 removed it while
