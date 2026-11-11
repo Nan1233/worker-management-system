@@ -2,6 +2,8 @@ import { getStoredUser } from "../../utils/authStorage";
 import { createEmptyMachineLine, getCurrentLocalDate } from "./processPageConfig";
 import type { DeductionState, FormState, MachineLineState, NgKey, DeductionKey, OperationMode, OperationType } from "./processPageConfig";
 
+export const PROCESS_DRAFT_SAVE_FAILED_EVENT = "ktc:process-draft-save-failed";
+
 export type ProcessDraft = {
   version: 1 | 2 | 3;
   savedAt: number;
@@ -310,8 +312,27 @@ export function saveProcessDraft(draft: ProcessDraft): void {
       };
     }
 
-    localStorage.setItem(keyFor(draft.process, workerId, workerCode), JSON.stringify(ownedDraft));
-  } catch { /* storage unavailable */ }
+    const storageKey = keyFor(draft.process, workerId, workerCode);
+    const previous = localStorage.getItem(storageKey);
+    if (previous !== null) {
+      // Never overwrite a possibly recoverable draft when its JSON is damaged.
+      const parsed = JSON.parse(previous) as ProcessDraft;
+      if (parsed?.version !== 3 || parsed.process !== draft.process ||
+          (parsed.ownerWorkerId != null && Number(parsed.ownerWorkerId) !== workerId) ||
+          (parsed.ownerWorkerCode && String(parsed.ownerWorkerCode).trim() !== workerCode)) {
+        throw new Error("Existing draft is invalid or has a different owner");
+      }
+    }
+    const serialized = JSON.stringify(ownedDraft);
+    localStorage.setItem(storageKey, serialized);
+    if (localStorage.getItem(storageKey) !== serialized) {
+      throw new Error("Draft write verification failed");
+    }
+  } catch {
+    // Autosave cannot throw inside a timer or pagehide. Notify the form once
+    // instead of claiming an unsaved draft will survive a reload.
+    try { window.dispatchEvent(new Event(PROCESS_DRAFT_SAVE_FAILED_EVENT)); } catch { /* unavailable */ }
+  }
 }
 
 export function clearProcessDraft(process: string): void {
