@@ -6,9 +6,20 @@ import type { ProductionReport } from "../../types/production";
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const text = (v: unknown, fallback = "—") => v === null || v === undefined || v === "" ? fallback : String(v);
 const getStoredExtraData = (value: unknown): Record<string, unknown> => {
-    if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
-    if (typeof value === "string") { try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {}; } catch { /* malformed saved filter: use defaults */ } }
-    return {};
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+        return value as Record<string, unknown>;
+    }
+    if (typeof value !== "string") return {};
+
+    try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object"
+            ? parsed as Record<string, unknown>
+            : {};
+    } catch {
+        // Malformed historical extra_data is treated as absent.
+        return {};
+    }
 };
 const processLabel = (report: ProductionReport) => {
     const x = report as ProductionReport & Record<string, unknown>;
@@ -23,10 +34,22 @@ const pct = (v: unknown) => `${fmt(v)}%`;
 const dateText = (v: unknown) => { const s = String(v || "").slice(0, 10); const [y, m, d] = s.split("-"); return y && m && d ? `${d}/${m}/${y}` : s || "—"; };
 const dateValue = (v: Date) => `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
 const rangeFor = (value: string, type: "day" | "week" | "month" | "year") => {
-    const start = new Date(`${value}T00:00:00`); const end = new Date(start);
-    if (type === "year") { start.setMonth(0, 1); end.setMonth(11, 31); }
-    else if (type === "month") { start.setDate(1); end.setMonth(end.getMonth() + 1, 0); }
-    else if (type === "week") { const offset = (start.getDay() + 6) % 7; start.setDate(start.getDate() - offset); end.setTime(start.getTime()); end.setDate(start.getDate() + 6); }
+    const start = new Date(`${value}T00:00:00`);
+    const end = new Date(start);
+
+    if (type === "year") {
+        start.setMonth(0, 1);
+        end.setMonth(11, 31);
+    } else if (type === "month") {
+        start.setDate(1);
+        end.setMonth(end.getMonth() + 1, 0);
+    } else if (type === "week") {
+        const offsetFromMonday = (start.getDay() + 6) % 7;
+        start.setDate(start.getDate() - offsetFromMonday);
+        end.setTime(start.getTime());
+        end.setDate(start.getDate() + 6);
+    }
+
     return { dateFrom: dateValue(start), dateTo: dateValue(end) };
 };
 
