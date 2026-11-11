@@ -53,8 +53,16 @@ export function validateMachineLines(args: {
     if (machineCode) {
       const hours = Number(line.hours || 0);
       const minutes = Number(line.minutes || 0);
-      const deductions = Object.values(line.deductions || {}).reduce(
-        (total, value) => total + Math.max(0, Number(value) || 0), 0
+      if (!Number.isFinite(hours) || hours < 0 || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) {
+        return `${machineLabel}: giờ phải không âm và phút phải từ 0 đến 59`;
+      }
+      const deductionValues = Object.values(line.deductions || {});
+      if (deductionValues.some((value) => String(value ?? "").trim() !== "" &&
+          (!Number.isFinite(Number(value)) || Number(value) < 0))) {
+        return `${machineLabel}: thời gian trừ phải không âm`;
+      }
+      const deductions = deductionValues.reduce(
+        (total, value) => total + (Number(value) || 0), 0
       );
       const actualHours = hours + minutes / 60;
       const grossHours = actualHours + deductions / 60;
