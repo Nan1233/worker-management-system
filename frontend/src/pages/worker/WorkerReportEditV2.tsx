@@ -1,4 +1,6 @@
 import { resolveCutExecutionMode } from "./cutExecutionMode.js";
+import { getWorkerEditWindow, WORKER_EDIT_TIME_LIMIT_ENABLED, formatRemaining } from "./reportEditWindow";
+import { validateMachineLines } from "./processPageValidation";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById, updateReport, updateTempReport } from "../../services/productionService";
@@ -204,11 +206,12 @@ function WorkerReportEditV2() {
       setRemaining(Number.POSITIVE_INFINITY);
       return;
     }
-    if (!report?.created_at) return;
-    // Rejected reports get a fresh 10-minute window counted from the rejection (updated_at).
-    const windowStart = s(report.status).trim().toLowerCase() === "rejected" ? report.updated_at : report.created_at;
-    const tick = () => { const created = parseDbDateMs(windowStart); setRemaining(Number.isFinite(created) ? Math.max(0, created + 600000 - Date.now()) : 0); };
-    tick(); const timer = window.setInterval(tick, 1000); return () => window.clearInterval(timer);
+    if (!report) return;
+    const tick = () => setRemaining(getWorkerEditWindow(report).remainingMs);
+    tick();
+    if (!WORKER_EDIT_TIME_LIMIT_ENABLED) return;
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
   }, [report?.created_at, report?.updated_at, report?.status, managerRoute]);
 
   const findNgKey = (item: any) => editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
@@ -321,7 +324,7 @@ function WorkerReportEditV2() {
   const approvedMachineNoteOnly = isApprovedMachineReport(source, operationMode) && managerRoute;
   const save = async () => {
     if (!report || readOnly) return;
-    if (!managerRoute && remaining <= 0) { setError("Đã hết thời gian 10 phút để sửa báo cáo này."); return; }
+    if (!managerRoute && !getWorkerEditWindow(report).editable) { setError("Báo cáo không còn ở trạng thái được phép sửa."); return; }
     setError("");
     const incompleteMessage = detectIncompleteMachineData(report);
     if (incompleteMessage) { setError(incompleteMessage); return; }
@@ -343,6 +346,16 @@ function WorkerReportEditV2() {
     if (totalHours * 60 > MAX_TOTAL_WORK_MINUTES + 0.001) { setError("Tổng thời gian không được vượt quá 12 giờ."); return; }
     const normalizedLines = operationMode === "MACHINE" ? machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim()) : [];
     if (operationMode === "MACHINE" && (!normalizedLines.length || normalizedLines.some((line) => !line.machineCode.trim() || !line.productCode.trim()))) { setError("Vui lòng nhập đủ mã máy và mã sản phẩm cho từng máy."); return; }
+    if (operationMode === "MACHINE" && normalizedLines.length) {
+      const validationError = validateMachineLines({
+        processCode: capabilities.processCode,
+        machineLines: normalizedLines,
+        maxMachines: maxMachineCount,
+        isMachineValid: (code) => editMachineOptions.some((item: any) => s(item.machine_code).trim().toUpperCase() === code.trim().toUpperCase()),
+        isProductValid: (machineCode, productCode) => getMachineProductOptions(machineCode).some((item: any) => s(item.product_code).trim().toUpperCase() === productCode.trim().toUpperCase()),
+      });
+      if (validationError) { setError(validationError); return; }
+    }
     payload = buildProductionReportPayload({
       clientRequestId: null, processId: report.process_id, form: { ...form, actualTime: `${form.actualHours}:${form.actualMinutes}`, deductionTime: form.deductionTime, totalTime: `${Math.floor(totalHours)}:${String(Math.round((totalHours % 1) * 60)).padStart(2, "0")}` },
       extraData, operationType, isCutLongProcess: capabilities.isCutLongProcess, processCode: capabilities.processCode, isCvkMode, usesAnyMachine: operationMode === "MACHINE", usesMultiMachineLines, usesSingleMachine,
@@ -364,7 +377,7 @@ function WorkerReportEditV2() {
         navigate(`/worker/history/${report.id}`, { replace: true });
       }
     } catch (e: any) {
-      if (e?.response?.data?.code === "REPORT_VERSION_CONFLICT" || (Number(e?.response?.status) === 409 && !e?.response?.data?.code)) {
+      if (["REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_CONFLICT"].includes(String(e?.response?.data?.code || "")) || (Number(e?.response?.status) === 409 && !e?.response?.data?.code)) {
         setError("Báo cáo đã được người khác cập nhật. Vui lòng tải lại dữ liệu trước khi lưu. Các thay đổi bạn đang nhập vẫn được giữ trên màn hình.")
         return;
       }
@@ -376,7 +389,7 @@ function WorkerReportEditV2() {
   if (loading) return <div className="detail-container"><div className="detail-state">Đang tải biểu mẫu...</div></div>;
   if (!report) return <div className="detail-container"><div className="detail-state error">{error || "Không tìm thấy báo cáo."}</div></div>;
   const remainingSeconds = Number.isFinite(remaining) ? Math.ceil(remaining / 1000) : 0;
-  const timeText = managerRoute ? "Không giới hạn" : Number.isFinite(remaining) ? `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}` : "Không giới hạn";
+  const timeText = managerRoute || !WORKER_EDIT_TIME_LIMIT_ENABLED ? "Không giới hạn" : formatRemaining(remaining);
   const processTitle = readOnly ? `Chi tiết báo cáo · ${report.process_name || capabilities.processCode}` : `Sửa báo cáo · ${report.process_name || capabilities.processCode}`;
 
   return <div className={`ktc-page ${managerRoute ? "manager-worker-report-form" : ""} ${readOnly ? "manager-worker-report-readonly" : ""}`}>
