@@ -26,7 +26,7 @@ const normalizeText = (value?: string): string =>
 const getStatusInfo = (status?: string) => {
     switch (status) {
         case "approved": return { label: "Đã duyệt", className: "approved" };
-        case "need_fix": return { label: "Cần sửa", className: "need-fix" };
+        case "need_fix": return { label: "Trạng thái cũ", className: "need-fix" };
         case "rejected": return { label: "Từ chối", className: "rejected" };
         default: return { label: "Chờ duyệt", className: "pending" };
     }
@@ -282,8 +282,7 @@ function ProductionHistory() {
                                 <option value="">Tất cả</option>
                                 <option value="pending">Chờ duyệt</option>
                                 <option value="approved">Đã duyệt</option>
-                                <option value="need_fix">Cần sửa</option>
-                                <option value="rejected">Từ chối</option>
+                                    <option value="rejected">Từ chối</option>
                             </select>
                         </label>
                         <button type="button" className="history-clear-button" onClick={clearFilters} disabled={!hasActiveFilter}>Xóa lọc</button>
