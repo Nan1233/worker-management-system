@@ -1,6 +1,7 @@
 'use strict';
 
 const { calculateProductionNgRate } = require('./productionNgRate.cjs');
+const { calculateProductionRates } = require('./productionRates.cjs');
 
 const DEFAULT_SETTINGS = Object.freeze({
   apply_training_percent: 1,
@@ -107,35 +108,26 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   const machinePerformance = report.machinePerformance || report.machine_performance || null;
   const hasMachinePerformance = Number(machinePerformance?.machine_count || 0) > 0;
 
-  let adjustedOutput = calculateAdjustedOutput({
+  const initialAdjustedOutput = calculateAdjustedOutput({
     enteredOutput,
     ok,
     countedNg: ng.countedNg,
     factor,
     settings: resolved
   });
-  let outputPerHour = null;
-  let achievement = null;
-  let plannedOutput = standard !== null && actualTime !== null && (!resolved.apply_training_percent || factor !== null)
-    ? standard * actualTime * (resolved.apply_training_percent ? factor : 1)
-    : null;
-
-  // Multi-machine reports already carry a validated aggregate snapshot from the backend.
-  // Preserve that physical machine result while exposing it through the same metrics contract.
-  if (hasMachinePerformance) {
-    adjustedOutput = asNumber(machinePerformance.counted_output);
-    plannedOutput = asNumber(machinePerformance.maximum_output);
-    outputPerHour = actualTime && adjustedOutput !== null ? adjustedOutput / actualTime : null;
-    achievement = plannedOutput ? adjustedOutput / plannedOutput : null;
-  } else {
-    const perHourNumerator = resolved.output_per_hour_formula === 'ENTERED_OUTPUT_DIV_ACTUAL_TIME'
-      ? enteredOutput
-      : adjustedOutput;
-    outputPerHour = actualTime && perHourNumerator !== null ? perHourNumerator / actualTime : null;
-    achievement = resolved.achievement_formula === 'OUTPUT_PER_HOUR_DIV_STANDARD' && outputPerHour !== null && standard
-      ? outputPerHour / standard
-      : null;
-  }
+  const { adjustedOutput, plannedOutput, outputPerHour, achievement } = calculateProductionRates({
+    adjustedOutput: initialAdjustedOutput,
+    enteredOutput,
+    actualTime,
+    standard,
+    factor,
+    applyTrainingPercent: resolved.apply_training_percent,
+    outputPerHourFormula: resolved.output_per_hour_formula,
+    achievementFormula: resolved.achievement_formula,
+    hasMachinePerformance,
+    machinePerformance,
+    asNumber
+  });
 
   const ngRate = calculateProductionNgRate({
     formula: resolved.ng_rate_formula,
