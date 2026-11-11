@@ -77,16 +77,23 @@ function calculateActualTime(report = {}, settings = {}, workingTime = null, ded
 
 function calculateAdjustedOutput({ enteredOutput, ok, countedNg, factor, settings = {} }) {
   const resolved = resolveSettings(settings);
-  let output = null;
-  if (resolved.output_formula === 'ENTERED_OUTPUT') output = enteredOutput;
-  else if (resolved.output_formula === 'OK_PLUS_NG') {
-    output = ok !== null && countedNg !== null ? ok + countedNg : null;
-  } else if (resolved.output_formula === 'OK_X_TRAINING') {
-    output = ok === null || (resolved.apply_training_percent && factor === null) ? null : ok * (resolved.apply_training_percent ? factor : 1);
-  } else {
-    output = enteredOutput === null || (resolved.apply_training_percent && factor === null) ? null : enteredOutput * (resolved.apply_training_percent ? factor : 1);
+  const { output_formula: formula, apply_training_percent: applyTrainingPercent } = resolved;
+
+  if (formula === 'ENTERED_OUTPUT') {
+    return enteredOutput === null ? null : Math.round(enteredOutput);
   }
-  return output === null ? null : Math.round(output);
+
+  if (formula === 'OK_PLUS_NG') {
+    return ok === null || countedNg === null ? null : Math.round(ok + countedNg);
+  }
+
+  const baseOutput = formula === 'OK_X_TRAINING' ? ok : enteredOutput;
+  if (baseOutput === null || (applyTrainingPercent && factor === null)) {
+    return null;
+  }
+
+  const trainingMultiplier = applyTrainingPercent ? factor : 1;
+  return Math.round(baseOutput * trainingMultiplier);
 }
 
 function calculateProductionMetrics(report = {}, settings = {}) {
