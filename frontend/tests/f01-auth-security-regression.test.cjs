@@ -104,7 +104,8 @@ test('manager default permissions include backend health capability', () => {
 
 test('login retains safe same-role redirect without allowing external URLs', () => {
   const login = read('frontend/src/pages/Login.tsx');
-  assert.doesNotMatch(login, /sessionStorage\.removeItem\("redirectAfterLogin"\);[\s\S]*?if \(\/\\\/login/);
+  const initialization = login.slice(login.indexOf('useEffect(() => {'), login.indexOf('// iOS Safari/PWA'));
+  assert.doesNotMatch(initialization, /sessionStorage\.removeItem\("redirectAfterLogin"\)/);
   assert.match(login, /redirectAfterLogin\.startsWith\("\/"\)/);
   assert.match(login, /!redirectAfterLogin\.startsWith\("\/\/"\)/);
   assert.match(login, /redirectAfterLogin\.startsWith\(roleHome \+ "\/"\)/);
