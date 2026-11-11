@@ -6,13 +6,16 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 
 const TEMPLATE_NAME = 'Mau_Bao_Cao_Cong_Nhan_DB_day_du_chi_tiet_STT_FIX.xlsx';
+const MULTI_PROCESS_TEMPLATE_NAME = 'Mau_Bao_Cao_6_Cong_Doan.xlsx';
+const PROCESS_TEMPLATE_SHEETS = Object.freeze({
+  GC: 'Gia công', MAI: 'Mài', DO: 'Đo', XLBV: 'XLBV', EP: 'Ép', CAN: 'Cán'
+});
 const PROCESS_FILE_PREFIXES = Object.freeze({
   CAN: '01_CAN', EP: '02_EP', XLBV: '03_XU_LY_BAVIA', GC: '04_CAT_LONG',
   MAI: '05_MAI', DO: '06_DO', K1: '07_KIEM_1', K2: '08_KIEM_2', SX3: '09_SAN_XUAT_3', CVK: '10_CONG_VIEC_KHAC'
 });
 
-let cachedTemplatePath = '';
-let cachedTemplateBuffer = null;
+const cachedTemplateBuffers = new Map();
 
 const normalize = (value) => String(value ?? '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -133,28 +136,67 @@ function canonicalDetailKey(value) {
   return normalize(DETAIL_ALIASES[normalize(value)] || normalize(value));
 }
 
-function templateCandidates(appPath) {
+function templateCandidates(appPath, templateName = TEMPLATE_NAME) {
   const candidates = [
-    path.resolve(appPath || process.cwd(), '..', 'backend', 'templates', TEMPLATE_NAME),
-    path.resolve(appPath || process.cwd(), 'backend', 'templates', TEMPLATE_NAME),
-    path.resolve(__dirname, '..', '..', 'backend', 'templates', TEMPLATE_NAME),
-    path.resolve(process.cwd(), 'backend', 'templates', TEMPLATE_NAME)
+    path.resolve(appPath || process.cwd(), '..', 'backend', 'templates', templateName),
+    path.resolve(appPath || process.cwd(), 'backend', 'templates', templateName),
+    path.resolve(__dirname, '..', '..', 'backend', 'templates', templateName),
+    path.resolve(process.cwd(), 'backend', 'templates', templateName)
   ];
-  if (process.resourcesPath) candidates.unshift(path.join(process.resourcesPath, 'templates', TEMPLATE_NAME));
+  if (process.resourcesPath) candidates.unshift(path.join(process.resourcesPath, 'templates', templateName));
   return [...new Set(candidates)];
 }
-async function resolveTemplatePath(appPath) {
-  for (const candidate of templateCandidates(appPath)) {
+async function resolveTemplatePath(appPath, templateName = TEMPLATE_NAME) {
+  for (const candidate of templateCandidates(appPath, templateName)) {
     try { await fs.access(candidate); return candidate; } catch (_) {}
   }
-  throw Object.assign(new Error(`Không tìm thấy template ${TEMPLATE_NAME}`), { code: 'KTC_WORKER_TEMPLATE_MISSING' });
+  throw Object.assign(new Error(`Không tìm thấy template ${templateName}`), { code: 'KTC_WORKER_TEMPLATE_MISSING' });
 }
-async function getTemplateBuffer(appPath) {
-  const templatePath = await resolveTemplatePath(appPath);
-  if (cachedTemplateBuffer && cachedTemplatePath === templatePath) return { templatePath, buffer: cachedTemplateBuffer };
-  cachedTemplatePath = templatePath;
-  cachedTemplateBuffer = await fs.readFile(templatePath);
-  return { templatePath, buffer: cachedTemplateBuffer };
+async function getTemplateBuffer(appPath, templateName = TEMPLATE_NAME) {
+  const templatePath = await resolveTemplatePath(appPath, templateName);
+  const cached = cachedTemplateBuffers.get(templatePath);
+  if (cached) return { templatePath, buffer: cached };
+  const buffer = await fs.readFile(templatePath);
+  cachedTemplateBuffers.set(templatePath, buffer);
+  return { templatePath, buffer };
+}
+
+function selectProcessTemplateSheet(workbook, processCode) {
+  const expectedName = PROCESS_TEMPLATE_SHEETS[String(processCode || '').toUpperCase()];
+  const sheet = expectedName
+    ? workbook.worksheets.find((item) => normalize(item.name) === normalize(expectedName))
+    : (workbook.worksheets.find((item) => item.state !== 'hidden') || workbook.worksheets[0]);
+  if (!sheet) {
+    throw Object.assign(
+      new Error(expectedName
+        ? `Template không có sheet ${expectedName} cho công đoạn ${processCode}`
+        : 'Template công nhân không có worksheet.'),
+      { code: 'KTC_PROCESS_TEMPLATE_SHEET_MISSING' }
+    );
+  }
+  if (expectedName) {
+    for (const other of [...workbook.worksheets]) {
+      if (other.id !== sheet.id) workbook.removeWorksheet(other.id);
+    }
+  }
+  sheet.state = 'visible';
+
+  // Some source files use formula cells only to mirror header text. Convert the
+  // cached display result to plain text so recalculation cannot create #REF!/circular headers.
+  for (let rowNumber = 1; rowNumber <= Math.min(sheet.rowCount, 5); rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    for (let column = 1; column <= sheet.columnCount; column += 1) {
+      const cell = row.getCell(column);
+      const value = cell.value;
+      if (!value || typeof value !== 'object' || !value.formula) continue;
+      const rawResult = value.result;
+      const result = rawResult && typeof rawResult === 'object' && rawResult.error
+        ? rawResult.error
+        : rawResult;
+      cell.value = result == null || /^#REF!?$/i.test(String(result).trim()) ? null : result;
+    }
+  }
+  return sheet;
 }
 
 function cellText(cell) {
@@ -922,18 +964,17 @@ function normalizeGcDefectHeaders(sheet, headerRow) {
 }
 
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
-  const { templatePath, buffer: templateBuffer } = await getTemplateBuffer(appPath);
   const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
   const [year, month] = String(date).slice(0, 7).split('-');
   const code = String(processCode || '').toUpperCase();
+  const templateName = PROCESS_TEMPLATE_SHEETS[code] ? MULTI_PROCESS_TEMPLATE_NAME : TEMPLATE_NAME;
+  const { templatePath, buffer: templateBuffer } = await getTemplateBuffer(appPath, templateName);
   const prefix = PROCESS_FILE_PREFIXES[code] || code || 'PROCESS';
   const fileName = `${prefix}_${month}-${year}.xlsx`;
-  if (reports.length === 0) return { buffer: templateBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: 0, templateFile: TEMPLATE_NAME, templatePath, templateSheet: null, headerRow: null, dataStartRow: null };
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(templateBuffer);
-  const sheet = workbook.worksheets.find((item) => item.state !== 'hidden') || workbook.worksheets[0];
-  if (!sheet) throw new Error('Template công nhân không có worksheet.');
+  const sheet = selectProcessTemplateSheet(workbook, code);
   const headerRow = findHeader(sheet);
   if (code === 'GC') normalizeGcDefectHeaders(sheet, headerRow);
   const columnMap = findColumnMap(sheet, headerRow);
@@ -966,7 +1007,7 @@ contract.cols.workTime = workTimeColumn;
   }
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const outputBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
-  return { buffer: outputBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: reports.length, templateFile: TEMPLATE_NAME, templatePath, templateSheet: sheet.name, headerRow, dataStartRow, layout,
+  return { buffer: outputBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: reports.length, templateFile: templateName, templatePath, templateSheet: sheet.name, headerRow, dataStartRow, layout,
     columnContract: {
       cols: contract.cols,
       detailColumns: contract.detailColumns,
@@ -977,4 +1018,4 @@ contract.cols.workTime = workTimeColumn;
     } };
 }
 
-module.exports = { TEMPLATE_NAME, PROCESS_FILE_PREFIXES, buildWorkerProcessWorkbook };
+module.exports = { TEMPLATE_NAME, MULTI_PROCESS_TEMPLATE_NAME, PROCESS_TEMPLATE_SHEETS, PROCESS_FILE_PREFIXES, buildWorkerProcessWorkbook };
