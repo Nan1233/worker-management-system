@@ -31,6 +31,9 @@ export function getWorkerEditWindow(
     report: { status?: unknown; created_at?: unknown; updated_at?: unknown } | null | undefined,
     nowMs: number = Date.now()
 ): WorkerEditWindow {
+    if (!report) {
+        return { editable: false, remainingMs: 0, fromRejection: false, reason: "TIME_UNKNOWN" };
+    }
     const status = String(report?.status ?? "pending").trim().toLowerCase();
     const fromRejection = status === "rejected";
     if (!EDITABLE_STATUSES.has(status)) {
