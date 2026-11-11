@@ -56,10 +56,15 @@ const FLOW_SUITES = Object.freeze({
     tests: ['shared-production-metric-primitives.test.js']
   },
   'login-security': {
-    label: 'Đăng nhập và bảo vệ trang',
+    label: 'F01 · đăng nhập, phiên và phân quyền',
     routes: ['/login', '/worker', '/manager', '/lead', '/admin'],
-    tests: [],
-    status: 'NEEDS_ISOLATED_TESTS'
+    tests: [
+      'auth-login-controller.behavior.test.js',
+      'auth-enumeration-hardening.test.js',
+      'auth-duplicate-worker-code.test.js',
+      'f01-permission-defaults.contract.test.js'
+    ],
+    status: 'PARTIAL_BACKEND_MOCK_COVERAGE'
   }
 });
 
