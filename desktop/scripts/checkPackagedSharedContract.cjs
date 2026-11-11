@@ -29,7 +29,7 @@ const runtimeConsumers = [
 ];
 for (const file of runtimeConsumers) {
   const source = fs.readFileSync(file, 'utf8');
-  if (!source.includes("require('../../shared/excelSyncContract.cjs')")) {
+  if (!/require\s*\(\s*(?:['"]\.\.\/\.\.\/shared\/excelSyncContract\.cjs['"]|[\s\S]*?['"]\.\.\/\.\.\/shared\/excelSyncContract\.cjs['"])\s*\)/.test(source)) {
     throw new Error(`[KTC] Runtime consumer không còn dùng shared contract chuẩn: ${file}`);
   }
 }
