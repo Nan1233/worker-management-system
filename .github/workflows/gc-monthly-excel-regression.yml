@@ -20,6 +20,11 @@ on:
 permissions:
   contents: read
 
+# New commits supersede older GC checks on the same branch.
+concurrency:
+  group: gc-monthly-excel-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   gia-cong-monthly-excel:
     runs-on: ubuntu-latest
