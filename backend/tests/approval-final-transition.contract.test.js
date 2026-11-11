@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
+const selectionSource = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalSelection.js'), 'utf8');
 const approval = source.slice(source.indexOf('async approveSelected('), source.indexOf('async rejectSelected('));
 const transition = source.slice(source.indexOf('function assertApprovedTempTransition('), source.indexOf('function buildApprovedTempSnapshotOptions('));
 const transitionHelpers = source.slice(source.indexOf('function createReviewTransitionConflictError('), source.indexOf('function assertApprovedTempTransition('));
@@ -36,7 +37,7 @@ test('approval selection is ordered, but its FOR UPDATE is stripped by the query
   assert.match(shared, /const effectiveSql = isTempReportApprovalSelect\(sql\)\s*\? removeApprovalRowLock\(sql\)\s*:\s*sql/);
   assert.match(shared, /replace\(\/\\s\+FOR\\s\+UPDATE\\b\/gi, ""\)/);
   assert.match(approval, /assertApprovalSelectionVisible\(rows, reportIds\)/);
-  const guard = source.slice(source.indexOf('function assertApprovalSelectionVisible('), source.indexOf('function assertApprovalSelectionVersions('));
+  const guard = selectionSource.slice(selectionSource.indexOf('function assertApprovalSelectionVisible('), selectionSource.indexOf('function assertApprovalSelectionVersions('));
   assert.match(guard, /rows\.length !== reportIds\.length/);
 });
 
