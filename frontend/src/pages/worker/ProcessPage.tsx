@@ -406,9 +406,11 @@ const machineAutocompleteOptions =
     };
 
     const updateMachineLine = (index: number, patch: Partial<MachineLineState>) => {
-        setMachineLines((current) => current.map((line, lineIndex) =>
-            lineIndex === index ? { ...line, ...patch } : line
-        ));
+        setMachineLines((current) =>
+            current.map((line, lineIndex) => (
+                lineIndex === index ? { ...line, ...patch } : line
+            ))
+        );
     };
 
     const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {
@@ -465,15 +467,19 @@ const machineAutocompleteOptions =
     };
 
     const toggleMachineDefect = (lineIndex: number, key: string) => {
-        setMachineLines((current) => current.map((line, index) =>
-            index === lineIndex ? toggleMachineDefectLine(line, key) : line
-        ));
+        setMachineLines((current) =>
+            current.map((line, index) => (
+                index === lineIndex ? toggleMachineDefectLine(line, key) : line
+            ))
+        );
     };
 
     const updateMachineDefectValue = (lineIndex: number, key: string, value: string) => {
-        setMachineLines((current) => current.map((line, index) =>
-            index === lineIndex ? updateMachineDefectLine(line, key, value) : line
-        ));
+        setMachineLines((current) =>
+            current.map((line, index) => (
+                index === lineIndex ? updateMachineDefectLine(line, key, value) : line
+            ))
+        );
     };
 
     useEffect(() => {
