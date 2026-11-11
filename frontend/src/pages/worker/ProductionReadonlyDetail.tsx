@@ -64,7 +64,7 @@ export default function ProductionReadonlyDetail() {
   useEffect(() => { setNow(Date.now()); const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
 
   const editWindow = getWorkerEditWindow(report, now || Date.now());
-  const remainingText = formatRemaining(editWindow.remainingMs);
+  const remainingText = WORKER_EDIT_TIME_LIMIT_ENABLED ? formatRemaining(editWindow.remainingMs) : "";
 
   if (loading) return <main className="worker-form-page"><div className="rod-shell"><div className="rod-card">Đang tải chi tiết báo cáo...</div></div></main>;
   if (error) return <main className="worker-form-page"><div className="rod-shell"><div className="rod-card rod-error">{error}</div></div></main>;
