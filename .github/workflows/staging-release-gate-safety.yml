@@ -1,5 +1,6 @@
 name: Staging Release Gate Safety
 on:
+  workflow_dispatch: {}
 permissions:
   contents: read
 jobs:
