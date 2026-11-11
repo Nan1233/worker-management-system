@@ -1,9 +1,9 @@
 # F03 · Lịch sử, chi tiết, chỉnh sửa báo cáo công nhân (nhánh test)
 
 ## Chính sách tạm thời
-- **TẮT** giới hạn công nhân chỉ sửa được trong vòng 10 phút. Chỉ áp dụng cho báo cáo tạm `pending`, `need_fix`, `rejected`; không cho công nhân sửa báo cáo `approved`, `deleted` và các trạng thái khác.
+- **TẮT** giới hạn công nhân chỉ sửa được trong vòng 10 phút. Chỉ cho công nhân sửa báo cáo tạm `pending`; báo cáo `rejected`, `approved`, `deleted` và trạng thái `need_fix` cũ đều chỉ được xem. `need_fix` đã bị loại khỏi bộ lọc lịch sử; dữ liệu cũ không bị tự động xóa hay thay đổi.
 - Backend là nguồn xác nhận cuối cùng. Quyền sở hữu vẫn bắt buộc; FE chỉ hiển thị nút.
-- Khi sửa `rejected` thành công, báo cáo quay lại `pending` theo nghiệp vụ hiện có.
+- Không cho phép sửa hoặc gửi lại `rejected`.
 - Mọi thao tác công nhân sửa phải gửi `expected_updated_at`, thiếu hoặc phiên bản cũ bị từ chối HTTP 409 trước khi cập nhật dữ liệu.
 - Giới hạn giờ **cộng dồn/ngày** tiếp tục tắt cho cả tạo và sửa theo quyết định F02; vẫn kiểm tra thời gian hợp lệ của từng dòng máy. Không sửa quy tắc máy dùng chung.
 
@@ -35,9 +35,9 @@ npx tsc --noEmit
 Lưu ý: `temp-edit-regressions.test.js` tạo một HTTP server **cục bộ** qua `127.0.0.1`, sử dụng fake DB đã mock và token giả. Không kết nối TiDB production. Không chạy `npm test` toàn bộ trước khi kiểm tra các bài integration/smoke khác.
 
 ## Tình huống kiểm tra thêm trước khi chốt production
-1. Mở cùng báo cáo ở hai tab A và B. A sửa lưu thành công; B gửi bản cũ phải nhận 409, không ghi đè.
+1. Mở cùng báo cáo `pending` ở hai tab A và B. A sửa lưu thành công; B gửi bản cũ phải nhận 409, không ghi đè.
 2. Công nhân A mở báo cáo của B phải bị từ chối.
-3. Báo cáo bị từ chối 1 ngày trước vẫn được sửa và gửi lại `pending`.
+3. Báo cáo `rejected` luôn bị chặn sửa; `need_fix` cũ cũng bị chặn.
 4. Báo cáo `approved` vẫn chỉ xem.
 5. Form sửa máy/NG/trừ giờ khớp validation F02.
 6. Lịch sử chứa `temp id=1` và `approved id=1` vẫn hiển thị hai dòng độc lập.
