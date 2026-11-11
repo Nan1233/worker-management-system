@@ -54,14 +54,14 @@ export function clearPreviousRefreshTokenForLogin(): void {
 
 /** Browser access tokens are tab-scoped; Electron retains native persistence. */
 function authStorage(): Storage {
-    return isElectronRuntime() ? localStorage : sessionStorage;
+    return supportsElectronRefreshTokenBody() ? localStorage : sessionStorage;
 }
 
 function readAuthValue(key: string, legacyKey?: string): string | null {
     const store = authStorage();
     const current = store.getItem(key) || (legacyKey ? store.getItem(legacyKey) : null);
-    if (!isElectronRuntime()) {
-        // Retire persistent web credentials left by older versions.
+    if (!supportsElectronRefreshTokenBody()) {
+        // Retire persistent browser/hosted-Electron credentials from older versions.
         localStorage.removeItem(key);
         if (legacyKey) localStorage.removeItem(legacyKey);
     }
