@@ -1,5 +1,5 @@
 const ExcelJS = require('exceljs');
-const { EXCEL_SYNC_CONTRACT_VERSION, isExcelMutableField } = require('../../shared/excelSyncContract.cjs');
+const { EXCEL_SYNC_CONTRACT_VERSION, isExcelMutableField } = require(require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs') : '../../shared/excelSyncContract.cjs');
 const path = require('node:path');
 
 const asText = (value) => {
