@@ -92,3 +92,23 @@ test('another worker cannot read the previous worker draft', () => {
   h.setUser({ worker_id: 50, worker_code: '50-001', role: 'worker' });
   assert.equal(h.draft.loadProcessDraft('gc'), null);
 });
+
+test('draft autosave omits empty machine-line defaults but restores them', () => {
+  const h = harness();
+  const input = sampleDraft();
+  input.machineLines = [{
+    machineCode: 'C5', productCode: 'P01', hours: '8', minutes: '',
+    okQuantity: '120', ngQuantity: '', defects: {}, deductions: {}
+  }];
+  h.draft.saveProcessDraft(input);
+  const key = 'ktc:process-draft:v3:id-49:gc';
+  const saved = JSON.parse(h.data.get(key));
+  assert.equal(saved.machineLines[0].machineCode, 'C5');
+  assert.equal(saved.machineLines[0].hours, '8');
+  assert.equal(Object.hasOwn(saved.machineLines[0], 'defects'), false);
+  assert.equal(Object.hasOwn(saved.machineLines[0], 'deductions'), false);
+  const restored = h.draft.loadProcessDraft('gc');
+  assert.equal(restored.machineLines[0].machineCode, 'C5');
+  assert.equal(restored.machineLines[0].hours, '8');
+  assert.deepEqual(Object.keys(restored.machineLines[0].defects), []);
+});
