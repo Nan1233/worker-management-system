@@ -2,13 +2,13 @@ const db = require("../config/db");
 const AuditService = require("../services/auditService");
 const { toDateKey } = require("../utils/dateKey");
 
-const WORKER_SELF_EDIT_WINDOW_SECONDS = 10 * 60;
+const { WORKER_EDIT_TIME_LIMIT_ENABLED, WORKER_EDIT_WINDOW_MS, WORKER_EDITABLE_STATUSES } = require("../utils/workerEditWindowPolicy");
+const WORKER_SELF_EDIT_WINDOW_SECONDS = WORKER_EDIT_WINDOW_MS / 1000;
 
 /**
  * Manager/admin sửa báo cáo chờ duyệt phải thông báo cho công nhân sở hữu báo cáo.
- * Worker tự sửa báo cáo của mình chỉ được phép trong 10 phút kể từ lúc nộp.
- * Báo cáo bị từ chối (pending -> rejected -> edit -> pending) được sửa lại trong
- * 10 phút kể từ lúc bị từ chối; lúc từ chối ghi updated_at = NOW().
+ * Worker self-edit time is currently unrestricted for editable temp statuses.
+ * The original 10-minute check is preserved behind an explicit policy flag.
  *
  * IMPORTANT: production_reports_temp.created_at is a DB timestamp. Do not parse
  * the timestamp in the Cloudflare Worker runtime because a timezone-less DB
@@ -59,20 +59,27 @@ async function notifyWorkerOnTempEdit(req, res, next) {
             return res.status(403).json({ success: false, message: "Bạn không có quyền sửa báo cáo này" });
         }
 
-        if (String(report.status || "").toLowerCase() === "approved") {
-            return res.status(422).json({ success: false, message: "Báo cáo đã duyệt không thể sửa" });
-        }
-
-        const rejected = String(report.status || "").toLowerCase() === "rejected";
-        const elapsedSeconds = Number(rejected ? report.rejection_elapsed_seconds : report.edit_elapsed_seconds);
-        if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 || elapsedSeconds > WORKER_SELF_EDIT_WINDOW_SECONDS) {
+        const status = String(report.status || "").trim().toLowerCase();
+        if (!WORKER_EDITABLE_STATUSES.includes(status)) {
             return res.status(422).json({
                 success: false,
-                code: "WORKER_EDIT_WINDOW_EXPIRED",
-                message: rejected
-                    ? "Đã hết 10 phút sửa báo cáo bị từ chối. Vui lòng liên hệ quản lý nếu cần sửa."
-                    : "Đã hết 10 phút chỉnh sửa báo cáo. Vui lòng liên hệ quản lý nếu cần sửa."
+                code: "WORKER_REPORT_STATUS_NOT_EDITABLE",
+                message: "Trạng thái báo cáo không cho phép công nhân sửa."
             });
+        }
+
+        if (WORKER_EDIT_TIME_LIMIT_ENABLED) {
+            const rejected = status === "rejected";
+            const elapsedSeconds = Number(rejected ? report.rejection_elapsed_seconds : report.edit_elapsed_seconds);
+            if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 || elapsedSeconds > WORKER_SELF_EDIT_WINDOW_SECONDS) {
+                return res.status(422).json({
+                    success: false,
+                    code: "WORKER_EDIT_WINDOW_EXPIRED",
+                    message: rejected
+                        ? "Đã hết 10 phút sửa báo cáo bị từ chối. Vui lòng liên hệ quản lý nếu cần sửa."
+                        : "Đã hết 10 phút chỉnh sửa báo cáo. Vui lòng liên hệ quản lý nếu cần sửa."
+                });
+            }
         }
 
         return next();
