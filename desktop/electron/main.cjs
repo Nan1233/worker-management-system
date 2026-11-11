@@ -1275,16 +1275,21 @@ async function resolveDesktopToken(candidateToken) {
   return '';
 }
 
-async function waitForUsableRendererToken(previousToken = '', timeoutMs = 8_000) {
-  const previous = normalizeAccessToken(previousToken);
+async function waitForUsableRendererToken(candidateToken = '', timeoutMs = 8_000, options = {}) {
+  const supplied = normalizeAccessToken(candidateToken);
+  const previous = options.previousToken ? normalizeAccessToken(options.previousToken) : '';
+  // Manual IPC requests carry the currently authenticated frontend token.
+  // Use it immediately instead of polling the renderer for eight seconds.
+  if (!previous && isUsableAccessToken(supplied)) return supplied;
   const deadline = Date.now() + timeoutMs;
   do {
     const token = await resolveDesktopToken('');
     if (token && token !== previous && isUsableAccessToken(token)) return token;
+    if (Date.now() >= deadline) break;
     await wait(250);
-  } while (Date.now() < deadline);
+  } while (true);
   const fallback = await resolveDesktopToken('');
-  return isUsableAccessToken(fallback) ? fallback : '';
+  return fallback && fallback !== previous && isUsableAccessToken(fallback) ? fallback : '';
 }
 
 async function authenticatedFetch(url, options = {}) {
@@ -1312,7 +1317,7 @@ async function authenticatedFetch(url, options = {}) {
       if (response.status === 401) {
         await writeLog('WARN', 'AUTH_TOKEN_401_WAITING_FOR_REFRESH', { url, attempt });
         sendRenderer('ktc-auth-refresh-required', { reason: 'excel-request-401' });
-        const refreshed = await waitForUsableRendererToken(token, 10_000);
+        const refreshed = await waitForUsableRendererToken('', 10_000, { previousToken: token });
         if (refreshed && refreshed !== token) {
           token = refreshed;
           currentToken = refreshed;
