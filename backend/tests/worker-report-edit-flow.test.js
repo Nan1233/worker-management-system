@@ -138,9 +138,24 @@ test('mid-failure rolls back and never commits', async () => {
   assert.equal(calls.some((c) => c.sql === 'ROLLBACK'), true);
 });
 
-test('worker cannot edit outside the 10 minute window', async () => {
-  const { Model, calls } = build({ current: { created_at: new Date(Date.now() - 11 * 60 * 1000).toISOString() } });
-  await assert.rejects(() => quiet(() => Model.updateReport(900001, { note: 'x' }, 70, null, ADMIN)), (e) => e.code === 'TEMP_REPORT_EDIT_WINDOW_EXPIRED');
+test('worker can edit an old pending report while the time limit is temporarily disabled', async () => {
+  const { Model, calls } = build({ current: { created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() } });
+  await quiet(() => Model.updateReport(900001, { note: 'x' }, 70, null, ADMIN));
+  assert.ok(updateSql(calls), 'expired pending report must remain editable under temporary policy');
+});
+
+test('worker can resubmit an old rejected report as pending', async () => {
+  const { Model, calls } = build({ current: { status: 'rejected', created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), updated_at: '2026-10-23T01:00:00.000Z' } });
+  await quiet(() => Model.updateReport(900001, { note: 'worker correction' }, 70, null, ADMIN));
+  assert.match(updateSql(calls)?.sql || '', /status='pending'/);
+});
+
+test('worker cannot edit a non-editable temp report status', async () => {
+  const { Model, calls } = build({ current: { status: 'deleted' } });
+  await assert.rejects(
+    () => quiet(() => Model.updateReport(900001, { note: 'x' }, 70, null, ADMIN)),
+    (e) => e.code === 'TEMP_REPORT_STATUS_NOT_EDITABLE'
+  );
   assert.equal(updateSql(calls), undefined);
 });
 
