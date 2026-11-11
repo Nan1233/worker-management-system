@@ -17,10 +17,19 @@ async function saveCommonProcessMonthlyWorkbook(workbook, yearMonth, templatePat
     try { await fileSystem.unlink(tempPath); } catch (_) { /* best-effort temporary cleanup */ }
     throw error;
   }
-  await fileSystem.writeFile(target.metadataPath, JSON.stringify({
-    version: 1, template: path.basename(templatePath), layout: 'common-process-daily-blocks',
-    yearMonth, reportCount, updatedAt: new Date().toISOString()
-  }), 'utf8');
+  // The workbook has already been committed by rename. A metadata failure must
+  // remain visible rather than reporting a successful export with stale metadata.
+  try {
+    await fileSystem.writeFile(target.metadataPath, JSON.stringify({
+      version: 1, template: path.basename(templatePath), layout: 'common-process-daily-blocks',
+      yearMonth, reportCount, updatedAt: new Date().toISOString()
+    }), 'utf8');
+  } catch (error) {
+    const wrapped = new Error(`Excel workbook saved to ${target.filePath}, but metadata update failed: ${error.message}`, { cause: error });
+    wrapped.code = 'EXCEL_METADATA_WRITE_FAILED';
+    wrapped.archivePath = target.filePath;
+    throw wrapped;
+  }
   return { archivePath: target.filePath, fileName: target.fileName, reportCount,
     templateFile: path.basename(templatePath), layout: 'common-process-daily-blocks' };
 }
