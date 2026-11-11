@@ -1,15 +1,9 @@
 'use strict';
 const { resolveReportExportTimes } = require('./commonProcessExportTimes');
 const { detailValue } = require('./commonProcessExcelDetailValue');
+const { dateKey } = require('./commonProcessExcelReportPreparation');
 const { MAX_DEDUCTIONS, MAX_DEFECTS, LAST_COLUMN } = require('./commonProcessExcelColumns');
 function num(value) { const n = Number(value ?? 0); return Number.isFinite(n) ? n : 0; }
-function dateKey(value) {
-  if (!value) return '';
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 function buildCommonProcessExcelRowValues(report, deductionTypes, defectTypes, index) {
   const exportTimes = report.excelExportTimes || resolveReportExportTimes(report);
   const totalTime = exportTimes.totalHours;
@@ -26,7 +20,6 @@ function buildCommonProcessExcelRowValues(report, deductionTypes, defectTypes, i
   const trainingFactor = trainingPercent / 100;
   const standard = standardRate * actualTime;
   const achievement = standard > 0 ? (actual / standard) * trainingFactor : 0;
-  const outputPerHour = actualTime > 0 ? actual / actualTime : 0;
   const ok = num(report.tt_ok);
   const ng = num(report.tt_ng);
   const ngRate = actual > 0 ? ng / actual : 0;
@@ -40,13 +33,14 @@ function buildCommonProcessExcelRowValues(report, deductionTypes, defectTypes, i
   // into the wrong columns when a process has fewer active deduction/NG types.
   while (deductionValues.length < MAX_DEDUCTIONS) deductionValues.push(null);
   while (defectValues.length < MAX_DEFECTS) defectValues.push(null);
+  const workDate = dateKey(report.work_date);
   const values = [
     index + 1, report.worker_code ?? '', report.full_name ?? report.worker_name ?? '', report.machine_no ?? '', report.shift ?? '',
     trainingFactor, totalTime, actualTime,
     detailValue(deductions, null, 'Chuyển mã', 'hours'), deductionTime, Math.max(0, standard - actual),
     ...deductionValues,
     report.product_name ?? '', standard, actual, achievement,
-    dateKey(report.work_date) ? new Date(`${dateKey(report.work_date)}T00:00:00`) : null,
+    workDate ? new Date(`${workDate}T00:00:00`) : null,
     standardRate, ok, ng, ngRate,
     ...defectValues, ok, ng
   ];
