@@ -41,11 +41,36 @@ export function validateMachineLines(args: {
     const machineLabel = machineCode ? `Máy ${machineCode}` : `Máy ${lineIndex + 1}`;
     const manualWithoutMachine = !machineCode && !!productCode && !!args.isProductValid && args.isProductValid("", productCode);
 
+    // Mirror the backend machine-line quantity and time invariants. This is
+    // per-line validation, NOT the disabled cross-report daily-hours limit.
+    const okRaw = String(line.okQuantity ?? "").trim();
+    const ngRaw = String(line.ngQuantity ?? "").trim();
+    const okValue = okRaw === "" ? 0 : Number(okRaw);
+    const ngValue = ngRaw === "" ? 0 : Number(ngRaw);
+    if (!Number.isInteger(okValue) || okValue < 0 || !Number.isInteger(ngValue) || ngValue < 0) {
+      return `${machineLabel}: OK và NG phải là số nguyên không âm`;
+    }
+    if (machineCode) {
+      const hours = Number(line.hours || 0);
+      const minutes = Number(line.minutes || 0);
+      const deductions = Object.values(line.deductions || {}).reduce(
+        (total, value) => total + Math.max(0, Number(value) || 0), 0
+      );
+      const actualHours = hours + minutes / 60;
+      const grossHours = actualHours + deductions / 60;
+      if (!Number.isFinite(actualHours) || actualHours <= 0 || actualHours > 12) {
+        return `${machineLabel}: thời gian thực tế phải lớn hơn 0 và không quá 12 giờ`;
+      }
+      if (!Number.isFinite(grossHours) || grossHours > 12) {
+        return `${machineLabel}: thời gian thực tế cộng trừ giờ không được quá 12 giờ`;
+      }
+    }
+
     // GC Lồng tay is represented by a blank machine. The product validator is
     // the source of truth for whether that product is valid without a machine.
     // Other machine workflows still fail here because their product validator
     // returns false for an empty machine.
-    if (["MAI", "DO", "CAN", "EP"].includes(String(args.processCode || "").trim().toUpperCase())) {
+    if (machineCode && ["GC", "MAI", "DO", "CAN", "EP", "K1", "K2", "XLBV", "SX3"].includes(String(args.processCode || "").trim().toUpperCase())) {
       const ng = Math.max(0, Math.trunc(Number(line.ngQuantity) || 0));
       // KQSX is derived from OK + NG; workers no longer enter it separately.
       const defectTotal = Object.values(line.defects || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0);
