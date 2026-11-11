@@ -324,7 +324,7 @@ function ProductionHistory() {
                                         const statusInfo = getStatusInfo(item.status);
                                         const rowNumber = (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
                                         return (
-                                            <tr key={item.id ?? `${item.work_date}-${index}`}>
+                                            <tr key={`${item.source || (item.status === "approved" ? "approved" : "temp")}:${item.id ?? `${item.work_date}-${index}`}`}>
                                                 <td data-label="STT" className="column-index">{rowNumber}</td>
                                                 <td data-label="Ngày" className="date-cell">{formatDate(item.work_date)}</td>
                                                 <td data-label="Ca" className="shift-cell"><span className="shift-badge">{item.shift || "---"}</span></td>
