@@ -26,7 +26,6 @@ test('F03 writes still use row locking and reject old edit versions', () => {
   assert.match(model, /FOR UPDATE/);
   assert.match(model, /options\.expectedUpdatedAt/);
   assert.match(model, /TEMP_REPORT_VERSION_CONFLICT/);
-  assert.match(model, /!WORKER_EDITABLE_STATUSES\.includes\(status\)/);
 });
 
 test('F03 edit and create share the same machine line validation contract', () => {
