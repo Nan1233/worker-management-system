@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import RouteLoading from '../components/system/RouteLoading';
 import { loadMyPermissions, type PermissionCode } from '../security/permissions';
 import { getStoredUser } from '../utils/authStorage';
@@ -29,6 +29,7 @@ export default function PermissionRoute({
   permission: PermissionCode;
   children: ReactNode;
 }) {
+  const location = useLocation();
   const user = getStoredUser();
   const base = useMemo(() => (
     user?.role === 'admin' ? '/admin'
@@ -77,5 +78,9 @@ export default function PermissionRoute({
       </section>
     );
   }
-  return state.allowed ? <>{children}</> : <Navigate to={state.fallback} replace />;
+  if (state.allowed) return <>{children}</>;
+  if (state.fallback === location.pathname) {
+    return <section role="alert">Bạn không có quyền truy cập trang này.</section>;
+  }
+  return <Navigate to={state.fallback} replace />;
 }
