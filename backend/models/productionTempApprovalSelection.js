@@ -1,4 +1,4 @@
-const { normalizeIds } = require("./productionTempModelShared");
+const { normalizeIds } = require("./productionTempIdNormalization");
 
 // Keep input normalization and duplicate-ID precedence identical to approval's original path.
 function buildApprovalSelection(targets) {
