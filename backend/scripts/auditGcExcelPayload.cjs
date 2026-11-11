@@ -107,6 +107,19 @@ function auditGcExportPayload(payload, { requireSharedEvent = false } = {}) {
         addError('GC_LINKED_EVENT_NOT_IN_EXPORT');
         continue;
       }
+      // A linked physical event must belong to the same production day and
+      // shift as the worker report. Check only populated report fields so
+      // historical payloads without these fields remain auditable.
+      const reportDate = String(report.work_date || '').slice(0, 10);
+      const eventDate = String(event.work_date || '').slice(0, 10);
+      const reportShift = String(report.shift || '').trim().toUpperCase();
+      const eventShift = String(event.shift || '').trim().toUpperCase();
+      if (reportDate && (!eventDate || reportDate !== eventDate)) {
+        addError('GC_EVENT_REPORT_DATE_MISMATCH');
+      }
+      if (reportShift && (!eventShift || reportShift !== eventShift)) {
+        addError('GC_EVENT_REPORT_SHIFT_MISMATCH');
+      }
       const hours = Number(event.machine_time_hours);
       if (!Number.isFinite(hours) || hours < 0) {
         addError('GC_INVALID_PHYSICAL_EVENT_HOURS');
