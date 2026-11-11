@@ -1,3 +1,4 @@
+const { normalizeIds } = require("./productionTempIdNormalization");
 const db = require("../config/db");
 
 // TiDB Cloud Serverless does not allow concurrent statements on the same
@@ -198,14 +199,6 @@ const rollback = async (connection) => {
         resolve(error ? { ok: false, error } : { ok: true });
     }));
 };
-
-const normalizeIds = (ids) => [
-    ...new Set(
-        (Array.isArray(ids) ? ids : [])
-            .map(Number)
-            .filter((id) => Number.isInteger(id) && id > 0)
-    )
-].sort((a, b) => a - b);
 
 const editableFields = [
     "work_date",
