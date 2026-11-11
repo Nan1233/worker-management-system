@@ -63,6 +63,23 @@ const invalidateLegacyV2Draft = (process: string, workerId: number | null, worke
   } catch { /* storage unavailable */ }
 };
 
+// Browser storage is finite. Store only changed fields instead of copying the
+// full default machine-line schema into every draft. Restore merges defaults.
+const compactMachineLine = (line: MachineLineState): Partial<MachineLineState> => {
+  const defaults = createEmptyMachineLine();
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(line)) {
+    const defaultValue = (defaults as unknown as Record<string, unknown>)[key];
+    if (value === undefined) continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    if (value && typeof value === "object" && !Array.isArray(value) &&
+        Object.keys(value).length === 0) continue;
+    if (Object.is(value, defaultValue)) continue;
+    result[key] = value;
+  }
+  return result as Partial<MachineLineState>;
+};
+
 const DRAFT_CLEAR_SUPPRESS_MS = 1200;
 const clearMarkerKeyFor = (process: string, workerId: number | null, workerCode: string | null) =>
   `${keyFor(process, workerId, workerCode)}:clear-marker`;
@@ -299,7 +316,7 @@ export function saveProcessDraft(draft: ProcessDraft): void {
       version: 3,
       ownerWorkerId: workerId,
       ownerWorkerCode: workerCode,
-      machineLines: sourceLines.map((line) => ({ ...createEmptyMachineLine(), ...line })),
+      machineLines: sourceLines.map((line) => compactMachineLine(line) as MachineLineState),
       machineCount: Math.max(1, Number(draft.machineCount) || 1, sourceLines.length),
     };
 
