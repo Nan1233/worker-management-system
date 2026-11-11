@@ -19,7 +19,8 @@ const FLOW_SUITES = Object.freeze({
     routes: ['/worker/history', '/worker/history/:id', '/worker/history/:id/edit'],
     tests: [
       'f03-worker-history-policy.contract.test.js',
-      'worker-report-edit-flow.test.js'
+      'worker-report-edit-flow.test.js',
+      'temp-edit-regressions.test.js'
     ],
     status: 'PARTIAL_MOCK_COVERAGE'
   },
