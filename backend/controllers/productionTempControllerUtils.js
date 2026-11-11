@@ -1,3 +1,5 @@
+'use strict';
+
 const toPositiveInteger = (value) => {
     const numberValue = Number(value);
     return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null;
@@ -53,10 +55,20 @@ const validateWorkerWorkDate = (workDate) => {
     return null;
 };
 
-const normalizeIds = (ids) => [
-    ...new Set((Array.isArray(ids) ? ids : []).map(Number).filter((id) => Number.isInteger(id) && id > 0)),
-];
+const normalizeIds = (ids) => {
+    const values = Array.isArray(ids) ? ids : [];
+    const validIds = values.map(Number).filter((id) => Number.isInteger(id) && id > 0);
+    return [...new Set(validIds)];
+};
 
+
+const createReviewTargetVersionConflictError = () => {
+    const error = new Error("Danh sách báo cáo chứa phiên bản không thống nhất. Hãy tải lại danh sách rồi chọn lại.");
+    error.status = 409;
+    error.code = "REVIEW_TARGET_VERSION_CONFLICT";
+    error.isPublic = true;
+    return error;
+};
 
 const normalizeReviewTargets = (body = {}) => {
     const targets = Array.isArray(body?.targets) ? body.targets : [];
@@ -71,11 +83,7 @@ const normalizeReviewTargets = (body = {}) => {
                 // Never silently discard a conflicting optimistic-lock token:
                 // the same report was selected from two different snapshots.
                 if (seen.get(id) !== expected_updated_at) {
-                    const error = new Error("Danh sách báo cáo chứa phiên bản không thống nhất. Hãy tải lại danh sách rồi chọn lại.");
-                    error.status = 409;
-                    error.code = "REVIEW_TARGET_VERSION_CONFLICT";
-                    error.isPublic = true;
-                    throw error;
+                    throw createReviewTargetVersionConflictError();
                 }
                 continue;
             }
