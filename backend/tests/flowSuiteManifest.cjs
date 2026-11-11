@@ -48,12 +48,20 @@ const FLOW_SUITES = Object.freeze({
     tests: ['production-cvk-lookup-model.test.js']
   },
   'gc-machine': {
-    label: 'Gia công · máy dùng chung, giờ máy, giờ trừ',
+    label: 'F04 · Gia công (GC), tối đa 4 máy, giờ máy, trừ giờ, OK/NG và định mức',
     routes: ['/worker/process/:process', '/manager/report/:id'],
     tests: [
+      'f04-gc-core-contract.test.js',
+      'gc-machine-actual-time-input.test.js',
+      'gc-multi-machine-actual-time-validation.test.js',
       'gc-machine-deduction-hours.test.js',
-      'gc-machine-source.test.js'
-    ]
+      'gc-machine-deduction-details.test.js',
+      'gc-machine-time-accounting.test.js',
+      'gc-machine-source.test.js',
+      'gc-machine-work-type-standard-resolution.test.js',
+      'gc-product-standard-work-type-match.test.js'
+    ],
+    status: 'PARTIAL_MOCK_COVERAGE_SHARED_WORKER_ACCOUNTING_DEFERRED'
   },
   'desktop-excel': {
     label: 'Desktop · chuẩn hóa số và tỷ lệ học việc',
