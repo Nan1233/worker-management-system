@@ -65,6 +65,7 @@ async function listProcessesForMonth(value, options = {}) {
        LEFT JOIN production_reports pr
          ON pr.process_id = p.id
         AND LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
+        AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))
         AND pr.work_date >= ?
         AND pr.work_date < ?
       WHERE LOWER(COALESCE(p.status, 'active')) IN ('active', 'enabled', '1') ${scoped.clause}
