@@ -1,8 +1,7 @@
 'use strict';
 const { resolveReportExportTimes } = require('./commonProcessExportTimes');
 const { detailValue } = require('./commonProcessExcelDetailValue');
-const MAX_DEDUCTIONS = 15;
-const MAX_DEFECTS = 16;
+const { MAX_DEDUCTIONS, MAX_DEFECTS, LAST_COLUMN } = require('./commonProcessExcelColumns');
 function num(value) { const n = Number(value ?? 0); return Number.isFinite(n) ? n : 0; }
 function dateKey(value) {
   if (!value) return '';
