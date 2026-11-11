@@ -9,7 +9,7 @@ const { buildCommonProcessExcelRowValues } = require('./commonProcessExcelRowVal
 const { TEMPLATE_SHEETS, safeSheetName, groupReportsByProcessSheet, getProcessDetailTypes } = require('./commonProcessExcelGrouping');
 const { clearSheetData, copyTemplateStyles, setHeader, writeDateRow, prepareSheet } = require('./commonProcessExcelSheetFormatting');
 
-const LAST_COLUMN = 53;
+const { LAST_COLUMN } = require('./commonProcessExcelColumns');
 function displayDate(value) {
   const key = dateKey(value); if (!key) return '';
   const [y, m, d] = key.split('-'); return `NGÀY ${d}/${m}/${y}`;
