@@ -63,11 +63,11 @@ const PROCESS_TEMPLATE_SCHEMAS = Object.freeze({
   },
   MAI: {
     deductions: ['Thiếu sản lượng','Bật máy, xét máy, đầu giờ','Chuyển mã','Chỉnh máy','Chờ chỉnh máy','Mài đá','Bảo dưỡng máy','Ko có KHSX, Dừng máy ko HT','Chờ hàng, hết hàng','Khí yếu','Nghỉ giải lao','Giao ca','Dừng máy đi hỗ trợ','5s, đổ bụi,xì bụi,lấy bụi','Học việc','Thổi bụi,lấy bụi','Đi đo kiểm soát','Đi muộn/về sớm','Tắt máy hút bụi','Mất điện'],
-    defects: ['KQD ĐẢO','Xô cs','PPCM / Mất điện','Hàng rơi','K- coleet','Thiếu - lẫn cs / CSH','Lỗi cao su']
+    defects: ['KQD ĐẢO','Xô cs','PPCM Mất điện','Hàng rơi','K-coleet','Thiếu - lẫn cs CSH','Lỗi cao su']
   },
   DO: {
     deductions: ['Thiếu sản lượng','Chỉnh máy','Mất điện','Ko có KHSX','Chờ chỉnh máy','Nghỉ giải lao','Giao ca','Dừng máy đi hỗ trợ','5s/lấy bụi','Rải hàng, mài, cv khác','Lưu DL','KS DF, KS đầu giờ','Thổi bụi','Khác,đẩy hàng xuất','Đi muộn về sớm','Kiểm kho','Học việc, đào tạo'],
-    defects: ['Lớn','Nhỏ','Fure cao su','Fure trục','Trục cong','Lệch điểm','Lỗi cao su','Đảo cs','Lỗi trục','Chưa mài','Mài 2 lần','Hở vai']
+    defects: ['Lớn','Nhỏ','Fure cao su','Fure trục','Trục cong','Lệch điểm','Lỗi cao su','Đảo cs','Lỗi trục','Chưa mài','Mài 2 lần','HỞ VAI']
   },
   K1: {
     extras: [
@@ -418,13 +418,15 @@ function processDetailTypes(processCode, processData, masterKey, reportKey, kind
   const append = (item) => {
     const aliases = detailAliases(item, kind);
     if (!aliases.length) return;
+    const candidateCode = detailCode(item, kind);
     const candidateLabel = detailLabel(item, kind) || (kind === 'deduction' ? 'Trừ giờ khác' : 'NG khác');
     let current = aliases.map((alias) => byAlias.get(alias)).find(Boolean);
     if (!current) {
-      current = { key: detailKey(item, kind), label: candidateLabel, aliases: new Set(aliases) };
+      current = { key: detailKey(item, kind), code: candidateCode, label: candidateLabel, aliases: new Set(aliases) };
       result.push(current);
     } else {
       aliases.forEach((alias) => current.aliases.add(alias));
+      if (candidateCode && (!current.code || /^(?:MAI|DO)_NG_?\d+$/i.test(candidateCode))) current.code = candidateCode;
       if (labelQuality(candidateLabel, kind) > labelQuality(current.label, kind)) current.label = candidateLabel;
     }
     current.aliases.forEach((alias) => byAlias.set(alias, current));
@@ -435,7 +437,7 @@ function processDetailTypes(processCode, processData, masterKey, reportKey, kind
   for (const report of processData?.reports || []) {
     for (const item of reportDetailItems(report, processCode, kind)) append(item);
   }
-  return result.map((item) => ({ key: item.key, label: item.label, aliases: [...item.aliases] }));
+  return result.map((item) => ({ key: item.key, code: item.code, label: item.label, aliases: [...item.aliases] }));
 }
 
 function detailValue(item, kind) {
@@ -544,6 +546,15 @@ function detailColumnWidth(label) {
   return 17;
 }
 
+function defectColumnHeader(processCode, type) {
+  const label = asText(type?.label) || 'NG';
+  const code = asText(type?.code).toUpperCase();
+  const normalizedProcess = normalize(processCode);
+  const prefix = normalizedProcess === 'MAI' ? 'MAI_NG_' : normalizedProcess === 'DO' ? 'DO_NG_' : '';
+  if (!prefix || !new RegExp(`^${prefix}\\d{2}$`).test(code)) return label;
+  return `${code}\n${label}`;
+}
+
 function makeColumns(processCode, deductionTypes, defectTypes) {
   const columns = [
     { key: 'stt', header: 'STT', group: 'general', width: 7, format: NUMBER_FORMATS.INTEGER },
@@ -584,7 +595,7 @@ function makeColumns(processCode, deductionTypes, defectTypes) {
     { key: 'ng', header: 'Tổng NG', group: 'result', width: 10, format: NUMBER_FORMATS.INTEGER }
   );
   defectTypes.forEach((type) => {
-    const header = asText(type.label) || 'NG';
+    const header = defectColumnHeader(processCode, type);
     columns.push({
       key: `defect:${type.key}`,
       header,

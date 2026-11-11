@@ -7,7 +7,7 @@ const TEMPLATE_ROOT = process.resourcesPath && fs.existsSync(path.join(process.r
   : path.resolve(__dirname, "../../backend/templates");
 const FORMS = Object.freeze({
   MAI: { file:"01_MAU_MAI.xlsx", sheet:"MÀI", header:2, first:3, fields:{A:"stt",B:"workerCode",C:"workerName",D:"shift",E:"machine",H:"training",I:"workingTime",J:"actualTime",K:"deductionTime",AF:"product",AG:"standard",AH:"output",AI:"achievement",AK:"outputPerHour",AL:"ok",AM:"ng"}, deductions:["L","AE"], defects:["AN","AT"] },
-  DO: { file:"02_MAU_DO.xlsx", sheet:"ĐO", header:2, first:3, fields:{A:"stt",B:"workerCode",C:"workerName",D:"shift",E:"machine",G:"training",H:"workingTime",I:"actualTime",J:"deductionTime",AB:"product",AC:"standard",AD:"output",AE:"achievement",AG:"outputPerHour",AH:"ok",AI:"ngRate",AJ:"ng"}, deductions:["K","AA"], defects:["AK","AO"] },
+  DO: { file:"02_MAU_DO.xlsx", sheet:"ĐO", header:2, first:3, fields:{A:"stt",B:"workerCode",C:"workerName",D:"shift",E:"machine",G:"training",H:"workingTime",I:"actualTime",J:"deductionTime",AB:"product",AC:"standard",AD:"output",AE:"achievement",AG:"outputPerHour",AH:"ok",AI:"ngRate",AJ:"ng"}, deductions:["K","AA"], defects:["AK","AV"] },
   K1: { file:"03_MAU_KIEM_1.xlsx", sheet:"KIỂM 1", header:4, first:5, fields:{A:"stt",B:"workerCode",C:"workerName",D:"product",F:"extra:press_date",G:"machine",H:"extra:press_box_shift",I:"deductionTime",J:"extra:deduction_work",K:"extra:late_early_hours",L:"extra:xlbv_deduction_worker",N:"actualTime",O:"expectedOutput",P:"output",Q:"achievement",S:"outputPerHour",T:"ok",U:"ng",V:"ngRate"}, defects:["W","BE"] },
   K2: { file:"04_MAU_KIEM_2.xlsx", sheet:"KIỂM 2", header:4, first:5, fields:{A:"stt",B:"workerCode",C:"workerName",D:"training",E:"deductionTime",V:"workingTime",W:"actualTime",X:"product",Y:"standard",Z:"output",AA:"achievement",AC:"outputPerHour",AD:"ok",AE:"ng",AF:"ngRate"}, deductions:["F","T"], deductionHeader:2, defects:["AG","CE"] },
   CAN: { file:"05_MAU_CAN.xlsx", sheet:"CÁN", header:2, first:3, fields:{A:"stt",B:"workerCode",C:"workerName",D:"shift",E:"machine",F:"actualTime",G:"product",H:"extra:material_code",I:"expectedOutput",J:"output",K:"achievement",M:"outputPerHour",N:"ngRate",O:"ng"}, defects:["P","S"] },
@@ -47,6 +47,28 @@ function masterAliases(item) {
 }
 function defectDisplayName(item) {
   return String(item?.defect_type_name ?? item?.defect_name ?? item?.display_name ?? item?.type_name ?? item?.label ?? item?.name ?? item?.defect_type_code ?? item?.defect_code ?? item?.code ?? "").trim();
+}
+const ENCODED_PROCESS_DEFECTS = Object.freeze({
+  MAI: { prefix:"MAI_NG", start:"AN", styleEnd:"AT", names:["KQD ĐẢO","Xô cs","PPCM Mất điện","Hàng rơi","K-coleet","Thiếu - lẫn cs CSH","Lỗi cao su"] },
+  DO: { prefix:"DO_NG", start:"AK", styleEnd:"AO", names:["Lớn","Nhỏ","Fure cao su","Fure trục","Trục cong","Lệch điểm","Lỗi cao su","Đảo cs","Lỗi trục","Chưa mài","Mài 2 lần","HỞ VAI"] }
+});
+function encodedDefectOrdinal(type,prefix) {
+  const prefixKey=norm(prefix);
+  for(const value of [type?.code,type?.key,...(type?.aliases||[])]) {
+    const raw=String(value??"").replace(/^code:/i,"");
+    const match=new RegExp("^"+prefixKey+"0*(\\d+)$").exec(norm(raw));
+    if(match)return Number(match[1]);
+  }
+  return null;
+}
+function cloneColumnStyle(sheet,sourceCol,targetCol) {
+  const source=sheet.getColumn(sourceCol),target=sheet.getColumn(targetCol);
+  target.width=source.width;
+  target.hidden=false;
+  for(let row=1;row<=sheet.rowCount;row++){
+    const seed=sheet.getRow(row).getCell(sourceCol),cell=sheet.getRow(row).getCell(targetCol);
+    if(seed.hasStyle)cell.style=JSON.parse(JSON.stringify(seed.style));
+  }
 }
 function makeDefectColumns(defectTypes,reports,helpers,code,slots) {
   const masters=Array.isArray(defectTypes)?defectTypes:[];
@@ -110,47 +132,63 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     return list;
   };
   const detailCols=buildDetailColumns("deduction",config.deductions,config.deductionHeader);
-  // Preserve every named NG category in the company's form, including zero-count types.
-  // Resolve its display label from the FE/API master list, never from sample daily totals.
-  const defectCols=buildDetailColumns("defect",config.defects);
-  // MAI's production form has exactly seven active NG types (AN:AT).
-  // Historical/inactive API masters must not generate duplicate, unstyled columns.
-  const maiDefectLabels=["KQD ĐẢO","Xô cs","PPCM Mất điện","Hàng rơi","K-coleet","Thiếu - lẫn cs CSH","Lỗi cao su"];
-  if(code==="MAI"){
-    for(let i=0;i<7;i++){
-      const col=toNumber("AN")+i;
-      sheet.getCell(config.header,col).value=maiDefectLabels[i];
-      sheet.getColumn(col).hidden=false;
-    }
-  }
+  // MAI and DO use their encoded active master catalogues as the single
+  // report-column contract. This removes the legacy DO "Lẫn hàng" column and
+  // keeps all 7 MAI / 12 DO NG columns inside the original process template.
+  const templateDefectCols=buildDetailColumns("defect",config.defects);
+  const encodedSpec=ENCODED_PROCESS_DEFECTS[code]||null;
   const mappedDefects=[];
-  for(const [defectIndex,d] of defectCols.entries()){
-    const headerNorm=norm(d.header);
-    const matches=code==="MAI"
-      ? defectTypes.filter(t=>[t.key,...(t.aliases||[])].some(v=>norm(v).includes("maing"+String(defectIndex+1).padStart(3,"0")) || norm(v)===norm(maiDefectLabels[defectIndex])))
-      : defectTypes.filter(t=>[t.label,...(t.aliases||[])].some(v=>{
-          const raw=String(v);return !raw.startsWith("id:")&&!raw.startsWith("code:")&&norm(raw.replace(/^name:/,""))===headerNorm;
-        }));
-    if(matches.length===1){
-      const type=matches[0];
-      const label=code==="MAI"?maiDefectLabels[defectIndex]:String(type.label||d.header);
-      sheet.getCell(config.header,d.col).value=label;
-      mappedDefects.push({...d,type});
-      mapping.push({index:d.col,key:"defect:"+type.key,header:label});
-    }else{
-      // Keep the source heading rather than silently assigning another NG code.
-      mappedDefects.push(d);
+  if(encodedSpec){
+    const startCol=toNumber(encodedSpec.start);
+    const styledEnd=toNumber(encodedSpec.styleEnd);
+    for(let index=0;index<encodedSpec.names.length;index++){
+      const col=startCol+index;
+      if(col>styledEnd)cloneColumnStyle(sheet,styledEnd,col);
+      const ordinal=index+1;
+      const canonicalName=encodedSpec.names[index];
+      const type=defectTypes.find(item=>encodedDefectOrdinal(item,encodedSpec.prefix)===ordinal)
+        || defectTypes.find(item=>norm(item?.label)===norm(canonicalName));
+      const codeLabel=encodedSpec.prefix+"_"+String(ordinal).padStart(2,"0");
+      const name=String(type?.label||canonicalName).trim();
+      const header=codeLabel+"\n"+name;
+      sheet.getCell(config.header,col).value=header;
+      sheet.getColumn(col).hidden=false;
+      if(type){
+        mappedDefects.push({col,header,kind:"defect",type});
+        mapping.push({index:col,key:"defect:"+type.key,header});
+      }else{
+        mappedDefects.push({col,header,kind:"defect"});
+      }
     }
-    sheet.getColumn(d.col).hidden=false;
+  }else{
+    for(const d of templateDefectCols){
+      const headerNorm=norm(d.header);
+      const matches=defectTypes.filter(t=>[t.label,...(t.aliases||[])].some(v=>{
+        const raw=String(v);return !raw.startsWith("id:")&&!raw.startsWith("code:")&&norm(raw.replace(/^name:/,""))===headerNorm;
+      }));
+      if(matches.length===1){
+        const type=matches[0];
+        const label=String(type.label||d.header);
+        sheet.getCell(config.header,d.col).value=label;
+        mappedDefects.push({...d,type});
+        mapping.push({index:d.col,key:"defect:"+type.key,header:label});
+      }else{
+        // Keep the source heading rather than silently assigning another NG code.
+        mappedDefects.push(d);
+      }
+      sheet.getColumn(d.col).hidden=false;
+    }
   }
   // FE/API master list is authoritative; retain every configured NG even at zero.
   const usedDefectKeys=new Set(mappedDefects.filter(d=>d.type).map(d=>String(d.type.key)));
   const extraDefects=[];
-  const lastDefectCol=config.defects?toNumber(config.defects[1]):0;
+  const lastDefectCol=encodedSpec
+    ? toNumber(encodedSpec.start)+encodedSpec.names.length-1
+    : (config.defects?toNumber(config.defects[1]):0);
   const lastMappedCol=Math.max(...Object.keys(config.fields).map(toNumber),lastDefectCol);
   const originalColumnCount=sheet.columnCount;
   let nextDefectCol=originalColumnCount+1;
-  for(const type of (code==="MAI"?[]:defectTypes)){
+  for(const type of (encodedSpec?[]:defectTypes)){
     const key=String(type.key);
     if(usedDefectKeys.has(key))continue;
     usedDefectKeys.add(key);
