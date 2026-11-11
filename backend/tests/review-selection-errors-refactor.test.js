@@ -4,9 +4,10 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
-const source=fs.readFileSync(path.join(__dirname,'../models/productionTempApprovalModel.js'),'utf8');
+const source=fs.readFileSync(path.join(__dirname,'../models/productionTempApprovalSelection.js'),'utf8');
+const approvalSource=fs.readFileSync(path.join(__dirname,'../models/productionTempApprovalModel.js'),'utf8');
 const start=source.indexOf('function createApprovalSelectionStaleError(');
-const end=source.indexOf('// Keep rejection',start);
+const end=source.indexOf('module.exports = {',start);
 assert.ok(start>=0&&end>start);
 const ctx={Date,Set,Number};
 vm.runInNewContext(source.slice(start,end),ctx);
@@ -43,8 +44,8 @@ test('version assertion preserves timestamp comparison and missing expected bypa
 });
 test('both approval and rejection paths still share visibility and version assertions',()=>{
  for(const method of ['async approveSelected(','async rejectSelected(']){
-  const start=source.indexOf(method),end=source.indexOf('async ',start+10);
-  const flow=source.slice(start,end<0?undefined:end);
+  const start=approvalSource.indexOf(method),end=approvalSource.indexOf('async ',start+10);
+  const flow=approvalSource.slice(start,end<0?undefined:end);
   assert.match(flow,/assertApprovalSelectionVisible\(rows, reportIds\)/);
   assert.match(flow,/assertApprovalSelectionVersions\(rows, expectedById\)/);
  }
