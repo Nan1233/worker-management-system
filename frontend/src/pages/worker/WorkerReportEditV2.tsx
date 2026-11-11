@@ -325,6 +325,7 @@ function WorkerReportEditV2() {
   const save = async () => {
     if (!report || readOnly) return;
     if (!managerRoute && !getWorkerEditWindow(report).editable) { setError("Báo cáo không còn ở trạng thái được phép sửa."); return; }
+    if (!managerRoute && !report.updated_at) { setError("Thiếu phiên bản báo cáo. Vui lòng tải lại trước khi sửa."); return; }
     setError("");
     const incompleteMessage = detectIncompleteMachineData(report);
     if (incompleteMessage) { setError(incompleteMessage); return; }
@@ -377,7 +378,7 @@ function WorkerReportEditV2() {
         navigate(`/worker/history/${report.id}`, { replace: true });
       }
     } catch (e: any) {
-      if (["REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_CONFLICT"].includes(String(e?.response?.data?.code || "")) || (Number(e?.response?.status) === 409 && !e?.response?.data?.code)) {
+      if (["REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_REQUIRED"].includes(String(e?.response?.data?.code || "")) || (Number(e?.response?.status) === 409 && !e?.response?.data?.code)) {
         setError("Báo cáo đã được người khác cập nhật. Vui lòng tải lại dữ liệu trước khi lưu. Các thay đổi bạn đang nhập vẫn được giữ trên màn hình.")
         return;
       }
