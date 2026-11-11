@@ -816,7 +816,9 @@ async function performSyncSingleMonth({ date, source }) {
   await fs.mkdir(root, { recursive: true });
   await logPendingFiles(root);
 
-  const token = await waitForUsableRendererToken('', 8_000);
+  // Reuse the authenticated token already resolved for this export job.
+  // Renderer storage can be temporarily empty while the frontend refreshes.
+  const token = await waitForUsableRendererToken(currentToken, 8_000);
   if (!token) throw new Error('Chưa đăng nhập hoặc phiên đăng nhập chưa được làm mới.');
   currentToken = token;
 
@@ -1355,6 +1357,10 @@ async function authenticatedFetch(url, options = {}) {
 async function discoverRendererToken() {
   try {
     const normalized = await readRendererAccessToken();
+    // An empty storage read is not proof of logout: the remote frontend may
+    // be reloading or refreshing its auth state. Never erase a valid token
+    // mid-export. Expiry is still enforced by isUsableAccessToken.
+    if (!normalized && isUsableAccessToken(currentToken)) return currentToken;
     if (normalized !== currentToken) {
       configureAutomaticSync(normalized);
       await writeLog('INFO', normalized ? 'TOKEN_DISCOVERED_AUTO_SYNC_ENABLED' : 'TOKEN_REMOVED_AUTO_SYNC_DISABLED');
