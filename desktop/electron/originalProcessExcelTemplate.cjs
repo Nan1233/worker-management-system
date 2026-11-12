@@ -749,6 +749,19 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     // A blank month still displays its month in the preserved pink sample row.
     sheet.getCell(config.first-1,1).value = new Date(Date.UTC(reportYear,reportMonth-1,1));
   }
+  // Apply after template styles have been restored, otherwise the source
+  // sample's numeric format overwrites the percentage display again.
+  for (const [letter,field] of Object.entries(config.fields)) {
+    if(field!=="training")continue;
+    const col=toNumber(letter);
+    const trainingRows=workbook1 ? workbook1DataRows
+      : Array.from({length:reports.length},(_,i)=>config.first+i);
+    for(const rowNumber of trainingRows){
+      const cell=sheet.getRow(rowNumber).getCell(col);
+      if(typeof cell.value==="number" && Number.isFinite(cell.value))
+        cell.numFmt="0.##%";
+    }
+  }
   // Keep the company template print header/footer untouched. Some source sheets
   // have headerFooter=null, so assigning oddHeader would crash the export.
   sheet.views=[{state:"frozen",ySplit:config.header,xSplit:3,showGridLines:false}];
