@@ -115,6 +115,13 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     assert.ok(sheet.getColumn(1).width >= 16,code+' date separator column is wide enough');
     assert.ok(sheet.getColumn(dateCol).width >= 16,code+' work-date column is wide enough');
     assert.equal(sheet.getCell(dateCol+dataRow).numFmt,'dd/mm/yyyy',code+' work-date display format');
+    const trainingColumn=Object.entries(form.fields).find(([,field])=>field==='training')?.[0];
+    if(trainingColumn){
+      const trainingCell=sheet.getCell(trainingColumn+dataRow);
+      assert.equal(trainingCell.value,1,code+' training ratio stays 1 for 100%');
+      assert.equal(trainingCell.numFmt,'0.##%',code+' training displays as 100%, not 1');
+    }
+
     const timeFields=Object.entries(form.fields).filter(([,key])=>/(?:time|hours|minutes|duration)/i.test(key));
     assert.ok(timeFields.length,code+' has time columns');
     for(const [letter] of timeFields){
