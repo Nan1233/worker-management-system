@@ -82,3 +82,42 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     assert.equal(sheet.getCell(dateCol+dataRow).value?.toISOString().slice(0,10),'2026-11-10',code+' work date has no timezone shift');
   }
 });
+
+test('MÀI: repeated days share the same pink separator and table ends after data', async () => {
+  const makeReport = (id, workDate) => ({
+    id, work_date:workDate, created_at:workDate+'T10:00:00',
+    worker_code:'49-001',full_name:'Kiểm thử',shift:'A',
+    dataSource:'production_reports',isApprovedDatabaseRecord:true,
+    calculationSnapshot: {
+      trainingFactor:1,standard:100,workingTime:8,actualTime:8,deductionTime:0,
+      ok:10,allNg:0,countedNg:0,enteredOutput:10,adjustedOutput:10,
+      outputPerHour:1.25,achievement:0.1,ngRate:0
+    },defects:[],deductions:[]
+  });
+  const original = new ExcelJS.Workbook();
+  await original.xlsx.readFile(source);
+  const sourcePink = original.getWorksheet('Mài').getCell('A2').fill;
+  const built = await buildProcessWorkbookLocal({
+    date:'2026-11-01',processCode:'MAI',
+    payload:{
+      yearMonth:'2026-11',dataSource:'tidb.production_reports.approved',
+      processes:{MAI:{reports:[makeReport(1,'2026-11-06'),makeReport(2,'2026-11-08')]}}
+    }
+  });
+  const result = new ExcelJS.Workbook();
+  await result.xlsx.load(built.buffer);
+  const sheet = result.getWorksheet('Mài');
+  assert.equal(sheet.getCell('A2').value,'06/11/2026');
+  assert.equal(sheet.getCell('A4').value,'08/11/2026');
+  assert.deepEqual(sheet.getCell('A2').fill,sourcePink);
+  for (const row of [2,4]) {
+    for (const col of [1,3,10,25,49]) {
+      assert.deepEqual(sheet.getRow(row).getCell(col).fill,sourcePink,
+        'Pink fill at row '+row+' column '+col);
+    }
+  }
+  assert.equal(sheet.getCell('C3').value,'49-001');
+  assert.equal(sheet.getCell('C5').value,'49-001');
+  assert.equal(sheet.rowCount,5,'No styled empty source rows remain');
+  assert.match(sheet.pageSetup.printArea,/5$/,'Print range ends with last actual report');
+});
