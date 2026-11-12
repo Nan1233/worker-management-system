@@ -38,6 +38,72 @@ const templatePath = (code) => {
   const form = WORKBOOK1_FORMS[code] || FORMS[code];
   return form ? path.join(TEMPLATE_ROOT,form.file) : null;
 };
+// Apply the source workbook's conditional color rules only to actual
+// report rows. Date separators and trailing blank template rows have no CF.
+function boundWorkbook1ConditionalFormats(sheet, firstDataRow, dataRows) {
+  const originals = Array.isArray(sheet.conditionalFormattings)
+    ? sheet.conditionalFormattings.slice() : [];
+  const byColumn = new Map();
+  for (const entry of originals) {
+    for (const segment of String(entry.ref || "").split(/\\s+/)) {
+      const match = /^([A-Z]{1,3})(\\d+)(?::([A-Z]{1,3})(\\d+))?$/.exec(segment);
+      if (!match) continue;
+      const [, beginCol, beginText, endCol = beginCol, endText = beginText] = match;
+      if (beginCol !== endCol || Number(endText) < firstDataRow) continue;
+      const previous = byColumn.get(beginCol);
+      // Some company templates contain duplicated rules. Prefer the
+      // complete palette rather than stacking conflicting duplicates.
+      if (!previous || (entry.rules || []).length > previous.rules.length) {
+        byColumn.set(beginCol, {
+          startRow:Number(beginText),
+          rules:entry.rules || []
+        });
+      }
+    }
+  }
+  sheet.conditionalFormattings = [];
+  const sorted = [...dataRows].sort((a,b) => a-b);
+  const ranges = [];
+  for (const row of sorted) {
+    const current = ranges[ranges.length-1];
+    if (current && current.end === row-1) current.end=row;
+    else ranges.push({start:row,end:row});
+  }
+  for (const [column,original] of byColumn) {
+    for (const range of ranges) {
+      const rules = JSON.parse(JSON.stringify(original.rules));
+      const offset = range.start-original.startRow;
+      for (const rule of rules) {
+        if (rule.type !== "expression" || !Array.isArray(rule.formulae)) continue;
+        rule.formulae = rule.formulae.map(formula => String(formula).replace(
+          /(?<![A-Z0-9_])([A-Z]{1,3})(\\d+)(?![A-Z0-9_])/g,
+          (match,col,number) => {
+            const target=Number(number)+offset;
+            return target>0 ? col+target : match;
+          }
+        ));
+      }
+      sheet.addConditionalFormatting({
+        ref:column+range.start+":"+column+range.end,
+        rules
+      });
+    }
+  }
+}
+const defaultGridBorder = () => ({
+  top:{style:"thin",color:{argb:"FF333333"}},
+  bottom:{style:"thin",color:{argb:"FF333333"}},
+  left:{style:"thin",color:{argb:"FF333333"}},
+  right:{style:"thin",color:{argb:"FF333333"}}
+});
+const completeBorder = source => {
+  const border=source ? JSON.parse(JSON.stringify(source)) : {};
+  const fallback=defaultGridBorder();
+  for (const edge of ["top","bottom","left","right"]) {
+    if (!border[edge] || !border[edge].style) border[edge]=fallback[edge];
+  }
+  return border;
+};
 function matchMasterValue(header, types, values) {
   const name = norm(header);
   if (!name) return null;
@@ -432,7 +498,25 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     if (sheet.rowCount > lastDataRow) {
       sheet._rows.length = lastDataRow;
     }
-    const lastDataColumn = sheet.getColumn(Math.max(sheet.columnCount, lastMappedCol)).letter;
+    const lastDataCol = Math.max(sheet.columnCount,lastMappedCol);
+    // Keep a complete four-sided grid through the last actual report. The
+    // source form can omit edges on styled sample rows; writing only cell
+    // values must never make adjacent report cells look borderless.
+    for (const rowNumber of [...workbook1SeparatorRows,...workbook1DataRows]) {
+      const row = sheet.getRow(rowNumber);
+      const isDaySeparator = workbook1SeparatorRows.includes(rowNumber);
+      for (let col=1;col<=lastDataCol;col++) {
+        const cell=row.getCell(col);
+        const sourceBorder=isDaySeparator
+          ? separatorStyle?.cells[col-1]?.border
+          : originalBodyStyle.cells[col-1]?.style?.border;
+        cell.border=completeBorder(sourceBorder);
+      }
+    }
+    // Preserve each sheet's original %TT/NG color logic, but constrain
+    // it to actual report rows: no pink date rows and no 100+ empty rows.
+    boundWorkbook1ConditionalFormats(sheet,config.first,workbook1DataRows);
+    const lastDataColumn = sheet.getColumn(lastDataCol).letter;
     sheet.pageSetup.printArea = `A1:${lastDataColumn}${lastDataRow}`;
     sheet.autoFilter = undefined;
   }
