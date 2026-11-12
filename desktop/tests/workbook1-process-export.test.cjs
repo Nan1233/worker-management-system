@@ -76,7 +76,18 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     const dataRow = form.first;
     const original = new ExcelJS.Workbook();
     await original.xlsx.readFile(source);
-    const originalPink = original.getWorksheet(form.sheet).getCell('B'+(form.first-1)).fill;
+    const originalSheet = original.getWorksheet(form.sheet);
+    const originalPink = originalSheet.getCell('B'+(form.first-1)).fill;
+    // H onward should not widen merely due to long headers/sample formatting.
+    // An empty data column (e.g. H on MÀI) retains its source width.
+    for (let col=8;col<=Math.min(sheet.columnCount,20);col++) {
+      const hasReportValue = sheet.getRow(dataRow).getCell(col).value !== null &&
+        sheet.getRow(dataRow).getCell(col).value !== undefined;
+      if (hasReportValue)continue;
+      const before=Number(originalSheet.getColumn(col).width)||0;
+      const after=Number(sheet.getColumn(col).width)||0;
+      assert.equal(after,before,code+' H+ blank-data column '+col+' retains original width');
+    }
     assert.deepEqual(sheet.getCell('B'+(form.first-1)).fill,originalPink,code+' pink date row keeps source fill');
     assert.equal(sheet.getCell('C'+dataRow).value,'49-001',code+' employee');
     assert.equal(sheet.getCell(firstNgColumns[code]+dataRow).value,1,code+' coded NG');
