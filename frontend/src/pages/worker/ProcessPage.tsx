@@ -45,7 +45,6 @@ import {
     saveProcessDraftAsync,
     PROCESS_DRAFT_SAVE_FAILED_EVENT,
 } from "./processDraftStorage";
-import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
 import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
 import { enqueueOfflineReports, isTransientNetworkFailure } from "../../services/offlineReportQueue";
@@ -129,6 +128,7 @@ import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
 import { useRelatedGrindingMachines } from "./useRelatedGrindingMachines";
 import { useProcessProductOptions } from "./useProcessProductOptions";
+import { useMachineLineStandardLookup } from "./useMachineLineStandardLookup";
 import {
     patchMachineLineItem,
     resizeMachineLineItems,
@@ -159,7 +159,6 @@ function ProcessPage() {
     const duplicateForceRequestIdRef = useRef<string | null>(null);
     const workerInfoRequestSeqRef = useRef(0);
     const masterDataRequestSeqRef = useRef(0);
-    const machineStandardRequestSeqRef = useRef<Record<number, number>>({});
     const isRestoringDraftRef = useRef(false);
     const draftSaveTimerRef = useRef<number | null>(null);
     const resetVersionRef = useRef(0);
@@ -357,58 +356,12 @@ const machineAutocompleteOptions =
         setMachineLines((current) => patchMachineLineItem(current, index, patch));
     };
 
-    const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {
-        const normalizedMachine = machineCode.trim();
-        const normalizedProduct = productCode.trim();
-        const requestSeq = (machineStandardRequestSeqRef.current[index] || 0) + 1;
-        machineStandardRequestSeqRef.current[index] = requestSeq;
-        const isCurrentRequest = () => machineStandardRequestSeqRef.current[index] === requestSeq;
-        // Mài cho phép không chọn máy nhưng vẫn phải tra định mức theo mã sản phẩm.
-        // resolveProductStandard hỗ trợ machineCode rỗng và lấy định mức mặc định của sản phẩm.
-        if (!normalizedProduct || (!normalizedMachine && !["MAI", "DO", "CAN"].includes(processCode))) {
-            updateMachineLine(index, {
-                standardOutputPerHour: 0,
-                standardTimeSeconds: null,
-                standardSource: null,
-                standardLoading: false,
-                standardError: ""
-            });
-            return;
-        }
-
-        updateMachineLine(index, { standardLoading: true, standardError: "" });
-        try {
-            const resolved = await getCachedResolvedProductStandard(
-                processInfo.id,
-                normalizedMachine,
-                normalizedProduct,
-                () => resolveProductStandard(
-                    processInfo.id,
-                    normalizedMachine,
-                    normalizedProduct,
-                    form.workDate
-                )
-            );
-            if (!isCurrentRequest()) return;
-            const output = Number(resolved.resolved_output_per_hour || 0);
-            updateMachineLine(index, {
-                standardOutputPerHour: Number.isFinite(output) ? output : 0,
-                standardTimeSeconds: resolved.standard_time_seconds,
-                standardSource: resolved.standard_source,
-                standardLoading: false,
-                standardError: output > 0 ? "" : "Định mức bằng 0"
-            });
-        } catch (error) {
-            if (!isCurrentRequest()) return;
-            updateMachineLine(index, {
-                standardOutputPerHour: 0,
-                standardTimeSeconds: null,
-                standardSource: null,
-                standardLoading: false,
-                standardError: getApiError(error, "Không lấy được định mức").message
-            });
-        }
-    };
+    const { refreshMachineLineStandard } = useMachineLineStandardLookup({
+        processCode,
+        processId: processInfo.id,
+        workDate: form.workDate,
+        updateMachineLine,
+    });
 
     const toggleMachineDefect = (lineIndex: number, key: string) => {
         setMachineLines((current) => toggleMachineLineDefect(current, lineIndex, key));
