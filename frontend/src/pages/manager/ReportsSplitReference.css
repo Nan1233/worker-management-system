@@ -117,9 +117,9 @@
    Its JSX keeps the quick-date row between the other controls, so target
    children directly instead of relying on label:nth-of-type selectors. */
 .pending-reference-page .pending-filter-card > .pending-search{grid-area:search!important}
-.pending-reference-page .pending-filter-card > label:nth-of-type(1){grid-area:date!important}
-.pending-reference-page .pending-filter-card > label:nth-of-type(2){grid-area:process!important}
-.pending-reference-page .pending-filter-card > label:nth-of-type(3){grid-area:shift!important}
+/* Removed conflicting nth-of-type placement: the search input is itself a label. */
+/* Removed conflicting nth-of-type placement: the search input is itself a label. */
+/* Removed conflicting nth-of-type placement: the search input is itself a label. */
 .pending-reference-page .pending-filter-card > .pending-quick-filters{grid-area:quick!important}
 .pending-reference-page .pending-filter-card[style]{grid-template-columns:minmax(260px,2fr) minmax(145px,1fr) minmax(145px,1fr) minmax(135px,.9fr)!important;grid-template-areas:"search date process shift" "quick quick quick quick"!important;gap:8px 10px!important;align-items:end!important;padding:11px 12px!important}
 
@@ -215,4 +215,26 @@
 @media(max-width:620px){
  .pending-reference-page .pending-filter-card[style]{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"search" "date" "process" "shift" "quick"!important}
  .pending-reference-page .pending-quick-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* Pending filters: use named classes, never positional labels. Old positional
+   selectors overlapped the date/process fields and made labels unreadable. */
+.pending-reference-page .pending-filter-card > label.pending-search{grid-area:search!important}
+.pending-reference-page .pending-filter-card > label.pending-date-filter{grid-area:date!important}
+.pending-reference-page .pending-filter-card > label.pending-process-filter{grid-area:process!important}
+.pending-reference-page .pending-filter-card > label.pending-shift-filter{grid-area:shift!important}
+.pending-reference-page .pending-filter-card > label{min-width:0!important;overflow:visible}
+.pending-reference-page .pending-filter-card > label > span{min-height:16px;z-index:auto!important}
+.pending-reference-page .pending-filter-card input,.pending-reference-page .pending-filter-card select{min-width:0!important;width:100%!important;max-width:100%!important}
+@media(max-width:1360px){
+ .pending-reference-page .pending-filter-card[style]{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  grid-template-areas:"search search" "date process" "shift shift" "quick quick"!important;
+ }
+}
+@media(max-width:620px){
+ .pending-reference-page .pending-filter-card[style]{
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-areas:"search" "date" "process" "shift" "quick"!important;
+ }
 }
