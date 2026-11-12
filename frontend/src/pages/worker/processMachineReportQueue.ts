@@ -1,11 +1,12 @@
 import axios from "axios";
+import type { ProductionReport } from "../../types/production";
 import { enqueueOfflineReports, isTransientNetworkFailure } from "../../services/offlineReportQueue";
 
 /**
  * Queue the unsent suffix of a multi-machine submission without modifying
  * client_request_id values. The queue owns durable persistence and retries.
  */
-export function queueRemainingMachineReports<T>(reports: T[]): void {
+export function queueRemainingMachineReports(reports: ProductionReport[]): void {
     enqueueOfflineReports(reports);
 }
 
