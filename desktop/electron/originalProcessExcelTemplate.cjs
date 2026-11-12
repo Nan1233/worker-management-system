@@ -90,6 +90,23 @@ function boundWorkbook1ConditionalFormats(sheet, firstDataRow, dataRows) {
     }
   }
 }
+// Shared with Gia công's monthly report rules in monthlyWorkbookLocal.cjs.
+// >= 100% / <= 1% green; 90-<100% / >1-3% yellow; other orange-red.
+const KTC_RATE_COLORS = Object.freeze({
+  good:"FFC6E0B4", warning:"FFFFE699", bad:"FFF4B084"
+});
+const workbook1RateFill = (field,value) => {
+  const n=Number(value);
+  if (value === null || value === undefined || value === "" || !Number.isFinite(n)) return null;
+  if (field === "achievement")
+    return n >= 1 ? KTC_RATE_COLORS.good : n >= 0.9 ? KTC_RATE_COLORS.warning : KTC_RATE_COLORS.bad;
+  if (field === "ngRate")
+    return n <= 0.01 ? KTC_RATE_COLORS.good : n <= 0.03 ? KTC_RATE_COLORS.warning : KTC_RATE_COLORS.bad;
+  return null;
+};
+const workbook1SolidFill = argb => ({
+  type:"pattern", pattern:"solid", fgColor:{argb}
+});
 const defaultGridBorder = () => ({
   top:{style:"thin",color:{argb:"FF333333"}},
   bottom:{style:"thin",color:{argb:"FF333333"}},
@@ -535,12 +552,18 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     // %TT and %PP stay correct across all six different company layouts.
     const percentageColumns = Object.entries(config.fields)
       .filter(([,field]) => field === "achievement" || field === "ngRate")
-      .map(([letter]) => toNumber(letter));
+      .map(([letter,field]) => ({col:toNumber(letter),field}));
     for (const rowNumber of workbook1DataRows) {
       const row = sheet.getRow(rowNumber);
-      for (const col of percentageColumns) {
+      for (const {col,field} of percentageColumns) {
         const cell = row.getCell(col);
         cell.numFmt = "0.##%";
+        const fillColor = workbook1RateFill(field,cell.value);
+        if (fillColor) {
+          cell.fill = workbook1SolidFill(fillColor);
+          cell.font = {...(cell.font || {}),bold:true,
+            color:{argb:"FF1F2937"}};
+        }
       }
     }
     // One font throughout the exported company form. Preserve each cell's
@@ -578,6 +601,11 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     // Preserve each sheet's original %TT/NG color logic, but constrain
     // it to actual report rows: no pink date rows and no 100+ empty rows.
     boundWorkbook1ConditionalFormats(sheet,config.first,workbook1DataRows);
+    // Existing company-template conditional formats must not override the
+    // shared Gia công percentage colors applied above.
+    const fixedRateColumns=new Set(percentageColumns.map(item=>sheet.getColumn(item.col).letter));
+    sheet.conditionalFormattings = (sheet.conditionalFormattings || [])
+      .filter(rule=>!fixedRateColumns.has(String(rule.ref||"").split(/[0-9:]/)[0]));
     const lastDataColumn = sheet.getColumn(lastDataCol).letter;
     sheet.pageSetup.printArea = `A1:${lastDataColumn}${lastDataRow}`;
     sheet.autoFilter = undefined;
