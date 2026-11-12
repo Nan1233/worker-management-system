@@ -513,6 +513,33 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         cell.border=completeBorder(sourceBorder);
       }
     }
+    // Percentage values stay numeric ratios, with Excel percentage display.
+    // Use the configured field keys rather than column positions so that
+    // %TT and %PP stay correct across all six different company layouts.
+    const percentageColumns = Object.entries(config.fields)
+      .filter(([,field]) => field === "achievement" || field === "ngRate")
+      .map(([letter]) => toNumber(letter));
+    for (const rowNumber of workbook1DataRows) {
+      const row = sheet.getRow(rowNumber);
+      for (const col of percentageColumns) {
+        const cell = row.getCell(col);
+        cell.numFmt = "0.##%";
+      }
+    }
+    // One font throughout the exported company form. Preserve each cell's
+    // bold/italic/color properties; only standardize family and point size.
+    for (let rowNumber = 1; rowNumber <= lastDataRow; rowNumber++) {
+      const row = sheet.getRow(rowNumber);
+      for (let col = 1; col <= lastDataCol; col++) {
+        const cell = row.getCell(col);
+        if (cell.type === ExcelJS.ValueType.Merge) continue;
+        cell.font = {
+          ...(cell.font ? JSON.parse(JSON.stringify(cell.font)) : {}),
+          name: "Times New Roman",
+          size: 12
+        };
+      }
+    }
     // Preserve each sheet's original %TT/NG color logic, but constrain
     // it to actual report rows: no pink date rows and no 100+ empty rows.
     boundWorkbook1ConditionalFormats(sheet,config.first,workbook1DataRows);
