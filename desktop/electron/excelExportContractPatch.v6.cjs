@@ -11,7 +11,8 @@ const buildOriginalProcessWorkbookLocal = monthly.buildCompanyOriginalProcessWor
 if (typeof buildOriginalProcessWorkbookLocal !== 'function') {
   throw new Error('Missing unwrapped original company Excel template builder.');
 }
-const ORIGINAL_COMPANY_CODES = new Set(['MAI', 'DO', 'K1', 'K2', 'CAN', 'EP', 'XLBV']);
+const ORIGINAL_COMPANY_CODES = new Set(['GC', 'MAI', 'DO', 'K1', 'K2', 'CAN', 'EP', 'XLBV']);
+const WORKBOOK1_CODES = new Set(['GC', 'MAI', 'DO', 'CAN', 'EP', 'XLBV']);
 
 if (typeof global.findDataStartRow !== 'function') {
   global.findDataStartRow = function findDataStartRow(sheet, headerRow) {
@@ -350,8 +351,8 @@ async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
       }
       report.process_code = report.process_code || item.processCode;
     }
-    // GC, SX3 and CVK keep the existing v6 export unchanged.
-    // The seven company-specific processes must use their original Excel templates.
+    // Six process files are populated from the corresponding Workbook1 sheet.
+    // K1 and K2 retain their established templates; SX3 and CVK are unchanged.
     const built = ORIGINAL_COMPANY_CODES.has(item.processCode)
       ? await buildOriginalProcessWorkbookLocal({
           date, payload, processCode: item.processCode, onTemplateLoaded
@@ -363,8 +364,9 @@ async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
           date,
           processData
         });
-    if (ORIGINAL_COMPANY_CODES.has(item.processCode) && built.templateKind !== 'original-company') {
-      throw new Error('Không thể xuất ' + item.processCode + ': chưa sử dụng mẫu Excel gốc.');
+    const expectedTemplateKind = WORKBOOK1_CODES.has(item.processCode) ? 'workbook1-sheet' : 'original-company';
+    if (ORIGINAL_COMPANY_CODES.has(item.processCode) && built.templateKind !== expectedTemplateKind) {
+      throw new Error('Không thể xuất ' + item.processCode + ': không dùng đúng mẫu ' + expectedTemplateKind + '.');
     }
     built.processCode = item.processCode;
     built.processName = processData.processName || processData.process_name || item.processCode;
