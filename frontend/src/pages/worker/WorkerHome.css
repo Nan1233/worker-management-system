@@ -92,7 +92,6 @@
  box-shadow:0 3px 8px rgba(27,48,86,.022),0 10px 32px rgba(27,48,86,.035);
 }
 .worker-home-welcome{position:relative;overflow:hidden;border-top:1px solid #e9eef7}
-.worker-home-welcome:before{content:"";position:absolute;top:0;left:25px;right:25px;height:2px;border-radius:3px;background:linear-gradient(90deg,#3a5ccc 0%,#84adff 42%,transparent 85%);opacity:.9}
 .worker-home-date{font-weight:550;letter-spacing:.005em;color:#728199}
 .worker-home-welcome h1{color:#122640;font-weight:780;letter-spacing:-.037em}
 .worker-home-identity span{padding:6px 10px;border-radius:7px;background:#eef2ff;color:#334bb3;font-weight:750}
@@ -138,7 +137,6 @@
 @media(max-width:800px){
  .worker-home-page{padding-top:8px}
  .worker-home-shell{gap:13px}
- .worker-home-welcome:before{left:17px;right:17px}
  .worker-home-actions{gap:10px}
  .worker-home-action{min-height:74px}
  .worker-home-metrics .metric{min-height:100px;padding:12px}
@@ -146,4 +144,17 @@
 }
 @media(prefers-reduced-motion:reduce){
  .worker-home-page :is(.worker-home-action,.metric,.worker-home-see-all,.worker-home-report){transform:none!important;transition:none!important}
+}
+
+/* Small-screen and desktop finishing touches; preserve existing component order. */
+@media (min-width: 1100px){
+ .worker-home-shell{width:min(100%,1020px)}
+}
+@media (max-width: 440px){
+ .worker-home-section-title{flex-wrap:wrap;row-gap:8px}
+ .worker-home-date-filter{margin-left:auto}
+ .worker-home-action{min-width:0}
+ .worker-home-action strong,.worker-home-action small{overflow-wrap:anywhere}
+ .worker-home-metrics .metric{min-width:0}
+ .worker-home-report-main{min-width:0}
 }
