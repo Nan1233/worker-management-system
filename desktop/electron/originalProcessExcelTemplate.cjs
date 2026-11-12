@@ -14,6 +14,16 @@ const FORMS = Object.freeze({
   EP: { file:"06_MAU_EP.xlsx", sheet:"ÉP", header:3, first:4, fields:{A:"stt",B:"workerCode",C:"workerName",D:"shift",E:"machine",F:"deductionTime",G:"actualTime",H:"product",I:"product",J:"standard",K:"output",L:"achievement",N:"outputPerHour",O:"ng",AF:"workingTime"}, deductions:["W","AE"], defects:["P","V"] },
   XLBV: { file:"07_MAU_XLBV.xlsx", sheet:"XLBV", header:4, first:5, fields:{A:"stt",B:"workerCode",C:"workerName",J:"ok",K:"actualTime",M:"product",O:"expectedOutput",P:"output",Q:"achievement",S:"outputPerHour",T:"ng",U:"ngRate"}, defects:["V","AI"] }
 });
+// Each process uses its own worksheet from the user-approved six-sheet workbook.
+// Keep the original column positions, headings, styles and formulas.
+const WORKBOOK1_FORMS = Object.freeze({
+  GC: { file:"Workbook1.xlsx", sheet:"Gia công", header:3, first:5, fields:{A:"stt",B:"entryDate",C:"workerCode",D:"workerName",E:"training",F:"machine",G:"shift",H:"workingTime",I:"actualTime",J:"deductionTime",AA:"product",AB:"standard",AC:"output",AD:"achievement",AE:"date",AF:"ok",AG:"ng",AH:"ngRate"}, deductions:["K","Z"], defects:["AI","AZ"] },
+  MAI: { file:"Workbook1.xlsx", sheet:"Mài", header:1, first:3, fields:{A:"stt",B:"entryDate",C:"workerCode",D:"workerName",E:"shift",F:"machine",I:"training",J:"workingTime",K:"actualTime",L:"deductionTime",AG:"product",AH:"standard",AI:"output",AJ:"achievement",AK:"date",AL:"outputPerHour",AM:"ok",AN:"ng",AO:"ngRate"}, deductions:["M","AF"], defects:["AP","AV"] },
+  DO: { file:"Workbook1.xlsx", sheet:"Đo", header:1, first:3, fields:{A:"stt",B:"entryDate",C:"workerCode",D:"workerName",E:"shift",F:"machine",H:"training",I:"workingTime",J:"actualTime",K:"deductionTime",AC:"product",AD:"standard",AE:"output",AF:"achievement",AG:"date",AH:"outputPerHour",AI:"ok",AJ:"ng",AK:"ngRate"}, deductions:["L","AB"], defects:["AL","AW"] },
+  XLBV: { file:"Workbook1.xlsx", sheet:"XLBV", header:1, first:3, fields:{A:"stt",B:"entryDate",C:"workerCode",D:"workerName",H:"deductionTime",J:"training",K:"ok",L:"shift",M:"actualTime",N:"product",P:"expectedOutput",Q:"output",R:"achievement",S:"date",T:"outputPerHour",U:"ng",V:"ngRate"}, defects:["W","AI"] },
+  EP: { file:"Workbook1.xlsx", sheet:"Ép", header:1, first:3, fields:{A:"stt",B:"entryDate",C:"workerCode",D:"workerName",E:"shift",F:"machine",G:"deductionTime",H:"actualTime",I:"product",J:"product",K:"standard",L:"output",M:"achievement",N:"date",O:"outputPerHour",P:"ng",AG:"workingTime",AH:"note"}, deductions:["X","AF"], defects:["Q","W"] },
+  CAN: { file:"Workbook1.xlsx", sheet:"Cán", header:1, first:3, fields:{A:"stt",B:"entryDate",C:"workerCode",D:"workerName",E:"shift",F:"machine",G:"actualTime",H:"extra:material_code",I:"product",J:"expectedOutput",K:"output",L:"achievement",M:"date",N:"outputPerHour",O:"ng",P:"ngRate",AA:"workingTime"}, deductions:["U","Z"], defects:["Q","T"] }
+});
 const norm = (value) => String(value == null ? "" : value)
   .normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D")
   .toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -76,9 +86,10 @@ function makeDefectColumns(defectTypes,reports,helpers,code,slots) {
   return [...buckets.values()];
 }
 async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMonth, settings, helpers, onTemplateLoaded}) {
-  const config = FORMS[code];
+  const config = WORKBOOK1_FORMS[code] || FORMS[code];
+  const workbook1 = Boolean(WORKBOOK1_FORMS[code]);
   if (!config) return null;
-  const filename = templatePath(code);
+  const filename = path.join(TEMPLATE_ROOT, config.file);
   if (!fs.existsSync(filename)) {
     const error = new Error("Chưa cài mẫu Excel gốc cho "+code+": "+filename+". Chạy scripts/installProcessTemplates.cjs trước khi xuất.");
     error.code = "KTC_ORIGINAL_EXCEL_TEMPLATE_MISSING";
@@ -88,6 +99,10 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   await workbook.xlsx.readFile(filename);
   const sheet = workbook.getWorksheet(config.sheet);
   if (!sheet) throw new Error("Mẫu "+code+" thiếu sheet "+config.sheet);
+  // Each exported process file contains only its own source worksheet.
+  if (workbook1) for (const other of [...workbook.worksheets]) {
+    if (other.id !== sheet.id) workbook.removeWorksheet(other.id);
+  }
   if (typeof onTemplateLoaded === "function") {
     await onTemplateLoaded({ processCode: code, templatePath: filename, sheetName: sheet.name,
       reportCount: (processData?.reports || []).length, templateKind: "original-company" });
@@ -116,7 +131,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   // MAI's production form has exactly seven active NG types (AN:AT).
   // Historical/inactive API masters must not generate duplicate, unstyled columns.
   const maiDefectLabels=["KQD ĐẢO","Xô cs","PPCM Mất điện","Hàng rơi","K-coleet","Thiếu - lẫn cs CSH","Lỗi cao su"];
-  if(code==="MAI"){
+  if(code==="MAI" && !workbook1){
     for(let i=0;i<7;i++){
       const col=toNumber("AN")+i;
       sheet.getCell(config.header,col).value=maiDefectLabels[i];
@@ -126,15 +141,22 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   const mappedDefects=[];
   for(const [defectIndex,d] of defectCols.entries()){
     const headerNorm=norm(d.header);
-    const matches=code==="MAI"
-      ? defectTypes.filter(t=>[t.key,...(t.aliases||[])].some(v=>norm(v).includes("maing"+String(defectIndex+1).padStart(3,"0")) || norm(v)===norm(maiDefectLabels[defectIndex])))
-      : defectTypes.filter(t=>[t.label,...(t.aliases||[])].some(v=>{
-          const raw=String(v);return !raw.startsWith("id:")&&!raw.startsWith("code:")&&norm(raw.replace(/^name:/,""))===headerNorm;
-        }));
+    const matches=workbook1
+      ? defectTypes.filter(t=>[t.label,...(t.aliases||[])].some(v=>{
+          const raw=String(v); const normalized=norm(raw.replace(/^(name:|code:)/,""));
+          if(raw.startsWith("id:") || !normalized) return false;
+          return normalized===headerNorm || (raw.startsWith("code:") && headerNorm.startsWith(normalized) && normalized.length>=4)
+            || (raw.startsWith("name:") && headerNorm.endsWith(normalized) && normalized.length>=5);
+        }))
+      : code==="MAI"
+        ? defectTypes.filter(t=>[t.key,...(t.aliases||[])].some(v=>norm(v).includes("maing"+String(defectIndex+1).padStart(3,"0")) || norm(v)===norm(maiDefectLabels[defectIndex])))
+        : defectTypes.filter(t=>[t.label,...(t.aliases||[])].some(v=>{
+            const raw=String(v);return !raw.startsWith("id:")&&!raw.startsWith("code:")&&norm(raw.replace(/^name:/,""))===headerNorm;
+          }));
     if(matches.length===1){
       const type=matches[0];
-      const label=code==="MAI"?maiDefectLabels[defectIndex]:String(type.label||d.header);
-      sheet.getCell(config.header,d.col).value=label;
+      const label=workbook1 ? d.header : (code==="MAI"?maiDefectLabels[defectIndex]:String(type.label||d.header));
+      if (!workbook1) sheet.getCell(config.header,d.col).value=label;
       mappedDefects.push({...d,type});
       mapping.push({index:d.col,key:"defect:"+type.key,header:label});
     }else{
@@ -150,9 +172,13 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   const lastMappedCol=Math.max(...Object.keys(config.fields).map(toNumber),lastDefectCol);
   const originalColumnCount=sheet.columnCount;
   let nextDefectCol=originalColumnCount+1;
-  for(const type of (code==="MAI"?[]:defectTypes)){
+  for(const type of (code==="MAI" && !workbook1 ? [] : defectTypes)){
     const key=String(type.key);
     if(usedDefectKeys.has(key))continue;
+    if(workbook1 && !reports.some(report => helpers.reportDetailItems(report,code,"defect").some(item => {
+      const quantity = Number(item?.defect_quantity ?? item?.ng_quantity ?? item?.quantity ?? item?.qty ?? item?.value ?? 0);
+      return quantity>0 && masterAliases(item).some(alias => [type.key,...(type.aliases||[])].includes(alias));
+    }))) continue;
     usedDefectKeys.add(key);
     const label=String(type.label||key);
     const col=nextDefectCol++;
@@ -164,7 +190,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   }
   // Hide obsolete right-hand daily OK/NG/% statistics and sample columns.
   // The original left-hand headings, their colors and date separator rows stay.
-  for(let col=lastMappedCol+1;col<=originalColumnCount;col++){
+  if (!workbook1) for(let col=lastMappedCol+1;col<=originalColumnCount;col++){
     sheet.getColumn(col).hidden=true;
   }
   const distinct = new Set();
@@ -274,7 +300,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     throw new Error("Kỳ báo cáo Excel không hợp lệ cho "+code+": "+yearMonth);
   }
   const [reportYear,reportMonth]=yearMonth.split("-").map(Number);
-  if (code==="MAI" || code==="DO") {
+  if (!workbook1 && (code==="MAI" || code==="DO")) {
     const dateRow=sheet.getRow(1);
     dateRow.eachCell({includeEmpty:false},cell=>{
       if(typeof cell.value==="number" && cell.value>=46296 && cell.value<=46326) {
@@ -284,19 +310,25 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       }
     });
   }
-  if (code==="EP") {
+  if (!workbook1 && code==="EP") {
     sheet.getCell("A2").value=new Date(reportYear,reportMonth-1,1);
     sheet.getCell("M3").value=new Date(reportYear,reportMonth-1,1);
   }
-  if(code==="K1" || code==="XLBV") sheet.getCell("A1").value="THÁNG "+reportMonth+"/"+reportYear;
+  if(code==="K1" || (code==="XLBV" && !workbook1)) sheet.getCell("A1").value="THÁNG "+reportMonth+"/"+reportYear;
   // Remove fixed example totals and product codes left in extracted header-only samples.
-  if(code==="CAN") { sheet.getCell("U1").value=null; sheet.getCell("V1").value=null; }
+  if(code==="CAN" && !workbook1) { sheet.getCell("U1").value=null; sheet.getCell("V1").value=null; }
   if(code==="K2") sheet.getRow(1).eachCell({includeEmpty:false},cell=>{
     if(typeof cell.value==="number") cell.value=null;
   });
   if(code==="K1") sheet.getRow(3).eachCell({includeEmpty:false},cell=>{
     if(typeof cell.value==="number") cell.value=null;
   });
+  if (workbook1) {
+    // Row 2 (or row 4 in GC) is the source sample-day caption, not a report.
+    // Replace its hard-coded 2026 sample date with the requested month.
+    const periodRow = code === "GC" ? 4 : 2;
+    sheet.getCell(periodRow,1).value = new Date(reportYear,reportMonth-1,1);
+  }
   // Keep the company template print header/footer untouched. Some source sheets
   // have headerFooter=null, so assigning oddHeader would crash the export.
   sheet.views=[{state:"frozen",ySplit:config.header,xSplit:3,showGridLines:false}];
@@ -304,4 +336,4 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   workbook.modified=new Date();
   return {workbook,sheet,result:{processCode:code,reportCount:reports.length,templateKind:"original-company",templatePath:filename},mapping};
 }
-module.exports={FORMS,TEMPLATE_ROOT,templatePath,renderOriginalProcessTemplate};
+module.exports={FORMS,WORKBOOK1_FORMS,TEMPLATE_ROOT,templatePath,renderOriginalProcessTemplate};
