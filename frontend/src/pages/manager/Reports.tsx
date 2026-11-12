@@ -16,7 +16,7 @@ export default function Reports() {
     const [reports, setReports] = useState<ProductionReport[]>([]); const [processOptions, setProcessOptions] = useState<string[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
     const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);
-    const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false); const [bulkProgress, setBulkProgress] = useState({ completed: 0, total: 0 });
     const [rejectReason, setRejectReason] = useState(""); const [rejectNote, setRejectNote] = useState(""); const [rejecting, setRejecting] = useState(false); const [rejectDialogOpen, setRejectDialogOpen] = useState(false); const [rejectTargetIds, setRejectTargetIds] = useState<number[]>([]);
 
     const reportLoadSeqRef = useRef(0);
@@ -202,24 +202,35 @@ export default function Reports() {
         const approvedIds = targets.map(report => Number(report.id));
         const selectionScope = selectionScopeRef.current;
         managerActionLockRef.current = true;
-        setBulkApproving(true); setError("");
+        setBulkApproving(true); setBulkProgress({ completed: 0, total: targets.length }); setError("");
         const failedIds: number[] = [];
         const failures: string[] = [];
         let succeeded = 0;
         try {
-            // Process each report independently: one invalid report must not block others.
-            for (const report of targets) {
-                const id = Number(report.id);
-                try {
-                    await approveTempReport(id);
-                    succeeded += 1;
-                } catch (e: any) {
-                    failedIds.push(id);
-                    const code = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || id}`;
-                    const message = describeApprovalError(e, "Không thể duyệt");
-                    failures.push(`${code} (#${id}): ${message}`);
+            // Keep individual approval outcomes; only two independent requests run at once.
+            // This reduces multi-select latency without making the backend's
+            // transaction/validation checks optional or retrying an unknown result.
+            setBulkProgress({ completed: 0, total: targets.length });
+            let nextIndex = 0;
+            let completed = 0;
+            const approveWorker = async () => {
+                while (nextIndex < targets.length) {
+                    const report = targets[nextIndex++];
+                    const id = Number(report.id);
+                    try {
+                        await approveTempReport(id);
+                        succeeded += 1;
+                    } catch (e: any) {
+                        failedIds.push(id);
+                        const code = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || id}`;
+                        failures.push(`${code} (#${id}): ${describeApprovalError(e, "Không thể duyệt")}`);
+                    } finally {
+                        completed += 1;
+                        setBulkProgress({ completed, total: targets.length });
+                    }
                 }
-            }
+            };
+            await Promise.all(Array.from({ length: Math.min(2, targets.length) }, () => approveWorker()));
             if (selectionScopeRef.current === selectionScope) setSelectedIds(failedIds);
             if (detail && detailRequestSeqRef.current === detailRequestSeq && approvedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
             // The current filter/page owns its own request; never abort it with stale parameters.
@@ -227,7 +238,7 @@ export default function Reports() {
             window.alert(summary);
             // A stale or failed refresh must not change the approval summary.
             if (selectionScopeRef.current === selectionScope) await load();
-        } finally { managerActionLockRef.current = false; setBulkApproving(false); }
+        } finally { managerActionLockRef.current = false; setBulkApproving(false); setBulkProgress({ completed: 0, total: 0 }); }
     };
 
     const detailKpi = detail ? kpi(detail) : null;
@@ -269,7 +280,7 @@ export default function Reports() {
                         </div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 10, marginLeft: "auto" }}>
                             <button type="button" onClick={() => openRejectDialog(selectedIds)} disabled={selectedIds.length === 0 || rejecting || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#e5a4a4" : "#e2e8f0", borderRadius: 9, padding: "0 16px", background: selectedIds.length ? "#fff" : "#f1f5f9", color: selectedIds.length ? "#b42323" : "#94a3b8", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", cursor: selectedIds.length && !rejecting && !loading ? "pointer" : "not-allowed", transition: "background .15s ease, border-color .15s ease" }}>{rejecting ? "Đang từ chối..." : `✕ Từ chối ${selectedIds.length}`}</button>
-                            <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#1769aa" : "#cbd5e1", borderRadius: 9, padding: "0 18px", background: selectedIds.length ? "linear-gradient(135deg, #1976c9, #145da0)" : "#cbd5e1", color: "#fff", fontSize: 13, fontWeight: 750, whiteSpace: "nowrap", cursor: selectedIds.length && !bulkApproving && !loading ? "pointer" : "not-allowed", boxShadow: selectedIds.length ? "0 3px 8px rgba(23,105,170,.18)" : "none", transition: "background .15s ease, box-shadow .15s ease" }}>{bulkApproving ? "Đang duyệt..." : `✓ Duyệt ${selectedIds.length}`}</button>
+                            <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#1769aa" : "#cbd5e1", borderRadius: 9, padding: "0 18px", background: selectedIds.length ? "linear-gradient(135deg, #1976c9, #145da0)" : "#cbd5e1", color: "#fff", fontSize: 13, fontWeight: 750, whiteSpace: "nowrap", cursor: selectedIds.length && !bulkApproving && !loading ? "pointer" : "not-allowed", boxShadow: selectedIds.length ? "0 3px 8px rgba(23,105,170,.18)" : "none", transition: "background .15s ease, box-shadow .15s ease" }}>{bulkApproving ? `Đang duyệt ${bulkProgress.completed}/${bulkProgress.total}...` : `✓ Duyệt ${selectedIds.length}`}</button>
                         </div>
                     </div>
                     <div className={`pending-table-wrap ${reports.length === 0 ? "pending-table-empty" : ""}`} style={{ overflowX: "auto" }}>
