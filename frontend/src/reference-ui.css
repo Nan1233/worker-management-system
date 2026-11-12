@@ -1,11 +1,11 @@
-/* KTC Reference UI — CSS-only visual system.
-   Source of truth: the Poketto-style reference board supplied for KTC.
-   No template components are required. Business logic/routes stay untouched. */
+/* KTC Design Foundation — independent production UI design tokens.
+   Legacy selectors remain for compatibility while KTC-branded components are standardized.
+   No third-party template components; routes and business logic are unchanged. */
 
 :root {
-  --ktc-workspace: #f4f7fb;
+  --ktc-workspace: #f5f7fb;
   /* Canonical compatibility aliases: keep legacy components on one token system. */
-  --ktc-bg: #f4f7fb;
+  --ktc-bg: #f5f7fb;
   --ktc-workspace-subtle: #f8fafc;
   --ktc-surface: #ffffff;
   --ktc-surface-a13: rgba(255,255,255,.13);
@@ -17,13 +17,21 @@
   --ktc-surface-a98: rgba(255,255,255,.98);
   --ktc-surface-muted: #f8fafc;
   --ktc-surface-subtle: #f6f9fc;
-  --ktc-text: #162033;
+  --ktc-text: #102a43;
   --ktc-text-muted: #66758a;
   --ktc-muted: #718096;
   --ktc-border: #dfe7f0;
   --ktc-border-strong: #cbd7e5;
   --ktc-divider: #e8eef5;
   --ktc-primary: #1769d2;
+  --ktc-radius-control: 10px;
+  --ktc-radius-card: 14px;
+  --ktc-spacing-1: 4px;
+  --ktc-spacing-2: 8px;
+  --ktc-spacing-3: 12px;
+  --ktc-spacing-4: 16px;
+  --ktc-spacing-6: 24px;
+  --ktc-focus-ring: 0 0 0 3px rgba(23,105,210,.16);
   --ktc-primary-soft: #eaf3ff;
   --ktc-brand-50: #eef6ff;
   --ktc-brand-100: #dcecff;
