@@ -454,6 +454,10 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       if(value!==undefined && value!==null) {
         const cell=row.getCell(toNumber(col));
         cell.value=value instanceof Date ? value : (typeof value==="number" && !Number.isFinite(value) ? null:value);
+        // reportSnapshot.training is already a 0..1 factor (100% = 1).
+        // Format only; dividing again would incorrectly turn 100% into 1%.
+        // Applies to every process template that maps a training column.
+        if(key==="training") cell.numFmt="0.##%";
       }
     }
     const deductionDetails=helpers.detailMap(helpers.reportDetailItems(report,code,"deduction"),"deduction");
