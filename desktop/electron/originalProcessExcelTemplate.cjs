@@ -286,6 +286,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     row.eachCell({includeEmpty:false},cell=>{if(cell.type!==ExcelJS.ValueType.Merge)cell.value=null;});
   }
   let rowIndex=workbook1 ? config.first-1 : config.first;
+  const workbook1DataRows = [];
   let currentDay=null;
   let dayStt=0;
   for (let index=0;index<reports.length;index++) {
@@ -314,6 +315,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       // never from a hard-coded color or a normal data row.
     }
     const targetRowIndex=rowIndex++;
+    if (workbook1) workbook1DataRows.push(targetRowIndex);
     const baseStyle=sheet.getRow(config.first);
     const row=sheet.getRow(targetRowIndex);
     if (targetRowIndex>config.first+49) {
@@ -365,6 +367,23 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     for(const d of [...mappedDefects,...extraDefects]){
       const value=d.type ? [d.type.key,...(d.type.aliases||[])].map(key=>defectDetails.get(key)).find(v=>v!==undefined) ?? null : matchMasterValue(d.header,defectTypes,defectDetails);
       if(value!==null)row.getCell(d.col).value=value;
+    }
+  }
+  if (workbook1) {
+    // Date separators are copied from the pink sample row, but DATA rows
+    // must always retain the individual column fills of the original body
+    // (white / green / yellow / red / etc). Reapply from the immutable
+    // source snapshot after building all rows so style sharing or repeated
+    // separators cannot tint normal reports pink.
+    for (const dataRowIndex of workbook1DataRows) {
+      const row = sheet.getRow(dataRowIndex);
+      for (let col = 1; col <= lastMappedCol; col++) {
+        const originalStyle = originalBodyStyle.cells[col-1];
+        const cell = row.getCell(col);
+        cell.fill = originalStyle?.fill
+          ? JSON.parse(JSON.stringify(originalStyle.fill))
+          : { type:'pattern', pattern:'none' };
+      }
     }
   }
   if (workbook1) {
