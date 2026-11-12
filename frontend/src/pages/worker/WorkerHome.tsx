@@ -7,7 +7,7 @@ import { getCurrentWorker } from "../../services/workerService";
 import { getMyTempReports } from "../../services/productionService";
 import type { WorkerProfile } from "../../types/worker";
 import type { ProductionReport } from "../../types/production";
-import { calculateWorkerHomeTodayStats } from "./workerHomeStats";
+import { calculateWorkerHomeTodayStats, getWorkerReportNg } from "./workerHomeStats";
 import "./WorkerHome.css";
 
 const formatNumber = (value: unknown) => new Intl.NumberFormat("vi-VN").format(Number(value ?? 0));
@@ -175,7 +175,7 @@ export default function WorkerHome() {
                 <button type="button" className="worker-home-report" key={report.id ?? `${report.work_date}-${report.machine_no}-${report.product_name}`} onClick={() => report.id && navigate(`/worker/history/${report.id}`)}>
                   <span className="worker-home-report-date"><strong>{formatDate(report.work_date).slice(0, 5)}</strong><small>{formatDate(report.work_date).slice(6)}</small></span>
                   <span className="worker-home-report-main"><strong>{report.process_name || report.process_code || "Sản xuất"}{report.machine_no ? ` - Máy ${report.machine_no}` : ""}</strong><small>{report.product_name || "Sản phẩm"} · {formatHours(reportTime)}</small></span>
-                  <span className="worker-home-report-output"><b>{formatNumber(report.tt_ok ?? 0)} OK</b><b>{formatNumber((report.defects || []).reduce((sum, defect) => sum + Number(defect.quantity ?? 0), 0))} NG</b></span>
+                  <span className="worker-home-report-output"><b>{formatNumber(report.tt_ok ?? 0)} OK</b><b>{formatNumber(getWorkerReportNg(report))} NG</b></span>
                   <span className={`worker-home-status ${status.className}`}>{status.label}</span>
                   <ChevronRight className="worker-home-report-arrow" size={18} />
                 </button>
