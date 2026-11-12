@@ -85,6 +85,17 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     const dateCol = Object.entries(form.fields).find(([,key])=>key==='date')?.[0];
     assert.ok(dateCol,code+' must have the work-date column');
     assert.equal(sheet.getCell(dateCol+dataRow).value?.toISOString().slice(0,10),'2026-11-10',code+' work date has no timezone shift');
+    for (const [column,key] of Object.entries(form.fields)) {
+      if (key !== 'achievement' && key !== 'ngRate') continue;
+      const cell=sheet.getCell(column+dataRow);
+      assert.equal(cell.numFmt,'0.##%',code+' '+key+' is displayed as percent');
+      assert.equal(cell.value,key==='achievement' ? 0.2 : 0.01,code+' '+key+' remains a numeric ratio');
+    }
+    for (const position of [[form.header,1],[form.first-1,1],[dataRow,3],[dataRow,Math.max(...Object.keys(form.fields).map(c=>c.split('').reduce((n,v)=>n*26+v.charCodeAt(0)-64,0)))]]) {
+      const cell=sheet.getRow(position[0]).getCell(position[1]);
+      assert.equal(cell.font?.name,'Times New Roman',code+' font name '+position);
+      assert.equal(cell.font?.size,12,code+' font size '+position);
+    }
   }
 });
 
