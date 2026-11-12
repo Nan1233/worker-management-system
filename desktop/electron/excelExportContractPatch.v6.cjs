@@ -376,6 +376,22 @@ async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
     hydrateReportDetails(processData);
     if (item.processCode === 'GC' && Array.isArray(processData.reports)) {
       processData.reports = filterVerifiedGcSplitParents(processData.reports);
+      // A multi-machine approved row has no trustworthy per-machine quantities.
+      // Refuse to export a combined-machine Excel row instead of inventing OK/NG.
+      for (const report of processData.reports) {
+        const machineNames = String(report.machine_no || '')
+          .split(/[,;\\n]+/).map((value) => value.trim()).filter(Boolean);
+        const lineNames = Array.isArray(report.machineLines)
+          ? [...new Set(report.machineLines.map((line) => String(line.machine_code || line.machine_no || line.machine_name || '').trim()).filter(Boolean))]
+          : [];
+        if (machineNames.length > 1 || lineNames.length > 1) {
+          throw new Error(
+            'Không thể xuất GC: báo cáo ' + report.id +
+            ' vẫn gộp nhiều máy (' + (machineNames.length > 1 ? machineNames : lineNames).join(', ') +
+            '). Cần tách và đối soát OK/NG theo từng máy trong TiDB trước khi xuất.'
+          );
+        }
+      }
     }
     const reports = Array.isArray(processData.reports) ? processData.reports : [];
     for (const report of reports) {
