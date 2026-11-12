@@ -18,6 +18,20 @@ const workerProfileLoader = createWorkerProfileLoader({
 
 const loadCurrentWorkerProfile = workerProfileLoader.loadByUserId;
 
+// Coalesce simultaneous /workers/me requests from phone navigation without
+// caching the worker's permissions, assignments, or training percentage.
+const pendingOwnProfiles = new Map();
+function loadOwnProfileOnce(userId) {
+    const existing = pendingOwnProfiles.get(userId);
+    if (existing) return existing;
+    const pending = Promise.resolve().then(() => loadCurrentWorkerProfile(userId));
+    pendingOwnProfiles.set(userId, pending);
+    void pending.finally(() => {
+        if (pendingOwnProfiles.get(userId) === pending) pendingOwnProfiles.delete(userId);
+    }).catch(() => {});
+    return pending;
+}
+
 exports.getCurrentWorker = async (req, res) => {
     const loginUserId = Number(req.user?.id);
     if (!Number.isInteger(loginUserId) || loginUserId <= 0) {
@@ -28,7 +42,7 @@ exports.getCurrentWorker = async (req, res) => {
     }
 
     try {
-        const worker = await loadCurrentWorkerProfile(loginUserId);
+        const worker = await loadOwnProfileOnce(loginUserId);
 
         if (!worker) {
             return res.status(404).json({
