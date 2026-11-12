@@ -1,7 +1,6 @@
 import {
     useCallback,
     useEffect,
-    useLayoutEffect,
     useMemo,
     useRef,
     useState
@@ -39,7 +38,6 @@ import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
 import {
     clearProcessDraftAsync,
-    loadProcessDraftAsync,
     PROCESS_DRAFT_SAVE_FAILED_EVENT,
 } from "./processDraftStorage";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
@@ -127,6 +125,7 @@ import { useRelatedGrindingMachines } from "./useRelatedGrindingMachines";
 import { useProcessProductOptions } from "./useProcessProductOptions";
 import { useMachineLineStandardLookup } from "./useMachineLineStandardLookup";
 import { useProcessDraftAutosave } from "./useProcessDraftAutosave";
+import { useProcessDraftRestore } from "./useProcessDraftRestore";
 import {
     patchMachineLineItem,
     resizeMachineLineItems,
@@ -632,45 +631,21 @@ const machineAutocompleteOptions =
     // Contract: reportType: duplicateResponse.data?.report_type === "approved" is the approved-state discriminator.
 
 
-useLayoutEffect(() => {
-        let cancelled = false;
-        isRestoringDraftRef.current = true;
-        void loadProcessDraftAsync(process).then((draft) => {
-        if (cancelled) return;
-        if (!draft) { isRestoringDraftRef.current = false; return; }
-
-        // Restore the draft in a layout effect so the initialization effects
-        // below cannot reset the restored machine lines during the same mount.
-        isRestoringDraftRef.current = true;
-
-        setForm((current) => ({
-            ...current,
-            ...draft.form,
-            workerCode: current.workerCode,
-            workerName: current.workerName,
-            trainingPercent: current.trainingPercent,
-        }));
-        setDeductions(draft.deductions);
-        setSelectedDeduction(draft.selectedDeduction as DeductionKey[]);
-        setSelectedNg(draft.selectedNg as NgKey[]);
-        setMachineLines(
-            draft.machineLines.length
-                ? draft.machineLines
-                : [createEmptyMachineLine()]
-        );
-        setMachineCount(Math.max(1, draft.machineCount));
-        setOperationType(draft.operationType);
-        setIsCvkMode(Boolean(draft.isCvkMode || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(String(draft.form?.workType || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, ""))));
-        setCutExecutionMode(draft.cutExecutionMode === "NON_AUTO" ? "NON_AUTO" : "AUTO");
-        setOperationMode(draft.operationMode);
-        setExtraData(draft.extraData || {});
-
-        window.setTimeout(() => {
-            if (!cancelled) isRestoringDraftRef.current = false;
-        }, 0);
-        }).catch(() => { if (!cancelled) isRestoringDraftRef.current = false; });
-        return () => { cancelled = true; };
-    }, [process]);
+    useProcessDraftRestore({
+        process,
+        isRestoringDraftRef,
+        setForm,
+        setDeductions,
+        setSelectedDeduction,
+        setSelectedNg,
+        setMachineLines,
+        setMachineCount,
+        setOperationType,
+        setIsCvkMode,
+        setCutExecutionMode,
+        setOperationMode,
+        setExtraData,
+    });
 
     useProcessDraftAutosave({
         process,
