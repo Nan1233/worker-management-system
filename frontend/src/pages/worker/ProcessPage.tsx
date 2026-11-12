@@ -42,7 +42,8 @@ import {
 } from "./processDraftStorage";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
 import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
-import { enqueueOfflineReports, isTransientNetworkFailure } from "../../services/offlineReportQueue";
+import { isTransientNetworkFailure } from "../../services/offlineReportQueue";
+import { queueRemainingMachineReports, shouldQueuePendingMachineReports } from "./processMachineReportQueue";
 import { workerCanAccessProcess } from "../../utils/processAccess";
 import { getProcessFormSchema } from "./processFormSchemas";
 
@@ -564,17 +565,16 @@ const machineAutocompleteOptions =
             const pendingCount = pendingSplitPayloadsRef.current.length;
             // Persist every remaining machine report BEFORE navigating away.
             // A browser reload must not discard the rest of this split submit.
-            if (pendingCount) enqueueOfflineReports(pendingSplitPayloadsRef.current);
+            if (pendingCount) queueRemainingMachineReports(pendingSplitPayloadsRef.current);
             showToast(pendingCount ? "Đã xác nhận báo cáo trùng. Các báo cáo máy còn lại đã lưu an toàn và đang đồng bộ." : "Đã tạo báo cáo trùng theo xác nhận.", pendingCount ? "warning" : "success");
             finishDuplicateAction();
         } catch (error: unknown) {
             // After the primary report succeeded, preserve the unsent split reports
             // across a page reload when connectivity becomes unreliable. Their
             // original client_request_id values make offline retries idempotent.
-            if (duplicatePrimaryCompletedRef.current && isTransientNetworkFailure(error)
-                && !(axios.isAxiosError(error) && error.response?.status === 429)) {
+            if (shouldQueuePendingMachineReports(duplicatePrimaryCompletedRef.current, error)) {
                 try {
-                    enqueueOfflineReports(pendingSplitPayloadsRef.current);
+                    queueRemainingMachineReports(pendingSplitPayloadsRef.current);
                     showToast("Báo cáo chính đã lưu. Các báo cáo còn lại đã được đưa vào hàng đợi và sẽ tự đồng bộ khi có mạng.", "warning");
                     finishDuplicateAction();
                     return;
@@ -606,14 +606,13 @@ const machineAutocompleteOptions =
             }
             const pendingCount = pendingSplitPayloadsRef.current.length;
             // Save the complete remainder atomically before clearing the form.
-            if (pendingCount) enqueueOfflineReports(pendingSplitPayloadsRef.current);
+            if (pendingCount) queueRemainingMachineReports(pendingSplitPayloadsRef.current);
             showToast(pendingCount ? "Đã cập nhật báo cáo chính. Các báo cáo máy còn lại đã lưu an toàn và đang đồng bộ." : "Đã cập nhật báo cáo hiện có.", pendingCount ? "warning" : "success");
             finishDuplicateAction();
         } catch (error: unknown) {
-            if (duplicatePrimaryCompletedRef.current && isTransientNetworkFailure(error)
-                && !(axios.isAxiosError(error) && error.response?.status === 429)) {
+            if (shouldQueuePendingMachineReports(duplicatePrimaryCompletedRef.current, error)) {
                 try {
-                    enqueueOfflineReports(pendingSplitPayloadsRef.current);
+                    queueRemainingMachineReports(pendingSplitPayloadsRef.current);
                     showToast("Báo cáo chính đã cập nhật. Các báo cáo còn lại đã lưu vào hàng đợi offline.", "warning");
                     finishDuplicateAction();
                     return;
@@ -1356,7 +1355,7 @@ const updateDeductionValue = (
                 });
 
                 if (!navigator.onLine) {
-                    enqueueOfflineReports(payloads);
+                    queueRemainingMachineReports(payloads);
                     showToast("Đang mất mạng. Các báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
                     void clearProcessDraftAsync(process);
                     clientRequestIdRef.current = null;
@@ -1390,7 +1389,7 @@ const updateDeductionValue = (
                             }
                         }
                         if (isTransientNetworkFailure(error)) {
-                            enqueueOfflineReports(payloads.slice(index));
+                            queueRemainingMachineReports(payloads.slice(index));
                             showToast("Kết nối Internet bị gián đoạn. Các báo cáo còn lại đã được lưu trên thiết bị và sẽ tự gửi khi có mạng.", "warning");
                             void clearProcessDraftAsync(process);
                             clientRequestIdRef.current = null;
