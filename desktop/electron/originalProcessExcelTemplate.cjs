@@ -28,6 +28,11 @@ const norm = (value) => String(value == null ? "" : value)
   .normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D")
   .toLowerCase().replace(/[^a-z0-9]/g,"");
 const asNumeric = (value) => value == null || value === "" ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
+const templateCellText = (cell) => {
+  const value = cell?.value;
+  if (value && typeof value === "object") return String(value.result ?? value.text ?? "").trim();
+  return String(value ?? "").trim();
+};
 const toNumber = (column) => column.split("").reduce((n,c)=>n*26+c.charCodeAt(0)-64,0);
 const templatePath = (code) => FORMS[code] ? path.join(TEMPLATE_ROOT,FORMS[code].file) : null;
 function matchMasterValue(header, types, values) {
@@ -113,13 +118,13 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   const deductionTypes = helpers.processDetailTypes(code,processData,"deductionTypes","deductions","deduction");
   const defectTypes = helpers.processDetailTypes(code,processData,"defectTypes","defects","defect");
   const mapping = [];
-  const putMap = (letter,key) => mapping.push({index:toNumber(letter),key,header:String(sheet.getCell(config.header,toNumber(letter)).value || "")});
+  const putMap = (letter,key) => mapping.push({index:toNumber(letter),key,header:templateCellText(sheet.getCell(config.header,toNumber(letter)))});
   Object.entries(config.fields).forEach(([c,k])=>putMap(c,k));
   const buildDetailColumns = (kind,range,headerRow) => {
     if (!range) return [];
     const list=[];
     for(let col=toNumber(range[0]);col<=toNumber(range[1]);col++){
-      const header=String(sheet.getCell(headerRow||config.header,col).value||"").trim();
+      const header=templateCellText(sheet.getCell(headerRow||config.header,col));
       if(header)list.push({col,header,kind});
     }
     return list;
