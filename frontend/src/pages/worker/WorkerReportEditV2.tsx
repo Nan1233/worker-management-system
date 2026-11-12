@@ -382,8 +382,27 @@ function WorkerReportEditV2() {
       // reconstruct their detail rows (e.g. a failed master-data request).
       const originalDeductionMinutes = Math.round(n(report.deduction_time) * 60);
       const submittedDeductionMinutes = Math.round(n(payload.deduction_time) * 60);
-      const detailMinutes = (Array.isArray(payload.deductions) ? payload.deductions : [])
+      let detailMinutes = (Array.isArray(payload.deductions) ? payload.deductions : [])
         .reduce((sum: number, item: any) => sum + Math.round(n(item.hours) * 60), 0);
+      // Some historical reports retain valid deduction details in the API but
+      // the editor's master-data mapping may not serialize them back to payload.
+      // Preserve those exact persisted entries only when the deduction total
+      // has not changed. Never invent a deduction category or overwrite edits.
+      if (detailMinutes === 0 && submittedDeductionMinutes > 0 && sourceDeductions.length > 0) {
+        const originalDetails = sourceDeductions.map((item: any) => ({
+          deduction_type_id: Number(item.deduction_type_id) || undefined,
+          deduction_code: s(item.deduction_code || item.code),
+          deduction_name: s(item.deduction_name || item.name || item.label),
+          hours: n(item.hours ?? item.deduction_hours ?? item.duration_hours),
+        })).filter((item: any) => item.hours > 0);
+        const originalDetailMinutes = originalDetails.reduce((sum: number, item: any) => sum + Math.round(item.hours * 60), 0);
+        if (originalDetailMinutes > 0
+          && Math.abs(originalDetailMinutes - submittedDeductionMinutes) <= 1
+          && Math.abs(originalDetailMinutes - originalDeductionMinutes) <= 1) {
+          payload.deductions = originalDetails;
+          detailMinutes = originalDetailMinutes;
+        }
+      }
       if (originalDeductionMinutes > 0 && sourceDeductions.length === 0 && detailMinutes === 0) {
         setError("Không tải được chi tiết khấu trừ của báo cáo cũ. Dữ liệu 1 giờ 20 phút (hoặc thời gian trừ đã lưu) vẫn được giữ nguyên; vui lòng tải lại báo cáo hoặc liên hệ quản lý. Không thể lưu khi thiếu chi tiết.");
         return;
