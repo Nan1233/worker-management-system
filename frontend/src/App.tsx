@@ -35,6 +35,9 @@ import "./components/system/NetworkStatusBanner.css";
 import "./components/system/OfflineReportSync.css";
 import "./components/system/app-error-boundary.css";
 
+// Role-scoped KTC identity layer; keep last among global visual imports.
+import "./styles/KtcIndustrialMinimal.css";
+
 import DesktopExcelDbSyncNotifier from "./components/DesktopExcelDbSyncNotifier";
 import AppRouter from "./routes/AppRouter";
 import NetworkStatusBanner from "./components/system/NetworkStatusBanner";
