@@ -1,4 +1,5 @@
 import type { MachineLineState } from "./processPageConfig";
+import { DEFAULT_MACHINE_REPORT_LINE_LIMIT, getMaxMachineCount } from "./processMachineLines";
 
 const normalizeProduct = (value: unknown): string => String(value ?? "").trim().toUpperCase();
 
@@ -34,7 +35,10 @@ export function validateMachineLines(args: {
     );
   });
   if (!lines.length) return String(args.processCode || "").trim().toUpperCase() === "MAI" || String(args.processCode || "").trim().toUpperCase() === "DO" ? "Vui lòng chọn mã sản phẩm và nhập sản lượng trước khi nộp báo cáo" : "Vui lòng nhập ít nhất một máy";
-  if (lines.length > (args.maxMachines || 4)) return `Tối đa ${args.maxMachines || 4} máy`;
+  const maxMachines = args.maxMachines ?? (args.processCode
+    ? getMaxMachineCount(args.processCode, args.machineLines)
+    : DEFAULT_MACHINE_REPORT_LINE_LIMIT);
+  if (lines.length > maxMachines) return `Tối đa ${maxMachines} máy`;
   for (const [lineIndex, line] of lines.entries()) {
     const machineCode = line.machineCode.trim();
     const productCode = line.productCode.trim();

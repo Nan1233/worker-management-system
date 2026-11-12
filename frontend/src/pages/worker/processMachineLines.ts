@@ -31,16 +31,27 @@ export function aggregateMachineLines(lines: MachineLineState[], activeNgOptions
 
 export const getMachineNgTotal = (line: MachineLineState): number => Number(line.ngQuantity) || 0;
 
-export function getMaxMachineCount(processCodeOrLines: string | MachineLineState[], linesOrMax?: MachineLineState[] | number, machineOptions?: unknown[]): number {
-  const processCode = Array.isArray(processCodeOrLines) ? "" : String(processCodeOrLines || "").trim().toUpperCase();
-  const lines = Array.isArray(processCodeOrLines) ? processCodeOrLines : (Array.isArray(linesOrMax) ? linesOrMax : []);
-  // Existing behavior: these processes allow up to ten report lines.
-  // Per-process machine assignment rules must be validated separately.
-  if (["EP", "CAN", "MAI", "DO"].includes(processCode)) return 10;
+/** Current report-line limits; machine assignment rules are enforced separately.
+ * EP/CAN/DO retain ten existing UI lines pending a backend policy audit.
+ */
+export const FIXED_MACHINE_REPORT_LINE_LIMITS: Readonly<Record<string, number>> = Object.freeze({
+  EP: 10, CAN: 10, MAI: 10, DO: 10,
+});
+export const DEFAULT_MACHINE_REPORT_LINE_LIMIT = 4;
 
+export function getMaxMachineCount(
+  processCodeOrLines: string | MachineLineState[],
+  linesOrMax?: MachineLineState[] | number,
+  machineOptions?: unknown[],
+): number {
+  const processCode = Array.isArray(processCodeOrLines)
+    ? "" : String(processCodeOrLines || "").trim().toUpperCase();
+  const lines = Array.isArray(processCodeOrLines)
+    ? processCodeOrLines : (Array.isArray(linesOrMax) ? linesOrMax : []);
+  const fixedLimit = FIXED_MACHINE_REPORT_LINE_LIMITS[processCode];
+  if (fixedLimit !== undefined) return fixedLimit;
   const optionCount = Array.isArray(machineOptions) ? machineOptions.length : 0;
-  const requested = Math.max(lines.length, optionCount, 1);
-  return Math.min(4, requested);
+  return Math.min(DEFAULT_MACHINE_REPORT_LINE_LIMIT, Math.max(lines.length, optionCount, 1));
 }
 
 export function toggleMachineDefectLine(line: MachineLineState, key: string, checked?: boolean): MachineLineState {
