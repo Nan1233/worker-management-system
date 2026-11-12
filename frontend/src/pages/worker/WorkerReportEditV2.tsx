@@ -82,7 +82,20 @@ function WorkerReportEditV2() {
   useEffect(() => setLoadingMasterData(masterLoading), [masterLoading]);
 
   const sourceDefects = useMemo(() => getWorkerDeclaredDefects<any>(report), [report]);
-  const sourceDeductions = useMemo(() => Array.isArray(report?.deductions) ? report.deductions : Array.isArray(report?.deduction_items) ? report.deduction_items : [], [report]);
+  const sourceDeductions = useMemo(() => {
+    const parent = Array.isArray(report?.deductions) ? report.deductions : Array.isArray(report?.deduction_items) ? report.deduction_items : [];
+    if (parent.length) return parent;
+    // Older machine reports may store the original deductions only on machine lines.
+    const lines = Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [];
+    if (lines.length !== 1) return parent;
+    const line = lines[0];
+    const raw = line?.deductions_json ?? line?.deductions;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === "string") {
+      try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed; } catch { /* invalid legacy JSON: fail closed on save */ }
+    }
+    return parent;
+  }, [report]);
   const sourceLines = useMemo(() => Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [], [report]);
 
   const editNgOptions = useMemo(() => {
@@ -364,7 +377,23 @@ function WorkerReportEditV2() {
       machineLines: normalizedLines, machineOptions: editMachineOptions, productOptions: editProductOptions, activeNgOptions: editNgOptions, deductions, activeDeductionOptions: editDeductionOptions,
     });
     }
-    if (!approvedMachineNoteOnly) { payload.updated_at = report.updated_at; payload.expected_updated_at = report.updated_at; }
+    if (!approvedMachineNoteOnly) {
+      // Never silently erase historical deductions when the edit screen cannot
+      // reconstruct their detail rows (e.g. a failed master-data request).
+      const originalDeductionMinutes = Math.round(n(report.deduction_time) * 60);
+      const submittedDeductionMinutes = Math.round(n(payload.deduction_time) * 60);
+      const detailMinutes = (Array.isArray(payload.deductions) ? payload.deductions : [])
+        .reduce((sum: number, item: any) => sum + Math.round(n(item.hours) * 60), 0);
+      if (originalDeductionMinutes > 0 && sourceDeductions.length === 0 && detailMinutes === 0) {
+        setError("Không tải được chi tiết khấu trừ của báo cáo cũ. Dữ liệu 1 giờ 20 phút (hoặc thời gian trừ đã lưu) vẫn được giữ nguyên; vui lòng tải lại báo cáo hoặc liên hệ quản lý. Không thể lưu khi thiếu chi tiết.");
+        return;
+      }
+      if (Math.abs(submittedDeductionMinutes - detailMinutes) > 1) {
+        setError("Chi tiết khấu trừ chưa khớp tổng thời gian trừ. Vui lòng kiểm tra các mục khấu trừ trước khi lưu.");
+        return;
+      }
+      payload.updated_at = report.updated_at; payload.expected_updated_at = report.updated_at;
+    }
     const approvedEditAudit = { reason: source === "approved" ? changeReason.trim() : undefined };
     Object.assign(payload, approvedEditAudit);
     try {
