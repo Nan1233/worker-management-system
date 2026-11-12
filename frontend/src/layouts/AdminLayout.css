@@ -13,3 +13,20 @@
 button.admin-security-status,.admin-sidebar-footer>button.admin-security-status{width:100%;min-height:0;padding:10px;border:0;border-radius:9px;background:var(--ktc-surface-subtle);color:inherit;font:inherit;text-align:left;cursor:pointer}
 button.admin-security-status .admin-status-dot{background:var(--ktc-ink-400);box-shadow:none}
 button.admin-security-status:focus-visible{outline:2px solid #1769d2;outline-offset:2px}
+
+/* Admin responsive menu, safe area and sidebar/table scrolling. */
+.admin-mobile-overflow-dismiss{display:none}
+@media(max-width:800px){
+ .admin-mobile-overflow-dismiss{position:fixed;inset:0;z-index:99;display:block;border:0;background:rgba(12,28,46,.18);cursor:pointer}
+ .admin-main{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+ .admin-mobile-nav{height:calc(64px + env(safe-area-inset-bottom));box-sizing:border-box;padding:4px max(6px,env(safe-area-inset-left)) calc(4px + env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-right))}
+ .admin-mobile-overflow{max-height:min(calc(100dvh - 120px - env(safe-area-inset-bottom)),450px);overflow-y:auto;overscroll-behavior:contain}
+ .admin-sidebar.open{z-index:70;height:100dvh;overflow-y:auto;padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+ .admin-menu{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+ .admin-header-left,.admin-header-title,.admin-content{min-width:0}
+ .admin-header-title strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .admin-content :is(.pending-table-wrap,.master-table-wrap,.admin-table-wrap,.personnel-table-wrap,.statistics-table-wrap,.permission-table-wrap,.manager-excel-scroll){max-width:100%;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+ .admin-content :is(.admin-modal,.modal-card,.pending-reject-dialog){max-width:calc(100vw - 20px);max-height:calc(100dvh - 24px);overflow-y:auto}
+ .admin-mobile-nav button:focus-visible,.admin-sidebar button:focus-visible{outline:2px solid #1769d2;outline-offset:-2px}
+}
+@media(max-width:360px){.admin-mobile-overflow{grid-template-columns:minmax(0,1fr)}.admin-header-title span{display:none}}

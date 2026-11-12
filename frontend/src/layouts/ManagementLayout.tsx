@@ -53,6 +53,13 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const displayName=user?.full_name||user?.username||roleLabel[role];
  const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
  const handleLogout=()=>{setMobileMoreOpen(false);void logout();navigate("/login",{replace:true});};
+ useEffect(()=>{setMobileMoreOpen(false)},[location.pathname]);
+ useEffect(()=>{
+  if(!mobileMoreOpen)return;
+  const onKeyDown=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();setMobileMoreOpen(false)}};
+  document.addEventListener("keydown",onKeyDown);
+  return()=>document.removeEventListener("keydown",onKeyDown);
+ },[mobileMoreOpen]);
  useEffect(()=>{if(role!=="manager")return;const forbiddenMasterPath=/^\/manager\/master\/(users|processes)(?:\/|$)/.test(location.pathname);if(forbiddenMasterPath)navigate(`${base}/master/machines`,{replace:true});},[role,location.pathname,navigate,base]);
  const today=new Intl.DateTimeFormat("vi-VN",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date()).replace(/^./,m=>m.toUpperCase());
  return <div className="management-layout" data-management-role={role}>
@@ -78,12 +85,13 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
    </header>
    <main className="management-content"><MasterDataTransferActions/><Outlet/></main>
   </section>
+  {mobileMoreOpen&&<button className="management-mobile-dismiss" type="button" aria-label="Đóng menu điều hướng" onClick={()=>setMobileMoreOpen(false)}/>}
   <nav className="management-mobile-nav" aria-label="Điều hướng nhanh">
    {mobileHome&&<button type="button" className={active("")?"active":""} aria-current={active("")?"page":undefined} onClick={()=>navigate(base)}><LayoutDashboard size={18}/><span>Tổng quan</span></button>}
    {mobilePending&&<button type="button" className={active("reports")?"active":""} aria-current={active("reports")?"page":undefined} onClick={()=>navigate(`${base}/reports`)}><ClipboardCheck size={18}/><span>Chờ duyệt</span></button>}
    {can("NOTIFICATION_VIEW")&&<button type="button" className={notificationsActive?"active":""} aria-current={notificationsActive?"page":undefined} onClick={()=>navigate(`${base}/notifications`)}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>}
    <button type="button" className={active("profile")?"active":""} aria-current={active("profile")?"page":undefined} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Cá nhân</span></button>
-   <button type="button" className={mobileMoreOpen?"active":""} onClick={()=>setMobileMoreOpen(open=>!open)} aria-expanded={mobileMoreOpen} aria-controls="management-mobile-overflow"><MoreHorizontal size={18}/><span>Thêm</span></button>
+   <button type="button" className={mobileMoreOpen?"active":""} onClick={()=>setMobileMoreOpen(open=>!open)} aria-expanded={mobileMoreOpen} aria-controls={mobileMoreOpen?"management-mobile-overflow":undefined}><MoreHorizontal size={18}/><span>Thêm</span></button>
    {mobileMoreOpen&&<div id="management-mobile-overflow" className="management-mobile-overflow" aria-label="Các mục điều hướng khác">{mobileOverflowItems.map(item=>{const Icon=item.icon;return <button key={`overflow-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>{setMobileMoreOpen(false);navigate(`${base}/${item.path}`);}}><Icon size={17}/><span>{item.label}</span></button>;})}<button type="button" className="management-mobile-overflow-logout" onClick={handleLogout}><LogOut size={17}/><span>Đăng xuất</span></button></div>}
   </nav>
  </div>;

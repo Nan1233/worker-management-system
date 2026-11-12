@@ -40,7 +40,13 @@ export default function AdminLayout(){
  const displayName=user?.full_name||user?.username||roleLabel;
  const avatarText=displayName.trim().charAt(0).toUpperCase()||"A";
  useEffect(()=>{setMobileMoreOpen(false);setMobileSidebarOpen(false);},[location.pathname]);
- const go=(path:string)=>navigate(`/admin${path?`/${path}`:""}`);
+ const go=(path:string)=>{setMobileSidebarOpen(false);setMobileMoreOpen(false);navigate(`/admin${path?`/${path}`:""}`)};
+ useEffect(()=>{
+  if(!mobileMoreOpen&&!mobileSidebarOpen)return;
+  const onKeyDown=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();setMobileMoreOpen(false);setMobileSidebarOpen(false)}};
+  document.addEventListener("keydown",onKeyDown);
+  return()=>document.removeEventListener("keydown",onKeyDown);
+ },[mobileMoreOpen,mobileSidebarOpen]);
  return <div className="admin-layout">
   <aside className={`admin-sidebar${mobileSidebarOpen?" open":""}`}>
    <button className="admin-brand" type="button" onClick={()=>go("")}><img src="/ktc-hanoi-logo.png" alt="KTC HANOI" className="admin-brand-logo"/><span><strong>KTC (HANOI) CO., LTD</strong><small>Trung tâm quản trị hệ thống</small></span></button>
@@ -61,12 +67,13 @@ export default function AdminLayout(){
    </header>
    <main className="admin-content"><Outlet/></main>
   </section>
+  {mobileMoreOpen&&<button className="admin-mobile-overflow-dismiss" type="button" aria-label="Đóng menu điều hướng" onClick={()=>setMobileMoreOpen(false)}/>}
   <nav className="admin-mobile-nav" aria-label="Điều hướng quản trị trên di động">
-   {mobileMoreOpen&&<div className="admin-mobile-overflow">{visible.slice(2).map(item=>{const Icon=item.icon;return <button key={`more-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label}</span></button>;})}<button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button></div>}
+   {mobileMoreOpen&&<div id="admin-mobile-overflow" className="admin-mobile-overflow" role="group" aria-label="Các trang quản trị khác">{visible.slice(2).map(item=>{const Icon=item.icon;return <button key={`more-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label}</span></button>;})}<button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button></div>}
    {visible.slice(0,2).map(item=>{const Icon=item.icon;return <button key={`primary-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label.replace(" hệ thống","")}</span></button>;})}
    {can("NOTIFICATION_VIEW")&&<button type="button" className={location.pathname.startsWith("/admin/notifications")?"active":""} onClick={()=>go("notifications")}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="admin-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>}
    <button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button>
-   <button type="button" className={mobileMoreOpen?"active":""} onClick={()=>setMobileMoreOpen(open=>!open)}>{mobileMoreOpen?<X size={18}/>:<MoreHorizontal size={18}/>}<span>Thêm</span></button>
+   <button type="button" className={mobileMoreOpen?"active":""} aria-label={mobileMoreOpen?"Đóng danh sách trang khác":"Mở danh sách trang khác"} aria-expanded={mobileMoreOpen} aria-controls={mobileMoreOpen?"admin-mobile-overflow":undefined} onClick={()=>setMobileMoreOpen(open=>!open)}>{mobileMoreOpen?<X size={18}/>:<MoreHorizontal size={18}/>}<span>Thêm</span></button>
   </nav>
  </div>;
 }

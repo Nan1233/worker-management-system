@@ -54,3 +54,15 @@
  .worker-mobile-nav{padding-inline:3px}
  .worker-mobile-nav button span{font-size:10px}
 }
+
+/* Worker screens: safe bottom navigation, form space and accessible touch targets. */
+@media(max-width:800px){
+ .worker-main{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+ .worker-content{min-width:0;max-width:100%;overflow-wrap:break-word}
+ .worker-content :is(.worker-form-card,.worker-action-group,.worker-form-shell,.machine-line){min-width:0;max-width:100%}
+ .worker-content :is(.worker-table-wrap,.worker-history-table-wrap,.worker-dropdown-options){max-width:100%;overscroll-behavior:contain}
+ .worker-content :is(.duplicate-dialog,.worker-modal,.worker-dialog){max-width:calc(100vw - 20px);max-height:calc(100dvh - 24px);overflow-y:auto}
+ .worker-mobile-nav{padding-inline:max(6px,env(safe-area-inset-left)) max(6px,env(safe-area-inset-right))}
+ .worker-mobile-nav button:focus-visible,.worker-header button:focus-visible{outline:2px solid #4655c8;outline-offset:-2px}
+}
+@media(max-width:360px){.worker-mobile-nav button{font-size:9px;gap:2px}.worker-content{padding-inline:8px}}
