@@ -33,7 +33,7 @@ export default function LeadManagerMasterData(){
       .ktc-manager-master-tabs{display:flex!important;align-items:stretch;gap:0;max-width:100%;overflow-x:auto;border-bottom:1px solid #dbe5f2;margin:0 0 14px;position:relative;z-index:10;visibility:visible!important;}
       .ktc-manager-master-tabs button{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;padding:12px 24px;margin:0;color:#163b68;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap;visibility:visible!important;}
       .ktc-manager-master-tabs button:hover{color:#1268e8;background:#f5f9ff}
-      .ktc-manager-master-tabs button.active{color:#1268e8;border-bottom-color:#1268e8}
+      .ktc-manager-master-tabs button.active{color:#1268e8;border-bottom-color:#1268e8}\n      .ktc-manager-master-tabs button:focus-visible{outline:2px solid #1268e8;outline-offset:-2px}\n      @media(max-width:640px){.ktc-manager-master-tabs button{min-height:42px;padding:11px 14px}}
       .ktc-manager-master-tabs + .master-page .master-tabs{display:none!important;}
     `}</style>
     <div className="ktc-manager-master-tabs" role="tablist" aria-label="Trung tâm quản lý">

@@ -23,3 +23,16 @@
  .master-page .modal-actions{display:flex;flex-wrap:wrap}
  .master-page .modal-actions button{flex:1 1 125px;min-height:42px}
 }
+
+/* Focused catalog controls for standards, defects and deductions. */
+.master-catalog-page .master-heading p{max-width:760px;overflow-wrap:anywhere}
+.master-catalog-page .master-dialog-hint{margin:0 0 12px;font-size:12px;color:#637d9b}
+.master-catalog-page .master-feedback,.master-catalog-page .master-process-error{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;border-radius:9px;border:1px solid #a3d9bf;background:#f1fbf6;color:#176548;font-size:12px;overflow-wrap:anywhere}
+.master-catalog-page .master-process-error{border-color:#e9b4b4;background:#fff5f5;color:#9b2626}
+.master-catalog-page .master-feedback button,.master-catalog-page .master-process-error button{min-height:34px;padding:5px 12px;border:1px solid currentColor;border-radius:7px;background:#fff;color:inherit;cursor:pointer}
+.master-catalog-page .master-modal-error{overflow-wrap:anywhere}
+.master-catalog-page .master-table-wrap th{position:sticky;top:0;z-index:1;background:#f8fafc}
+.master-catalog-page .master-table-wrap td{overflow-wrap:anywhere}
+.master-catalog-page .modal-card input:disabled,.master-catalog-page .modal-card select:disabled{opacity:.6;cursor:not-allowed}
+@media(max-width:900px){.master-catalog-page .master-toolbar{display:flex!important;flex-wrap:wrap!important}.master-catalog-page .master-toolbar>input{flex:2 1 250px;width:auto!important}.master-catalog-page .master-toolbar>select{flex:1 1 155px}}
+@media(max-width:560px){.master-catalog-page .master-heading{flex-wrap:wrap!important}.master-catalog-page .master-heading .primary{width:100%;min-height:42px!important}.master-catalog-page .master-toolbar>input,.master-catalog-page .master-toolbar>select{flex:1 1 100%;min-width:0}.master-catalog-page .master-toolbar>button{flex:1 1 auto;min-height:40px}.master-catalog-page .modal-card{max-height:calc(100dvh - 16px)}.master-catalog-page .modal-card input,.master-catalog-page .modal-card select{font-size:16px}}
