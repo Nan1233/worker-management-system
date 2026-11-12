@@ -9,6 +9,11 @@ const { WORKBOOK1_FORMS } = require('../electron/originalProcessExcelTemplate.cj
 
 const source = path.resolve(__dirname,'../../backend/templates/Workbook1.xlsx');
 const cases = Object.entries(WORKBOOK1_FORMS);
+// ExcelJS serializes an explicitly empty fill as no fill. Both render
+// identically in Excel/WPS; keep strict comparisons for actual solid colors.
+const visibleFill = (fill) => !fill || fill.pattern === 'none'
+  ? { type:'pattern', pattern:'none' }
+  : fill;
 const cellText = (cell) => {
   const value=cell.value;
   return String(value && typeof value === 'object' ? value.result ?? value.text ?? '' : value ?? '').trim();
@@ -123,7 +128,7 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
     for (const col of [1,3,9,10,11,25,49]) {
       const expected = sourceDataSheet.getRow(3).getCell(col).fill;
       const actual = sheet.getRow(row).getCell(col).fill;
-      assert.deepEqual(actual,expected,'Normal source column fill at data row '+row+' col '+col);
+      assert.deepEqual(visibleFill(actual),visibleFill(expected),'Normal source column fill at data row '+row+' col '+col);
       assert.notDeepEqual(actual,sourcePink,'Data row '+row+' col '+col+' must never become pink');
     }
   }
@@ -160,7 +165,7 @@ test('ĐO: only day separators are pink, all report rows use original per-column
   }
   for(const row of [3,5])for(const col of [1,3,9,10,11,25]){
     const fill=sheet.getRow(row).getCell(col).fill;
-    assert.deepEqual(fill,sample.getRow(3).getCell(col).fill,
+    assert.deepEqual(visibleFill(fill),visibleFill(sample.getRow(3).getCell(col).fill),
       'Data retains original color at '+row+':'+col);
     assert.notDeepEqual(fill,sample.getCell('A2').fill,
       'Data must not become pink at '+row+':'+col);
