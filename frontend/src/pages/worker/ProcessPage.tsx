@@ -131,6 +131,7 @@ import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
 import { useRelatedGrindingMachines } from "./useRelatedGrindingMachines";
 import { useProcessProductOptions } from "./useProcessProductOptions";
+import { patchMachineLineItem, resizeMachineLineItems } from "./processMachineLineState";
 import { filterProductsForSelection } from "./productSuggestionRules";
 
 import type {
@@ -352,17 +353,11 @@ const machineAutocompleteOptions =
     const resizeMachineLines = (count: number) => {
         const normalizedCount = Math.min(maxMachineCount, Math.max(1, count));
         setMachineCount(normalizedCount);
-        setMachineLines((current) =>
-            Array.from({ length: normalizedCount }, (_, index) => current[index] || createEmptyMachineLine())
-        );
+        setMachineLines((current) => resizeMachineLineItems(current, count, maxMachineCount));
     };
 
     const updateMachineLine = (index: number, patch: Partial<MachineLineState>) => {
-        setMachineLines((current) =>
-            current.map((line, lineIndex) => (
-                lineIndex === index ? { ...line, ...patch } : line
-            ))
-        );
+        setMachineLines((current) => patchMachineLineItem(current, index, patch));
     };
 
     const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {
