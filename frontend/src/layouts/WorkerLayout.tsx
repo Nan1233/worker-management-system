@@ -14,15 +14,12 @@ type Item = {
   permission?: PermissionCode;
 };
 
-const items: Item[] = [
+const navigationItems: Item[] = [
+  { label: "Tổng quan", path: "/worker", icon: Home },
   { label: "Sản xuất", path: "/worker/process/select", icon: ClipboardPenLine, permission: "WORKER_ENTRY" },
   { label: "Lịch sử", path: "/worker/history", icon: History, permission: "WORKER_HISTORY" },
   { label: "Thông báo", path: "/worker/notifications", icon: Bell, permission: "NOTIFICATION_VIEW" },
   { label: "Cá nhân", path: "/worker/profile", icon: UserRound, permission: "PROFILE_VIEW" },
-];
-const desktopItems: Item[] = [
-  { label: "Tổng quan", path: "/worker", icon: Home },
-  ...items,
 ];
 
 export default function WorkerLayout() {
@@ -30,8 +27,7 @@ export default function WorkerLayout() {
   const location = useLocation();
   const { can } = usePermissions();
   const { unreadCount } = useNotificationBadge(can("NOTIFICATION_VIEW"));
-  const visible = desktopItems.filter((item) => !item.permission || can(item.permission));
-  const desktopVisible = desktopItems.filter((item) => !item.permission || can(item.permission));
+  const visibleItems = navigationItems.filter((item) => !item.permission || can(item.permission));
   const user = getStoredUser();
   const displayName = user?.full_name || "Công nhân";
   const initials = displayName.trim().split(/\s+/).slice(-2).map((part) => part[0]).join("").toUpperCase().slice(0, 2) || "KT";
@@ -59,7 +55,7 @@ export default function WorkerLayout() {
         </button>
 
         <nav className="worker-nav" aria-label="Điều hướng công nhân">
-          {desktopVisible.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             return (
               <button key={`${item.path}-${item.label}`} type="button" className={active(item) ? "active" : ""} onClick={() => navigate(item.path)}>
@@ -79,7 +75,7 @@ export default function WorkerLayout() {
 
       <section className="worker-main">
         <header className="worker-header">
-          <button className="worker-header-home" type="button" onClick={() => navigate("/worker")} aria-label="Về trang chủ"><img src="/ktc-hanoi-logo.png" alt="KTC HANOI" /></button>
+          <button className="worker-header-brand" type="button" onClick={() => navigate("/worker")} aria-label="Về trang chủ"><img src="/ktc-hanoi-logo.png" alt="KTC HANOI" /></button>
           <div className="worker-header-spacer" />
           {can("NOTIFICATION_VIEW")&&<button type="button" className="worker-header-notification" onClick={() => navigate("/worker/notifications")} aria-label="Thông báo">
             <Bell size={20} />
@@ -93,7 +89,7 @@ export default function WorkerLayout() {
       </section>
 
       <nav className="worker-mobile-nav" aria-label="Điều hướng trên điện thoại">
-        {visible.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           return (
             <button key={`mobile-${item.label}`} type="button" className={active(item) ? "active" : ""} onClick={() => navigate(item.path)}>
