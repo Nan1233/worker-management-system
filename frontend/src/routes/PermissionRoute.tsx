@@ -38,6 +38,7 @@ export default function PermissionRoute({
           : user?.role === 'lead' ? '/lead' : '/worker'
   ), [user?.role]);
   const [retryCount, setRetryCount] = useState(0);
+  const [autoRetryUsed, setAutoRetryUsed] = useState(false);
   const [state, setState] = useState<PermissionState>({
     allowed: null,
     fallback: base,
@@ -67,11 +68,22 @@ export default function PermissionRoute({
     return () => { active = false; };
   }, [permission, base, user?.id, retryCount]);
 
+  useEffect(() => {
+    // A transient permissions request failure should not strand navigation.
+    // Retry once after a short pause; never grant access without verification.
+    if (state.allowed !== false || state.verified || autoRetryUsed || retryCount !== 0) return;
+    const timer = window.setTimeout(() => {
+      setAutoRetryUsed(true);
+      setRetryCount((count) => count + 1);
+    }, 1800);
+    return () => window.clearTimeout(timer);
+  }, [state.allowed, state.verified, autoRetryUsed, retryCount]);
+
   if (state.allowed === null) return <RouteLoading />;
   if (!state.verified) {
     return (
       <section role="alert" aria-live="polite">
-        <p>Không thể xác minh quyền truy cập. Vui lòng kiểm tra kết nối và thử lại.</p>
+        <p>Không thể xác minh quyền truy cập. {retryCount === 0 && !autoRetryUsed ? 'Hệ thống sẽ tự thử lại sau giây lát.' : 'Vui lòng kiểm tra kết nối và thử lại.'}</p>
         <button type="button" onClick={() => setRetryCount((current) => current + 1)}>
           Thử lại
         </button>
