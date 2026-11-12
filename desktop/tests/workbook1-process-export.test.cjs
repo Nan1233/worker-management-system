@@ -68,9 +68,17 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     const exported = new ExcelJS.Workbook();
     await exported.xlsx.load(built.buffer);
     const sheet = exported.getWorksheet(form.sheet);
-    const dataRow = form.first+1;
+    const dataRow = form.first;
+    const original = new ExcelJS.Workbook();
+    await original.xlsx.readFile(source);
+    const originalPink = original.getWorksheet(form.sheet).getCell('B'+(form.first-1)).fill;
+    assert.deepEqual(sheet.getCell('B'+(form.first-1)).fill,originalPink,code+' pink date row keeps source fill');
     assert.equal(sheet.getCell('C'+dataRow).value,'49-001',code+' employee');
     assert.equal(sheet.getCell(firstNgColumns[code]+dataRow).value,1,code+' coded NG');
-    assert.equal(sheet.getCell('A'+form.first).value,'10/11/2026',code+' date separator');
+    assert.equal(sheet.getCell('A'+(form.first-1)).value,'10/11/2026',code+' date separator');
+    assert.equal(sheet.getColumn(2).hidden,true,code+' submission-time column hidden');
+    const dateCol = Object.entries(form.fields).find(([,key])=>key==='date')?.[0];
+    assert.ok(dateCol,code+' must have the work-date column');
+    assert.equal(sheet.getCell(dateCol+dataRow).value?.toISOString().slice(0,10),'2026-11-10',code+' work date has no timezone shift');
   }
 });
