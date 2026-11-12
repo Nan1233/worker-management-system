@@ -260,9 +260,14 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   // beyond the template's preformatted sample area.
   const originalBodyStyle={
     height:sheet.getRow(config.first).height,
-    cells:Array.from({length:lastMappedCol},(_,i)=>{
+    cells:Array.from({length:Math.max(sheet.columnCount,lastMappedCol)},(_,i)=>{
       const cell=sheet.getRow(config.first).getCell(i+1);
-      return cell.hasStyle?JSON.parse(JSON.stringify(cell.style)):null;
+      // Capture effective colors separately: imported Excel cells may derive
+      // their fills from row/column styles even when cell.style.fill is absent.
+      return {
+        style:cell.hasStyle?JSON.parse(JSON.stringify(cell.style)):null,
+        fill:cell.fill?JSON.parse(JSON.stringify(cell.fill)):null
+      };
     })
   };
   // Workbook1's pink separator is the sample row directly above the first
@@ -330,8 +335,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     if(originalBodyStyle){
       row.height=originalBodyStyle.height;
       for(let col=1;col<=lastMappedCol;col++){
-        const style=originalBodyStyle.cells[col-1];
-        if(style)row.getCell(col).style=JSON.parse(JSON.stringify(style));
+        const snapshot=originalBodyStyle.cells[col-1];
+        if(snapshot?.style)row.getCell(col).style=JSON.parse(JSON.stringify(snapshot.style));
+        if(snapshot?.fill)row.getCell(col).fill=JSON.parse(JSON.stringify(snapshot.fill));
       }
     }
     const snapshot=helpers.reportSnapshot(report,helpers.settingsForReport(report,settings,processData?.settingsByDate||{}));
@@ -380,11 +386,10 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     for (const dataRowIndex of workbook1DataRows) {
       const row = sheet.getRow(dataRowIndex);
       for (let col = 1; col <= lastMappedCol; col++) {
-        const originalStyle = originalBodyStyle.cells[col-1];
+        const original = originalBodyStyle.cells[col-1];
         const cell = row.getCell(col);
-        cell.fill = originalStyle?.fill
-          ? JSON.parse(JSON.stringify(originalStyle.fill))
-          : { type:'pattern', pattern:'none' };
+        if (original?.fill) cell.fill = JSON.parse(JSON.stringify(original.fill));
+        else cell.fill = { type:'pattern', pattern:'none' };
       }
     }
     // Apply separator fills LAST. ExcelJS imported cells can share an
