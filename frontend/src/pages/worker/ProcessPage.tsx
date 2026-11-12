@@ -96,8 +96,6 @@ import {
     aggregateMachineLines,
     getMachineNgTotal,
     getMaxMachineCount,
-    toggleMachineDefectLine,
-    updateMachineDefectLine,
 } from "./processMachineLines";
 import { validateMachineLines } from "./processPageValidation";
 import { focusProcessValidationTarget } from "./processValidationFocus";
@@ -131,7 +129,13 @@ import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
 import { useRelatedGrindingMachines } from "./useRelatedGrindingMachines";
 import { useProcessProductOptions } from "./useProcessProductOptions";
-import { patchMachineLineItem, resizeMachineLineItems } from "./processMachineLineState";
+import {
+    patchMachineLineItem,
+    resizeMachineLineItems,
+    toggleMachineLineDefect,
+    updateMachineLineDefectValue,
+} from "./processMachineLineState";
+import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
 import { filterProductsForSelection } from "./productSuggestionRules";
 
 import type {
@@ -407,19 +411,11 @@ const machineAutocompleteOptions =
     };
 
     const toggleMachineDefect = (lineIndex: number, key: string) => {
-        setMachineLines((current) =>
-            current.map((line, index) => (
-                index === lineIndex ? toggleMachineDefectLine(line, key) : line
-            ))
-        );
+        setMachineLines((current) => toggleMachineLineDefect(current, lineIndex, key));
     };
 
     const updateMachineDefectValue = (lineIndex: number, key: string, value: string) => {
-        setMachineLines((current) =>
-            current.map((line, index) => (
-                index === lineIndex ? updateMachineDefectLine(line, key, value) : line
-            ))
-        );
+        setMachineLines((current) => updateMachineLineDefectValue(current, lineIndex, key, value));
     };
 
     useEffect(() => {
@@ -428,24 +424,7 @@ const machineAutocompleteOptions =
         const aggregate = aggregateMachineLines(machineLines, activeNgOptions);
 
         setSelectedNg(aggregate.selectedNg);
-        setForm((current) => {
-            const next: FormState = {
-                ...current,
-                productName: aggregate.firstProductCode,
-                standardOutput: machineLines.length
-                    ? String(aggregate.totalStandardOutput)
-                    : "0",
-                actualOutput: String(aggregate.totalOk + aggregate.totalNg),
-                ttOk: String(aggregate.totalOk),
-                ttNg: String(aggregate.totalNg)
-            };
-
-            activeNgOptions.forEach((item) => {
-                next[item.key] = String(aggregate.defects[item.key] || 0);
-            });
-
-            return next;
-        });
+        setForm((current) => applyMachineAggregateToForm(current, aggregate, machineLines.length, activeNgOptions));
     }, [usesMultiMachineLines, machineLines, activeNgOptions]);
 
     useEffect(() => {
