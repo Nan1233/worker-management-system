@@ -82,6 +82,14 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     assert.equal(sheet.getCell(firstNgColumns[code]+dataRow).value,1,code+' coded NG');
     assert.equal(sheet.getCell('A'+(form.first-1)).value,'10/11/2026',code+' date separator');
     assert.equal(sheet.getColumn(2).hidden,true,code+' submission-time column hidden');
+    const expectedLastCol = form.defects
+      ? form.defects[1].split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)
+      : Math.max(...Object.keys(form.fields).map(c=>c.split('').reduce((n,v)=>n*26+v.charCodeAt(0)-64,0)));
+    assert.equal(sheet.columnCount,expectedLastCol,code+' no unused styled columns beyond last NG');
+    assert.equal(sheet.getRow(form.first-1).getCell(expectedLastCol+1).hasStyle,false,
+      code+' no pink color beyond right edge');
+    assert.equal(sheet.getRow(dataRow).getCell(expectedLastCol+1).hasStyle,false,
+      code+' no grid beyond right edge');
     const dateCol = Object.entries(form.fields).find(([,key])=>key==='date')?.[0];
     assert.ok(dateCol,code+' must have the work-date column');
     assert.equal(sheet.getCell(dateCol+dataRow).value?.toISOString().slice(0,10),'2026-11-10',code+' work date has no timezone shift');
