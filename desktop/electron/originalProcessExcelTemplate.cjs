@@ -540,6 +540,24 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         };
       }
     }
+    // Auto-fit date-bearing columns for Times New Roman 12. ExcelJS does
+    // not calculate font metrics, so reserve a safe width for dd/mm/yyyy
+    // plus cell padding; never shrink a wider company-template column.
+    // Column A contains the pink day separator date for all six forms.
+    const dateColumns = new Set([1]);
+    for (const [letter,field] of Object.entries(config.fields)) {
+      if (field === "date" || field === "entryDate") dateColumns.add(toNumber(letter));
+    }
+    for (const col of dateColumns) {
+      const column=sheet.getColumn(col);
+      column.width=Math.max(Number(column.width)||0,16);
+      if(col!==1) {
+        for(const rowNumber of workbook1DataRows) {
+          const cell=sheet.getRow(rowNumber).getCell(col);
+          if(cell.value instanceof Date) cell.numFmt="dd/mm/yyyy";
+        }
+      }
+    }
     // Preserve each sheet's original %TT/NG color logic, but constrain
     // it to actual report rows: no pink date rows and no 100+ empty rows.
     boundWorkbook1ConditionalFormats(sheet,config.first,workbook1DataRows);
