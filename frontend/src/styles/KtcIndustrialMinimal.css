@@ -120,3 +120,16 @@
   .worker-layout .worker-home-welcome {padding-inline:13px}
   .worker-layout .worker-home-report {grid-template-columns:55px minmax(0,1fr) auto}
 }
+
+/* Respect the existing dark theme instead of forcing light surfaces. */
+[data-theme="dark"] .management-layout .management-sidebar,
+[data-theme="dark"] .management-layout .management-header,
+[data-theme="dark"] .worker-layout .worker-header,
+[data-theme="dark"] .worker-layout .worker-mobile-nav,
+[data-theme="dark"] .worker-layout .worker-home-welcome {background:#223241!important;border-color:#354a5d!important}
+[data-theme="dark"] .management-layout .management-main,
+[data-theme="dark"] .worker-layout,
+[data-theme="dark"] .worker-layout .worker-main {background:#182532!important}
+[data-theme="dark"] .management-layout .management-menu button.active,
+[data-theme="dark"] .worker-layout .worker-mobile-nav button.active {background:#29425b!important;color:#b9d8f5!important}
+[data-theme="dark"] .management-content :is(.pending-list-card,.pending-filter-card,.ptd-panel,.management-report-card,.management-filter-card) {border-color:#354a5d}
