@@ -271,6 +271,8 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   const separatorTemplate = workbook1 ? sheet.getRow(config.first-1) : null;
   const separatorStyle = separatorTemplate ? {
     height: separatorTemplate.height,
+    fill: separatorTemplate.getCell(1).fill
+      ? JSON.parse(JSON.stringify(separatorTemplate.getCell(1).fill)) : null,
     cells: Array.from({length:sheet.columnCount},(_,i)=>{
       const cell=separatorTemplate.getCell(i+1);
       return cell.hasStyle ? JSON.parse(JSON.stringify(cell.style)) : null;
@@ -295,7 +297,12 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       if (separatorStyle) {
         separator.height=separatorStyle.height;
         separatorStyle.cells.forEach((style,index)=>{
-          if (style) separator.getCell(index+1).style=JSON.parse(JSON.stringify(style));
+          const cell = separator.getCell(index+1);
+          if (style) cell.style=JSON.parse(JSON.stringify(style));
+          // Source Workbook1 paints the entire date row pink. Applying only
+          // per-cell styles lets previously styled data cells keep white fills
+          // on later separators (e.g. the second MÀI day).
+          if (separatorStyle.fill) cell.fill=JSON.parse(JSON.stringify(separatorStyle.fill));
         });
       } else {
         separator.height=18;
@@ -359,6 +366,16 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       const value=d.type ? [d.type.key,...(d.type.aliases||[])].map(key=>defectDetails.get(key)).find(v=>v!==undefined) ?? null : matchMasterValue(d.header,defectTypes,defectDetails);
       if(value!==null)row.getCell(d.col).value=value;
     }
+  }
+  if (workbook1) {
+    // Blank formatted sample rows are not data. Remove them entirely, not just
+    // their values, otherwise Excel/WPS shows a long empty bordered table.
+    const unusedCount = Math.max(0, sheet.rowCount - rowIndex + 1);
+    if (unusedCount > 0) sheet.spliceRows(rowIndex, unusedCount);
+    const lastDataRow = Math.max(config.header, rowIndex - 1);
+    const lastDataColumn = sheet.getColumn(Math.max(sheet.columnCount, lastMappedCol)).letter;
+    sheet.pageSetup.printArea = `A1:${lastDataColumn}${lastDataRow}`;
+    sheet.autoFilter = undefined;
   }
   // Replace fixed October sample dates/month captions with the requested period.
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(yearMonth || ""))) {
