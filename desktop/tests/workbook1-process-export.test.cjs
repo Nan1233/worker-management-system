@@ -97,6 +97,7 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
   const original = new ExcelJS.Workbook();
   await original.xlsx.readFile(source);
   const sourcePink = original.getWorksheet('Mài').getCell('A2').fill;
+  const sourceDataSheet = original.getWorksheet('Mài');
   const built = await buildProcessWorkbookLocal({
     date:'2026-11-01',processCode:'MAI',
     payload:{
@@ -118,6 +119,14 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
   }
   assert.equal(sheet.getCell('C3').value,'49-001');
   assert.equal(sheet.getCell('C5').value,'49-001');
+  for (const row of [3,5]) {
+    for (const col of [1,3,9,10,11,25,49]) {
+      const expected = sourceDataSheet.getRow(3).getCell(col).fill;
+      const actual = sheet.getRow(row).getCell(col).fill;
+      assert.deepEqual(actual,expected,'Normal source column fill at data row '+row+' col '+col);
+      assert.notDeepEqual(actual,sourcePink,'Data row '+row+' col '+col+' must never become pink');
+    }
+  }
   assert.equal(sheet.rowCount,5,'No styled empty source rows remain');
   assert.match(sheet.pageSetup.printArea,/5$/,'Print range ends with last actual report');
 });
