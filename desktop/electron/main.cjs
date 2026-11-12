@@ -463,7 +463,9 @@ async function atomicOverwrite(filePath, buffer, syncDate) {
   let lastError;
   for (let attempt = 1; attempt <= RETRY_COUNT; attempt += 1) {
     try {
-      await fs.rm(filePath, { force: true });
+      // Rename within the same directory is an atomic replacement when the
+      // target is unlocked. NEVER delete the old workbook first: if rename
+      // subsequently fails, the user must retain their last good report.
       await fs.rename(temporaryPath, filePath);
       // Pending chỉ là bản chờ khi file đang khóa. Khi lần đồng bộ mới đã ghi
       // thành công từ dữ liệu DB mới nhất, xóa pending cũ để tránh áp dụng dữ liệu cũ.
@@ -495,7 +497,12 @@ async function atomicOverwrite(filePath, buffer, syncDate) {
     filePath,
     pendingPath,
     code: lastError?.code,
-    reason: reloadResult.reason
+    errorMessage: lastError?.message,
+    reason: reloadResult.reason,
+    excelWorkbookStillOpen: reloadResult.reason === 'unsaved-changes',
+    hint: reloadResult.reason === 'unsaved-changes'
+      ? 'Excel still reports this workbook as open with unsaved changes. Save and close it in every Excel instance; also check WPS.'
+      : 'Target is still locked or inaccessible. Close Excel/WPS, check file permissions and syncing software, then retry.'
   });
   return {
     saved: false,
