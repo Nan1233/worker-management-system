@@ -69,3 +69,25 @@
  .management-layout .management-mobile-overflow button.active{background:#eaf2ff!important;color:#155db5!important}
  .management-layout .management-mobile-overflow button.management-mobile-overflow-logout{color:#a33e45!important;background:#fff5f5!important}
 }
+
+/* KTC desktop visual polish: calm surfaces, readable density, stable sidebar.
+   Scoped to management; no permissions, navigation or data behavior changes. */
+@media(min-width:801px){
+ .management-layout .management-sidebar{background:#fff!important;border-right:1px solid #e6ebf3!important;box-shadow:none!important}
+ .management-layout .management-main{background:#f5f7fb!important}
+ .management-layout .management-header{background:#fff!important;box-shadow:none!important;border-bottom:1px solid #e7ecf3!important}
+ .management-layout .management-content{max-width:1680px;margin:0 auto;padding:24px clamp(16px,2vw,32px) 34px!important}
+ .management-layout .management-menu button{min-height:42px!important;border-radius:9px!important;transition:background .15s ease,color .15s ease!important}
+ .management-layout .management-menu button.active{box-shadow:none!important;background:#eaf2ff!important;color:#175eb7!important;font-weight:750!important}
+ .management-layout .management-menu button:hover:not(.active){background:#f4f7fb!important}
+ .management-layout .management-nav-group-title{letter-spacing:.075em!important}
+ .management-layout .management-sidebar-account{border-top:1px solid #edf0f5!important}
+}
+@media(min-width:801px) and (max-width:1250px){
+ .management-layout .management-sidebar{width:220px!important}
+ .management-layout .management-main{margin-left:220px!important}
+ .management-layout .management-menu{padding-right:0!important}
+ .management-layout .management-menu button{font-size:12px!important;gap:10px!important;padding:0 11px!important}
+ .management-layout .management-menu button svg{width:18px!important;height:18px!important;flex-basis:18px!important}
+ .management-layout .management-content{padding:18px!important}
+}
