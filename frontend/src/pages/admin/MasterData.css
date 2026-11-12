@@ -2,3 +2,24 @@
 
 /* Quản lý chỉ được thao tác Máy, Sản phẩm và Trừ giờ; Nhân sự nằm ở màn hình riêng. */
 .management-layout[data-management-role="manager"] .master-tabs button:nth-child(1),.management-layout[data-management-role="manager"] .master-tabs button:nth-child(2),.management-layout[data-management-role="manager"] .master-tabs button:nth-child(5){display:none!important}
+
+/* Machine/product master catalog: accessible tables and edit dialogs. */
+.master-page .master-error,.master-page .master-modal-error{overflow-wrap:anywhere}
+.master-page .master-error button{margin-left:10px;min-height:36px;padding:7px 12px;border:1px solid #e6b9b9;border-radius:8px;background:#fff;color:#a32929;cursor:pointer}
+.master-page .master-modal-error{margin:10px 0;padding:10px 12px;border:1px solid #e6b9b9;border-radius:8px;background:#fff6f6;color:#a32929;font-size:12px}
+.master-page .master-table-caption{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.master-page .master-table-wrap{max-width:100%;overscroll-behavior-x:contain}
+.master-page .master-table-wrap:focus-visible,.master-page button:focus-visible,.master-page input:focus-visible,.master-page select:focus-visible{outline:2px solid #176fe8;outline-offset:2px}
+.master-page button:disabled{opacity:.55;cursor:not-allowed}
+.master-page .modal-card{max-height:calc(100dvh - 28px);overflow-y:auto;overscroll-behavior:contain}
+@media(max-width:760px){
+ .master-page .master-heading{flex-wrap:wrap;gap:10px}
+ .master-page .master-heading .primary{min-height:42px}
+ .master-page .master-toolbar{flex-wrap:wrap;gap:8px}
+ .master-page .master-toolbar input,.master-page .master-toolbar select{min-width:0;flex:1 1 180px;font-size:16px}
+ .master-page .master-table-wrap{overflow-x:auto}
+ .master-page .modal-backdrop{padding:8px}
+ .master-page .modal-card{max-height:calc(100dvh - 16px);padding:14px}
+ .master-page .modal-actions{display:flex;flex-wrap:wrap}
+ .master-page .modal-actions button{flex:1 1 125px;min-height:42px}
+}

@@ -75,11 +75,16 @@ const roleText = (role: string) =>
 const statusText = (status: string) =>
   status === "active" ? "Đang hoạt động" : "Ngừng hoạt động";
 
-const processIds = (value?: string | null) =>
-  String(value || "")
-    .split(",")
-    .map(Number)
-    .filter((id) => Number.isInteger(id) && id > 0);
+const processIds = (value?: string | number[] | null) => {
+  if (Array.isArray(value)) return [...new Set(value.map(Number).filter(id => Number.isInteger(id) && id > 0))];
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return processIds(parsed);
+  } catch { /* Legacy data can contain a comma-separated list. */ }
+  return [...new Set(raw.split(/[;,]/).map(Number).filter(id => Number.isInteger(id) && id > 0))];
+};
 
 const activityAction = (action: string) =>
   String(action || "").toUpperCase() === "LOGOUT" ? "Đăng xuất" : "Đăng nhập";
@@ -107,40 +112,47 @@ export default function Workers() {
   const [transferBusy, setTransferBusy] = useState(false);
   const [transferMessage, setTransferMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const personnelRequestSeqRef = useRef(0);
+  const activityRequestSeqRef = useRef(0);
+  const [loadError, setLoadError] = useState("");
+  const [activityError, setActivityError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
+  const [transferError, setTransferError] = useState(false);
+  const actionBusy = saving || transferBusy || promotingId !== null || deactivatingId !== null;
 
   const load = async () => {
-    setLoading(true);
+    const seq = ++personnelRequestSeqRef.current;
+    setLoading(true); setLoadError("");
     try {
       const [usersResponse, processesResponse] = await Promise.all([
-        api.get("/users"),
-        api.get("/users/options/processes"),
+        api.get("/users"), api.get("/users/options/processes"),
       ]);
-      setPeople(usersResponse.data?.data || []);
-      setProcesses(processesResponse.data?.data || []);
-    } catch {
-      showToast("Không thể tải dữ liệu nhân sự", "error");
+      if (seq !== personnelRequestSeqRef.current) return;
+      if (!Array.isArray(usersResponse.data?.data) || !Array.isArray(processesResponse.data?.data)) throw new Error("Dữ liệu nhân sự hoặc công đoạn không hợp lệ.");
+      setPeople(usersResponse.data.data);
+      setProcesses(processesResponse.data.data);
+    } catch (e: any) {
+      if (seq === personnelRequestSeqRef.current) setLoadError(e?.response?.data?.message || e?.message || "Không thể tải dữ liệu nhân sự");
     } finally {
-      setLoading(false);
+      if (seq === personnelRequestSeqRef.current) setLoading(false);
     }
   };
 
   const loadActivities = async () => {
-    setActivityLoading(true);
+    const seq = ++activityRequestSeqRef.current;
+    setActivityLoading(true); setActivityError("");
     try {
       const rows = await getActivities({ limit: 100 });
-      setActivities(
-        rows.filter((row) =>
-          ["LOGIN", "LOGOUT"].includes(String(row.action || "").toUpperCase()),
-        ),
-      );
-    } catch {
-      showToast("Không thể tải lịch sử đăng nhập/đăng xuất", "error");
+      if (seq === activityRequestSeqRef.current) setActivities(rows.filter(row => ["LOGIN", "LOGOUT"].includes(String(row.action || "").toUpperCase())));
+    } catch (e: any) {
+      if (seq === activityRequestSeqRef.current) setActivityError(e?.response?.data?.message || "Không thể tải lịch sử đăng nhập/đăng xuất");
     } finally {
-      setActivityLoading(false);
+      if (seq === activityRequestSeqRef.current) setActivityLoading(false);
     }
   };
 
-  useEffect(() => void load(), []);
+  useEffect(() => { void load(); return () => { personnelRequestSeqRef.current += 1; activityRequestSeqRef.current += 1; }; }, []);
 
   // % TT tháng chỉ áp dụng cho công nhân: trung bình gia quyền theo giờ
   // của các báo cáo đã duyệt từ ngày đầu tháng đến hôm nay.
@@ -220,10 +232,15 @@ export default function Workers() {
     });
   }, [people, keyword, tab, roleFilter, processFilter]);
 
-  const create = (role: "lead" | "worker") =>
+  const create = (role: "lead" | "worker") => {
+    if (actionBusy) return;
+    setFormError("");
     setModal({ ...emptyForm, role, position: role === "worker" ? "Công nhân" : "Tổ trưởng" });
+  };
 
-  const edit = (person: Person) =>
+  const edit = (person: Person) => {
+    if (actionBusy) return;
+    setFormError("");
     setModal({
       id: person.id,
       role: person.role === "lead" ? "lead" : "worker",
@@ -238,14 +255,26 @@ export default function Workers() {
       process_ids: processIds(person.process_ids),
       status: person.status === "inactive" ? "inactive" : "active",
     });
+  };
 
   const save = async () => {
-    if (!modal) return;
+    if (!modal || actionBusy) return;
+    if (!modal.full_name.trim() || !modal.username.trim()) { setFormError("Vui lòng nhập họ tên và tên đăng nhập."); return; }
+    if (modal.role === "lead" && !modal.id && !modal.password.trim()) { setFormError("Tổ trưởng mới cần mật khẩu."); return; }
+    if (modal.role === "worker") {
+      if (!modal.worker_code.trim()) { setFormError("Vui lòng nhập mã công nhân."); return; }
+      const percentage = Number(modal.training_percent);
+      if (!modal.training_percent.trim() || !Number.isFinite(percentage) || percentage < 0 || percentage > 100) {
+        setFormError("% học việc phải từ 0 đến 100."); return;
+      }
+    }
+    if (!(isAdminOps && modal.id) && modal.process_ids.length === 0) { setFormError("Vui lòng chọn ít nhất một công đoạn."); return; }
+    setFormError("");
     setSaving(true);
     try {
       const body: Record<string, unknown> = {
-        username: modal.username,
-        full_name: modal.full_name,
+        username: modal.username.trim(),
+        full_name: modal.full_name.trim(),
         status: modal.status,
       };
       // Existing process assignments may include scopes this admin_ops account
@@ -271,14 +300,16 @@ export default function Workers() {
       setModal(null);
       await load();
     } catch (error: any) {
-      showToast(error?.response?.data?.message || "Không thể lưu nhân sự", "error");
+      const message = error?.response?.data?.message || "Không thể lưu nhân sự";
+      setFormError(message);
+      showToast(message, "error");
     } finally {
       setSaving(false);
     }
   };
 
   const promoteWorkerToLead = async (person: Person) => {
-    if (!canEdit || person.role !== "worker" || promotingId !== null) return;
+    if (!canEdit || person.role !== "worker" || actionBusy) return;
     if (!window.confirm(`Nâng ${person.full_name || person.username} lên Tổ trưởng?\n\nGiữ nguyên tài khoản, lịch sử báo cáo và toàn bộ công đoạn hiện tại.`)) return;
     setPromotingId(person.id);
     try {
@@ -296,18 +327,20 @@ export default function Workers() {
   };
 
   const remove = async (person: Person) => {
-    if (!canEdit || !window.confirm(`Xóa ${roleText(person.role)} ${person.full_name}? Tài khoản sẽ chuyển sang Ngừng hoạt động.`)) return;
+    if (!canEdit || actionBusy || !window.confirm(`Ngừng hoạt động tài khoản ${roleText(person.role)} ${person.full_name}? Tài khoản có thể được mở lại sau.`)) return;
+    setDeactivatingId(person.id);
     try {
       await api.put(`/users/${person.id}`, { status: "inactive" });
       showToast("Đã chuyển nhân sự sang Ngừng hoạt động", "success");
       await load();
     } catch (error: any) {
-      showToast(error?.response?.data?.message || "Không thể xóa nhân sự", "error");
-    }
+      showToast(error?.response?.data?.message || "Không thể ngừng hoạt động tài khoản", "error");
+    } finally { setDeactivatingId(null); }
   };
 
   const exportExcel = async () => {
-    setTransferBusy(true);
+    if (actionBusy) return;
+    setTransferBusy(true); setTransferError(false);
     setTransferMessage("");
     try {
       const response = await api.get("/users/export/excel", { responseType: "blob" });
@@ -334,6 +367,7 @@ export default function Workers() {
       } else if (data?.message) {
         message = data.message;
       }
+      setTransferError(true);
       setTransferMessage(message);
     } finally {
       setTransferBusy(false);
@@ -341,12 +375,14 @@ export default function Workers() {
   };
 
   const handleImportFile = async (file: File | null) => {
-    if (!file) return;
+    if (!file || actionBusy) return;
     if (!/\.xlsx$/i.test(file.name)) {
+      setTransferError(true);
       setTransferMessage("Chỉ hỗ trợ file Excel .xlsx.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    setTransferBusy(true);
+    setTransferBusy(true); setTransferError(false);
     setTransferMessage("");
     try {
       const base64 = await new Promise<string>((resolve, reject) => {
@@ -360,6 +396,7 @@ export default function Workers() {
       await load();
     } catch (error: any) {
       const data = error?.response?.data;
+      setTransferError(true);
       setTransferMessage(data?.errors?.length ? `${data.message || "File không hợp lệ"} ${data.errors.slice(0, 2).join("; ")}` : data?.message || "Không thể nhập Excel nhân sự.");
     } finally {
       setTransferBusy(false);
@@ -382,7 +419,7 @@ export default function Workers() {
         )}
       </header>
 
-      <nav className="personnel-tabs">
+      <nav className="personnel-tabs" aria-label="Danh mục nhân sự">
         <button className={tab === "all" ? "active" : ""} onClick={() => { setTab("all"); setRoleFilter("all"); }}>Tất cả ({leads.length + workers.length})</button>
         <button className={tab === "lead" ? "active" : ""} onClick={() => { setTab("lead"); setRoleFilter("lead"); }}>Tổ trưởng ({leads.length})</button>
         <button className={tab === "worker" ? "active" : ""} onClick={() => { setTab("worker"); setRoleFilter("worker"); }}>Công nhân ({workers.length})</button>
@@ -402,13 +439,14 @@ export default function Workers() {
           </div>
 
           <div className="personnel-toolbar">
-            <div className="personnel-search"><Search size={16} /><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Tìm tên hoặc mã nhân sự..." /></div>
-            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as "all" | "lead" | "worker")}>
+            <button type="button" className="personnel-secondary personnel-refresh" disabled={loading || actionBusy} onClick={() => void load()}>Làm mới</button>
+            <div className="personnel-search"><Search size={16} /><input aria-label="Tìm kiếm nhân sự" value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Tìm tên hoặc mã nhân sự..." /></div>
+            <select aria-label="Lọc vai trò" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as "all" | "lead" | "worker")}>
               <option value="all">Tất cả vai trò</option>
               <option value="lead">Tổ trưởng</option>
               <option value="worker">Công nhân</option>
             </select>
-            <select value={processFilter} onChange={(e) => setProcessFilter(e.target.value)}>
+            <select aria-label="Lọc công đoạn" value={processFilter} onChange={(e) => setProcessFilter(e.target.value)}>
               <option value="all">Tất cả công đoạn</option>
               {processes.map((process) => <option key={process.id} value={process.id}>{process.process_name}</option>)}
             </select>
@@ -417,9 +455,9 @@ export default function Workers() {
             <input ref={fileInputRef} type="file" accept=".xlsx" hidden onChange={(e) => void handleImportFile(e.target.files?.[0] || null)} />
           </div>
 
-          {transferMessage && <div className={`personnel-transfer-message ${transferMessage.toLowerCase().includes("không") ? "error" : "success"}`}><FileSpreadsheet size={14} /> {transferMessage}</div>}
+          {transferMessage && <div role={transferError ? "alert" : "status"} className={`personnel-transfer-message ${transferError ? "error" : "success"}`}><FileSpreadsheet size={14} /> {transferMessage}</div>}
 
-          {loading ? <div className="personnel-state">Đang tải dữ liệu nhân sự...</div> : <section className="personnel-card personnel-directory-card">
+          {loading ? <div className="personnel-state" role="status">Đang tải dữ liệu nhân sự...</div> : loadError ? <div className="personnel-state" role="alert">{loadError} <button type="button" className="personnel-secondary" onClick={() => void load()}>Thử tải lại</button></div> : <section className="personnel-card personnel-directory-card">
             <div className="card-head"><div><h2>{tab === "lead" ? `Tổ trưởng (${filteredPeople.length})` : tab === "worker" ? `Công nhân (${filteredPeople.length})` : `Danh sách nhân sự (${filteredPeople.length})`}</h2><p>Danh sách được phân quyền theo các công đoạn quản lý phụ trách</p></div></div>
             <PersonTable rows={filteredPeople} monthlyTTByWorkerCode={monthlyTTByWorkerCode} canEdit={canEdit} canPromote={!isAdminOps} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} promotingId={promotingId} />
           </section>}
@@ -427,12 +465,13 @@ export default function Workers() {
       ) : (
         <section className="personnel-card personnel-directory-card">
           <div className="card-head"><div><h2>Lịch sử đăng nhập / đăng xuất</h2><p>Nhật ký phiên làm việc của tài khoản nhân sự</p></div></div>
-          {activityLoading ? <div className="personnel-state compact">Đang tải lịch sử...</div> : <Activity rows={activities} />}
+          {activityLoading ? <div className="personnel-state compact" role="status">Đang tải lịch sử...</div> : activityError ? <div className="personnel-state compact" role="alert">{activityError} <button type="button" className="personnel-secondary" onClick={() => void loadActivities()}>Thử tải lại</button></div> : <Activity rows={activities} />}
         </section>
       )}
 
-      {modal && <div className="personnel-modal-backdrop"><div className="personnel-modal">
-        <div className="modal-head"><div><h2>{modal.id ? "Sửa" : "Thêm"} {roleText(modal.role)}</h2></div><button type="button" onClick={() => setModal(null)}><X size={18} /></button></div>
+      {modal && <div className="personnel-modal-backdrop"><div className="personnel-modal" role="dialog" aria-modal="true" aria-labelledby="personnel-dialog-title">
+        <div className="modal-head"><div><h2 id="personnel-dialog-title">{modal.id ? "Sửa" : "Thêm"} {roleText(modal.role)}</h2></div><button type="button" aria-label="Đóng biểu mẫu" disabled={actionBusy} onClick={() => setModal(null)}><X size={18} /></button></div>
+        {formError && <div className="personnel-form-error" role="alert">{formError}</div>}
         <div className="modal-grid">
           <label>Họ và tên<input value={modal.full_name} onChange={(e) => setModal({ ...modal, full_name: e.target.value })} /></label>
           <label>Tên đăng nhập<input value={modal.username} onChange={(e) => setModal({ ...modal, username: e.target.value })} /></label>
@@ -456,7 +495,7 @@ export default function Workers() {
         </div>
         <div className="modal-actions">
           {modal.role === "worker" && modal.id && canEdit && !isAdminOps && <button type="button" className="personnel-secondary" disabled={saving || promotingId !== null} onClick={() => { const person = people.find((p) => p.id === modal.id); if (person) void promoteWorkerToLead(person); }}><ShieldCheck size={15} /> {promotingId === modal.id ? "Đang nâng..." : "Nâng lên Tổ trưởng"}</button>}
-          <button type="button" onClick={() => setModal(null)}>Hủy</button>
+          <button type="button" disabled={actionBusy} onClick={() => setModal(null)}>Hủy</button>
           <button type="button" className="personnel-primary" disabled={saving || promotingId !== null} onClick={() => void save()}>{saving ? "Đang lưu..." : "Lưu thay đổi"}</button>
         </div>
       </div></div>}
