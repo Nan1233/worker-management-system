@@ -287,6 +287,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   }
   let rowIndex=workbook1 ? config.first-1 : config.first;
   const workbook1DataRows = [];
+  const workbook1SeparatorRows = [];
   let currentDay=null;
   let dayStt=0;
   for (let index=0;index<reports.length;index++) {
@@ -295,6 +296,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     if(day!==currentDay){
       currentDay=day;dayStt=0;
       const separator=sheet.getRow(rowIndex++);
+      if (workbook1) workbook1SeparatorRows.push(separator.number);
       if (separatorStyle) {
         separator.height=separatorStyle.height;
         separatorStyle.cells.forEach((style,index)=>{
@@ -382,6 +384,18 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         const cell = row.getCell(col);
         cell.fill = originalStyle?.fill
           ? JSON.parse(JSON.stringify(originalStyle.fill))
+          : { type:'pattern', pattern:'none' };
+      }
+    }
+    // Apply separator fills LAST. ExcelJS imported cells can share an
+    // underlying style model; styling a later data row may otherwise clear
+    // the earlier pink row (observed on day 2 in MÀI and ĐO).
+    for (const separatorRowIndex of workbook1SeparatorRows) {
+      const row = sheet.getRow(separatorRowIndex);
+      for (let col = 1; col <= sheet.columnCount; col++) {
+        const cell = row.getCell(col);
+        cell.fill = separatorStyle?.fill
+          ? JSON.parse(JSON.stringify(separatorStyle.fill))
           : { type:'pattern', pattern:'none' };
       }
     }
