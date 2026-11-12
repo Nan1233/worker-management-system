@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { getStoredUser } from "../../utils/authStorage";
+import "./ReportDownload.css";
 import AppIcon from "../../components/common/AppIcon";
 import DesktopExcelNotice from "../../components/system/DesktopExcelNotice";
 import { isDesktopApp } from "../../utils/desktopApp";
@@ -10,12 +13,17 @@ import { isDesktopApp } from "../../utils/desktopApp";
  */
 function ReportDownload() {
     const desktop = isDesktopApp();
+    const navigate = useNavigate();
+    const role = String(getStoredUser()?.role || "manager").toLowerCase();
+    const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : role === "admin_ops" ? "/admin-ops" : "/manager";
+    const canOpenFolder = desktop && typeof window.ktcDesktop?.openExportFolder === "function";
     const [message, setMessage] = useState("");
 
     const openFolder = async () => {
         try {
-            await window.ktcDesktop?.openExportFolder?.();
-            setMessage("");
+            if (!canOpenFolder) { setMessage("Ứng dụng Desktop chưa hỗ trợ mở thư mục xuất. Hãy kiểm tra cài đặt Desktop."); return; }
+            await window.ktcDesktop.openExportFolder!();
+            setMessage("Đã gửi yêu cầu mở thư mục xuất Excel.");
         } catch {
             setMessage("Không mở được thư mục xuất Excel.");
         }
@@ -44,9 +52,10 @@ function ReportDownload() {
                                 2. Vào “Đã duyệt”, chọn ngày cần xuất.<br />
                                 3. Bấm “Cập nhật Excel”. File được ghi vào thư mục xuất trên máy.
                             </p>
+                            <div className="download-actions"><button type="button" className="primary" onClick={() => navigate(`${basePath}/approved`)}>Đến báo cáo đã duyệt</button></div>
                             {desktop && (
                                 <p>
-                                    <button type="button" className="primary" onClick={() => void openFolder()}>Mở thư mục xuất Excel</button>
+                                    <button type="button" className="primary" onClick={() => void openFolder()} disabled={!canOpenFolder}>Mở thư mục xuất Excel</button>
                                     {message && <span role="alert"> {message}</span>}
                                 </p>
                             )}
@@ -60,6 +69,7 @@ function ReportDownload() {
                             <p>
                                 Chỉ báo cáo đã được duyệt mới vào Excel. Hãy duyệt hoặc từ chối báo cáo chờ duyệt trước khi cập nhật Excel.
                             </p>
+                            <div className="download-actions"><button type="button" onClick={() => navigate(`${basePath}/reports`)}>Xem báo cáo chờ duyệt</button></div>
                         </div>
                     </section>
                 </div>

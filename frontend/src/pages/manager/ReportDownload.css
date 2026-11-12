@@ -96,3 +96,11 @@
         grid-template-columns: 1fr;
     }
 }
+
+.download-page .download-card { width: 100%; max-width: 980px; margin-inline: auto; }
+.download-page .download-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+.download-page .download-actions button, .download-page .export-box button { min-height: 40px; padding: 8px 14px; border: 1px solid #b9d2f5; border-radius: 9px; background: #f6faff; color: #174ea6; font-weight: 650; cursor: pointer; }
+.download-page .download-actions button.primary, .download-page .export-box button.primary { background: #1769d2; color: #fff; border-color: #1769d2; }
+.download-page .export-box button:disabled { opacity: .55; cursor: not-allowed; }
+.download-page button:focus-visible { outline: 2px solid #1769d2; outline-offset: 2px; }
+@media (max-width: 720px) { .download-page { padding: 12px; } .download-page .download-card { padding: 16px; border-radius: 14px; } .download-page .download-header { gap: 10px; } .download-page .download-header h1 { font-size: 22px; } .download-page .download-header-icon { width: 40px; height: 40px; border-radius: 12px; } .download-page .export-box { flex-direction: column; padding: 14px; min-height: 0; border-radius: 12px; } .download-page .download-actions button { width: 100%; } }

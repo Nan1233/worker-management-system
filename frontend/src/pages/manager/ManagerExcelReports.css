@@ -3,3 +3,35 @@
 .manager-excel-scroll th:nth-child(1),.manager-excel-scroll td:nth-child(1),.manager-excel-scroll th:nth-child(2),.manager-excel-scroll td:nth-child(2),.manager-excel-scroll th:nth-child(3),.manager-excel-scroll td:nth-child(3){background-clip:padding-box;isolation:isolate}.manager-excel-scroll tbody tr:nth-child(even) td:nth-child(1),.manager-excel-scroll tbody tr:nth-child(even) td:nth-child(2),.manager-excel-scroll tbody tr:nth-child(even) td:nth-child(3){background:#fafbfd}.manager-excel-scroll tbody tr.is-row-selected td:nth-child(1),.manager-excel-scroll tbody tr.is-row-selected td:nth-child(2),.manager-excel-scroll tbody tr.is-row-selected td:nth-child(3){background:#e7f0ff}.manager-excel-scroll th:nth-child(3),.manager-excel-scroll td:nth-child(3){box-shadow:2px 0 0 rgba(203,213,225,.9)}
 /* Action controls: half-row by default; a single item only expands when needed for its label. */
 .manager-excel-scroll .action-group,.manager-excel-scroll .deduction-actions,.manager-excel-scroll .defect-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;width:100%}.manager-excel-scroll .action-group>button,.manager-excel-scroll .deduction-actions>button,.manager-excel-scroll .defect-actions>button{width:100%;min-width:0}.manager-excel-scroll .action-group:has(>button:only-child),.manager-excel-scroll .deduction-actions:has(>button:only-child),.manager-excel-scroll .defect-actions:has(>button:only-child){grid-template-columns:1fr}.manager-excel-scroll .action-group:has(>button:only-child)>button,.manager-excel-scroll .deduction-actions:has(>button:only-child)>button,.manager-excel-scroll .defect-actions:has(>button:only-child)>button{white-space:nowrap}.manager-excel-scroll .action-group>button,.manager-excel-scroll .deduction-actions>button,.manager-excel-scroll .defect-actions>button{box-sizing:border-box;padding-inline:8px;overflow:hidden;text-overflow:ellipsis}
+
+/* All approved reports grid: edit-safe responsive controls and feedback. */
+.manager-report-grid .manager-report-filters { flex-wrap: wrap; align-items: end; }
+.manager-report-grid .manager-report-filters > label { display: grid; gap: 5px; min-width: 0; flex: 1 1 135px; }
+.manager-report-grid .manager-report-filters > label > span { font-size: 11px; font-weight: 650; color: #53657d; }
+.manager-report-grid .manager-report-filters > label select,
+.manager-report-grid .manager-report-filters > label input { width: 100% !important; min-width: 0 !important; }
+.manager-report-grid .manager-report-filters > .manager-report-search { flex: 2 1 210px; }
+.manager-report-grid .manager-report-filters input[type="search"] { width: 100%; min-width: 0; }
+.manager-report-grid .manager-report-filters > button { min-height: 36px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; }
+.manager-report-grid button:disabled { opacity: .55; cursor: not-allowed; }
+.manager-report-grid .manager-grid-error, .manager-report-grid .manager-grid-unsaved,
+.manager-report-grid .manager-grid-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; margin: 8px 0; border-radius: 8px; overflow-wrap: anywhere; }
+.manager-report-grid .manager-grid-error { background: #fff5f5; border: 1px solid #efb7b7; color: #9b2525; }
+.manager-report-grid .manager-grid-unsaved { background: #fff8e9; border: 1px solid #edce8b; color: #865c17; }
+.manager-report-grid .manager-grid-notice { background: #f0f7ff; border: 1px solid #bcd8ec; color: #24547d; }
+.manager-report-grid .manager-grid-error button, .manager-report-grid .manager-grid-notice button { border: 1px solid currentColor; border-radius: 6px; background: #fff; color: inherit; padding: 8px 12px; cursor: pointer; }
+.manager-report-grid .manager-grid-caption { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.manager-report-grid .manager-grid-empty { padding: 24px; text-align: center; white-space: normal; }
+.manager-report-grid .manager-excel-scroll:focus-visible { outline: 2px solid #1769d2; outline-offset: -2px; }
+.manager-report-grid .manager-excel-footer { min-height: 48px; height: auto; flex-wrap: wrap; padding: 10px 12px; gap: 10px; }
+@media(max-width: 760px) {
+ .manager-report-grid .manager-excel-toolbar { flex-wrap: wrap; }
+ .manager-report-grid .manager-excel-toolbar button { flex: 1 1 calc(50% - 7px); min-height: 42px; }
+ .manager-report-grid .manager-report-filters > label { flex-basis: calc(50% - 10px); }
+ .manager-report-grid .manager-report-filters > .manager-report-search { flex-basis: 100%; }
+ .manager-report-grid .manager-excel-scroll { max-height: min(70vh, 650px); }
+ .manager-report-grid .manager-report-filters input,
+ .manager-report-grid .manager-report-filters select { font-size: 16px; }
+ .manager-report-grid .manager-excel-footer > div { width: 100%; justify-content: space-between; }
+ .manager-report-grid .manager-grid-error, .manager-report-grid .manager-grid-notice { flex-wrap: wrap; }
+}
