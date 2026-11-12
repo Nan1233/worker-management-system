@@ -78,7 +78,6 @@ import ProcessWorkerHeader from "./components/ProcessWorkerHeader";
 import ProcessQualitySection from "./components/ProcessQualitySection";
 import ProcessBasicInfoSection from "./components/ProcessBasicInfoSection";
 import ProcessSubmitActions from "./components/ProcessSubmitActions";
-import { filterProductsForSelection, toProductAutocompleteOptions } from "./productSuggestionRules";
 import {
     filterProductsForProcessScope,
     getInitialOperationMode,
@@ -131,6 +130,7 @@ import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
 import { useRelatedGrindingMachines } from "./useRelatedGrindingMachines";
+import { useProcessProductOptions } from "./useProcessProductOptions";
 
 import type {
     DeductionKey,
@@ -285,45 +285,19 @@ const machineAutocompleteOptions =
     const usesAnyMachine = usesMultiMachineLines || usesSingleMachine;
     const usesMachineLineAccounting = usesMultiMachineLines;
 
-    const productAutocompleteOptions = useMemo<AutocompleteOption[]>(() => {
-        // MAI: khi chưa chọn máy, hiển thị hợp nhất mã sản phẩm của TẤT CẢ máy
-        // trong công đoạn (danh sách product_standards của MAI). Khi đã chọn máy
-        // ở từng dòng, getMachineProductOptions sẽ lọc theo máy đó.
-        if (["MAI", "DO"].includes(processCode) && !String(form.machineNo || "").trim()) {
-            return toProductAutocompleteOptions(scopedProductOptions);
-        }
-        const effectiveMode: OperationMode = usesAnyMachine ? "MACHINE" : "MANUAL";
-        const filtered = filterProductsForSelection({
-            products: scopedProductOptions,
-            mode: effectiveMode,
-            machineCode: usesSingleMachine ? form.machineNo : undefined,
-            machineOptions,
-            useEncodedMachineSuffix: processCode === "GC",
-        });
-        return toProductAutocompleteOptions(filtered);
-    }, [scopedProductOptions, usesAnyMachine, usesSingleMachine, form.machineNo, machineOptions, processCode]);
-
-    const getMachineProductOptions = useCallback((machineCode: string): ProductStandardOption[] => {
-        // Mài cho phép nhập sản phẩm không cần gắn máy. Khi chưa chọn máy,
-        // hiển thị toàn bộ sản phẩm thuộc phạm vi công đoạn; khi đã chọn máy
-        // vẫn lọc theo mapping/định mức của máy như các công đoạn khác.
-        if (["MAI", "DO", "CAN"].includes(processCode) && !String(machineCode || "").trim()) {
-            return scopedProductOptions;
-        }
-        return filterProductsForSelection({
-            products: scopedProductOptions,
-            mode: "MACHINE",
-            machineCode,
-            machineOptions,
-            useEncodedMachineSuffix: processCode === "GC",
-        });
-    }, [scopedProductOptions, machineOptions, processCode]);
-
-    const getMachineProductOptionsForLine = useCallback((line: MachineLineState) =>
-        getMachineProductOptions(line.machineCode), [getMachineProductOptions]);
-
-    const getMachineProductAutocompleteOptions = useCallback((machineCode: string): AutocompleteOption[] =>
-        toProductAutocompleteOptions(getMachineProductOptionsForLine({ machineCode } as MachineLineState)), [getMachineProductOptionsForLine]);
+    const {
+        productAutocompleteOptions,
+        getMachineProductOptions,
+        getMachineProductOptionsForLine,
+        getMachineProductAutocompleteOptions,
+    } = useProcessProductOptions({
+        processCode,
+        products: scopedProductOptions,
+        machineOptions,
+        selectedMachine: form.machineNo,
+        usesAnyMachine,
+        usesSingleMachine,
+    });
     useEffect(() => {
         if (isRestoringDraftRef.current) return;
         if (!isCutLongProcess) return;
