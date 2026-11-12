@@ -66,14 +66,14 @@
     grid-column: 1 / -1 !important;
   }
 
+  /* Keep full quality metric labels readable on narrow screens. */
   .worker-form-page .worker-quality-card label {
     display: block !important;
     margin-bottom: 5px !important;
     font-size: 10.5px !important;
     line-height: 1.25 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
   }
 
   /* Machine/product block: labels are secondary to the values and must never look larger. */
