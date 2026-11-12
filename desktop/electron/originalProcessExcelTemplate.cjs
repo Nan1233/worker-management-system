@@ -294,6 +294,17 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     const snapshot=helpers.reportSnapshot(report,helpers.settingsForReport(report,settings,processData?.settingsByDate||{}));
     const extra=helpers.parseExtraData(report);
     const values={...snapshot,stt:++dayStt,expectedOutput:(asNumeric(snapshot.standard)||0)*(asNumeric(snapshot.actualTime)||0)};
+    // Preserve the established GC work-type codes when the row represents
+    // non-product work; never replace them with an invented product code.
+    if (code === "GC") {
+      const nonProduct = extra.non_product_work === true || extra.non_product_work === 1
+        || String(extra.non_product_work || "").toLowerCase() === "true";
+      if (nonProduct) {
+        const raw = String(extra.work_type ?? extra.workType ?? report.work_type ?? "").trim().toUpperCase();
+        const types = { TAIPP:"TPP", TPP:"TPP", XUATNHAP:"XN", XN:"XN", KTCD:"KTCD" };
+        values.product = types[raw] || raw || null;
+      }
+    }
     for (const [col,key] of Object.entries(config.fields)) {
       const value=key.startsWith("extra:")?extra[key.slice(6)]:values[key];
       if(value!==undefined && value!==null) {
