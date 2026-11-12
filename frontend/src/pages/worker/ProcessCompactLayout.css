@@ -109,10 +109,8 @@
     font-size: 9.5px !important;
   }
 
-}
 
-/* Mobile machine-line typography (consolidated from ProcessTypographyFix.css). */
-@media (max-width: 800px) {
+  /* Mobile machine-line typography (consolidated from ProcessTypographyFix.css). */
   .worker-form-page .machine-line .machine-section-title,
   .worker-form-page .machine-line label,
   .worker-form-page .machine-line .worker-field-label,
