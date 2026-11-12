@@ -134,6 +134,20 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
   }
   assert.equal(sheet.rowCount,5,'No styled empty source rows remain');
   assert.match(sheet.pageSetup.printArea,/5$/,'Print range ends with last actual report');
+  for (const row of [2,3,4,5]) {
+    for (const col of [1,3,10,36,49]) {
+      const border=sheet.getRow(row).getCell(col).border;
+      for (const edge of ['top','bottom','left','right'])
+        assert.ok(border?.[edge]?.style, 'Complete grid at MAI '+row+':'+col+' '+edge);
+    }
+  }
+  const allRules=sheet.conditionalFormattings || [];
+  assert.ok(allRules.some(entry=>String(entry.ref).startsWith('AJ3:AJ3')),
+    'Source MÀI %TT color logic must cover first report');
+  assert.ok(allRules.some(entry=>String(entry.ref).startsWith('AJ5:AJ5')),
+    'Source MÀI %TT color logic must cover second report');
+  assert.ok(!allRules.some(entry=>/AJ4|AJ6|AJ115/.test(String(entry.ref))),
+    'No %TT colors on pink separators or trailing blank rows');
 });
 
 test('ĐO: only day separators are pink, all report rows use original per-column palette',async () => {
@@ -163,6 +177,18 @@ test('ĐO: only day separators are pink, all report rows use original per-column
     assert.deepEqual(sheet.getRow(row).getCell(col).fill,sample.getCell('A2').fill,
       'Day separator pink at '+row+':'+col);
   }
+  for(const row of [2,3,4,5])for(const col of [1,3,9,10,11,25]){
+    const border=sheet.getRow(row).getCell(col).border;
+    for(const edge of ['top','bottom','left','right'])
+      assert.ok(border?.[edge]?.style,'Complete grid at DO '+row+':'+col+' '+edge);
+  }
+  const doRules=sheet.conditionalFormattings||[];
+  assert.ok(doRules.some(entry=>String(entry.ref)==='AF3:AF3'),
+    'Source ĐO %TT color logic must cover first report');
+  assert.ok(doRules.some(entry=>String(entry.ref)==='AF5:AF5'),
+    'Source ĐO %TT color logic must cover second report');
+  assert.ok(!doRules.some(entry=>/AF4|AF6|AF143/.test(String(entry.ref))),
+    'ĐO %TT must exclude day separators and rows after data');
   for(const row of [3,5])for(const col of [1,3,9,10,11,25]){
     const fill=sheet.getRow(row).getCell(col).fill;
     assert.deepEqual(visibleFill(fill),visibleFill(sample.getRow(3).getCell(col).fill),
