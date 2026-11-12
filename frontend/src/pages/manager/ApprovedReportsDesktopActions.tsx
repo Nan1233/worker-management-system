@@ -15,7 +15,7 @@ export default function ApprovedReportsDesktopActions() {
     const [syncMessage, setSyncMessage] = useState("");
     const [syncSuccess, setSyncSuccess] = useState(false);
 
-    const selectedDate = () => document.querySelector<HTMLInputElement>(".pending-filter-card input[type='date']")?.value || getToday();
+    const selectedDate = () => document.querySelector<HTMLInputElement>(".approved-review-screen .pending-date-filter input[type='date']")?.value || getToday();
 
     // Desktop exports must use the process-specific local workbook engine.
     // The legacy HTTP export uses a generic layout and must not be used here.
