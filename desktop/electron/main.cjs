@@ -967,8 +967,9 @@ async function performSyncSingleMonth({ date, source }) {
 
     // 10 công đoạn: luôn tạo đủ workbook, kể cả công đoạn chưa có báo cáo trong tháng.
     for (const processBuilt of built.processes || []) {
-      const processFolder = path.join(folder, safeFolderName(processBuilt.processName || processBuilt.processCode));
-      await fs.mkdir(processFolder, { recursive: true });
+      // Keep all process .xlsx files beside the monthly summary; never
+      // create per-process subfolders or mutate the source template.
+      const processFolder = folder;
 
       const filePath = path.join(
         processFolder,
