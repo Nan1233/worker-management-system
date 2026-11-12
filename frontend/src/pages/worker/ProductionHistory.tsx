@@ -6,6 +6,25 @@ import type { ProductionReport } from "../../types/production";
 
 const ITEMS_PER_PAGE = 10;
 
+const NO_STANDARD_WORK_TYPES = new Set(["XUATNHAP", "KTCD", "KYCD", "TAIPP"]);
+const AUTO_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
+
+const isNoStandardWork = (report: ProductionReport): boolean => {
+    const raw = report.work_type || report.product_name || "";
+    const codes = raw.split(",").map(code => code.trim().toUpperCase().replace(/\\s+/g, "")).filter(Boolean);
+    return codes.length > 0 && codes.every(code => NO_STANDARD_WORK_TYPES.has(code));
+};
+
+const displayMachine = (machineNo?: string): string => {
+    if (!machineNo) return "---";
+    return machineNo.split(",").map(part => {
+        const trimmed = part.trim();
+        return AUTO_MACHINE_CODES.has(trimmed.toUpperCase()) ? `${trimmed}-AUTO` : trimmed;
+    }).join(", ");
+};
+
+
+
 const formatDate = (value?: string): string => {
     if (!value) return "---";
     const [year, month, day] = value.split("T")[0].split("-");
@@ -217,10 +236,10 @@ function ProductionHistory() {
                                                 <td data-label="STT" className="column-index">{rowNumber}</td>
                                                 <td data-label="Ngày" className="date-cell">{formatDate(item.work_date)}</td>
                                                 <td data-label="Ca" className="shift-cell"><span className="shift-badge">{item.shift || "---"}</span></td>
-                                                <td data-label="Máy" className="machine-cell" title={item.machine_no}>{item.machine_no || "---"}</td>
+                                                <td data-label="Máy" className="machine-cell" title={item.machine_no}>{displayMachine(item.machine_no)}</td>
                                                 <td data-label="Sản phẩm" className="product-cell" title={item.product_name}>{item.product_name || "---"}</td>
-                                                <td data-label="OK" className="numeric-column ok-column">OK {formatNumber(item.tt_ok)}</td>
-                                                <td data-label="NG" className="numeric-column ng-column">NG {formatNumber(item.tt_ng)}</td>
+                                                <td data-label="OK" className="numeric-column ok-column">{isNoStandardWork(item) ? "—" : `OK ${formatNumber(item.tt_ok)}`}</td>
+                                                <td data-label="NG" className="numeric-column ng-column">{isNoStandardWork(item) ? "—" : `NG ${formatNumber(item.tt_ng)}`}</td>
                                                 <td data-label="Trạng thái" className="status-cell"><span className={`history-status ${statusInfo.className}`}>{statusInfo.label}</span></td>
                                                 <td data-label="Chi tiết" className="action-column">
                                                     <button type="button" className="detail-btn" onClick={() => openDetail(item)}>Xem <span>›</span></button>
