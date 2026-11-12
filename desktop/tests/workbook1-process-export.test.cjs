@@ -34,8 +34,8 @@ for (const [code,form] of cases) {
     const exported = new ExcelJS.Workbook();
     await exported.xlsx.load(built.buffer);
     const visible = exported.worksheets.filter(s=>!s.name.startsWith('_KTC_'));
-    assert.deepEqual(visible.map(s=>s.name),[form.sheet]);
-    const sheet = visible[0];
+    assert.deepEqual(visible.map(s=>s.name),code === 'GC' ? [form.sheet,'TAY MÁY CẮT LỒNG'] : [form.sheet]);
+    const sheet = exported.getWorksheet(form.sheet);
     assert.equal(String(sheet.getCell(form.header,1).value).trim().toUpperCase(),'STT');
     assert.equal(sheet.getCell(form.first,3).value,null,'Sample employee data must be removed');
     assert.equal(built.processCode,code);
