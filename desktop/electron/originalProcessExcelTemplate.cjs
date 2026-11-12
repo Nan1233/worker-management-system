@@ -93,7 +93,7 @@ function boundWorkbook1ConditionalFormats(sheet, firstDataRow, dataRows) {
 // Shared with Gia công's monthly report rules in monthlyWorkbookLocal.cjs.
 // >= 100% / <= 1% green; 90-<100% / >1-3% yellow; other orange-red.
 const KTC_RATE_COLORS = Object.freeze({
-  good:"FFC6E0B4", warning:"FFFFE699", bad:"FFF4B084"
+  good:"FFC6E0B4", warning:"FFFFE699", bad:"FFFF5252"
 });
 const workbook1RateFill = (field,value) => {
   const n=Number(value);
@@ -597,6 +597,71 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
           if(cell.value instanceof Date) cell.numFmt="dd/mm/yyyy";
         }
       }
+    }
+    // Size columns from visible report values. ExcelJS has no font metrics;
+    // widths include padding for Times New Roman 12 and percentage symbols.
+    const visibleCellText = cell => {
+      const v = cell.value;
+      if (v == null) return "";
+      if (v instanceof Date) return "00/00/0000";
+      if (typeof v === "number") {
+        if (cell.numFmt && cell.numFmt.includes("%"))
+          return (v*100).toLocaleString("en-US",{maximumFractionDigits:2})+"%";
+        return String(v);
+      }
+      if (typeof v === "object")
+        return String(v.result ?? v.text ?? (Array.isArray(v.richText)
+          ? v.richText.map(item=>item.text).join("") : v.formula ?? ""));
+      return String(v);
+    };
+    for (let col=1;col<=lastDataCol;col++) {
+      const column=sheet.getColumn(col);
+      let longestData=0;
+      let longestHeaderWord=0;
+      for (let rowNumber=1;rowNumber<=lastDataRow;rowNumber++) {
+        const cell=sheet.getRow(rowNumber).getCell(col);
+        if (cell.type===ExcelJS.ValueType.Merge) continue;
+        const content=visibleCellText(cell);
+        if (!content) continue;
+        if (rowNumber<=config.header) {
+          for (const word of content.split(/\s+/))
+            longestHeaderWord=Math.max(longestHeaderWord,word.length);
+        } else {
+          for (const line of content.split(/\n/))
+            longestData=Math.max(longestData,line.length);
+        }
+      }
+      // Header labels wrap instead of making the entire table extremely wide.
+      const requested=Math.max(Number(column.width)||0,longestData+4,
+        Math.min(longestHeaderWord+4,36),dateColumns.has(col)?16:0,12);
+      column.width=Math.min(255,Math.ceil(requested));
+    }
+    // Header alignment applies to every retained column and every header row.
+    for (let rowNumber=1;rowNumber<=config.header;rowNumber++) {
+      const row=sheet.getRow(rowNumber);
+      let rowLines=1;
+      for (let col=1;col<=lastDataCol;col++) {
+        const cell=row.getCell(col);
+        if (cell.type===ExcelJS.ValueType.Merge) continue;
+        cell.alignment={
+          ...(cell.alignment||{}),
+          horizontal:"center",vertical:"middle",wrapText:true
+        };
+        const value=visibleCellText(cell);
+        if (!value)continue;
+        const width=Math.max(1,Number(sheet.getColumn(col).width)||12);
+        const lines=value.split(/\n/).reduce((total,line)=>{
+          const words=line.split(/\s+/).filter(Boolean);
+          let used=0,count=1;
+          for (const word of words) {
+            if (used && used+word.length+1>width-3){count++;used=0;}
+            used+=word.length+1;
+          }
+          return total+Math.max(1,count);
+        },0);
+        rowLines=Math.max(rowLines,lines);
+      }
+      row.height=Math.max(Number(row.height)||0,Math.min(240,rowLines*17+8));
     }
     // Preserve each sheet's original %TT/NG color logic, but constrain
     // it to actual report rows: no pink date rows and no 100+ empty rows.
