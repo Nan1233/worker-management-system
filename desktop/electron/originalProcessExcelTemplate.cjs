@@ -370,9 +370,15 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   if (workbook1) {
     // Blank formatted sample rows are not data. Remove them entirely, not just
     // their values, otherwise Excel/WPS shows a long empty bordered table.
-    const unusedCount = Math.max(0, sheet.rowCount - rowIndex + 1);
-    if (unusedCount > 0) sheet.spliceRows(rowIndex, unusedCount);
     const lastDataRow = Math.max(config.header, rowIndex - 1);
+    // ExcelJS.spliceRows(start, count) moves rows but does not reliably
+    // reduce worksheet.rowCount when the template has pre-styled empty rows.
+    // Those old row objects keep the exported dimension at row 115.
+    // Remove the trailing row models themselves so Excel/WPS does not draw
+    // a large empty bordered table after the final approved report.
+    if (sheet.rowCount > lastDataRow) {
+      sheet._rows.length = lastDataRow;
+    }
     const lastDataColumn = sheet.getColumn(Math.max(sheet.columnCount, lastMappedCol)).letter;
     sheet.pageSetup.printArea = `A1:${lastDataColumn}${lastDataRow}`;
     sheet.autoFilter = undefined;
