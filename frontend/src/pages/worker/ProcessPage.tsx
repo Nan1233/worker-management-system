@@ -37,12 +37,9 @@ import type { ProductStandardOption } from "../../services/masterDataService";
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
-import type { ProcessDraft } from "./processDraftStorage";
 import {
     clearProcessDraftAsync,
-    hasMeaningfulProcessDraft,
     loadProcessDraftAsync,
-    saveProcessDraftAsync,
     PROCESS_DRAFT_SAVE_FAILED_EVENT,
 } from "./processDraftStorage";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
@@ -129,6 +126,7 @@ import { useProcessMasterData } from "./useProcessMasterData";
 import { useRelatedGrindingMachines } from "./useRelatedGrindingMachines";
 import { useProcessProductOptions } from "./useProcessProductOptions";
 import { useMachineLineStandardLookup } from "./useMachineLineStandardLookup";
+import { useProcessDraftAutosave } from "./useProcessDraftAutosave";
 import {
     patchMachineLineItem,
     resizeMachineLineItems,
@@ -674,68 +672,9 @@ useLayoutEffect(() => {
         return () => { cancelled = true; };
     }, [process]);
 
-    // Persist DO immediately on page refresh/close, including edits made within
-    // the 700ms autosave debounce window.
-    const doDraftSnapshotRef = useRef<ProcessDraft | null>(null);
-    useEffect(() => {
-        doDraftSnapshotRef.current = {
-            version: 3, savedAt: Date.now(), process, form, deductions,
-            selectedDeduction, selectedNg, machineLines, machineCount,
-            operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
-        };
-    }, [
-        process, form, deductions, selectedDeduction, selectedNg, machineLines,
-        machineCount, operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
-    ]);
-    useEffect(() => {
-        if (processCode !== "DO") return;
-        const persistOnLeave = () => {
-            if (submitting || isRestoringDraftRef.current) return;
-            const draft = doDraftSnapshotRef.current;
-            if (draft && hasMeaningfulProcessDraft(draft)) void saveProcessDraftAsync(draft);
-        };
-        window.addEventListener("pagehide", persistOnLeave);
-        return () => window.removeEventListener("pagehide", persistOnLeave);
-    }, [processCode, submitting]);
-
-    useEffect(() => {
-        if (loadingWorker || loadingMasterData || submitting || isRestoringDraftRef.current) return;
-
-        const resetVersion = resetVersionRef.current;
-        const snapshot = {
-            version: 1 as const,
-            savedAt: Date.now(),
-            process,
-            form,
-            deductions,
-            selectedDeduction,
-            selectedNg,
-            machineLines,
-            machineCount,
-            operationType,
-            operationMode,
-            isCvkMode,
-            cutExecutionMode,
-            extraData,
-        };
-
-        const timer = window.setTimeout(() => {
-            if (resetVersionRef.current !== resetVersion) return;
-            if (hasMeaningfulProcessDraft(snapshot)) {
-                void saveProcessDraftAsync(snapshot);
-            } else {
-                void clearProcessDraftAsync(process);
-            }
-            draftSaveTimerRef.current = null;
-        }, 700);
-        draftSaveTimerRef.current = timer;
-
-        return () => {
-            window.clearTimeout(timer);
-            if (draftSaveTimerRef.current === timer) draftSaveTimerRef.current = null;
-        };
-    }, [
+    useProcessDraftAutosave({
         process,
+        processCode,
         form,
         deductions,
         selectedDeduction,
@@ -750,7 +689,10 @@ useLayoutEffect(() => {
         loadingWorker,
         loadingMasterData,
         submitting,
-    ]);
+        isRestoringDraftRef,
+        draftSaveTimerRef,
+        resetVersionRef,
+    });
 
     const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
