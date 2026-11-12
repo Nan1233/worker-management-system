@@ -43,9 +43,6 @@ import "./pages/worker/ProductionHistoryMobile.css";
 import DesktopExcelDbSyncNotifier from "./components/DesktopExcelDbSyncNotifier";
 import AppRouter from "./routes/AppRouter";
 import NetworkStatusBanner from "./components/system/NetworkStatusBanner";
-import { installProductionHistoryDisplayFix } from "./pages/worker/ProductionHistoryDisplayFix";
-
-installProductionHistoryDisplayFix();
 
 function App() {
     return <>
