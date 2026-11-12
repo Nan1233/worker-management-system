@@ -109,6 +109,8 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
       const cell=sheet.getCell(column+dataRow);
       assert.equal(cell.numFmt,'0.##%',code+' '+key+' is displayed as percent');
       assert.equal(cell.value,key==='achievement' ? 0.2 : 0.01,code+' '+key+' remains a numeric ratio');
+      assert.equal(cell.fill?.fgColor?.argb,key==='achievement' ? 'FFF4B084' : 'FFC6E0B4',
+        code+' '+key+' matches Gia công color thresholds');
     }
     for (const position of [[form.header,1],[form.first-1,1],[dataRow,3],[dataRow,Math.max(...Object.keys(form.fields).map(c=>c.split('').reduce((n,v)=>n*26+v.charCodeAt(0)-64,0)))]]) {
       const cell=sheet.getRow(position[0]).getCell(position[1]);
@@ -171,13 +173,12 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
         assert.ok(border?.[edge]?.style, 'Complete grid at MAI '+row+':'+col+' '+edge);
     }
   }
-  const allRules=sheet.conditionalFormattings || [];
-  assert.ok(allRules.some(entry=>String(entry.ref).startsWith('AJ3:AJ3')),
-    'Source MÀI %TT color logic must cover first report');
-  assert.ok(allRules.some(entry=>String(entry.ref).startsWith('AJ5:AJ5')),
-    'Source MÀI %TT color logic must cover second report');
-  assert.ok(!allRules.some(entry=>/AJ4|AJ6|AJ115/.test(String(entry.ref))),
-    'No %TT colors on pink separators or trailing blank rows');
+  // KTC's Gia công threshold colors are written to the data cell itself;
+  // template CF must not override these fixed company-wide colors.
+  assert.equal(sheet.getCell('AJ3').fill?.fgColor?.argb,'FFF4B084');
+  assert.equal(sheet.getCell('AJ5').fill?.fgColor?.argb,'FFF4B084');
+  assert.ok(!(sheet.conditionalFormattings||[]).some(entry=>/^AJ\\d/.test(String(entry.ref))),
+    'No original MÀI %TT rule may override KTC shared palette');
 });
 
 test('ĐO: only day separators are pink, all report rows use original per-column palette',async () => {
@@ -212,18 +213,54 @@ test('ĐO: only day separators are pink, all report rows use original per-column
     for(const edge of ['top','bottom','left','right'])
       assert.ok(border?.[edge]?.style,'Complete grid at DO '+row+':'+col+' '+edge);
   }
-  const doRules=sheet.conditionalFormattings||[];
-  assert.ok(doRules.some(entry=>String(entry.ref)==='AF3:AF3'),
-    'Source ĐO %TT color logic must cover first report');
-  assert.ok(doRules.some(entry=>String(entry.ref)==='AF5:AF5'),
-    'Source ĐO %TT color logic must cover second report');
-  assert.ok(!doRules.some(entry=>/AF4|AF6|AF143/.test(String(entry.ref))),
-    'ĐO %TT must exclude day separators and rows after data');
+  assert.equal(sheet.getCell('AF3').fill?.fgColor?.argb,'FFC6E0B4');
+  assert.equal(sheet.getCell('AF5').fill?.fgColor?.argb,'FFC6E0B4');
+  assert.ok(!(sheet.conditionalFormattings||[]).some(entry=>/^AF\\d/.test(String(entry.ref))),
+    'No original ĐO %TT rule may override KTC shared palette');
   for(const row of [3,5])for(const col of [1,3,9,10,11,25]){
     const fill=sheet.getRow(row).getCell(col).fill;
     assert.deepEqual(visibleFill(fill),visibleFill(sample.getRow(3).getCell(col).fill),
       'Data retains original color at '+row+':'+col);
     assert.notDeepEqual(fill,sample.getCell('A2').fill,
       'Data must not become pink at '+row+':'+col);
+  }
+});
+
+test('All six Workbook1 forms use Gia công percentage bands at thresholds',async () => {
+  const scenarios=[
+    {achievement:1.00,ngRate:0.01,achievementColor:'FFC6E0B4',ngColor:'FFC6E0B4'},
+    {achievement:0.90,ngRate:0.03,achievementColor:'FFFFE699',ngColor:'FFFFE699'},
+    {achievement:0.8999,ngRate:0.0301,achievementColor:'FFF4B084',ngColor:'FFF4B084'}
+  ];
+  for (const [code,form] of cases) {
+    const reports=scenarios.map((scenario,index)=>({
+      id:301+index,work_date:'2026-11-10',
+      worker_code:'49-001',full_name:'Kiểm thử',shift:'A',
+      isApprovedDatabaseRecord:true,dataSource:'production_reports',
+      calculationSnapshot:{
+        trainingFactor:1,standard:100,workingTime:8,actualTime:8,
+        deductionTime:0,ok:100,allNg:1,countedNg:1,enteredOutput:100,
+        adjustedOutput:100,outputPerHour:12.5,
+        achievement:scenario.achievement,ngRate:scenario.ngRate
+      },defects:[],deductions:[]
+    }));
+    const built=await buildProcessWorkbookLocal({
+      date:'2026-11-01',processCode:code,
+      payload:{yearMonth:'2026-11',dataSource:'tidb.production_reports.approved',
+        processes:{[code]:{reports}}}
+    });
+    const workbook=new ExcelJS.Workbook();
+    await workbook.xlsx.load(built.buffer);
+    const sheet=workbook.getWorksheet(form.sheet);
+    for(const [letter,field] of Object.entries(form.fields)) {
+      if (field!=='achievement' && field!=='ngRate')continue;
+      for (const [index,scenario] of scenarios.entries()) {
+        const row=form.first+index;
+        const cell=sheet.getCell(letter+row);
+        assert.equal(cell.numFmt,'0.##%',code+' '+field+' percent format');
+        assert.equal(cell.fill?.fgColor?.argb,field==='achievement'
+          ?scenario.achievementColor:scenario.ngColor,code+' '+field+' color band '+index);
+      }
+    }
   }
 });
