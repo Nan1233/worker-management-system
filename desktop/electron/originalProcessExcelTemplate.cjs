@@ -268,7 +268,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   const lastDefectCol=config.defects?toNumber(config.defects[1]):0;
   const lastMappedCol=Math.max(...Object.keys(config.fields).map(toNumber),lastDefectCol);
   const originalColumnCount=sheet.columnCount;
-  let nextDefectCol=originalColumnCount+1;
+  // New real NG categories belong immediately after the final mapped column,
+  // not after hundreds of blank preformatted template columns.
+  let nextDefectCol=lastMappedCol+1;
   for(const type of (code==="MAI" && !workbook1 ? [] : defectTypes)){
     const key=String(type.key);
     if(usedDefectKeys.has(key))continue;
@@ -498,7 +500,22 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     if (sheet.rowCount > lastDataRow) {
       sheet._rows.length = lastDataRow;
     }
-    const lastDataCol = Math.max(sheet.columnCount,lastMappedCol);
+    // Trim the source form's unused right-hand styled columns as well as its
+    // unused bottom rows. Preserve any genuinely appended NG columns.
+    const lastDataCol = Math.max(lastMappedCol,...extraDefects.map(d=>d.col));
+    for (const row of sheet._rows) {
+      if (row && row._cells && row._cells.length > lastDataCol) {
+        row._cells.length=lastDataCol;
+      }
+    }
+    if (sheet._columns && sheet._columns.length > lastDataCol) {
+      sheet._columns.length=lastDataCol;
+    }
+    // Remove only merged blocks fully outside the retained table; they
+    // otherwise expand the worksheet dimension back into blank columns.
+    if (sheet._merges) for (const [key,range] of Object.entries(sheet._merges)) {
+      if (range.left > lastDataCol) delete sheet._merges[key];
+    }
     // Keep a complete four-sided grid through the last actual report. The
     // source form can omit edges on styled sample rows; writing only cell
     // values must never make adjacent report cells look borderless.
