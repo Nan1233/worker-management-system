@@ -238,3 +238,99 @@
   grid-template-areas:"search" "date" "process" "shift" "quick"!important;
  }
 }
+
+/* Chờ duyệt: responsive layout is scoped to this screen only; the shared
+   report stylesheet also serves the approved-report workspace. */
+.pending-review-screen .pending-filter-card {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+  grid-template-areas: "search date process shift" "quick quick quick quick";
+  gap: 10px 12px;
+  align-items: end;
+  padding: 14px;
+  min-width: 0;
+}
+.pending-review-screen .pending-bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  min-height: 64px;
+  background: #f8fbff;
+  border-bottom: 1px solid #e2eaf3;
+}
+.pending-review-screen .pending-bulk-buttons { min-width: 0; }
+.pending-review-screen .pending-table-wrap {
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+.pending-review-screen .pending-table-wrap:focus-visible {
+  outline: 2px solid #1769d2;
+  outline-offset: -2px;
+}
+.pending-review-screen .pending-table-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.pending-review-screen .pending-reject-dialog {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.pending-review-screen .pending-filter-card input:focus-visible,
+.pending-review-screen .pending-filter-card select:focus-visible,
+.pending-review-screen button:focus-visible {
+  outline: 2px solid #1769d2;
+  outline-offset: 2px;
+}
+@media (max-width: 1360px) {
+  .pending-review-screen .pending-filter-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas: "search search" "date process" "shift shift" "quick quick";
+  }
+}
+@media (max-width: 620px) {
+  .pending-review-screen .pending-page-title { align-items: flex-start; }
+  .pending-review-screen .pending-filter-card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "search" "date" "process" "shift" "quick";
+    padding: 12px;
+  }
+  .pending-review-screen .pending-quick-filters { min-width: 0; }
+  .pending-review-screen .pending-bulk-toolbar { align-items: stretch; padding: 12px; }
+  .pending-review-screen .pending-bulk-summary { min-width: 0 !important; width: 100%; }
+  .pending-review-screen .pending-bulk-buttons {
+    width: 100%;
+    margin-left: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px !important;
+  }
+  .pending-review-screen .pending-bulk-buttons > button {
+    min-width: 0;
+    width: 100%;
+    padding: 0 8px !important;
+    white-space: normal !important;
+    line-height: 1.2;
+  }
+  .pending-review-screen .pending-table-footer { flex-wrap: wrap; }
+  .pending-review-screen .pending-reject-dialog { padding: 16px !important; }
+  .pending-review-screen .pending-reject-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .pending-review-screen .pending-reject-actions > button {
+    min-width: 0;
+    min-height: 42px;
+    overflow-wrap: anywhere;
+  }
+}

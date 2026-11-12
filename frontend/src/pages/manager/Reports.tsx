@@ -247,14 +247,14 @@ export default function Reports() {
     const detailDefects = Array.isArray(detailAny?.defects) ? (detailAny?.defects as any[]).filter(x => num(x.quantity) > 0) : [];
 
     return (
-        <div className="pending-reference-page">
+        <div className="pending-reference-page pending-review-screen">
             <div className="pending-page-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div><h1 style={{ margin: 0, color: "#12385f", fontSize: 26, fontWeight: 800 }}>Báo cáo chờ duyệt</h1>
                 <div style={{ marginTop: 5, color: "#6f89a8", fontSize: 13 }}>Xem và xử lý báo cáo sản xuất, bao gồm các đề xuất chỉnh sửa.</div></div>
                 {window.location.pathname.startsWith("/manager") && <button type="button" onClick={() => navigate("/manager/edit-proposals")} style={{ border: "1px solid #cbd9e8", borderRadius: 8, padding: "9px 13px", background: "#fff", color: "#24547d", fontWeight: 700, cursor: "pointer" }}>Đề xuất chỉnh sửa</button>}
             </div>
 
-            <div className="pending-filter-card" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(140px, .9fr)", gridTemplateAreas: '"search date process shift" "quick quick quick quick"', gap: "10px 12px", alignItems: "end", padding: 14, border: "1px solid #dbe6f2", borderRadius: 12, background: "#fff", boxShadow: "0 4px 14px rgba(35,76,125,.045)" }}>
+            <div className="pending-filter-card">
                 <label className="pending-search" style={{ gridArea: "search", display: "flex", flexDirection: "column", alignSelf: "end", gap: 4, minWidth: 0, position: "relative" }}><span style={{ position: "static", display: "block", width: "auto", height: "auto", border: 0, fontSize: 12, lineHeight: "16px", color: "#526b88", zIndex: "auto" }}>Tìm kiếm</span><input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} aria-label="Tìm báo cáo theo mã hoặc công nhân" placeholder="Tìm kiếm mã báo cáo, công nhân..." /></label>
                 <label className="pending-date-filter" style={{ gridArea: "date", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setRange(null); }} /></label>
                 <div className="pending-quick-filters" style={{ gridArea: "quick", minWidth: 0 }}>
@@ -273,18 +273,18 @@ export default function Reports() {
                     <div className="pending-list-tabs">
                         <button type="button" className="pending-list-tab active">Danh sách chờ duyệt <span className="tab-badge" style={{ background: "#fff0d8", color: "#a56a00" }}>{total}</span></button>
                     </div>
-                    <div className="pending-bulk-toolbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, padding: "12px 16px", minHeight: 64, boxSizing: "border-box", background: "#f8fbff", borderBottom: "1px solid #e2eaf3" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 190, color: "#526b88", fontSize: 13 }}>
+                    <div className="pending-bulk-toolbar">
+                        <div className="pending-bulk-summary" style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 190, color: "#526b88", fontSize: 13 }}>
                             <span style={{ display: "grid", placeItems: "center", width: 30, height: 30, borderRadius: 9, background: selectedIds.length ? "#e2efff" : "#edf2f7", color: selectedIds.length ? "#1769aa" : "#64748b", fontWeight: 800, fontSize: 14 }}>{selectedIds.length}</span>
                             <span><strong style={{ color: "#244564" }}>{selectedIds.length} báo cáo</strong> được chọn</span>
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 10, marginLeft: "auto" }}>
+                        <div className="pending-bulk-buttons" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 10, marginLeft: "auto" }}>
                             <button type="button" onClick={() => openRejectDialog(selectedIds)} disabled={selectedIds.length === 0 || rejecting || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#e5a4a4" : "#e2e8f0", borderRadius: 9, padding: "0 16px", background: selectedIds.length ? "#fff" : "#f1f5f9", color: selectedIds.length ? "#b42323" : "#94a3b8", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", cursor: selectedIds.length && !rejecting && !loading ? "pointer" : "not-allowed", transition: "background .15s ease, border-color .15s ease" }}>{rejecting ? "Đang từ chối..." : `✕ Từ chối ${selectedIds.length}`}</button>
                             <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#1769aa" : "#cbd5e1", borderRadius: 9, padding: "0 18px", background: selectedIds.length ? "linear-gradient(135deg, #1976c9, #145da0)" : "#cbd5e1", color: "#fff", fontSize: 13, fontWeight: 750, whiteSpace: "nowrap", cursor: selectedIds.length && !bulkApproving && !loading ? "pointer" : "not-allowed", boxShadow: selectedIds.length ? "0 3px 8px rgba(23,105,170,.18)" : "none", transition: "background .15s ease, box-shadow .15s ease" }}>{bulkApproving ? `Đang duyệt ${bulkProgress.completed}/${bulkProgress.total}...` : `✓ Duyệt ${selectedIds.length}`}</button>
                         </div>
                     </div>
-                    <div className={`pending-table-wrap ${reports.length === 0 ? "pending-table-empty" : ""}`} style={{ overflowX: "auto" }}>
-                        <table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <div className={`pending-table-wrap ${reports.length === 0 ? "pending-table-empty" : ""}`} role="region" aria-label="Bảng báo cáo chờ duyệt, có thể cuộn ngang" tabIndex={0} style={{ overflowX: "auto" }}>
+                        <table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}><caption className="pending-table-caption">Danh sách báo cáo sản xuất chờ duyệt</caption>
                             <thead><tr><th className="select-col"><input type="checkbox" aria-label="Chọn tất cả báo cáo trên trang này" checked={allVisibleSelected} onChange={toggleVisibleSelection} disabled={loading || reports.length === 0} /></th><th className="view-col">Xem</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian</th><th>% HV</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% đạt</th><th>% PP</th><th>Trạng thái</th></tr></thead>
                             <tbody>
                                 {loading ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={15} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}><div role="alert">{error}</div><button type="button" onClick={() => void load()} disabled={loading} style={{ marginTop: 12, minHeight: 40, padding: "8px 16px", border: "1px solid #c24141", borderRadius: 8, background: "#fff", color: "#9f2828", fontWeight: 700, cursor: "pointer" }}>Thử tải lại</button></td></tr> : reports.length === 0 ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
@@ -346,11 +346,11 @@ export default function Reports() {
                 </aside>}
             </div>
         {rejectDialogOpen && <div role="presentation" onClick={e => { if (e.target === e.currentTarget && !rejecting) setRejectDialogOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,35,60,.42)", display: "grid", placeItems: "center", padding: 16 }}>
-            <section role="dialog" aria-modal="true" aria-labelledby="reject-dialog-title" style={{ width: "min(100%, 480px)", background: "#fff", borderRadius: 14, boxShadow: "0 20px 60px rgba(15,35,60,.25)", padding: 22 }}>
+            <section className="pending-reject-dialog" role="dialog" aria-modal="true" aria-labelledby="reject-dialog-title" style={{ width: "min(100%, 480px)", background: "#fff", borderRadius: 14, boxShadow: "0 20px 60px rgba(15,35,60,.25)", padding: 22 }}>
                 <h2 id="reject-dialog-title" style={{ margin: "0 0 6px", color: "#12385f", fontSize: 20 }}>Từ chối báo cáo</h2>
                 <p style={{ margin: "0 0 16px", color: "#526b88", fontSize: 13 }}>Đang chọn <strong>{rejectTargetIds.length}</strong> báo cáo. Chọn lý do trước khi xác nhận.</p>
-                <label style={{ display: "block", fontSize: 13, color: "#244564", marginBottom: 6, fontWeight: 700 }}>Lý do từ chối <span style={{ color: "#b42323" }}>*</span></label>
-                <select value={rejectReason} onChange={e => setRejectReason(e.target.value)} disabled={rejecting} style={{ width: "100%", minHeight: 40, border: "1px solid #cbd9e8", borderRadius: 8, padding: "8px 10px", background: "#fff", color: "#244564" }}>
+                <label htmlFor="pending-reject-reason" style={{ display: "block", fontSize: 13, color: "#244564", marginBottom: 6, fontWeight: 700 }}>Lý do từ chối <span style={{ color: "#b42323" }}>*</span></label>
+                <select id="pending-reject-reason" value={rejectReason} onChange={e => setRejectReason(e.target.value)} disabled={rejecting} style={{ width: "100%", minHeight: 40, border: "1px solid #cbd9e8", borderRadius: 8, padding: "8px 10px", background: "#fff", color: "#244564" }}>
                     <option value="">-- Chọn lý do --</option>
                     <option value="Thiếu công đoạn hoặc sản phẩm để tra định mức">Thiếu công đoạn hoặc sản phẩm để tra định mức</option>
                     <option value="Sai công đoạn hoặc sản phẩm">Sai công đoạn hoặc sản phẩm</option>
@@ -360,8 +360,8 @@ export default function Reports() {
                     <option value="Báo cáo bị trùng">Báo cáo bị trùng</option>
                     <option value="Khác">Khác</option>
                 </select>
-                {rejectReason === "Khác" && <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Nhập lý do từ chối cụ thể..." rows={3} disabled={rejecting} style={{ width: "100%", boxSizing: "border-box", marginTop: 10, border: "1px solid #cbd9e8", borderRadius: 8, padding: 10, resize: "vertical" }} />}
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+                {rejectReason === "Khác" && <textarea aria-label="Lý do từ chối cụ thể" value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Nhập lý do từ chối cụ thể..." rows={3} disabled={rejecting} style={{ width: "100%", boxSizing: "border-box", marginTop: 10, border: "1px solid #cbd9e8", borderRadius: 8, padding: 10, resize: "vertical" }} />}
+                <div className="pending-reject-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
                     <button type="button" onClick={() => setRejectDialogOpen(false)} disabled={rejecting} style={{ border: "1px solid #cbd9e8", borderRadius: 8, padding: "9px 14px", background: "#fff", color: "#526b88" }}>Hủy</button>
                     <button type="button" onClick={() => void rejectTargets()} disabled={rejecting || loading || Boolean(error) || !rejectReason || (rejectReason === "Khác" && !rejectNote.trim())} style={{ border: 0, borderRadius: 8, padding: "9px 14px", background: rejecting || !rejectReason || (rejectReason === "Khác" && !rejectNote.trim()) ? "#cbd5e1" : "#b42323", color: "#fff", fontWeight: 700 }}>{rejecting ? "Đang từ chối..." : `Xác nhận từ chối ${rejectTargetIds.length} báo cáo`}</button>
                 </div>
