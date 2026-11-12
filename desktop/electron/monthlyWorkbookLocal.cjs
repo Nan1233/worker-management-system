@@ -1,6 +1,6 @@
 const ExcelJS = require('exceljs');
 const { createPhysicalMachineMetadata } = require('./monthlyWorkbookPhysicalEvents.cjs');
-const { FORMS: ORIGINAL_KTC_FORMS, renderOriginalProcessTemplate } = require('./originalProcessExcelTemplate.cjs');
+const { FORMS: ORIGINAL_KTC_FORMS, WORKBOOK1_FORMS, renderOriginalProcessTemplate } = require('./originalProcessExcelTemplate.cjs');
 const { calculateProductionMetrics, DEFAULT_SETTINGS, trainingFactor, calculateNg } = require('./productionCalculationEngine.cjs');
 const { EXCEL_SYNC_CONTRACT_VERSION } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs') : '../../shared/excelSyncContract.cjs');
 
@@ -1267,7 +1267,7 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
 
   const yearMonth = String(payload.yearMonth || date || '').slice(0, 7);
   const processData = payload.processes?.[code] || {};
-  if (ORIGINAL_KTC_FORMS[code]) {
+  if (WORKBOOK1_FORMS[code] || ORIGINAL_KTC_FORMS[code]) {
     const original = await renderOriginalProcessTemplate({
       ExcelJS, code, processData, yearMonth, settings: formulaSettingsFor(payload,code),
       helpers: { sortReports, dateKey, processDetailTypes, reportSnapshot, settingsForReport,
@@ -1284,7 +1284,7 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
     }
     return {buffer, result:original.result, processCode:code, processName:config.title,
       fileName:processWorkbookFileName(code,date,payload), formulaReplacementCount:0,
-      templateKind:"original-company", columnContract:{cols:originalCols}};
+      templateKind:WORKBOOK1_FORMS[code] ? "workbook1-sheet" : "original-company", columnContract:{cols:originalCols}};
   }
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'KTC Production Control';
