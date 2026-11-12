@@ -12,6 +12,9 @@ type AccessType = "worker" | "management";
 interface LoginResultShape { user?: User; data?: { user?: User } }
 const CROSS_TAB_LOGIN_MARKER_KEY = "ktcCrossTabAuthInvalidated";
 const REMEMBERED_CODE_KEY = "ktc_login_code";
+// Remembering the code is optional; storage quota/security errors must never block login.
+const readRememberedCode = (): string => { try { return localStorage.getItem(REMEMBERED_CODE_KEY) || ""; } catch { return ""; } };
+const persistRememberedCode = (code: string, remember: boolean): void => { try { if (remember) localStorage.setItem(REMEMBERED_CODE_KEY, code); else localStorage.removeItem(REMEMBERED_CODE_KEY); } catch { /* Login remains successful even if browser storage is unavailable/full. */ } };
 const LOGIN_LOGO_URL = "/ktc-hanoi-logo.png";
 const LOGIN_LOGO_FALLBACK_URL = "https://raw.githubusercontent.com/Nan1233/worker-management-system/main/frontend/public/ktc-hanoi-logo.png";
 const homeByRole: Record<UserRole, string> = { admin: "/admin", admin_ops: "/admin-ops", manager: "/manager", lead: "/lead", worker: "/worker" };
@@ -21,7 +24,7 @@ function Login() {
     const navigate = useNavigate();
     const initializedRef = useRef(false);
     const loginInFlightRef = useRef(false);
-    const [username, setUsername] = useState(() => localStorage.getItem(REMEMBERED_CODE_KEY) || "");
+    const [username, setUsername] = useState(readRememberedCode);
     const [password, setPassword] = useState("");
     const [step, setStep] = useState<LoginStep>("employee-code");
     const [, setAccessType] = useState<AccessType | null>(null);
@@ -72,7 +75,7 @@ function Login() {
             const result = await login(loginUsername, type, password) as unknown as LoginResultShape;
             const user = result?.user || result?.data?.user;
             if (!user?.role) throw new Error("Đăng nhập thành công nhưng máy chủ không trả về thông tin tài khoản.");
-            if (rememberAccount) localStorage.setItem(REMEMBERED_CODE_KEY, rawUsername); else localStorage.removeItem(REMEMBERED_CODE_KEY);
+            persistRememberedCode(rawUsername, rememberAccount);
             const redirectAfterLogin = sessionStorage.getItem("redirectAfterLogin"); sessionStorage.removeItem("redirectAfterLogin");
             // Only restore an internal route belonging to the authenticated role.
             // Never use arbitrary external, protocol-relative or cross-role paths.
