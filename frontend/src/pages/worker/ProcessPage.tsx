@@ -33,10 +33,7 @@ import type {
 import {
     resolveProductStandard
 } from "../../services/masterDataService";
-import type {
-    MachineOption,
-    ProductStandardOption
-} from "../../services/masterDataService";
+import type { ProductStandardOption } from "../../services/masterDataService";
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
@@ -133,7 +130,7 @@ import {
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
-import { getCachedMachines } from "../../services/masterDataCache";
+import { useRelatedGrindingMachines } from "./useRelatedGrindingMachines";
 
 import type {
     DeductionKey,
@@ -232,39 +229,7 @@ function ProcessPage() {
         loadingMasterData,
     } = useProcessMasterData(processInfo.id, processCode);
 
-    const [relatedMaiMachines, setRelatedMaiMachines] = useState<MachineOption[]>([]);
-    const [loadingRelatedMaiMachines, setLoadingRelatedMaiMachines] = useState(false);
-
-    useEffect(() => {
-        let active = true;
-        if (processCode !== "DO") {
-            setRelatedMaiMachines([]);
-            setLoadingRelatedMaiMachines(false);
-            return () => { active = false; };
-        }
-        setLoadingRelatedMaiMachines(true);
-        void getCachedMachines(2)
-            .then((machines) => {
-                if (!active) return;
-                setRelatedMaiMachines(machines.filter((machine) => String(machine.machine_code || "").trim()));
-            })
-            .catch(() => {
-                if (active) setRelatedMaiMachines([]);
-            })
-            .finally(() => {
-                if (active) setLoadingRelatedMaiMachines(false);
-            });
-        return () => { active = false; };
-    }, [processCode]);
-
-    const extraFieldOptions = useMemo(() => ({
-        grinding_machine_no: relatedMaiMachines.map((machine) => ({
-            value: machine.machine_code,
-            label: machine.machine_name
-                ? `${machine.machine_code} — ${machine.machine_name}`
-                : machine.machine_code,
-        })),
-    }), [relatedMaiMachines]);
+    const { extraFieldOptions, loadingRelatedMaiMachines } = useRelatedGrindingMachines(processCode);
 
     useEffect(() => {
         masterDataRequestSeqRef.current += 1;
