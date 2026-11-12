@@ -45,8 +45,8 @@ function boundWorkbook1ConditionalFormats(sheet, firstDataRow, dataRows) {
     ? sheet.conditionalFormattings.slice() : [];
   const byColumn = new Map();
   for (const entry of originals) {
-    for (const segment of String(entry.ref || "").split(/\\s+/)) {
-      const match = /^([A-Z]{1,3})(\\d+)(?::([A-Z]{1,3})(\\d+))?$/.exec(segment);
+    for (const segment of String(entry.ref || "").split(/\s+/)) {
+      const match = /^([A-Z]{1,3})(\d+)(?::([A-Z]{1,3})(\d+))?$/.exec(segment);
       if (!match) continue;
       const [, beginCol, beginText, endCol = beginCol, endText = beginText] = match;
       if (beginCol !== endCol || Number(endText) < firstDataRow) continue;
@@ -76,7 +76,7 @@ function boundWorkbook1ConditionalFormats(sheet, firstDataRow, dataRows) {
       for (const rule of rules) {
         if (rule.type !== "expression" || !Array.isArray(rule.formulae)) continue;
         rule.formulae = rule.formulae.map(formula => String(formula).replace(
-          /(?<![A-Z0-9_])([A-Z]{1,3})(\\d+)(?![A-Z0-9_])/g,
+          /(?<![A-Z0-9_])([A-Z]{1,3})(\d+)(?![A-Z0-9_])/g,
           (match,col,number) => {
             const target=Number(number)+offset;
             return target>0 ? col+target : match;
