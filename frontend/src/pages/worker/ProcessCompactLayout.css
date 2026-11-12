@@ -111,25 +111,6 @@
 
 }
 
-@media (max-width: 380px) {
-  .worker-form-page .worker-time-grid,
-  .worker-form-page .worker-quality-summary {
-    gap: 10px 8px !important;
-  }
-
-  .worker-form-page .worker-time-item input,
-  .worker-form-page .worker-quality-card input {
-    height: 36px !important;
-    min-height: 36px !important;
-  }
-
-  .worker-form-page .machine-line .machine-section-title,
-  .worker-form-page .machine-line .worker-field-label,
-  .worker-form-page .machine-line .worker-field-block > label {
-    font-size: 9.5px !important;
-  }
-}
-
 /* Mobile machine-line typography (consolidated from ProcessTypographyFix.css). */
 @media (max-width: 800px) {
   .worker-form-page .machine-line .machine-section-title,
@@ -165,5 +146,25 @@
   .worker-form-page .machine-line .machine-line-total,
   .worker-form-page .machine-line .machine-deduction-option {
     font-size: 10px !important;
+  }
+}
+
+/* Keep narrow-screen overrides last so the 800px typography rules cannot mask them. */
+@media (max-width: 380px) {
+  .worker-form-page .worker-time-grid,
+  .worker-form-page .worker-quality-summary {
+    gap: 10px 8px !important;
+  }
+
+  .worker-form-page .worker-time-item input,
+  .worker-form-page .worker-quality-card input {
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+
+  .worker-form-page .machine-line .machine-section-title,
+  .worker-form-page .machine-line .worker-field-label,
+  .worker-form-page .machine-line .worker-field-block > label {
+    font-size: 9.5px !important;
   }
 }
