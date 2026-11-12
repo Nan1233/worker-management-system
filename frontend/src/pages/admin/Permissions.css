@@ -13,3 +13,16 @@
 .module-row td{background:var(--ktc-surface-muted,#f3f7fb)!important;color:var(--ktc-ink-700,#42617f)}
 .permission-user-grid label.is-disabled,.permission-user-grid select:disabled{background:var(--ktc-surface-muted,#f8fafc);color:var(--ktc-ink-500,#8b98a6)}
 @media(max-width:560px){.permission-table-wrap table{min-width:760px}.permission-table-wrap td:first-child{min-width:240px}}
+
+/* Editable permissions matrix with visible per-action feedback. */
+.permission-page .permission-refresh,.permission-page .permission-feedback button{min-height:38px;padding:8px 12px;border:1px solid #cbd7e6;border-radius:9px;background:var(--ktc-surface,#fff);color:#245f9f;font-weight:650;cursor:pointer}
+.permission-page .permission-feedback{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;border-radius:9px;border:1px solid #b8d2ed;background:#f1f8ff;color:#24547d}
+.permission-page .permission-feedback.success{border-color:#a3d9bf;background:#f2fbf6;color:#176548}
+.permission-page .permission-feedback.error{border-color:#eab9b9;background:#fff5f5;color:#a32929}
+.permission-page .permission-feedback.working{color:#526b88}
+.permission-page .permission-search{min-height:38px;min-width:190px;max-width:100%;flex:1 1 210px;border:1px solid #cbd7e6;border-radius:8px;padding:8px 12px;background:var(--ktc-surface,#fff);color:inherit}
+.permission-page .permission-table-wrap{overscroll-behavior-x:contain;max-height:65vh}
+.permission-page .permission-table-caption{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.permission-page button:disabled,.permission-page select:disabled{opacity:.65;cursor:not-allowed}
+.permission-page button:focus-visible,.permission-page input:focus-visible,.permission-page select:focus-visible,.permission-page .permission-table-wrap:focus-visible{outline:2px solid #1769d2;outline-offset:2px}
+@media(max-width:760px){.permission-page .permission-header{align-items:stretch;flex-wrap:wrap}.permission-page .permission-refresh{width:100%}.permission-page .permission-card-head{flex-wrap:wrap;padding:14px}.permission-page .permission-search{flex-basis:100%}.permission-page .permission-table-wrap{max-height:60vh}.permission-page .permission-user-grid label{grid-template-columns:minmax(0,1fr);gap:8px}.permission-page .permission-user-grid select,.permission-page .permission-table-wrap select{font-size:16px}}
