@@ -335,6 +335,36 @@ function mergeProcessData(rows) {
   return merged;
 }
 
+function gcSplitMetadata(report) {
+  const value = report?.extra_data ?? report?.extraData ?? report?.rawDetail?.extra_data;
+  if (value && typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) || {}; } catch (_) { return {}; }
+  }
+  return {};
+}
+
+// Remove only verified split parents. Never divide historical machine totals.
+function filterVerifiedGcSplitParents(reports) {
+  const byId = new Map(reports.map((report) => [String(report?.id), report]));
+  return reports.filter((report) => {
+    const extra = gcSplitMetadata(report);
+    if (extra.split_status !== 'SPLIT_PARENT') return true;
+    const childIds = extra.split_into_report_ids;
+    if (!Array.isArray(childIds) || !childIds.length) return true;
+    const children = childIds.map((id) => byId.get(String(id)));
+    if (children.some((child) => !child)) return true;
+    if (children.some((child) => String(gcSplitMetadata(child).split_from_report_id) !== String(report.id))) return true;
+    for (const key of ['tt_ok', 'tt_ng']) {
+      const parentValue = Number(report[key]);
+      const childValues = children.map((child) => Number(child[key]));
+      if (!Number.isFinite(parentValue) || childValues.some((value) => !Number.isFinite(value))) return true;
+      if (Math.abs(childValues.reduce((sum, value) => sum + value, 0) - parentValue) > 0.000001) return true;
+    }
+    return false;
+  });
+}
+
 async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
   if (!payload || payload.dataSource !== 'tidb.production_reports.approved') {
     throw new Error('Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
@@ -344,6 +374,9 @@ async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
   for (const item of sourceRows) {
     const processData = item.data || {};
     hydrateReportDetails(processData);
+    if (item.processCode === 'GC' && Array.isArray(processData.reports)) {
+      processData.reports = filterVerifiedGcSplitParents(processData.reports);
+    }
     const reports = Array.isArray(processData.reports) ? processData.reports : [];
     for (const report of reports) {
       if (report?.dataSource !== 'production_reports' || report?.isApprovedDatabaseRecord !== true) {
