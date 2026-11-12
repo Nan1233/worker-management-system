@@ -246,7 +246,7 @@ const machineAutocompleteOptions =
 
             machineOptions.map(
                 (
-                    machine: MachineOption
+                    machine: (typeof machineOptions)[number]
                 ) => ({
 
                     value:
@@ -1307,7 +1307,7 @@ const updateDeductionValue = (
         const relatedGrindingMachine = String(extraData.grinding_machine_no || "").trim();
         if (processCode === "DO" && relatedGrindingMachine) {
             if (loadingRelatedMaiMachines) return "Đang tải danh mục máy Mài, vui lòng chờ";
-            if (!relatedMaiMachines.some((machine) => machine.machine_code.trim().toUpperCase() === relatedGrindingMachine.toUpperCase())) {
+            if (!extraFieldOptions.grinding_machine_no.some((machine) => machine.value.trim().toUpperCase() === relatedGrindingMachine.toUpperCase())) {
                 return "Máy Mài liên quan không còn trong danh mục hoạt động. Vui lòng chọn lại";
             }
         }

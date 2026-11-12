@@ -22,7 +22,7 @@ function ReportDownload() {
     const openFolder = async () => {
         try {
             if (!canOpenFolder) { setMessage("Ứng dụng Desktop chưa hỗ trợ mở thư mục xuất. Hãy kiểm tra cài đặt Desktop."); return; }
-            await window.ktcDesktop.openExportFolder!();
+            await window.ktcDesktop?.openExportFolder?.();
             setMessage("Đã gửi yêu cầu mở thư mục xuất Excel.");
         } catch {
             setMessage("Không mở được thư mục xuất Excel.");
