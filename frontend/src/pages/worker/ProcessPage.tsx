@@ -92,7 +92,7 @@ import {
     getMachineNgTotal,
     getMaxMachineCount,
 } from "./processMachineLines";
-import { validateMachineLines } from "./processPageValidation";
+import { validateMachineLines, validateSharedReportNumbers } from "./processPageValidation";
 import { focusProcessValidationTarget } from "./processValidationFocus";
 import {
     calculateDeductionTimeSummary,
@@ -478,6 +478,7 @@ const machineAutocompleteOptions =
         submitting,
         setSubmitting
     ] = useState(false);
+    const [submitValidationError, setSubmitValidationError] = useState("");
 
     const {
         duplicatePrompt,
@@ -1130,6 +1131,7 @@ const updateDeductionValue = (
     // =====================================================
 
     const validateForm = (): string => {
+        if (loadingMasterData) return "Danh mục sản phẩm, máy hoặc lỗi NG đang tải. Vui lòng chờ hoàn tất.";
         if (
             loadingWorker
         ) {
@@ -1160,13 +1162,19 @@ const updateDeductionValue = (
         if (workDateError) return workDateError;
 
 
-        if (
-            !form.shift
-        ) {
-
-            return "Vui lòng chọn ca làm việc";
-
+        if (!["A", "B", "C", "D"].includes(String(form.shift || "").trim().toUpperCase())) {
+            return "Ca làm việc phải thuộc A, B, C hoặc D";
         }
+        const sharedError = validateSharedReportNumbers({
+            form,
+            deductions,
+            activeNgOptions,
+            selectedNg,
+            selectedDeduction,
+            usesMachineLineAccounting,
+            isCvkMode,
+        });
+        if (sharedError) return sharedError;
 
 
         if (!isCvkMode && !usesMultiMachineLines) {
@@ -1213,8 +1221,8 @@ const updateDeductionValue = (
 
 
         if (!usesMachineLineAccounting) {
-            if (parseFlexibleTime(form.actualTime) <= 0) {
-                return "Thời gian làm việc thực tế phải lớn hơn 0";
+            if (!Number.isFinite(parseFlexibleTime(form.actualTime)) || parseFlexibleTime(form.actualTime) <= 0) {
+                return "Thời gian làm việc thực tế phải là số hợp lệ lớn hơn 0";
             }
 
             if (Number(form.actualMinutes || 0) > 59) {
@@ -1223,11 +1231,14 @@ const updateDeductionValue = (
 
             const actualMinutes = Math.round(parseFlexibleTime(form.actualTime) * 60);
             const deductionMinutes = Math.round(parseFlexibleTime(form.deductionTime) * 60);
+            if (!Number.isFinite(deductionMinutes) || deductionMinutes < 0) {
+                return "Thời gian trừ không hợp lệ";
+            }
             if (actualMinutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) {
                 return "Thời gian thực tế + thời gian trừ không được vượt quá 12 giờ";
             }
-            if (parseFlexibleTime(form.totalTime) > 12) {
-                return "Tổng thời gian không được vượt quá 12 giờ";
+            if (!Number.isFinite(parseFlexibleTime(form.totalTime)) || parseFlexibleTime(form.totalTime) < 0 || parseFlexibleTime(form.totalTime) > 12) {
+                return "Tổng thời gian phải từ 0 đến 12 giờ";
             }
         }
 
@@ -1321,6 +1332,7 @@ const updateDeductionValue = (
             const validationMessage = validateForm();
 
             if (validationMessage) {
+                setSubmitValidationError(validationMessage);
                 showToast(validationMessage, "warning");
                 focusValidationTarget(validationMessage);
                 return;
@@ -1328,6 +1340,7 @@ const updateDeductionValue = (
 
 
             if (submitLockRef.current) return;
+            setSubmitValidationError("");
             submitLockRef.current = true;
             clientRequestIdRef.current ||= createClientRequestId();
 
@@ -1451,6 +1464,7 @@ const updateDeductionValue = (
             showToast("Một phần báo cáo đã gửi thành công. Hãy gửi nốt phần còn lại trước khi làm mới biểu mẫu.", "warning");
             return;
         }
+        if (submitLockRef.current || submitting) return;
         const hasEnteredData = Boolean(
             form.productName.trim()
             || form.machineNo.trim()
@@ -1508,6 +1522,9 @@ const updateDeductionValue = (
         }));
 
 
+        setSubmitValidationError("");
+        clientRequestIdRef.current = null;
+        duplicateForceRequestIdRef.current = null;
         setDeductions(
             initialDeduction
         );
@@ -1664,10 +1681,16 @@ const updateDeductionValue = (
                 />
                 )}
 
+                {submitValidationError && <div className="worker-submit-validation-error" role="alert">
+                    <strong>Chưa thể nộp báo cáo</strong>
+                    <span>{submitValidationError}</span>
+                    <button type="button" onClick={() => setSubmitValidationError("")} aria-label="Đóng thông báo kiểm tra">×</button>
+                </div>}
                 <ProcessSubmitActions
                 duplicatePrompt={duplicatePrompt}
                 submitting={submitting}
                 loadingWorker={loadingWorker}
+                loadingMasterData={loadingMasterData}
                 onCancelDuplicate={() => {
                     if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
                         showToast("Một phần báo cáo đã gửi thành công. Vui lòng thử lại để gửi nốt các báo cáo còn lại trước khi thoát.", "warning");

@@ -87,7 +87,8 @@
 }
 
 @media (max-width: 380px) {
-  .worker-form-page .worker-card-title { font-size: 14px !important; }
+  .worker-form-page .worker-card-title,
+  .worker-form-page .worker-card-heading .worker-card-title { font-size: 14px !important; }
   .worker-form-page .worker-field-label,
   .worker-form-page .worker-field-block > label,
   .worker-form-page .machine-section-title { font-size: 10.5px !important; }

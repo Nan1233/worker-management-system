@@ -168,3 +168,44 @@
     font-size: 9.5px !important;
   }
 }
+
+/* Shared across all nine worker process forms: visible blocking errors and touch affordances. */
+.worker-form-page .worker-submit-validation-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0 10px;
+  padding: 12px 14px;
+  border: 1px solid #eab9b9;
+  border-radius: 10px;
+  background: #fff6f6;
+  color: #992f2f;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.worker-form-page .worker-submit-validation-error strong { flex: 0 0 100%; font-weight: 750; }
+.worker-form-page .worker-submit-validation-error span { flex: 1 1 200px; }
+.worker-form-page .worker-submit-validation-error button {
+  min-width: 34px; min-height: 34px; border-radius: 7px;
+  border: 1px solid #eab9b9; background: #fff; color: inherit; cursor: pointer;
+}
+.worker-form-page .worker-action-group[aria-busy="true"] { opacity: .85; }
+.worker-form-page button:focus-visible,
+.worker-form-page input:focus-visible,
+.worker-form-page select:focus-visible,
+.worker-form-page textarea:focus-visible { outline: 2px solid #176fe8; outline-offset: 2px; }
+@media (max-width: 800px) {
+  .worker-form-page .worker-submit-validation-error { margin: 12px 0; }
+  .worker-form-page .worker-action-buttons button { min-height: 44px; }
+  .worker-form-page .duplicate-dialog { max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+  .worker-form-page .duplicate-dialog-actions { flex-wrap: wrap; gap: 9px; }
+  .worker-form-page .duplicate-dialog-actions button { min-height: 44px; flex: 1 1 145px; white-space: normal; }
+  .worker-form-page .worker-dropdown-option { overflow-wrap: anywhere; }
+}
+@media (max-width: 420px) {
+  .worker-form-page .worker-submit-validation-error { padding: 10px 12px; }
+  .worker-form-page .worker-action-buttons { flex-wrap: wrap; }
+  .worker-form-page .worker-action-buttons button { flex: 1 1 135px; }
+}

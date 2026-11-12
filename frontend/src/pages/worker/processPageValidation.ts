@@ -2,6 +2,54 @@ import type { MachineLineState } from "./processPageConfig";
 import { DEFAULT_MACHINE_REPORT_LINE_LIMIT, getMaxMachineCount } from "./processMachineLines";
 
 const normalizeProduct = (value: unknown): string => String(value ?? "").trim().toUpperCase();
+/** Common numeric invariants for GC, MAI, DO, K1, K2, CAN, EP, XLBV and SX3.
+ * Machine-row totals are validated separately so shared machines are not double counted.
+ */
+export function validateSharedReportNumbers(args: {
+  form: { [key:string]:string; ttOk:string; ttNg:string; actualOutput:string; standardOutput:string };
+  deductions: Record<string,string>;
+  activeNgOptions: Array<{ key:string }>;
+  selectedNg: string[];
+  selectedDeduction: string[];
+  usesMachineLineAccounting: boolean;
+  isCvkMode: boolean;
+}): string | null {
+  const {form,deductions,activeNgOptions,selectedNg,selectedDeduction,usesMachineLineAccounting,isCvkMode}=args;
+  const nonNegativeInteger=(value:unknown)=>{
+    const raw=String(value??"").trim();
+    if(!raw)return true;
+    const n=Number(raw);
+    return /^\d+$/.test(raw) && Number.isSafeInteger(n) && n>=0;
+  };
+  if(!nonNegativeInteger(form.ttOk)||!nonNegativeInteger(form.ttNg))
+    return "Sản lượng OK và NG phải là số nguyên không âm.";
+  if(!nonNegativeInteger(form.actualOutput))
+    return "Tổng sản lượng phải là số nguyên không âm.";
+  for(const option of activeNgOptions){
+    const key=option.key;
+    if(!nonNegativeInteger(form[key]))return `Lỗi NG (${key}) phải là số nguyên không âm.`;
+  }
+  for(const key of selectedNg){
+    if(!activeNgOptions.some(option=>option.key===key))return "Danh mục lỗi NG đã thay đổi. Vui lòng chọn lại loại lỗi.";
+  }
+  for(const key of selectedDeduction){
+    if(!(key in deductions))return "Danh mục thời gian trừ đã thay đổi. Vui lòng chọn lại.";
+  }
+  if(!usesMachineLineAccounting){
+    for(const [key,value] of Object.entries(deductions)){
+      const raw=String(value??"").trim();
+      if(!raw)continue;
+      const n=Number(raw.replace(",","."));
+      if(!Number.isFinite(n)||n<0)return `Thời gian trừ (${key}) phải là số không âm.`;
+    }
+  }
+  if(!isCvkMode){
+    const standard=Number(String(form.standardOutput??"").replace(",","."));
+    if(!Number.isFinite(standard)||standard<=0)return "Định mức phải là số dương hợp lệ.";
+  }
+  return null;
+}
+
 
 export function validateMachineLines(args: {
   processCode?: string;
@@ -51,13 +99,15 @@ export function validateMachineLines(args: {
     const ngRaw = String(line.ngQuantity ?? "").trim();
     const okValue = okRaw === "" ? 0 : Number(okRaw);
     const ngValue = ngRaw === "" ? 0 : Number(ngRaw);
-    if (!Number.isInteger(okValue) || okValue < 0 || !Number.isInteger(ngValue) || ngValue < 0) {
+    if (!/^\d*$/.test(okRaw) || !/^\d*$/.test(ngRaw) ||
+        !Number.isSafeInteger(okValue) || okValue < 0 || !Number.isSafeInteger(ngValue) || ngValue < 0) {
       return `${machineLabel}: OK và NG phải là số nguyên không âm`;
     }
     if (machineCode) {
       const hours = Number(line.hours || 0);
       const minutes = Number(line.minutes || 0);
-      if (!Number.isFinite(hours) || hours < 0 || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) {
+      if (!Number.isFinite(hours) || !Number.isInteger(hours) || hours < 0 || hours > 12 ||
+          !Number.isInteger(minutes) || minutes < 0 || minutes > 59) {
         return `${machineLabel}: giờ phải không âm và phút phải từ 0 đến 59`;
       }
       const deductionValues = Object.values(line.deductions || {});
@@ -84,8 +134,12 @@ export function validateMachineLines(args: {
     // returns false for an empty machine.
     if (machineCode && ["GC", "MAI", "DO", "CAN", "EP", "K1", "K2", "XLBV", "SX3"].includes(String(args.processCode || "").trim().toUpperCase())) {
       const ng = Math.max(0, Math.trunc(Number(line.ngQuantity) || 0));
-      // KQSX is derived from OK + NG; workers no longer enter it separately.
-      const defectTotal = Object.values(line.defects || {}).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0);
+      // Reject invalid defect counts rather than truncating silently.
+      if (Object.values(line.defects || {}).some(value => {
+        const raw=String(value??"").trim();
+        return raw!=="" && (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw)));
+      })) return `Máy ${machineCode}: số lượng từng lỗi NG phải là số nguyên không âm`;
+      const defectTotal = Object.values(line.defects || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
       if (defectTotal !== ng) return `Máy ${machineCode || "đang chọn"}: tổng chi tiết lỗi (${defectTotal}) phải bằng NG (${ng})`;
     }
     if (!args.allowZeroQuantity && Math.max(0, Number(line.okQuantity) || 0) + Math.max(0, Number(line.ngQuantity) || 0) <= 0) return `${machineLabel}: phải nhập OK hoặc NG lớn hơn 0`;
