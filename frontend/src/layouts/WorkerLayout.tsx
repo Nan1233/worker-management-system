@@ -30,7 +30,7 @@ export default function WorkerLayout() {
   const location = useLocation();
   const { can } = usePermissions();
   const { unreadCount } = useNotificationBadge(can("NOTIFICATION_VIEW"));
-  const visible = items.filter((item) => !item.permission || can(item.permission));
+  const visible = desktopItems.filter((item) => !item.permission || can(item.permission));
   const desktopVisible = desktopItems.filter((item) => !item.permission || can(item.permission));
   const user = getStoredUser();
   const displayName = user?.full_name || "Công nhân";
@@ -79,6 +79,7 @@ export default function WorkerLayout() {
 
       <section className="worker-main">
         <header className="worker-header">
+          <button className="worker-header-home" type="button" onClick={() => navigate("/worker")} aria-label="Về trang chủ"><img src="/ktc-hanoi-logo.png" alt="KTC HANOI" /></button>
           <div className="worker-header-spacer" />
           {can("NOTIFICATION_VIEW")&&<button type="button" className="worker-header-notification" onClick={() => navigate("/worker/notifications")} aria-label="Thông báo">
             <Bell size={20} />
