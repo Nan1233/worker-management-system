@@ -109,9 +109,17 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
       const cell=sheet.getCell(column+dataRow);
       assert.equal(cell.numFmt,'0.##%',code+' '+key+' is displayed as percent');
       assert.equal(cell.value,key==='achievement' ? 0.2 : 0.01,code+' '+key+' remains a numeric ratio');
-      assert.equal(cell.fill?.fgColor?.argb,key==='achievement' ? 'FFF4B084' : 'FFC6E0B4',
+      assert.equal(cell.fill?.fgColor?.argb,key==='achievement' ? 'FFFF5252' : 'FFC6E0B4',
         code+' '+key+' matches Gia công color thresholds');
     }
+    for (const col of [1,3,Math.min(sheet.columnCount,16)]) {
+      const header=sheet.getRow(form.header).getCell(col);
+      assert.equal(header.alignment?.horizontal,'center',code+' header centered horizontally');
+      assert.equal(header.alignment?.vertical,'middle',code+' header centered vertically');
+      assert.equal(header.alignment?.wrapText,true,code+' header wraps');
+    }
+    assert.ok(sheet.getColumn(4).width >= 'Nhân viên kiểm thử'.length+4,
+      code+' worker name fits without clipping');
     for (const position of [[form.header,1],[form.first-1,1],[dataRow,3],[dataRow,Math.max(...Object.keys(form.fields).map(c=>c.split('').reduce((n,v)=>n*26+v.charCodeAt(0)-64,0)))]]) {
       const cell=sheet.getRow(position[0]).getCell(position[1]);
       assert.equal(cell.font?.name,'Times New Roman',code+' font name '+position);
@@ -175,8 +183,8 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
   }
   // KTC's Gia công threshold colors are written to the data cell itself;
   // template CF must not override these fixed company-wide colors.
-  assert.equal(sheet.getCell('AJ3').fill?.fgColor?.argb,'FFF4B084');
-  assert.equal(sheet.getCell('AJ5').fill?.fgColor?.argb,'FFF4B084');
+  assert.equal(sheet.getCell('AJ3').fill?.fgColor?.argb,'FFFF5252');
+  assert.equal(sheet.getCell('AJ5').fill?.fgColor?.argb,'FFFF5252');
   assert.ok(!(sheet.conditionalFormattings||[]).some(entry=>/^AJ\\d/.test(String(entry.ref))),
     'No original MÀI %TT rule may override KTC shared palette');
 });
@@ -230,7 +238,7 @@ test('All six Workbook1 forms use Gia công percentage bands at thresholds',asyn
   const scenarios=[
     {achievement:1.00,ngRate:0.01,achievementColor:'FFC6E0B4',ngColor:'FFC6E0B4'},
     {achievement:0.90,ngRate:0.03,achievementColor:'FFFFE699',ngColor:'FFFFE699'},
-    {achievement:0.8999,ngRate:0.0301,achievementColor:'FFF4B084',ngColor:'FFF4B084'}
+    {achievement:0.8999,ngRate:0.0301,achievementColor:'FFFF5252',ngColor:'FFFF5252'}
   ];
   for (const [code,form] of cases) {
     const reports=scenarios.map((scenario,index)=>({
