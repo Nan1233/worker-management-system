@@ -631,10 +631,28 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
             longestData=Math.max(longestData,line.length);
         }
       }
-      // Header labels wrap instead of making the entire table extremely wide.
-      const requested=Math.max(Number(column.width)||0,longestData+4,
-        Math.min(longestHeaderWord+4,36),dateColumns.has(col)?16:0,12);
-      column.width=Math.min(255,Math.ceil(requested));
+      const sourceWidth=Number(column.width)||0;
+      if (col>=8) {
+        // H onward: preserve the company's width. Only enlarge when an
+        // ACTUAL report value will be clipped. Ignore the pink day separator,
+        // header text (which wraps), and blank styled cells.
+        let longestActual=0;
+        for (const rowNumber of workbook1DataRows) {
+          const cell=sheet.getRow(rowNumber).getCell(col);
+          if (cell.type===ExcelJS.ValueType.Merge)continue;
+          for (const line of visibleCellText(cell).split(/\n/))
+            longestActual=Math.max(longestActual,line.length);
+        }
+        const minimum=dateColumns.has(col)?16:0;
+        const required=longestActual ? longestActual+3 : 0;
+        if (required>sourceWidth || minimum>sourceWidth)
+          column.width=Math.min(255,Math.ceil(Math.max(sourceWidth,required,minimum)));
+      } else {
+        // A-G: allow normal content-based fitting, including header words.
+        const requested=Math.max(sourceWidth,longestData+4,
+          Math.min(longestHeaderWord+4,36),dateColumns.has(col)?16:0,12);
+        column.width=Math.min(255,Math.ceil(requested));
+      }
     }
     // Header alignment applies to every retained column and every header row.
     for (let rowNumber=1;rowNumber<=config.header;rowNumber++) {
