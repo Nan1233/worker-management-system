@@ -28,13 +28,9 @@
     display: none !important;
   }
 
-  .worker-form-page .worker-time-item input {
-    width: 100% !important;
-    min-height: 38px !important;
-    height: 38px !important;
-    padding: 0 10px !important;
-    font-size: 13px !important;
-  }
+  /* Time and quality inputs share the same mobile sizing. */
+  .worker-form-page .worker-time-item input,
+
 
   .worker-form-page .worker-time-parts {
     gap: 8px !important;
