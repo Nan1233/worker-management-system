@@ -333,15 +333,8 @@ const machineAutocompleteOptions =
         }
     }, [usesSingleMachine]);
 
-    // Cán và Ép chỉ cho phép một máy trong mỗi báo cáo, kể cả khi khôi phục bản nháp cũ.
-    const isSingleMachineReport = false;
-    const maxMachineCount = isSingleMachineReport ? 1 : getMaxMachineCount(processCode, machineLines, machineOptions);
-
-    useEffect(() => {
-        if (!isSingleMachineReport) return;
-        setMachineCount((current) => current === 1 ? current : 1);
-        setMachineLines((current) => current.length <= 1 ? current : current.slice(0, 1));
-    }, [isSingleMachineReport]);
+    // Machine-count limits are enforced by the shared domain helper.
+    const maxMachineCount = getMaxMachineCount(processCode, machineLines, machineOptions);
 
     useEffect(() => {
         if (machineCount > maxMachineCount) {
