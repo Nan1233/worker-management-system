@@ -9,6 +9,10 @@ const { WORKBOOK1_FORMS } = require('../electron/originalProcessExcelTemplate.cj
 
 const source = path.resolve(__dirname,'../../backend/templates/Workbook1.xlsx');
 const cases = Object.entries(WORKBOOK1_FORMS);
+const cellText = (cell) => {
+  const value=cell.value;
+  return String(value && typeof value === 'object' ? value.result ?? value.text ?? '' : value ?? '').trim();
+};
 test('Workbook1.xlsx is the one approved source for all six process sheets', async () => {
   assert.ok(fs.existsSync(source),'The six-sheet workbook must be checked into backend/templates');
   const original = new ExcelJS.Workbook();
@@ -17,7 +21,7 @@ test('Workbook1.xlsx is the one approved source for all six process sheets', asy
     assert.equal(form.file,'Workbook1.xlsx',code);
     const sheet = original.getWorksheet(form.sheet);
     assert.ok(sheet,'Missing source sheet for '+code);
-    assert.ok(String(sheet.getCell(form.header,1).value).trim().toUpperCase()==='STT',code+' header');
+    assert.ok(cellText(sheet.getCell(form.header,1)).toUpperCase()==='STT',code+' header');
   }
 });
 for (const [code,form] of cases) {
