@@ -139,6 +139,16 @@
   }
 }
 
+/* iOS Safari zooms focused form controls with text smaller than 16px.
+   Limit this adjustment to touch devices so desktop typography stays compact. */
+@media (max-width: 800px) and (hover: none) and (pointer: coarse) {
+  .worker-form-page input:not([type="checkbox"]):not([type="radio"]),
+  .worker-form-page select,
+  .worker-form-page textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Keep narrow-screen overrides last so the 800px typography rules cannot mask them. */
 @media (max-width: 380px) {
   .worker-form-page .worker-time-grid,
