@@ -82,9 +82,14 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     assert.equal(sheet.getCell(firstNgColumns[code]+dataRow).value,1,code+' coded NG');
     assert.equal(sheet.getCell('A'+(form.first-1)).value,'10/11/2026',code+' date separator');
     assert.equal(sheet.getColumn(2).hidden,true,code+' submission-time column hidden');
-    const expectedLastCol = form.defects
-      ? form.defects[1].split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)
-      : Math.max(...Object.keys(form.fields).map(c=>c.split('').reduce((n,v)=>n*26+v.charCodeAt(0)-64,0)));
+    const columnNumber = (letters) => letters.split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0);
+    // The last NG column is not always the rightmost valid column:
+    // ÉP keeps working time/note at AG:AH; CÁN keeps working time at AA.
+    const expectedLastCol = Math.max(
+      ...Object.keys(form.fields).map(columnNumber),
+      ...(form.defects ? [columnNumber(form.defects[1])] : []),
+      ...(form.deductions ? [columnNumber(form.deductions[1])] : [])
+    );
     assert.equal(sheet.columnCount,expectedLastCol,code+' no unused styled columns beyond last NG');
     // Inspect row models without creating a cell beyond the table edge.
     // ExcelJS may return undefined for a missing cell's hasStyle.
