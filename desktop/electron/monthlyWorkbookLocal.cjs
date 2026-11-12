@@ -1273,6 +1273,13 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
       helpers: { sortReports, dateKey, processDetailTypes, reportSnapshot, settingsForReport,
         parseExtraData, detailMap, reportDetailItems }, onTemplateLoaded
     });
+    if (code === 'GC' && WORKBOOK1_FORMS[code]) {
+      // Preserve the machine/manual editing helper for the new GC worksheet.
+      // Its row 6 references match Workbook1's row 5 date separator + first report.
+      const mappedColumns = Array.from({ length: Math.max(...original.mapping.map(x => x.index)) },
+        (_, index) => ({ key: original.mapping.find(field => field.index === index + 1)?.key || '' }));
+      addGcModeHelperSheet(original.workbook, original.sheet, processData, mappedColumns);
+    }
     addExcelDbSyncMetadata(original.workbook, code, config, processData, yearMonth, original.mapping);
     addPhysicalMachineEventsMetadata(original.workbook, processData);
     const buffer = Buffer.from(await original.workbook.xlsx.writeBuffer());
