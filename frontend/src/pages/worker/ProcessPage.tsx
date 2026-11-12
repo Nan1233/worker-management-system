@@ -131,6 +131,7 @@ import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
 import { useRelatedGrindingMachines } from "./useRelatedGrindingMachines";
 import { useProcessProductOptions } from "./useProcessProductOptions";
+import { filterProductsForSelection } from "./productSuggestionRules";
 
 import type {
     DeductionKey,
