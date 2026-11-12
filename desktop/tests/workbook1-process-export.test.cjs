@@ -41,3 +41,36 @@ for (const [code,form] of cases) {
     assert.equal(built.processCode,code);
   });
 }
+
+const defectCodes = { GC:'CAT01', MAI:'MAI_NG_01', DO:'DO_NG_01', XLBV:'XLBV01', EP:'EP01', CAN:'CAN01' };
+const firstNgColumns = { GC:'AI', MAI:'AP', DO:'AL', XLBV:'W', EP:'Q', CAN:'Q' };
+test('Workbook1 maps approved report rows and each process-specific coded NG column', async () => {
+  for (const [code,form] of cases) {
+    const defectCode = defectCodes[code];
+    const report = {
+      id:101, work_date:'2026-11-10', created_at:'2026-11-10T10:30:00',
+      worker_code:'49-001', full_name:'Nhân viên kiểm thử', shift:'A',
+      machine_no:'TEST-01', product_code:'P01', status:'approved',
+      dataSource:'production_reports', isApprovedDatabaseRecord:true,
+      calculationSnapshot: {
+        trainingFactor:1, standard:500, workingTime:12, actualTime:10,
+        deductionTime:2, ok:99, allNg:1, countedNg:1, enteredOutput:100,
+        adjustedOutput:100, outputPerHour:10, achievement:0.2, ngRate:0.01
+      },
+      defects:[{defect_type_code:defectCode, defect_type_name:defectCode, defect_quantity:1}],
+      deductions:[]
+    };
+    const built = await buildProcessWorkbookLocal({
+      date:'2026-11-01', processCode:code,
+      payload:{yearMonth:'2026-11',dataSource:'tidb.production_reports.approved',
+        processes:{[code]:{reports:[report]}}}
+    });
+    const exported = new ExcelJS.Workbook();
+    await exported.xlsx.load(built.buffer);
+    const sheet = exported.getWorksheet(form.sheet);
+    const dataRow = form.first+1;
+    assert.equal(sheet.getCell('C'+dataRow).value,'49-001',code+' employee');
+    assert.equal(sheet.getCell(firstNgColumns[code]+dataRow).value,1,code+' coded NG');
+    assert.equal(sheet.getCell('A'+form.first).value,'10/11/2026',code+' date separator');
+  }
+});
