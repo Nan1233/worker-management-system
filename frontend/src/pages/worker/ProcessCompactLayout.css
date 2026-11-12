@@ -86,14 +86,6 @@
     font-size: 9px !important;
   }
 
-  .worker-form-page .machine-line .machine-section-title,
-  .worker-form-page .machine-line .worker-field-label,
-  .worker-form-page .machine-line .worker-field-block > label {
-    font-size: 10px !important;
-    line-height: 1.25 !important;
-    font-weight: 650 !important;
-  }
-
   .worker-form-page .machine-line .worker-field-block {
     gap: 5px !important;
   }
