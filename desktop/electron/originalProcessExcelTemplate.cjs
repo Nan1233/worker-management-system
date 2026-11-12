@@ -34,7 +34,10 @@ const templateCellText = (cell) => {
   return String(value ?? "").trim();
 };
 const toNumber = (column) => column.split("").reduce((n,c)=>n*26+c.charCodeAt(0)-64,0);
-const templatePath = (code) => FORMS[code] ? path.join(TEMPLATE_ROOT,FORMS[code].file) : null;
+const templatePath = (code) => {
+  const form = WORKBOOK1_FORMS[code] || FORMS[code];
+  return form ? path.join(TEMPLATE_ROOT,form.file) : null;
+};
 function matchMasterValue(header, types, values) {
   const name = norm(header);
   if (!name) return null;
@@ -105,12 +108,21 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   const sheet = workbook.getWorksheet(config.sheet);
   if (!sheet) throw new Error("Mẫu "+code+" thiếu sheet "+config.sheet);
   // Each exported process file contains only its own source worksheet.
-  if (workbook1) for (const other of [...workbook.worksheets]) {
-    if (other.id !== sheet.id) workbook.removeWorksheet(other.id);
+  if (workbook1) {
+    for (const other of [...workbook.worksheets]) {
+      if (other.id !== sheet.id) workbook.removeWorksheet(other.id);
+    }
+    // Some supplied header labels are circular/linked formulas with a cached
+    // string. Fix the heading as text so Excel recalculation cannot erase it.
+    sheet.getRow(config.header).eachCell({ includeEmpty: false }, cell => {
+      if (cell.value && typeof cell.value === "object" && typeof cell.value.result === "string") {
+        cell.value = cell.value.result;
+      }
+    });
   }
   if (typeof onTemplateLoaded === "function") {
     await onTemplateLoaded({ processCode: code, templatePath: filename, sheetName: sheet.name,
-      reportCount: (processData?.reports || []).length, templateKind: "original-company" });
+      reportCount: (processData?.reports || []).length, templateKind: workbook1 ? "workbook1-sheet" : "original-company" });
   }
   const sourceReports = processData?.reports ?? [];
   if (!Array.isArray(sourceReports)) throw new Error("Dữ liệu báo cáo "+code+" không phải danh sách.");
