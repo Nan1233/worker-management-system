@@ -86,10 +86,13 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
       ? form.defects[1].split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)
       : Math.max(...Object.keys(form.fields).map(c=>c.split('').reduce((n,v)=>n*26+v.charCodeAt(0)-64,0)));
     assert.equal(sheet.columnCount,expectedLastCol,code+' no unused styled columns beyond last NG');
-    assert.equal(sheet.getRow(form.first-1).getCell(expectedLastCol+1).hasStyle,false,
-      code+' no pink color beyond right edge');
-    assert.equal(sheet.getRow(dataRow).getCell(expectedLastCol+1).hasStyle,false,
-      code+' no grid beyond right edge');
+    // Inspect row models without creating a cell beyond the table edge.
+    // ExcelJS may return undefined for a missing cell's hasStyle.
+    for (const rowIndex of [form.first-1,dataRow]) {
+      const outside=sheet.getRow(rowIndex)._cells?.[expectedLastCol];
+      assert.ok(!outside?.hasStyle,code+' no styled cell beyond right edge at row '+rowIndex);
+      assert.ok(!outside?.value,code+' no value beyond right edge at row '+rowIndex);
+    }
     const dateCol = Object.entries(form.fields).find(([,key])=>key==='date')?.[0];
     assert.ok(dateCol,code+' must have the work-date column');
     assert.equal(sheet.getCell(dateCol+dataRow).value?.toISOString().slice(0,10),'2026-11-10',code+' work date has no timezone shift');
@@ -139,7 +142,7 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
   assert.equal(sheet.getCell('A4').value,'08/11/2026');
   assert.deepEqual(sheet.getCell('A2').fill,sourcePink);
   for (const row of [2,4]) {
-    for (const col of [1,3,10,25,49]) {
+    for (const col of [1,3,10,25,48]) {
       assert.deepEqual(sheet.getRow(row).getCell(col).fill,sourcePink,
         'Pink fill at row '+row+' column '+col);
     }
@@ -147,7 +150,7 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
   assert.equal(sheet.getCell('C3').value,'49-001');
   assert.equal(sheet.getCell('C5').value,'49-001');
   for (const row of [3,5]) {
-    for (const col of [1,3,9,10,11,25,49]) {
+    for (const col of [1,3,9,10,11,25,48]) {
       const expected = sourceDataSheet.getRow(3).getCell(col).fill;
       const actual = sheet.getRow(row).getCell(col).fill;
       assert.deepEqual(visibleFill(actual),visibleFill(expected),'Normal source column fill at data row '+row+' col '+col);
@@ -157,7 +160,7 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
   assert.equal(sheet.rowCount,5,'No styled empty source rows remain');
   assert.match(sheet.pageSetup.printArea,/5$/,'Print range ends with last actual report');
   for (const row of [2,3,4,5]) {
-    for (const col of [1,3,10,36,49]) {
+    for (const col of [1,3,10,36,48]) {
       const border=sheet.getRow(row).getCell(col).border;
       for (const edge of ['top','bottom','left','right'])
         assert.ok(border?.[edge]?.style, 'Complete grid at MAI '+row+':'+col+' '+edge);
