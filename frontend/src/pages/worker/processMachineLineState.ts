@@ -1,5 +1,4 @@
-import { createEmptyMachineLine } from "./processPageConfig";
-import type { MachineLineState } from "./processPageConfig";
+import { createEmptyMachineLine, type MachineLineState } from "./processPageConfig";
 
 /** Keep existing entries while resizing the form's machine rows. */
 export const resizeMachineLineItems = (

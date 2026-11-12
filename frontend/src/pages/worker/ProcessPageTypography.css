@@ -1,5 +1,4 @@
-/* Final typography normalization for Worker production form.
-   Keep interactive controls framed; normalize labels, headings and values. */
+/* Worker production form typography. Scoped to the form root. */
 .worker-form-page .worker-card-title,
 .worker-form-page .worker-card-heading .worker-card-title {
   font-size: 15px !important;

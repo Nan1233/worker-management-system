@@ -146,14 +146,6 @@
 
 /* Mobile machine-line typography (consolidated from ProcessTypographyFix.css). */
 @media (max-width: 800px) {
-  .worker-form-page .machine-line .machine-card-header strong {
-    font-size: 12px !important;
-  }
-
-  .worker-form-page .machine-line .machine-card-badge {
-    font-size: 9px !important;
-  }
-
   .worker-form-page .machine-line .machine-section-title,
   .worker-form-page .machine-line label,
   .worker-form-page .machine-line .worker-field-label,
