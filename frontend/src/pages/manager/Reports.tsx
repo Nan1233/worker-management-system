@@ -15,7 +15,7 @@ export default function Reports() {
     const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [processOptions, setProcessOptions] = useState<string[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
-    const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [approving, setApproving] = useState(false);
+    const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [detailError, setDetailError] = useState(""); const [approving, setApproving] = useState(false);
     const [selectedIds, setSelectedIds] = useState<number[]>([]); const [bulkApproving, setBulkApproving] = useState(false); const [bulkProgress, setBulkProgress] = useState({ completed: 0, total: 0 });
     const [rejectReason, setRejectReason] = useState(""); const [rejectNote, setRejectNote] = useState(""); const [rejecting, setRejecting] = useState(false); const [rejectDialogOpen, setRejectDialogOpen] = useState(false); const [rejectTargetIds, setRejectTargetIds] = useState<number[]>([]);
 
@@ -42,7 +42,10 @@ export default function Reports() {
             const r = range || { dateFrom: date, dateTo: date };
             const result = await getPendingReports({ dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page, pageSize: 8, includeMeta: true, signal: controller.signal });
             if (!isCurrentRequest()) return;
-            setReports(result.data || []); setProcessOptions((result.processes || []).map((item: any) => String(item?.process_name || item?.process_code || "")).filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "vi"))); setTotal(result.pagination?.total || 0); setPages(Math.max(1, result.pagination?.total_pages || 1));
+            setReports(result.data || []); setProcessOptions((result.processes || []).map((item: any) => String(item?.process_name || item?.process_code || "")).filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "vi"))); setTotal(result.pagination?.total || 0);
+            const lastPage = Math.max(1, result.pagination?.total_pages || 1);
+            setPages(lastPage);
+            if (page > lastPage) setPage(lastPage);
         } catch (e: any) {
             if (!isCurrentRequest()) return;
             // A transient reload failure must not erase the previous page or the
@@ -83,7 +86,7 @@ export default function Reports() {
     }, [reports, loading]);
     useEffect(() => {
         detailRequestSeqRef.current += 1;
-        setPage(1); setDetail(null); setDetailLoading(false); setSelectedIds([]);
+        setPage(1); setDetail(null); setDetailLoading(false); setDetailError(""); setSelectedIds([]);
     }, [date, range, process, shift, searchQuery]);
     useEffect(() => { setSelectedIds([]); }, [page]);
 
@@ -95,18 +98,26 @@ export default function Reports() {
         detailRequestSeqRef.current += 1;
         setDetail(null);
         setDetailLoading(false);
+        setDetailError("");
     };
 
     const openDetail = async (report: ProductionReport) => {
         const requestSeq = ++detailRequestSeqRef.current;
         const isCurrent = () => detailRequestSeqRef.current === requestSeq;
         setDetail(report);
+        setDetailError("");
         setDetailLoading(true);
         try {
             const full = await getTempReportDetail(Number(report.id));
-            if (isCurrent()) setDetail(full || report);
+            if (isCurrent()) {
+                setDetail(full || report);
+                if (!full) setDetailError("Không có dữ liệu chi tiết đầy đủ. Vui lòng tải lại trước khi xử lý.");
+            }
         } catch {
-            if (isCurrent()) setDetail(report);
+            if (isCurrent()) {
+                setDetail(report);
+                setDetailError("Tải chi tiết thất bại. Vui lòng thử lại trước khi xử lý báo cáo.");
+            }
         } finally {
             if (isCurrent()) setDetailLoading(false);
         }
@@ -118,7 +129,7 @@ export default function Reports() {
     const basePath = currentUser?.role === "admin" ? "/admin" : role === "lead" ? "/lead" : role === "admin_ops" ? "/admin-ops" : "/manager";
 
     const approveDetail = async () => {
-        if (!detail || approving || loading || error || managerActionLockRef.current) return;
+        if (!detail || detailLoading || detailError || approving || loading || error || managerActionLockRef.current) return;
         const approvedId = Number(detail.id);
         const requestSeq = detailRequestSeqRef.current;
         const selectionScope = selectionScopeRef.current;
@@ -147,7 +158,7 @@ export default function Reports() {
 
     const openRejectDialog = (ids: number[]) => {
         const validIds = [...new Set(ids.map(Number).filter(id => Number.isInteger(id) && id > 0))];
-        if (!validIds.length || rejecting || loading || error) return;
+        if (!validIds.length || rejecting || approving || bulkApproving || loading || error || managerActionLockRef.current) return;
         setRejectTargetIds(validIds);
         setRejectReason("");
         setRejectNote("");
@@ -187,13 +198,21 @@ export default function Reports() {
             window.alert(`Đã từ chối ${succeeded}/${targets.length} báo cáo.${failures.length ? `\\n\\nCác báo cáo chưa từ chối:\\n• ${failures.join("\\n• ")}` : ""}`);
             // Do not delay or misclassify the decision result if refresh fails.
             if (selectionScopeRef.current === selectionScope) await load();
+        } catch (e: any) {
+            window.alert(e?.response?.data?.message || e?.message || "Không thể hoàn tất từ chối báo cáo.");
         } finally { managerActionLockRef.current = false; setRejecting(false); }
     };
 
     const visibleIds = reports.map(r => Number(r.id)).filter(id => Number.isInteger(id) && id > 0);
     const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
-    const toggleSelected = (id: number) => setSelectedIds(previous => previous.includes(id) ? previous.filter(x => x !== id) : [...previous, id]);
-    const toggleVisibleSelection = () => setSelectedIds(previous => allVisibleSelected ? previous.filter(id => !visibleIds.includes(id)) : [...new Set([...previous, ...visibleIds])]);
+    const toggleSelected = (id: number) => {
+        if (loading || rejecting || approving || bulkApproving || managerActionLockRef.current) return;
+        setSelectedIds(previous => previous.includes(id) ? previous.filter(x => x !== id) : [...previous, id]);
+    };
+    const toggleVisibleSelection = () => {
+        if (loading || rejecting || approving || bulkApproving || managerActionLockRef.current) return;
+        setSelectedIds(previous => allVisibleSelected ? previous.filter(id => !visibleIds.includes(id)) : [...new Set([...previous, ...visibleIds])]);
+    };
     const approveBulk = async () => {
         const targets = reports.filter(r => selectedIds.includes(Number(r.id)));
         if (!targets.length || bulkApproving || loading || error || managerActionLockRef.current) return;
@@ -279,19 +298,19 @@ export default function Reports() {
                             <span><strong style={{ color: "#244564" }}>{selectedIds.length} báo cáo</strong> được chọn</span>
                         </div>
                         <div className="pending-bulk-buttons" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 10, marginLeft: "auto" }}>
-                            <button type="button" onClick={() => openRejectDialog(selectedIds)} disabled={selectedIds.length === 0 || rejecting || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#e5a4a4" : "#e2e8f0", borderRadius: 9, padding: "0 16px", background: selectedIds.length ? "#fff" : "#f1f5f9", color: selectedIds.length ? "#b42323" : "#94a3b8", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", cursor: selectedIds.length && !rejecting && !loading ? "pointer" : "not-allowed", transition: "background .15s ease, border-color .15s ease" }}>{rejecting ? "Đang từ chối..." : `✕ Từ chối ${selectedIds.length}`}</button>
-                            <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#1769aa" : "#cbd5e1", borderRadius: 9, padding: "0 18px", background: selectedIds.length ? "linear-gradient(135deg, #1976c9, #145da0)" : "#cbd5e1", color: "#fff", fontSize: 13, fontWeight: 750, whiteSpace: "nowrap", cursor: selectedIds.length && !bulkApproving && !loading ? "pointer" : "not-allowed", boxShadow: selectedIds.length ? "0 3px 8px rgba(23,105,170,.18)" : "none", transition: "background .15s ease, box-shadow .15s ease" }}>{bulkApproving ? `Đang duyệt ${bulkProgress.completed}/${bulkProgress.total}...` : `✓ Duyệt ${selectedIds.length}`}</button>
+                            <button type="button" onClick={() => openRejectDialog(selectedIds)} disabled={selectedIds.length === 0 || rejecting || approving || bulkApproving || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#e5a4a4" : "#e2e8f0", borderRadius: 9, padding: "0 16px", background: selectedIds.length ? "#fff" : "#f1f5f9", color: selectedIds.length ? "#b42323" : "#94a3b8", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", cursor: selectedIds.length && !rejecting && !loading ? "pointer" : "not-allowed", transition: "background .15s ease, border-color .15s ease" }}>{rejecting ? "Đang từ chối..." : `✕ Từ chối ${selectedIds.length}`}</button>
+                            <button type="button" onClick={() => void approveBulk()} disabled={selectedIds.length === 0 || bulkApproving || approving || rejecting || loading || Boolean(error)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 40, border: "1px solid", borderColor: selectedIds.length ? "#1769aa" : "#cbd5e1", borderRadius: 9, padding: "0 18px", background: selectedIds.length ? "linear-gradient(135deg, #1976c9, #145da0)" : "#cbd5e1", color: "#fff", fontSize: 13, fontWeight: 750, whiteSpace: "nowrap", cursor: selectedIds.length && !bulkApproving && !loading ? "pointer" : "not-allowed", boxShadow: selectedIds.length ? "0 3px 8px rgba(23,105,170,.18)" : "none", transition: "background .15s ease, box-shadow .15s ease" }}>{bulkApproving ? `Đang duyệt ${bulkProgress.completed}/${bulkProgress.total}...` : `✓ Duyệt ${selectedIds.length}`}</button>
                         </div>
                     </div>
                     <div className={`pending-table-wrap ${reports.length === 0 ? "pending-table-empty" : ""}`} role="region" aria-label="Bảng báo cáo chờ duyệt, có thể cuộn ngang" tabIndex={0} style={{ overflowX: "auto" }}>
                         <table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}><caption className="pending-table-caption">Danh sách báo cáo sản xuất chờ duyệt</caption>
-                            <thead><tr><th className="select-col"><input type="checkbox" aria-label="Chọn tất cả báo cáo trên trang này" checked={allVisibleSelected} onChange={toggleVisibleSelection} disabled={loading || reports.length === 0} /></th><th className="view-col">Xem</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian</th><th>% HV</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% đạt</th><th>% PP</th><th>Trạng thái</th></tr></thead>
+                            <thead><tr><th className="select-col"><input type="checkbox" aria-label="Chọn tất cả báo cáo trên trang này" checked={allVisibleSelected} onChange={toggleVisibleSelection} disabled={loading || approving || bulkApproving || rejecting || reports.length === 0} /></th><th className="view-col">Xem</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian</th><th>% HV</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% đạt</th><th>% PP</th><th>Trạng thái</th></tr></thead>
                             <tbody>
                                 {loading ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={15} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}><div role="alert">{error}</div><button type="button" onClick={() => void load()} disabled={loading} style={{ marginTop: 12, minHeight: 40, padding: "8px 16px", border: "1px solid #c24141", borderRadius: 8, background: "#fff", color: "#9f2828", fontWeight: 700, cursor: "pointer" }}>Thử tải lại</button></td></tr> : reports.length === 0 ? <tr><td colSpan={15} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
                                     const x = kpi(r);
                                     const code = `PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`;
                                     return <tr key={r.id ?? i} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => void openDetail(r)} style={{ cursor: "pointer" }}>
-                                        <td className="select-col"><input type="checkbox" aria-label={`Chọn báo cáo ${r.id}`} checked={selectedIds.includes(Number(r.id))} onChange={() => toggleSelected(Number(r.id))} onClick={e => e.stopPropagation()} /></td><td className="view-col" style={{ textAlign: "center" }}><button type="button" className="pending-detail-edit" aria-label={`Xem báo cáo ${r.id}`} onClick={e => { e.stopPropagation(); void openDetail(r); }}>⌕</button></td>
+                                        <td className="select-col"><input type="checkbox" aria-label={`Chọn báo cáo ${r.id}`} checked={selectedIds.includes(Number(r.id))} disabled={loading || approving || bulkApproving || rejecting} onChange={() => toggleSelected(Number(r.id))} onClick={e => e.stopPropagation()} /></td><td className="view-col" style={{ textAlign: "center" }}><button type="button" className="pending-detail-edit" aria-label={`Xem báo cáo ${r.id}`} onClick={e => { e.stopPropagation(); void openDetail(r); }}>⌕</button></td>
                                         <td>{code}</td><td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td><td>{processLabel(r)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(r.total_time || r.actual_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
                                         <td style={metricStyle("productivity", x.nangSuat, x.ngTypeCount)} title={x.standardMissing ? "Máy chưa có định mức hợp lệ trong báo cáo này" : undefined}>{x.standardMissing ? "Thiếu định mức" : pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td style={metricStyle("pp", x.pp, x.ngTypeCount)}>{pct(x.pp)}{x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}</td><td><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span></td>
                                     </tr>;
@@ -301,7 +320,7 @@ export default function Reports() {
                     </div>
                     <div className="pending-table-footer" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 13 }}>
                         <span role="status" aria-live="polite">Trang {page}/{pages} · {total} báo cáo</span>
-                        <nav className="management-pagination" aria-label="Phân trang báo cáo"><button type="button" aria-label="Trang trước" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button><button type="button" aria-label="Trang sau" disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button></nav>
+                        <nav className="management-pagination" aria-label="Phân trang báo cáo"><button type="button" aria-label="Trang trước" disabled={loading || approving || bulkApproving || rejecting || page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button><button type="button" aria-label="Trang sau" disabled={loading || approving || bulkApproving || rejecting || page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button></nav>
                     </div>
                 </section>
                 {detail && <aside className="pending-detail-card pending-detail-card-compact">
@@ -309,7 +328,7 @@ export default function Reports() {
                         <div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span><span className="pending-detail-code">#{detail.id}</span></div>
                         <button type="button" className="pending-detail-close" onClick={closeDetail} aria-label="Đóng">×</button>
                     </div>
-                    {detailLoading ? <div className="pending-detail-loading">Đang tải chi tiết...</div> : detailKpi && <div className="pending-detail-body">
+                    {detailLoading ? <div className="pending-detail-loading" role="status">Đang tải chi tiết...</div> : detailError ? <div role="alert" className="pending-detail-loading" style={{ padding: 16, color: "#a32929" }}>{detailError}<button type="button" onClick={() => void openDetail(detail)} style={{ minHeight: 40, marginTop: 12, padding: "8px 12px", border: "1px solid #d99", borderRadius: 8, background: "#fff", color: "#a32929" }}>Thử tải lại</button></div> : detailKpi && <div className="pending-detail-body">
                         <section className="pending-detail-section"><h3>Thông tin chung</h3><div className="pending-detail-grid">
                             {[
                                 ["Công nhân", `${text(detail.full_name || detail.worker_name)} (${text(detail.worker_code)})`],
@@ -340,8 +359,8 @@ export default function Reports() {
                     </div>}
                     <div className="pending-detail-actions pending-detail-actions-compact">
                         <button type="button" className="pending-detail-cancel" onClick={closeDetail}>Đóng</button>
-                        <button type="button" onClick={() => openRejectDialog([Number(detail.id)])} disabled={rejecting || detailLoading || loading || Boolean(error)} style={{ border: "1px solid #dc5656", background: "#fff1f1", color: "#b42323", borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: rejecting || detailLoading ? "not-allowed" : "pointer" }}>{rejecting ? "Đang từ chối..." : "Từ chối báo cáo"}</button>
-                        <button type="button" className="pending-detail-approve" onClick={() => void approveDetail()} disabled={approving || detailLoading || rejecting || loading || Boolean(error)}>{approving ? "Đang duyệt..." : "Duyệt báo cáo"}</button>
+                        <button type="button" onClick={() => openRejectDialog([Number(detail.id)])} disabled={rejecting || approving || bulkApproving || detailLoading || Boolean(detailError) || loading || Boolean(error)} style={{ border: "1px solid #dc5656", background: "#fff1f1", color: "#b42323", borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: rejecting || detailLoading ? "not-allowed" : "pointer" }}>{rejecting ? "Đang từ chối..." : "Từ chối báo cáo"}</button>
+                        <button type="button" className="pending-detail-approve" onClick={() => void approveDetail()} disabled={approving || detailLoading || Boolean(detailError) || bulkApproving || rejecting || loading || Boolean(error)}>{approving ? "Đang duyệt..." : "Duyệt báo cáo"}</button>
                     </div>
                 </aside>}
             </div>
