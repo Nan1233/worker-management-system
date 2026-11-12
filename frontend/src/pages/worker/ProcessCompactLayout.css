@@ -1,34 +1,34 @@
-/* Compact Worker report layout: reduce vertical waste without changing form logic. */
+/* Worker production form compact layout, scoped to the form root. */
 
 @media (max-width: 800px) {
-  .worker-content:not(:has(.worker-home-page)) .worker-time-grid {
+  .worker-form-page .worker-time-grid {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
     gap: 12px 10px !important;
     align-items: start !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-time-item[data-worker-time="actual"] {
+  .worker-form-page .worker-time-item[data-worker-time="actual"] {
     grid-column: 1 / -1 !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-time-item[data-worker-time="deduction"],
-  .worker-content:not(:has(.worker-home-page)) .worker-time-item[data-worker-time="total"] {
+  .worker-form-page .worker-time-item[data-worker-time="deduction"],
+  .worker-form-page .worker-time-item[data-worker-time="total"] {
     grid-column: span 1 !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-time-item > label {
+  .worker-form-page .worker-time-item > label {
     display: block !important;
     margin-bottom: 5px !important;
     font-size: 10.5px !important;
     line-height: 1.25 !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-time-item > small {
+  .worker-form-page .worker-time-item > small {
     display: none !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-time-item input {
+  .worker-form-page .worker-time-item input {
     width: 100% !important;
     min-height: 38px !important;
     height: 38px !important;
@@ -36,35 +36,35 @@
     font-size: 13px !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-time-parts {
+  .worker-form-page .worker-time-parts {
     gap: 8px !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-time-part > span {
+  .worker-form-page .worker-time-part > span {
     display: block !important;
     margin-bottom: 4px !important;
     font-size: 9.5px !important;
     line-height: 1.2 !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-quality-summary {
+  .worker-form-page .worker-quality-summary {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
     gap: 12px 10px !important;
     align-items: start !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-quality-card {
+  .worker-form-page .worker-quality-card {
     min-width: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-quality-card.total-output {
+  .worker-form-page .worker-quality-card.total-output {
     grid-column: 1 / -1 !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-quality-card label {
+  .worker-form-page .worker-quality-card label {
     display: block !important;
     margin-bottom: 5px !important;
     font-size: 10.5px !important;
@@ -74,7 +74,7 @@
     text-overflow: ellipsis !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-quality-card input {
+  .worker-form-page .worker-quality-card input {
     width: 100% !important;
     min-height: 38px !important;
     height: 38px !important;
@@ -83,63 +83,63 @@
   }
 
   /* Machine/product block: labels are secondary to the values and must never look larger. */
-  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-card-header strong {
+  .worker-form-page .machine-line .machine-card-header strong {
     font-size: 12px !important;
     line-height: 1.25 !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-card-badge {
+  .worker-form-page .machine-line .machine-card-badge {
     font-size: 9px !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-section-title,
-  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-label,
-  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block > label {
+  .worker-form-page .machine-line .machine-section-title,
+  .worker-form-page .machine-line .worker-field-label,
+  .worker-form-page .machine-line .worker-field-block > label {
     font-size: 10px !important;
     line-height: 1.25 !important;
     font-weight: 650 !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block {
+  .worker-form-page .machine-line .worker-field-block {
     gap: 5px !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block input:not([type="checkbox"]):not([type="radio"]),
-  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block select,
-  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-deduction-minute {
+  .worker-form-page .machine-line .worker-field-block input:not([type="checkbox"]):not([type="radio"]),
+  .worker-form-page .machine-line .worker-field-block select,
+  .worker-form-page .machine-line .machine-deduction-minute {
     font-size: 12px !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block input::placeholder {
+  .worker-form-page .machine-line .worker-field-block input::placeholder {
     font-size: 12px !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-time-row .worker-time-part > span,
-  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-quantity-row .worker-time-part > span {
+  .worker-form-page .machine-line .machine-time-row .worker-time-part > span,
+  .worker-form-page .machine-line .machine-quantity-row .worker-time-part > span {
     font-size: 9.5px !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-time-row input,
-  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-quantity-row input {
+  .worker-form-page .machine-line .machine-time-row input,
+  .worker-form-page .machine-line .machine-quantity-row input {
     font-size: 12px !important;
   }
 }
 
 @media (max-width: 380px) {
-  .worker-content:not(:has(.worker-home-page)) .worker-time-grid,
-  .worker-content:not(:has(.worker-home-page)) .worker-quality-summary {
+  .worker-form-page .worker-time-grid,
+  .worker-form-page .worker-quality-summary {
     gap: 10px 8px !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-time-item input,
-  .worker-content:not(:has(.worker-home-page)) .worker-quality-card input {
+  .worker-form-page .worker-time-item input,
+  .worker-form-page .worker-quality-card input {
     height: 36px !important;
     min-height: 36px !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-section-title,
-  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-label,
-  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block > label {
+  .worker-form-page .machine-line .machine-section-title,
+  .worker-form-page .machine-line .worker-field-label,
+  .worker-form-page .machine-line .worker-field-block > label {
     font-size: 9.5px !important;
   }
 }
