@@ -35,10 +35,9 @@ import "./components/system/NetworkStatusBanner.css";
 import "./components/system/OfflineReportSync.css";
 import "./components/system/app-error-boundary.css";
 
-// Role-scoped KTC identity layer; keep last among global visual imports.
+// Existing role-scoped presentation layer. New designs belong in component styles,
+// not additional global override stylesheets.
 import "./styles/KtcIndustrialMinimal.css";
-import "./styles/KtcWorkspaceV2.css";
-import "./styles/KtcWorkspaceV3.css";
 
 import DesktopExcelDbSyncNotifier from "./components/DesktopExcelDbSyncNotifier";
 import AppRouter from "./routes/AppRouter";
