@@ -38,6 +38,8 @@ import "./components/system/app-error-boundary.css";
 // Existing role-scoped presentation layer. New designs belong in component styles,
 // not additional global override stylesheets.
 import "./styles/KtcIndustrialMinimal.css";
+// Keep the extracted history mobile rules last to preserve their previous inline precedence.
+import "./pages/worker/ProductionHistoryMobile.css";
 
 import DesktopExcelDbSyncNotifier from "./components/DesktopExcelDbSyncNotifier";
 import AppRouter from "./routes/AppRouter";
