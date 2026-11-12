@@ -22,18 +22,21 @@ export default function Permissions(){
   const [userId,setUserId] = useState("");
   const [search,setSearch] = useState("");
   const seqRef=useRef(0);
-  const load=useCallback(async()=>{
+  const savingLockRef=useRef(false);
+  const load=useCallback(async():Promise<boolean>=>{
     const seq=++seqRef.current;
     setLoading(true);setError("");
     try{
       const response=await api.get("/permissions/matrix");
-      if(seq!==seqRef.current)return;
+      if(seq!==seqRef.current)return false;
       const payload=response.data?.data;
       if(!payload || !Array.isArray(payload.permissions) || !Array.isArray(payload.roles) || !Array.isArray(payload.users)) throw new Error("Dữ liệu phân quyền không hợp lệ.");
       setData({...payload,userOverrides:payload.userOverrides||{}});
       setUserId(previous=>payload.users.some((u:UserRow)=>String(u.id)===previous)?previous:"");
+      return true;
     }catch(e){
       if(seq===seqRef.current)setError(getApiError(e,"Không tải được phân quyền").message);
+      return false;
     }finally{if(seq===seqRef.current)setLoading(false)}
   },[]);
   useEffect(()=>{void load();return()=>{seqRef.current+=1}},[load]);
@@ -50,20 +53,21 @@ export default function Permissions(){
   const selected=data?.users.find(u=>String(u.id)===userId);
   const userOverrides=userId?data?.userOverrides?.[userId]||{}:{};
   const change=async(kind:"role"|"user",target:string,code:string,allowed:boolean|null)=>{
-    if(savingKey||loading||!data)return;
+    if(savingLockRef.current||savingKey||loading||!data)return;
+    savingLockRef.current=true;
     const key=`${kind}:${target}:${code}`;
     setSavingKey(key);setFeedback("");setError("");
     try{
       if(kind==="role")await api.put(`/permissions/roles/${target}/${code}`,{allowed});
       else await api.put(`/permissions/users/${target}/${code}`,{allowed});
       clearPermissionClientCache();
-      await load();
-      setFeedback(`Đã cập nhật quyền ${code} cho ${kind==="role"?roleLabel(target):selected?.full_name||selected?.username||"tài khoản"}.`);
+      const refreshed=await load();
+      setFeedback(`Đã cập nhật quyền ${code} cho ${kind==="role"?roleLabel(target):selected?.full_name||selected?.username||"tài khoản"}.${refreshed?"":" Danh sách chưa tải lại được; hãy bấm Làm mới."}`);
       showToast("Đã cập nhật phân quyền","success");
     }catch(e){
       const message=getApiError(e,"Không cập nhật được quyền").message;
       setError(message);showToast(message,"error");
-    }finally{setSavingKey("")}
+    }finally{savingLockRef.current=false;setSavingKey("")}
   };
   return <section className="permission-page admin-page">
     <header className="permission-header"><div><span className="eyebrow">Security & Access Control</span>

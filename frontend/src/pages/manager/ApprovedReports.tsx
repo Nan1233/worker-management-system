@@ -179,7 +179,15 @@ export default function ApprovedReports() {
         setDate(today); setRange(rangeFor(today, "month"));
         setSearchKeyword(""); setSearchQuery(""); setProcess(""); setShift("");
     };
-    const refreshReports = () => { invalidateApprovedReportCache(); void load(); };
+    const refreshReports = () => {
+        invalidateApprovedReportCache();
+        detailRequestSeqRef.current += 1;
+        detailReportRef.current = null;
+        setDetail(null);
+        setDetailError("");
+        setDetailLoading(false);
+        void load();
+    };
 
     const desktopImportApi = () => (window as Window & { ktcDesktop?: {
         isDesktop?: boolean;

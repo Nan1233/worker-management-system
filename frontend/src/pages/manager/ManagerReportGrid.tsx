@@ -8,6 +8,7 @@ import { normalizeDefectOptions, normalizeDeductionOptions, type WorkerMasterOpt
 import type { ProductionDeduction, ProductionDefect, ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
 import { getToday } from "./managerReportDateLogic";
+import { getCanonicalProcessId } from "../../utils/processAccess";
 import "./ManagerExcelReports.css";
 
 type Preset = "today" | "yesterday" | "week" | "last-week" | "month" | "last-month" | "custom";
@@ -17,6 +18,7 @@ const PROCESSES: ProcessTab[] = [
   { label: "XLBV", processId: 6, processCode: "XLBV" }, { label: "Cắt lồng", processId: 1, processCode: "GC" },
   { label: "TT Mài", processId: 2, processCode: "MAI" }, { label: "TT Đo", processId: 3, processCode: "DO" },
   { label: "TT Kiểm 1", processId: 4, processCode: "K1" }, { label: "TT Kiểm 2", processId: 5, processCode: "K2" },
+  { label: "Sản xuất 3", processId: 9, processCode: "SX3" },
 ];
 const n=(v:unknown)=>Number(v||0),fmt=(v:unknown)=>n(v).toLocaleString("vi-VN",{maximumFractionDigits:2}),pct=(v:unknown)=>`${fmt(v)}%`,txt=(v:unknown)=>v===undefined||v===null||v===""?"—":String(v);
 const dateFmt=(v?:string)=>{if(!v)return "—";const s=String(v).trim();if(/^\d{2}\/\d{2}\/\d{4}$/.test(s))return s;const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1]}`:"—"};
@@ -39,14 +41,14 @@ export default function ManagerReportGrid(){
  const lastPage=Math.max(1,Math.ceil(total/pageSize));
  const canEdit=!loading&&!saving;
  const goPage=(target:number)=>requestLeave(()=>setPage(Math.max(1,Math.min(lastPage,target))));
- const apply=(p:Preset)=>{const d=parse(getToday());let a:Date,b:Date;if(p==="yesterday"){a=new Date(d);a.setDate(a.getDate()-1);b=new Date(a)}else if(p==="week"){a=ws(d);b=we(d)}else if(p==="last-week"){b=ws(d);b.setDate(b.getDate()-1);a=new Date(b);a.setDate(a.getDate()-6)}else if(p==="month"){a=ms(d);b=me(d)}else if(p==="last-month"){a=new Date(d.getFullYear(),d.getMonth()-1,1);b=new Date(d.getFullYear(),d.getMonth(),0)}else{setPreset("custom");return}setPreset(p);setFrom(iso(a));setTo(iso(b));setPage(1)};
+ const apply=(p:Preset)=>{const d=parse(getToday());let a:Date,b:Date;if(p==="today"){a=new Date(d);b=new Date(d)}else if(p==="yesterday"){a=new Date(d);a.setDate(a.getDate()-1);b=new Date(a)}else if(p==="week"){a=ws(d);b=we(d)}else if(p==="last-week"){b=ws(d);b.setDate(b.getDate()-1);a=new Date(b);a.setDate(a.getDate()-6)}else if(p==="month"){a=ms(d);b=me(d)}else if(p==="last-month"){a=new Date(d.getFullYear(),d.getMonth()-1,1);b=new Date(d.getFullYear(),d.getMonth(),0)}else{setPreset("custom");return}setPreset(p);setFrom(iso(a));setTo(iso(b));setPage(1)};
  const load=async(forceRefresh=false)=>{
   const sequence=++requestSeqRef.current;
   try{
    setLoading(true);setLoadError("");
    if(forceRefresh)invalidateManagerReportCaches();
    if(!from||!to||from>to){setLoadError("Khoảng ngày không hợp lệ. Vui lòng chọn lại từ ngày và đến ngày.");return}
-   const res=await getApprovedReports({dateFrom:from,dateTo:to,processId:process.processId,search:search.trim()||undefined,page,pageSize});
+   const res=await getApprovedReports({dateFrom:from,dateTo:to,processId:getCanonicalProcessId(process.processId,process.processCode),search:search.trim()||undefined,page,pageSize});
    if(requestSeqRef.current!==sequence)return;
    const last=Math.max(1,Number(res.pagination?.total_pages||1));
    setTotal(Number(res.pagination?.total??res.data?.length??0));
@@ -67,11 +69,30 @@ export default function ManagerReportGrid(){
  useEffect(()=>{setPage(1);if(!dirty){setEditing(null);setSelectedId(null);setDrafts({});}setProcessId(process.processId)},[process,from,to,search]);
  useEffect(()=>{const before=(e:BeforeUnloadEvent)=>{if(!dirty)return;e.preventDefault();e.returnValue=""};addEventListener("beforeunload",before);return()=>removeEventListener("beforeunload",before)},[dirty]);
  useEffect(()=>{let alive=true;if(!processId){setDeductions([]);setDefects([]);return}Promise.all([getCachedDefects(processId),getCachedDeductions(processId)]).then(([a,b])=>{if(!alive)return;setDefects(normalizeDefectOptions(a,processId));setDeductions(normalizeDeductionOptions(b,processId))}).catch(()=>{if(alive){setDefects([]);setDeductions([])}});return()=>{alive=false}},[processId]);
- const row=(r:ProductionReport)=>drafts[Number(r.id)]||r,workerName=(r:ProductionReport)=>{const x=row(r),code=String((x as any).worker_code||"").trim();return workerDirectory[code]?.full_name||String((x as any).full_name||(x as any).worker_name||"").trim()||"—"},dsum=(r:ProductionReport)=>deductions.reduce((s,o)=>s+n(findDeduction(r,o)?.hours),0),ng=(r:ProductionReport)=>{const x=defects.reduce((s,o)=>s+n(findDefect(r,o)?.quantity),0);return x||n(r.tt_ng)},dm=(r:ProductionReport)=>n((r as any).standard_output??(r as any).target_output),tt=(r:ProductionReport)=>n(r.actual_output),ok=(r:ProductionReport)=>n(r.tt_ok),ttdm=(r:ProductionReport)=>n((r as any).tt_dinh_muc)||dm(r)*n(r.actual_time),ns=(r:ProductionReport)=>n((r as any).nang_suat_percent)||(ttdm(r)>0?tt(r)/ttdm(r)*100:0),dat=(r:ProductionReport)=>tt(r)>0?ok(r)/tt(r)*100:0,pp=(r:ProductionReport)=>n((r as any).pp_percent)||(tt(r)>0?ng(r)/tt(r)*100:0);
- const edit=(r:ProductionReport)=>{const id=Number(r.id);setSelectedId(id);setDrafts(p=>p[id]?p:{...p,[id]:{...r,deductions:[...(r.deductions||[])],defects:[...(r.defects||[])]}});setEditing(id)};
- const selectRow=(r:ProductionReport)=>{const id=Number(r.id);if(editing===id)return;edit(r)};
+ const row=(r:ProductionReport)=>drafts[Number(r.id)]||r,workerName=(r:ProductionReport)=>{const x=row(r),code=String((x as any).worker_code||"").trim();return workerDirectory[code]?.full_name||String((x as any).full_name||(x as any).worker_name||"").trim()||"—"},
+ dsum=(r:ProductionReport)=>(r.deductions||[]).reduce((sum,item)=>sum+n(item.hours),0),
+ ng=(r:ProductionReport)=>(r.defects||[]).length
+  ?(r.defects||[]).reduce((sum,item)=>sum+n(item.quantity),0)
+  :n(r.tt_ng),
+dm=(r:ProductionReport)=>n((r as any).standard_output??(r as any).target_output),tt=(r:ProductionReport)=>n(r.actual_output),ok=(r:ProductionReport)=>n(r.tt_ok),ttdm=(r:ProductionReport)=>n((r as any).tt_dinh_muc)||dm(r)*n(r.actual_time),ns=(r:ProductionReport)=>n((r as any).nang_suat_percent)||(ttdm(r)>0?tt(r)/ttdm(r)*100:0),dat=(r:ProductionReport)=>tt(r)>0?ok(r)/tt(r)*100:0,pp=(r:ProductionReport)=>n((r as any).pp_percent)||(tt(r)>0?ng(r)/tt(r)*100:0);
+ const edit=(r:ProductionReport)=>{
+  const id=Number(r.id);
+  if(loading||saving)return;
+  if(dirty&&editing!==null&&editing!==id){
+   setActionMessage("Dòng hiện tại còn thay đổi chưa lưu. Hãy Lưu hoặc Hủy trước khi chọn báo cáo khác.");
+   return;
+  }
+  setActionMessage("");
+  setSelectedId(id);setDrafts(p=>p[id]?p:{...p,[id]:{...r,deductions:[...(r.deductions||[])],defects:[...(r.defects||[])]}});setEditing(id)};
+ const selectRow=(r:ProductionReport)=>{const id=Number(r.id);if(editing===id||saving||loading)return;edit(r)};
  const field=(id:number,k:keyof ProductionReport,v:string|number)=>{setDirty(true);setDrafts(p=>{const current=p[id]||rows.find(x=>Number(x.id)===id);if(!current)return p;const next={...current,[k]:v} as ProductionReport;if(k==="worker_code"){const info=workerDirectory[String(v||"").trim()];if(info){(next as any).worker_id=info.worker_id;(next as any).full_name=info.full_name;}}return{...p,[id]:next}})};
- const save=async(r:ProductionReport)=>{const id=Number(r.id),d=drafts[id];if(!d)return;if(id<0){try{setSaving(true);await createApprovedReportFromExcel({...d,id:undefined,process_code:process.processCode,worker_code:String(d.worker_code||''),work_date:String(d.work_date||''),operation_mode:d.operation_mode||'MANUAL',operation_type:d.operation_type||undefined});showToast("Đã thêm báo cáo","success");setEditing(null);setSelectedId(null);setDirty(false);setDrafts({});invalidateManagerReportCaches();await load()}catch(e){showToast(axios.isAxiosError(e)?e.response?.data?.message||"Không thể thêm báo cáo":(e as Error).message||"Không thể thêm báo cáo")}finally{setSaving(false)}return}if((d as ProductionReport&{detail_load_failed?:boolean}).detail_load_failed||(r as ProductionReport&{detail_load_failed?:boolean}).detail_load_failed){showToast("Chưa tải được chi tiết báo cáo (lỗi, máy, trừ giờ) nên không thể lưu. Vui lòng tải lại trang.");return}const incompleteMachine=detectIncompleteMachineData(d as never);if(incompleteMachine){showToast(incompleteMachine);return}const totalHours=n(d.actual_time)+dsum(d);if(totalHours>12){showToast("Tổng giờ không được vượt quá 12 giờ");return}const payload:ProductionReport={...d,actual_time:n(d.actual_time),deduction_time:dsum(d),total_time:totalHours,actual_output:n(d.actual_output),tt_ok:n(d.tt_ok),tt_ng:ng(d),deductions:(d.deductions||[]).filter(x=>n(x.hours)>0),defects:(d.defects||[]).filter(x=>n(x.quantity)>0)};try{setSaving(true);await updateReport(id,payload,"approved",d.updated_at||null);showToast("Đã cập nhật báo cáo","success");setEditing(null);setSelectedId(null);setDirty(false);setDrafts(p=>{const x={...p};delete x[id];return x});invalidateManagerReportCaches();await load()}catch(e){showToast(axios.isAxiosError(e)?e.response?.data?.message||"Không thể cập nhật báo cáo":"Không thể cập nhật báo cáo")}finally{setSaving(false)}};
+ const save=async(r:ProductionReport)=>{const id=Number(r.id),d=drafts[id];if(!d||saving||loading)return;
+  const validNumber=(value:unknown)=>Number.isFinite(Number(value))&&Number(value)>=0;
+  if(![d.actual_time,d.actual_output,d.tt_ok].every(validNumber)||!Number.isSafeInteger(Number(d.tt_ok))||!Number.isSafeInteger(ng(d))||
+     (d.deductions||[]).some(x=>!validNumber(x.hours))||
+     (d.defects||[]).some(x=>!validNumber(x.quantity)||!Number.isSafeInteger(Number(x.quantity)))){
+   showToast("Giờ làm, OK, NG và các mục trừ giờ phải là số không âm hợp lệ.","error");return;
+  }if(id<0){try{setSaving(true);await createApprovedReportFromExcel({...d,id:undefined,process_code:process.processCode,worker_code:String(d.worker_code||''),work_date:String(d.work_date||''),operation_mode:d.operation_mode||'MANUAL',operation_type:d.operation_type||undefined});showToast("Đã thêm báo cáo","success");setEditing(null);setSelectedId(null);setDirty(false);setDrafts({});invalidateManagerReportCaches();await load()}catch(e){showToast(axios.isAxiosError(e)?e.response?.data?.message||"Không thể thêm báo cáo":(e as Error).message||"Không thể thêm báo cáo")}finally{setSaving(false)}return}if((d as ProductionReport&{detail_load_failed?:boolean}).detail_load_failed||(r as ProductionReport&{detail_load_failed?:boolean}).detail_load_failed){showToast("Chưa tải được chi tiết báo cáo (lỗi, máy, trừ giờ) nên không thể lưu. Vui lòng tải lại trang.");return}const incompleteMachine=detectIncompleteMachineData(d as never);if(incompleteMachine){showToast(incompleteMachine);return}const totalHours=n(d.actual_time)+dsum(d);if(totalHours>12){showToast("Tổng giờ không được vượt quá 12 giờ");return}const payload:ProductionReport={...d,actual_time:n(d.actual_time),deduction_time:dsum(d),total_time:totalHours,actual_output:n(d.actual_output),tt_ok:n(d.tt_ok),tt_ng:ng(d),deductions:(d.deductions||[]).filter(x=>n(x.hours)>0),defects:(d.defects||[]).filter(x=>n(x.quantity)>0)};try{setSaving(true);await updateReport(id,payload,"approved",d.updated_at||null);showToast("Đã cập nhật báo cáo","success");setEditing(null);setSelectedId(null);setDirty(false);setDrafts(p=>{const x={...p};delete x[id];return x});invalidateManagerReportCaches();await load()}catch(e){showToast(axios.isAxiosError(e)?e.response?.data?.message||"Không thể cập nhật báo cáo":"Không thể cập nhật báo cáo")}finally{setSaving(false)}};
  const cancel=(id:number)=>{setEditing(null);setSelectedId(null);setDrafts(p=>{const x={...p};delete x[id];setDirty(Object.keys(x).length>0);return x})};
  const excelKey=(id:number)=>(e:React.KeyboardEvent<HTMLInputElement>)=>{if(e.key==='Escape'){e.preventDefault();cancel(id);return}if(e.key==='Enter'||(e.ctrlKey&&e.key.toLowerCase()==='s')){e.preventDefault();const r=rows.find(x=>Number(x.id)===id);if(r)void save(r)}};
  const toolbarAdd=()=>{if(editing!=null){showToast("Hãy lưu hoặc hủy dòng đang sửa trước");return}setActionMessage("Thêm báo cáo trực tiếp chưa khả dụng tại bảng này. Hãy dùng công cụ nhập Excel Desktop hoặc biểu mẫu tạo báo cáo.");};
@@ -82,8 +103,8 @@ export default function ManagerReportGrid(){
   const current=rows.find(x=>Number(x.id)===editing);
   if(current)await save(current);
  };
- const toolbarDelete=async()=>{if(saving||loading)return;if(selectedId==null){showToast("Hãy chọn một dòng trước khi Xóa");return}if(dirty){showToast("Hãy lưu hoặc hủy thay đổi trước khi xóa báo cáo.");return}if(!confirm("Xóa báo cáo đã chọn?"))return;try{setSaving(true);await deleteReport(selectedId,"Quản lý xóa báo cáo đã duyệt");setEditing(null);setSelectedId(null);setDrafts(p=>{const x={...p};delete x[selectedId!];return x});setDirty(false);invalidateManagerReportCaches();showToast("Đã xóa báo cáo","success");await load()}catch(e){showToast(axios.isAxiosError(e)?e.response?.data?.message||"Không thể xóa báo cáo":"Không thể xóa báo cáo")}finally{setSaving(false)}};
- const requestLeave=(a:()=>void)=>{if(saving)return;if(!dirty){a();return}setPendingAction(()=>a);setUnsavedPrompt(true)};
+ const toolbarDelete=async()=>{if(saving||loading||dirty||editing!==null)return;if(selectedId==null){showToast("Hãy chọn một dòng trước khi Xóa");return}if(dirty){showToast("Hãy lưu hoặc hủy thay đổi trước khi xóa báo cáo.");return}if(!confirm("Xóa báo cáo đã chọn?"))return;try{setSaving(true);await deleteReport(selectedId,"Quản lý xóa báo cáo đã duyệt");setEditing(null);setSelectedId(null);setDrafts(p=>{const x={...p};delete x[selectedId!];return x});setDirty(false);invalidateManagerReportCaches();showToast("Đã xóa báo cáo","success");await load()}catch(e){showToast(axios.isAxiosError(e)?e.response?.data?.message||"Không thể xóa báo cáo":"Không thể xóa báo cáo")}finally{setSaving(false)}};
+ const requestLeave=(a:()=>void)=>{if(saving||loading)return;if(!dirty){a();return}setPendingAction(()=>a);setUnsavedPrompt(true)};
  const input=(r:ProductionReport,k:keyof ProductionReport,type="text")=>{const id=Number(r.id),v=(row(r) as any)[k]??"";return <input className="manager-excel-input" type={type} value={type==="date"?dateInputValue(v):v} onChange={e=>field(id,k,type==="number"?Number(e.target.value):type==="date"?e.target.value:e.target.value)} onKeyDown={excelKey(id)} onClick={e=>e.stopPropagation()} />};
  const cell=(r:ProductionReport,content:React.ReactNode,editor?:React.ReactNode,cls="")=>{const active=editing===Number(r.id);return <td className={`manager-excel-cell ${active?"is-active":""} ${cls}`} onClick={()=>selectRow(r)}>{active&&editor?editor:content}</td>};
  return <div className="manager-report-grid" onClick={()=>{}}>
@@ -109,6 +130,6 @@ export default function ManagerReportGrid(){
     <button type="button" onClick={() => goPage(page + 1)} disabled={loading || saving || page >= Math.ceil(total / pageSize)} style={{ padding: "6px 12px", border: "1px solid #cbd8e8", borderRadius: 7, background: page >= Math.ceil(total / pageSize) ? "#f1f5f9" : "#fff", color: page >= Math.ceil(total / pageSize) ? "#94a3b8" : "#244564", cursor: page >= Math.ceil(total / pageSize) ? "not-allowed" : "pointer" }}>Trang sau →</button>
    </div>
   </div>
-  {unsavedPrompt&&<div className="manager-excel-unsaved-overlay"><div className="manager-excel-unsaved"><h3>Bạn có thay đổi chưa lưu</h3><p>Bạn có muốn lưu thay đổi trước khi chuyển sang thao tác khác?</p><button onClick={()=>{setUnsavedPrompt(false);setPendingAction(null);showToast("Hãy lưu dòng đang sửa bằng nút Lưu trước khi chuyển bộ lọc.");}}>Lưu</button><button onClick={()=>{const a=pendingAction;setPendingAction(null);setUnsavedPrompt(false);if(editing!=null)cancel(editing);a?.()}}>Không lưu</button><button onClick={()=>{setUnsavedPrompt(false);setPendingAction(null)}}>Ở lại</button></div></div>}
+  {unsavedPrompt&&<div className="manager-excel-unsaved-overlay"><div className="manager-excel-unsaved"><h3>Bạn có thay đổi chưa lưu</h3><p>Chọn “Ở lại” để lưu dòng đang sửa, hoặc “Không lưu” để hủy thay đổi và tiếp tục.</p><button onClick={()=>{setUnsavedPrompt(false);setPendingAction(null);showToast("Hãy lưu dòng đang sửa bằng nút Lưu trước khi chuyển bộ lọc.");}}>Về dòng đang sửa</button><button onClick={()=>{const a=pendingAction;setPendingAction(null);setUnsavedPrompt(false);if(editing!=null)cancel(editing);a?.()}}>Không lưu</button><button onClick={()=>{setUnsavedPrompt(false);setPendingAction(null)}}>Ở lại</button></div></div>}
  </div>;
 }

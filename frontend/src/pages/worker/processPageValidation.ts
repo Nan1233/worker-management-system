@@ -104,6 +104,10 @@ export function validateMachineLines(args: {
       return `${machineLabel}: OK và NG phải là số nguyên không âm`;
     }
     if (machineCode) {
+      const hoursRaw=String(line.hours??"").trim();
+      const minutesRaw=String(line.minutes??"").trim();
+      if((hoursRaw&&!/^\d+$/.test(hoursRaw))||(minutesRaw&&!/^\d+$/.test(minutesRaw)))
+        return `${machineLabel}: giờ và phút phải là số nguyên không âm`;
       const hours = Number(line.hours || 0);
       const minutes = Number(line.minutes || 0);
       if (!Number.isFinite(hours) || !Number.isInteger(hours) || hours < 0 || hours > 12 ||
@@ -111,6 +115,8 @@ export function validateMachineLines(args: {
         return `${machineLabel}: giờ phải không âm và phút phải từ 0 đến 59`;
       }
       const deductionValues = Object.values(line.deductions || {});
+      if((line.selectedDeductions||[]).some(key=>!(key in (line.deductions||{}))))
+        return `${machineLabel}: mục trừ giờ không còn trong danh mục, vui lòng chọn lại`;
       if (deductionValues.some((value) => String(value ?? "").trim() !== "" &&
           (!Number.isFinite(Number(value)) || Number(value) < 0))) {
         return `${machineLabel}: thời gian trừ phải không âm`;
