@@ -20,6 +20,7 @@ const items:ManagementMenuItem[]=[
  {label:"Tổng quan",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW",roles:allManagementRoles},
  {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW",roles:allManagementRoles},
  {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW",roles:allManagementRoles},
+ {label:"Tất cả báo cáo",path:"report-management",icon:BarChart3,permission:"REPORT_APPROVED_VIEW",roles:["manager"]},
  {label:"Theo dõi công đoạn",path:"processes",icon:Layers3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
  {label:"Thống kê sản xuất",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
  {label:"Nhân sự",path:"workers",icon:Users,permission:"USER_VIEW",roles:allManagementRoles},
@@ -32,7 +33,7 @@ const items:ManagementMenuItem[]=[
 ];
 const navGroups=[
  {title:"TỔNG QUAN",paths:[""]},
- {title:"BÁO CÁO SẢN XUẤT",paths:["reports","approved"]},
+ {title:"BÁO CÁO SẢN XUẤT",paths:["reports","approved","report-management"]},
  {title:"HIỆU SUẤT",paths:["processes","statistics"]},
  {title:"NGUỒN LỰC",paths:["workers","master/machines"]},
  {title:"DANH MỤC & QUY CHUẨN",paths:["master/standards","master/defects","master/deductions"]},
