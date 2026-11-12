@@ -66,3 +66,34 @@
  .worker-mobile-nav button:focus-visible,.worker-header button:focus-visible{outline:2px solid #4655c8;outline-offset:-2px}
 }
 @media(max-width:360px){.worker-mobile-nav button{font-size:9px;gap:2px}.worker-content{padding-inline:8px}}
+
+/* KTC Worker Portal 2.0 – true redesign of the shared worker navigation. */
+.worker-layout{--worker-accent:#2563eb;--worker-line:#e1eaf4;background:#f3f7fc;color:#162f50}
+.worker-sidebar{width:252px;padding:24px 15px 18px;background:linear-gradient(180deg,#102846 0%,#142f50 72%,#0d253e 100%);border:0;box-shadow:7px 0 24px rgba(18,39,67,.075)}
+.worker-brand{min-height:70px;gap:12px;padding:12px 9px 17px;border-bottom:1px solid rgba(255,255,255,.1);color:#fff}
+.worker-brand-logo{width:108px;flex-basis:108px;height:38px;object-fit:contain;background:#fff;border-radius:8px;padding:5px}
+.worker-brand strong{color:#fff;font-size:12px;letter-spacing:.01em}.worker-brand small{color:#a9bfdb;font-size:11px}
+.worker-nav{gap:7px;margin-top:30px}.worker-nav:before{content:"KHÔNG GIAN LÀM VIỆC";display:block;padding:0 11px 11px;color:#7899bd;font-size:10px;letter-spacing:.12em;font-weight:800}
+.worker-nav button{min-height:47px;gap:14px;padding:0 14px;border:1px solid transparent;border-radius:11px;color:#b3c8df;font-size:12px;font-weight:660;transition:background .2s,color .2s}
+.worker-nav button svg{opacity:.8}
+.worker-nav button:hover{background:rgba(255,255,255,.08);color:#fff}
+.worker-nav button.active{background:linear-gradient(95deg,rgba(37,99,235,.4),rgba(37,99,235,.17));border-color:rgba(124,176,255,.23);box-shadow:inset 3px 0 #61d5ff;color:#fff;font-weight:800}
+.worker-nav button.active svg{opacity:1;color:#8be6ff}
+.worker-logout{min-height:45px;border:1px solid rgba(197,218,245,.14);background:rgba(255,255,255,.045);color:#bed0e4;font-size:12px}
+.worker-logout:hover{background:rgba(255,255,255,.1);color:#fff}
+.worker-main{margin-left:252px;background:#f3f7fc}
+.worker-header{min-height:76px;padding:11px 34px;background:rgba(255,255,255,.96);border-bottom:1px solid #e3ebf5;box-shadow:0 2px 14px rgba(28,57,97,.025)}
+.worker-header-brand{width:126px;height:46px}
+.worker-header-notification{width:43px;height:43px;border-radius:13px;background:#f7faff;color:#2563eb}
+.worker-header-avatar{width:42px;height:42px;flex-basis:42px;border-radius:13px;background:linear-gradient(135deg,#1c4a95,#256fe3);color:#fff;box-shadow:0 5px 14px rgba(37,99,235,.19)}
+.worker-content{padding:30px clamp(18px,3vw,52px) 42px}
+.worker-layout button:focus-visible{outline:2px solid #5bc0ff;outline-offset:3px}
+@media(max-width:800px){
+ .worker-sidebar{display:none}
+ .worker-main{margin-left:0;background:#f3f7fc}
+ .worker-header{min-height:61px;padding:7px 15px;box-shadow:0 3px 17px rgba(20,55,100,.045)}
+ .worker-content{padding:13px 12px 24px}
+ .worker-mobile-nav{border-top:1px solid #e5ecf6;box-shadow:0 -8px 28px rgba(20,49,93,.09)}
+ .worker-mobile-nav button.active{background:#e8f0ff;color:#215dd1}
+ .worker-header-avatar{width:38px;height:38px;flex-basis:38px}
+}
