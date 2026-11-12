@@ -130,3 +130,39 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
   assert.equal(sheet.rowCount,5,'No styled empty source rows remain');
   assert.match(sheet.pageSetup.printArea,/5$/,'Print range ends with last actual report');
 });
+
+test('ĐO: only day separators are pink, all report rows use original per-column palette',async () => {
+  const createReport=(id,date)=>({
+    id,work_date:date,created_at:date+'T09:00:00',worker_code:'4093',full_name:'Kiểm thử',
+    dataSource:'production_reports',isApprovedDatabaseRecord:true,shift:'A',
+    calculationSnapshot:{trainingFactor:1,standard:100,workingTime:8,actualTime:6,
+      deductionTime:2,ok:100,allNg:0,countedNg:0,enteredOutput:100,
+      adjustedOutput:100,outputPerHour:16.67,achievement:1,ngRate:0},
+    defects:[],deductions:[]
+  });
+  const original=new ExcelJS.Workbook();
+  await original.xlsx.readFile(source);
+  const sample=original.getWorksheet('Đo');
+  const built=await buildProcessWorkbookLocal({
+    date:'2026-11-01',processCode:'DO',
+    payload:{yearMonth:'2026-11',dataSource:'tidb.production_reports.approved',
+      processes:{DO:{reports:[createReport(1,'2026-11-07'),createReport(2,'2026-11-08')]}}}
+  });
+  const output=new ExcelJS.Workbook();
+  await output.xlsx.load(built.buffer);
+  const sheet=output.getWorksheet('Đo');
+  assert.equal(sheet.rowCount,5);
+  assert.equal(sheet.getCell('A2').value,'07/11/2026');
+  assert.equal(sheet.getCell('A4').value,'08/11/2026');
+  for(const row of [2,4])for(const col of [1,3,9,10,11,25]){
+    assert.deepEqual(sheet.getRow(row).getCell(col).fill,sample.getCell('A2').fill,
+      'Day separator pink at '+row+':'+col);
+  }
+  for(const row of [3,5])for(const col of [1,3,9,10,11,25]){
+    const fill=sheet.getRow(row).getCell(col).fill;
+    assert.deepEqual(fill,sample.getRow(3).getCell(col).fill,
+      'Data retains original color at '+row+':'+col);
+    assert.notDeepEqual(fill,sample.getCell('A2').fill,
+      'Data must not become pink at '+row+':'+col);
+  }
+});
