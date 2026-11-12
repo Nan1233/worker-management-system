@@ -598,6 +598,25 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         }
       }
     }
+    // Time and deduction amounts retain source column widths. Display at
+    // most two decimals, without modifying underlying numeric precision.
+    const timeColumns=new Set(Object.entries(config.fields)
+      .filter(([,field])=>/(?:time|hours|minutes|duration)/i.test(field))
+      .map(([letter])=>toNumber(letter)));
+    if(config.deductions)
+      for(let col=toNumber(config.deductions[0]);col<=toNumber(config.deductions[1]);col++)
+        timeColumns.add(col);
+    for(let col=1;col<=lastDataCol;col++){
+      const heading=templateCellText(sheet.getCell(config.header,col));
+      if(/(?:thời gian|thoi gian|giờ|phút|hours?|minutes?)/i.test(heading))
+        timeColumns.add(col);
+    }
+    for(const rowNumber of workbook1DataRows)
+      for(const col of timeColumns){
+        const cell=sheet.getRow(rowNumber).getCell(col);
+        if(typeof cell.value==="number" && Number.isFinite(cell.value))
+          cell.numFmt='#,##0.##';
+      }
     // Size columns from visible report values. ExcelJS has no font metrics;
     // widths include padding for Times New Roman 12 and percentage symbols.
     const visibleCellText = cell => {
@@ -632,6 +651,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         }
       }
       const sourceWidth=Number(column.width)||0;
+      if (timeColumns.has(col)) continue; // Keep company time column width.
       if (col>=8) {
         // H onward: preserve the company's width. Only enlarge when an
         // ACTUAL report value will be clipped. Ignore the pink day separator,
