@@ -85,6 +85,9 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     const dateCol = Object.entries(form.fields).find(([,key])=>key==='date')?.[0];
     assert.ok(dateCol,code+' must have the work-date column');
     assert.equal(sheet.getCell(dateCol+dataRow).value?.toISOString().slice(0,10),'2026-11-10',code+' work date has no timezone shift');
+    assert.ok(sheet.getColumn(1).width >= 16,code+' date separator column is wide enough');
+    assert.ok(sheet.getColumn(dateCol).width >= 16,code+' work-date column is wide enough');
+    assert.equal(sheet.getCell(dateCol+dataRow).numFmt,'dd/mm/yyyy',code+' work-date display format');
     for (const [column,key] of Object.entries(form.fields)) {
       if (key !== 'achievement' && key !== 'ngRate') continue;
       const cell=sheet.getCell(column+dataRow);
