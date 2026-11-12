@@ -1,0 +1,122 @@
+/*
+ * KTC Industrial Minimal — presentation only, version 1.
+ * Worker: phone first. Manager: desktop first.
+ * Keep report data, validation, permission, offline submission, and desktop export untouched.
+ * Avoid universal overrides: target existing page/role classes explicitly.
+ */
+:root {
+  --ktc-industrial-navy: #102a43;
+  --ktc-industrial-blue: #1769d2;
+  --ktc-industrial-wash: #f5f7fb;
+  --ktc-industrial-line: #e2e9f2;
+  --ktc-industrial-muted: #66788e;
+  --ktc-industrial-radius: 14px;
+  --ktc-industrial-shadow: 0 2px 10px rgba(16,42,67,.035);
+}
+.management-layout,.worker-layout {
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.management-layout :is(button,input,select,textarea):focus-visible,
+.worker-layout :is(button,input,select,textarea):focus-visible {
+  outline: 2px solid var(--ktc-industrial-blue);
+  outline-offset: 2px;
+}
+.management-layout :is(button,input,select,textarea),
+.worker-layout :is(button,input,select,textarea) { touch-action: manipulation; }
+@media (prefers-reduced-motion:reduce) {
+  .management-layout *, .worker-layout * {scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}
+}
+/* Management: readable enterprise desktop, no card-in-card decorations. */
+@media(min-width:801px) {
+  .management-layout .management-sidebar {background:#fff!important;border-right:1px solid var(--ktc-industrial-line)!important;box-shadow:none!important}
+  .management-layout .management-header {background:#fff!important;box-shadow:none!important}
+  .management-layout .management-main {background:var(--ktc-industrial-wash)!important}
+  .management-layout .management-menu {padding-right:0!important}
+  .management-layout .management-menu button {font-size:13px!important;line-height:1.3!important;min-height:42px!important}
+  .management-layout .management-menu button.active {background:#eaf2ff!important;color:#175eb7!important;box-shadow:inset 3px 0 0 #1769d2!important}
+  .management-layout .management-content {max-width:1680px;min-width:0;margin-inline:auto}
+  .management-content :is(.pending-list-card,.pending-filter-card,.ptd-panel,.management-report-card,.management-filter-card) {border-color:var(--ktc-industrial-line);box-shadow:var(--ktc-industrial-shadow)}
+  .management-content :is(.pending-reference-page,.ptd-dashboard,.statistics-enterprise) {width:100%;min-width:0}
+  .management-content :is(.pending-page-title h1,.ptd-heading h1) {color:var(--ktc-industrial-navy)}
+  .management-content :is(.pending-reference-table,.management-report-table) th {font-weight:700;color:#435872}
+}
+@media(min-width:801px) and (max-width:1250px) {
+  .management-layout .management-menu {padding-right:0!important}
+  .management-layout .management-menu button {font-size:12px!important;padding-inline:11px!important;gap:9px!important}
+  .management-layout .management-sidebar {width:220px!important}
+  .management-layout .management-main {margin-left:220px!important}
+}
+/* Pending: fix narrow laptop filter layout with named grid areas, not nth-child. */
+@media(min-width:801px) and (max-width:1350px) {
+  .management-layout .pending-reference-page .pending-filter-card[style]{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    grid-template-areas:"search search" "date process" "shift shift" "quick quick"!important;
+  }
+}
+.management-layout .pending-reference-page .pending-filter-card > .pending-search {grid-area:search!important}
+.management-layout .pending-reference-page .pending-filter-card > .pending-date-filter {grid-area:date!important}
+.management-layout .pending-reference-page .pending-filter-card > .pending-process-filter {grid-area:process!important}
+.management-layout .pending-reference-page .pending-filter-card > .pending-shift-filter {grid-area:shift!important}
+.management-layout .pending-reference-page .pending-filter-card > .pending-quick-filters {grid-area:quick!important}
+.management-layout .pending-filter-card label>span {font-weight:650!important;line-height:1.35!important}
+.management-layout .pending-filter-card :is(input,select) {border-color:#d5e0eb!important;border-radius:9px!important}
+/* Worker: ensure readable mobile forms and comfortable one-handed actions. */
+@media(max-width:800px) {
+  .worker-layout,.worker-layout .worker-main {background:var(--ktc-industrial-wash)}
+  .worker-layout .worker-content {padding:8px 10px 18px}
+  .worker-layout .worker-header {background:#fff;border-color:var(--ktc-industrial-line)}
+  .worker-layout .worker-mobile-nav {
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    background:#fff;
+    border-top:1px solid var(--ktc-industrial-line);
+    box-shadow:0 -3px 16px rgba(16,42,67,.055);
+  }
+  .worker-layout .worker-mobile-nav button {min-width:0;min-height:50px;border-radius:10px}
+  .worker-layout .worker-mobile-nav button span {font-size:11px!important;line-height:1.2!important}
+  .worker-layout .worker-mobile-nav button.active {background:#eaf2ff;color:#175eb7}
+  .worker-layout .worker-home-page {background:transparent}
+  .worker-layout .worker-home-shell {width:100%;max-width:100%;padding:0}
+  .worker-layout .worker-home-welcome,
+  .worker-layout .worker-home-today,
+  .worker-layout .worker-home-reports,
+  .worker-layout .worker-process-card,
+  .worker-layout .select-process-worker {
+    border-radius:var(--ktc-industrial-radius);
+    border-color:var(--ktc-industrial-line);
+    box-shadow:var(--ktc-industrial-shadow);
+  }
+  .worker-layout .worker-home-welcome {background:#fff;min-height:0}
+  .worker-layout .worker-home-welcome h1 {font-size:clamp(22px,5.6vw,28px);line-height:1.3}
+  .worker-layout .worker-home-metrics {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .worker-layout .worker-home-metrics .metric {min-height:92px}
+  .worker-layout .worker-home-metrics .metric strong {font-size:clamp(20px,5vw,26px)!important}
+  .worker-layout .worker-home-metrics .metric span {font-size:12px!important}
+  .worker-layout .worker-home-action {min-height:72px;box-shadow:none}
+  .worker-layout .worker-home-action strong {font-size:15px!important}
+  .worker-layout .worker-home-action small {font-size:12px!important}
+  .worker-layout .select-process-page {padding:8px 0 calc(90px + env(safe-area-inset-bottom));background:transparent}
+  .worker-layout .select-process-title-row h1 {font-size:clamp(21px,5.3vw,26px)}
+  .worker-layout .worker-process-card {min-height:88px;padding:12px;gap:12px}
+  .worker-layout .worker-process-content strong {font-size:16px}
+  .worker-layout .worker-process-content small {font-size:12px;line-height:1.45}
+  .worker-layout .worker-form-page {padding:8px 0 calc(142px + env(safe-area-inset-bottom));background:transparent}
+  .worker-layout .worker-form-shell {width:100%;max-width:100%}
+  .worker-layout .worker-form-card {border-radius:var(--ktc-industrial-radius);box-shadow:none;border:1px solid var(--ktc-industrial-line)}
+  .worker-layout .worker-form-title-row h1 {font-size:clamp(21px,5.2vw,26px)}
+  .worker-layout .worker-field-label,.worker-layout .worker-field-block>label {font-size:13px!important;line-height:1.45!important}
+  .worker-layout .worker-field-block>small {font-size:12px!important}
+  .worker-layout .worker-form-page :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea) {min-width:0;max-width:100%;font-size:16px!important}
+  .worker-layout .worker-form-page :is(.worker-choice-row button,.worker-dropdown-title,.worker-machine-add-button,.worker-machine-remove-button,.worker-submit-button) {min-height:44px}
+  .worker-layout .worker-submit-button {min-height:50px;font-size:15px!important}
+  .worker-layout .history-page {padding:8px 0 calc(86px + env(safe-area-inset-bottom));background:transparent}
+  .worker-layout .history-title-group h1 {font-size:clamp(21px,5.2vw,26px)!important}
+  .worker-layout .history-search-box input {font-size:16px!important}
+  .worker-layout .history-filter-field>span {font-size:12px}
+  .worker-layout .history-clear-button {min-height:44px;font-size:13px}
+}
+@media(max-width:380px) {
+  .worker-layout .worker-content {padding-inline:8px}
+  .worker-layout .worker-home-welcome {padding-inline:13px}
+  .worker-layout .worker-home-report {grid-template-columns:55px minmax(0,1fr) auto}
+}
