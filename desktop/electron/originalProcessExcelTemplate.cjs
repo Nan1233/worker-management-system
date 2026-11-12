@@ -265,13 +265,25 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       return cell.hasStyle?JSON.parse(JSON.stringify(cell.style)):null;
     })
   };
+  // Workbook1's pink separator is the sample row directly above the first
+  // report row. Reuse that row rather than leaving its obsolete sample date
+  // and creating an unstyled separator beneath it.
+  const separatorTemplate = workbook1 ? sheet.getRow(config.first-1) : null;
+  const separatorStyle = separatorTemplate ? {
+    height: separatorTemplate.height,
+    cells: Array.from({length:sheet.columnCount},(_,i)=>{
+      const cell=separatorTemplate.getCell(i+1);
+      return cell.hasStyle ? JSON.parse(JSON.stringify(cell.style)) : null;
+    })
+  } : null;
+  if (workbook1) sheet.getColumn(2).hidden = true; // Thời gian nộp báo cáo
   // Clear old sample body cells, while preserving each company's formatting.
   const bodyEnd=sheet.rowCount;
-  for(let r=config.first;r<=bodyEnd;r++){
+  for(let r=workbook1 ? config.first-1 : config.first;r<=bodyEnd;r++){
     const row=sheet.getRow(r);
     row.eachCell({includeEmpty:false},cell=>{if(cell.type!==ExcelJS.ValueType.Merge)cell.value=null;});
   }
-  let rowIndex=config.first;
+  let rowIndex=workbook1 ? config.first-1 : config.first;
   let currentDay=null;
   let dayStt=0;
   for (let index=0;index<reports.length;index++) {
@@ -280,13 +292,19 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     if(day!==currentDay){
       currentDay=day;dayStt=0;
       const separator=sheet.getRow(rowIndex++);
-      separator.height=18;
+      if (separatorStyle) {
+        separator.height=separatorStyle.height;
+        separatorStyle.cells.forEach((style,index)=>{
+          if (style) separator.getCell(index+1).style=JSON.parse(JSON.stringify(style));
+        });
+      } else {
+        separator.height=18;
+      }
       const first=separator.getCell(1);
       first.value=day.slice(8,10)+"/"+day.slice(5,7)+"/"+day.slice(0,4);
       first.font={...(first.font||{}),bold:true};
-      // Never paint a MAI date separator with a header fill: that destroys
-      // the original company's cell palette and creates uneven color bands.
-      // Preserve the original template fill for every process; do not recolor.
+      // The pink separator's fill comes from the workbook's source row,
+      // never from a hard-coded color or a normal data row.
     }
     const targetRowIndex=rowIndex++;
     const baseStyle=sheet.getRow(config.first);
@@ -307,7 +325,12 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     }
     const snapshot=helpers.reportSnapshot(report,helpers.settingsForReport(report,settings,processData?.settingsByDate||{}));
     const extra=helpers.parseExtraData(report);
-    const values={...snapshot,stt:++dayStt,expectedOutput:(asNumeric(snapshot.standard)||0)*(asNumeric(snapshot.actualTime)||0)};
+    // ExcelJS stores Date values as UTC serial dates. Construct at UTC
+    // midnight, otherwise a +07 local midnight is displayed one day early.
+    const [dayYear,dayMonth,dayNumber]=day.split("-").map(Number);
+    const excelWorkDate=new Date(Date.UTC(dayYear,dayMonth-1,dayNumber));
+    const values={...snapshot,stt:++dayStt, date:excelWorkDate,
+      expectedOutput:(asNumeric(snapshot.standard)||0)*(asNumeric(snapshot.actualTime)||0)};
     // Preserve the established GC work-type codes when the row represents
     // non-product work; never replace them with an invented product code.
     if (code === "GC") {
@@ -365,11 +388,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   if(code==="K1") sheet.getRow(3).eachCell({includeEmpty:false},cell=>{
     if(typeof cell.value==="number") cell.value=null;
   });
-  if (workbook1) {
-    // Row 2 (or row 4 in GC) is the source sample-day caption, not a report.
-    // Replace its hard-coded 2026 sample date with the requested month.
-    const periodRow = code === "GC" ? 4 : 2;
-    sheet.getCell(periodRow,1).value = new Date(reportYear,reportMonth-1,1);
+  if (workbook1 && reports.length===0) {
+    // A blank month still displays its month in the preserved pink sample row.
+    sheet.getCell(config.first-1,1).value = new Date(Date.UTC(reportYear,reportMonth-1,1));
   }
   // Keep the company template print header/footer untouched. Some source sheets
   // have headerFooter=null, so assigning oddHeader would crash the export.
