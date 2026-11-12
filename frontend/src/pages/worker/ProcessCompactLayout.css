@@ -110,19 +110,11 @@
     font-size: 12px !important;
   }
 
-  .worker-form-page .machine-line .worker-field-block input::placeholder {
-    font-size: 12px !important;
-  }
-
   .worker-form-page .machine-line .machine-time-row .worker-time-part > span,
   .worker-form-page .machine-line .machine-quantity-row .worker-time-part > span {
     font-size: 9.5px !important;
   }
 
-  .worker-form-page .machine-line .machine-time-row input,
-  .worker-form-page .machine-line .machine-quantity-row input {
-    font-size: 12px !important;
-  }
 }
 
 @media (max-width: 380px) {
