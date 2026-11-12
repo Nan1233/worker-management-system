@@ -1237,23 +1237,24 @@ async function readRendererAccessToken() {
   const token = await mainWindow.webContents.executeJavaScript(
     `(() => {
       try {
+        // The hosted Cloudflare frontend uses sessionStorage for accessToken.
+        // In Electron remote-profile mode localStorage is deliberately cleared.
         const keys = ['accessToken', 'access_token', 'token'];
-        for (const key of keys) {
-          const value = localStorage.getItem(key);
-          if (typeof value === 'string' && value.trim()) return value.trim();
-        }
-
-        const authValue = localStorage.getItem('auth');
-        if (authValue) {
+        for (const storage of [sessionStorage, localStorage]) {
+          for (const key of keys) {
+            const value = storage.getItem(key);
+            if (typeof value === 'string' && value.trim()) return value.trim();
+          }
+          const authValue = storage.getItem('auth');
+          if (!authValue) continue;
           try {
             const auth = JSON.parse(authValue);
             const nested = auth?.accessToken || auth?.access_token || auth?.token || '';
             if (typeof nested === 'string' && nested.trim()) return nested.trim();
-          } catch (error) {
-            console.warn("[KTC] Invalid stored auth payload", error?.message || error);
+          } catch {
+            // Invalid legacy auth JSON is not a token; continue lookup.
           }
         }
-
         return '';
       } catch {
         return '';
@@ -1261,7 +1262,6 @@ async function readRendererAccessToken() {
     })()`,
     true
   );
-
   return normalizeAccessToken(token);
 }
 
