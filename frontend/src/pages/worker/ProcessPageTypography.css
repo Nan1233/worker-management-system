@@ -87,34 +87,6 @@
   padding-top: 8px !important;
 }
 
-@media (max-width: 760px) {
-  .worker-form-page .worker-card-title,
-  .worker-form-page .worker-card-heading .worker-card-title {
-    font-size: 15px !important;
-  }
-
-  .worker-form-page .worker-field-label,
-  .worker-form-page .worker-field-block > label,
-  .worker-form-page .machine-section-title,
-  .worker-form-page .multi-machine-controls > label,
-  .worker-form-page .worker-time-item > label,
-  .worker-form-page .worker-quality-card label {
-    font-size: 11px !important;
-  }
-
-  .worker-form-page .machine-card-header strong,
-  .worker-form-page .worker-dropdown-title,
-  .worker-form-page .worker-dropdown-option,
-  .worker-form-page .machine-deduction-option,
-  .worker-form-page .worker-choice-row button,
-  .worker-form-page .worker-text-input,
-  .worker-form-page .worker-field-block input:not([type=checkbox]):not([type=radio]),
-  .worker-form-page .worker-field-block select,
-  .worker-form-page .worker-field-block textarea {
-    font-size: 12px !important;
-  }
-}
-
 @media (max-width: 380px) {
   .worker-form-page .worker-card-title { font-size: 14px !important; }
   .worker-form-page .worker-field-label,
