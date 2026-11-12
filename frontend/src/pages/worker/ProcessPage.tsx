@@ -119,6 +119,7 @@ import {
     toDuplicatePrompt,
 } from "./processDuplicateReportLogic";
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
+import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
 import { useRelatedGrindingMachines } from "./useRelatedGrindingMachines";
@@ -485,7 +486,7 @@ const machineAutocompleteOptions =
     // The duplicate prompt is bound to the entire form snapshot that produced its payload.
     // Include machine lines, deductions and operation modes too; checking only parent totals
     // could allow a stale duplicate payload after a machine-line edit.
-    const getDuplicateFormSignature = useCallback(() => JSON.stringify({
+    const getDuplicateFormSignature = useCallback(() => createDuplicateFormSignature({
         processId: processInfo.id,
         process,
         form,
