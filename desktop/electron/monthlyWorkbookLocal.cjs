@@ -154,7 +154,7 @@ const COLORS = Object.freeze({
   actualOutput: 'FFE4DFEC',
   rateGood: 'FFC6E0B4',
   rateWarning: 'FFFFE699',
-  rateBad: 'FFF4B084'
+  rateBad: 'FFFF5252'
 });
 
 const asText = (value) => String(value ?? '').trim();
