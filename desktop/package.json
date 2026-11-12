@@ -38,7 +38,9 @@
     "test:backup-retention": "node --test tests/excel-backup-retention.test.cjs",
     "test:physical-event-metadata": "node --test tests/monthly-workbook-physical-event-metadata.test.cjs",
     "test:workbook1": "node --test tests/workbook1-process-export.test.cjs",
-    "test:renderer-auth": "node --test tests/renderer-auth-token-source.test.cjs"
+    "test:renderer-auth": "node --test tests/renderer-auth-token-source.test.cjs",
+    "dist:portable:quick": "electron-builder --win portable --x64 --publish never --config.compression=store",
+    "dist:dir:quick": "electron-builder --win dir --x64 --publish never"
   },
   "devDependencies": {
     "electron": "37.10.3",
