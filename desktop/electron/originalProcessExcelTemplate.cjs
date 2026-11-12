@@ -155,10 +155,24 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       sheet.getColumn(col).hidden=false;
     }
   }
+  const workbook1DefectPrefix = { GC:"CAT", MAI:"MAI_NG_", DO:"DO_NG_", XLBV:"XLBV", EP:"EP", CAN:"CAN" };
   const mappedDefects=[];
   for(const [defectIndex,d] of defectCols.entries()){
     const headerNorm=norm(d.header);
-    const matches=workbook1
+    // The company's workbook headers are descriptions, while the API sends
+    // stable coded defects (MAI_NG_01, DO_NG_01, etc.). Match the exact
+    // positional code first; a display-name match cannot resolve code-only
+    // payloads and can leave genuine NG quantities blank.
+    const expectedCode = workbook1
+      ? norm(workbook1DefectPrefix[code] + String(d.col-toNumber(config.defects[0])+1).padStart(2,"0"))
+      : "";
+    const codedMatches = expectedCode ? defectTypes.filter(t=>
+      [t.key,...(t.aliases||[])].some(v=> {
+        const raw=String(v);
+        return raw.startsWith("code:") && norm(raw.slice(5))===expectedCode;
+      })
+    ) : [];
+    const matches=codedMatches.length===1 ? codedMatches : workbook1
       ? defectTypes.filter(t=>[t.label,...(t.aliases||[])].some(v=>{
           const raw=String(v); const normalized=norm(raw.replace(/^(name:|code:)/,""));
           if(raw.startsWith("id:") || !normalized) return false;
