@@ -310,7 +310,12 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
           // Source Workbook1 paints the entire date row pink. Applying only
           // per-cell styles lets previously styled data cells keep white fills
           // on later separators (e.g. the second MÀI day).
-          if (separatorStyle.fill) cell.fill=JSON.parse(JSON.stringify(separatorStyle.fill));
+          if (separatorStyle.fill) {
+            cell.style = {
+              ...JSON.parse(JSON.stringify(cell.style || {})),
+              fill: JSON.parse(JSON.stringify(separatorStyle.fill))
+            };
+          }
         });
       } else {
         separator.height=18;
@@ -388,8 +393,15 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       for (let col = 1; col <= lastMappedCol; col++) {
         const original = originalBodyStyle.cells[col-1];
         const cell = row.getCell(col);
-        if (original?.fill) cell.fill = JSON.parse(JSON.stringify(original.fill));
-        else cell.fill = { type:'pattern', pattern:'none' };
+        // Replace the WHOLE style model with an independent copy. Assigning
+        // cell.fill alone mutates a shared ExcelJS style and recolors adjacent
+        // date/data rows on serialization.
+        const independentStyle = original?.style
+          ? JSON.parse(JSON.stringify(original.style)) : {};
+        independentStyle.fill = original?.fill
+          ? JSON.parse(JSON.stringify(original.fill))
+          : { type:'pattern', pattern:'none' };
+        cell.style = independentStyle;
       }
     }
     // Apply separator fills LAST. ExcelJS imported cells can share an
@@ -399,9 +411,12 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       const row = sheet.getRow(separatorRowIndex);
       for (let col = 1; col <= sheet.columnCount; col++) {
         const cell = row.getCell(col);
-        cell.fill = separatorStyle?.fill
+        const independentStyle = separatorStyle?.cells[col-1]
+          ? JSON.parse(JSON.stringify(separatorStyle.cells[col-1])) : {};
+        independentStyle.fill = separatorStyle?.fill
           ? JSON.parse(JSON.stringify(separatorStyle.fill))
           : { type:'pattern', pattern:'none' };
+        cell.style = independentStyle;
       }
     }
   }
