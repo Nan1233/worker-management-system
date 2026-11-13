@@ -37,3 +37,9 @@ test('startup diagnostics identify each Electron launch and preserve auth timing
   assert.match(auth, /AUTH_BOOTSTRAP_START/);
   assert.match(auth, /AUTH_BOOTSTRAP_FINISHED/);
 });
+
+test('auto-updater never blocks the portable first window', () => {
+  assert.match(launcher, /if \(!process\.env\.PORTABLE_EXECUTABLE_FILE && app\.isPackaged\)/);
+  assert.match(launcher, /setTimeout\(\(\) => \{/);
+  assert.match(launcher, /AUTO_UPDATER_LOADED_AFTER_STARTUP/);
+});
