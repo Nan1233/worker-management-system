@@ -70,8 +70,11 @@ function createStandardResolver({query=defaultQuery}={}) {
     // Prefer the explicitly labeled master record over legacy blank work_type,
     // but only for NEW submissions. Historical snapshots must retain their IDs.
     // Multiple explicit records remain ambiguous (fail closed).
-    if(!includeInactive && [2,3].includes(Number(pid)) && rows.length>1){
-      const expected=Number(pid)===2?'MAI':'DO';
+    if(!includeInactive && [2,3,7,8].includes(Number(pid)) && rows.length>1){
+      // Process identity is already scoped by process_id. Prefer the specifically
+      // labeled standard over a legacy blank work_type for new submissions.
+      // Never silently choose between multiple labeled standards.
+      const expected=({2:'MAI',3:'DO',7:'EP',8:'CAN'})[Number(pid)];
       const matching=rows.filter(row=>{
         const label=String(row.work_type||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/Đ/g,'D');
         return label===expected;
