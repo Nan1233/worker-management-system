@@ -202,3 +202,44 @@ test('event edit preserves identity and checks a new identity before changing di
   assert.match(source, /excludeEventId: before\.id/);
   assert.match(source, /await assertUniquePhysicalEvent\(connection, \{ processId: ctx\.process\.id/);
 });
+
+test('GC Excel does not repeat physical NG across shared workers', () => {
+  const { groupMachineDefects, hydrateMachineLineDefects } =
+    require('../services/bulkCompanyExcelDataService')._test;
+  // The SQL event-defect JOIN returns each physical defect once per participant.
+  const rows = [
+    { id: 501, machine_event_id: 701, defect_code: 'BAVIA', quantity: 8, responsible_worker_id: 11 },
+    { id: 501, machine_event_id: 701, defect_code: 'BAVIA', quantity: 8, responsible_worker_id: 11 },
+    { id: 502, machine_event_id: 701, defect_code: 'KQD', quantity: 2, responsible_worker_id: 12 },
+    { id: 502, machine_event_id: 701, defect_code: 'KQD', quantity: 2, responsible_worker_id: 12 }
+  ];
+  const physical = groupMachineDefects(rows, 'machine_event_id');
+  assert.equal(physical.get(701).length, 2);
+  assert.equal(physical.get(701).reduce((total, row) => total + row.quantity, 0), 10);
+
+  const line = { id: 91, machine_event_id: 701, defects_json: null, ng_quantity: 8 };
+  const first = hydrateMachineLineDefects([line], new Map(), physical, 11)[0];
+  const second = hydrateMachineLineDefects([{ ...line, id: 92, ng_quantity: 2 }], new Map(), physical, 12)[0];
+  assert.deepEqual(first.defects.map(item => item.quantity), [8]);
+  assert.deepEqual(second.defects.map(item => item.quantity), [2]);
+  assert.equal(first.ng_quantity, 8);
+  assert.equal(second.ng_quantity, 2);
+  assert.equal(first.defects.length + second.defects.length, 2);
+});
+
+test('GC Excel keeps saved worker defect details as authoritative', () => {
+  const { groupMachineDefects, hydrateMachineLineDefects } =
+    require('../services/bulkCompanyExcelDataService')._test;
+  const eventDetails = groupMachineDefects([
+    { id: 503, machine_event_id: 701, defect_code: 'BAVIA', quantity: 8, responsible_worker_id: 11 }
+  ], 'machine_event_id');
+  const persisted = new Map([[91, [
+    { id: 99, defect_code: 'BAVIA', quantity: 3 }
+  ]]]);
+  const line = hydrateMachineLineDefects(
+    [{ id: 91, machine_event_id: 701, defects_json: null, ng_quantity: 3 }],
+    persisted, eventDetails, 11
+  )[0];
+  assert.equal(line.defects[0].quantity, 3);
+  assert.equal(line.ng_quantity, 3);
+});
