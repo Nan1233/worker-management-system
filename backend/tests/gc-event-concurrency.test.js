@@ -192,13 +192,13 @@ test('duplicate machine/product/date/shift event is rejected under machine lock'
     }),
     error => error.code === 'MACHINE_EVENT_ALREADY_EXISTS' && error.status === 409
   );
-  assert.match(state.sql[0], /FROM machines WHERE id=\\? FOR UPDATE/);
-  assert.match(state.sql[1], /FROM machine_production_events[\\s\\S]*FOR UPDATE/);
+  assert.match(state.sql[0], /FROM machines WHERE id=\? FOR UPDATE/);
+  assert.match(state.sql[1], /FROM machine_production_events[\s\S]*FOR UPDATE/);
 });
 
 test('event edit preserves identity and checks a new identity before changing dimensions', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../services/machineProductionEventService.js'), 'utf8');
-  assert.match(source, /if \\(dimensionsChanged\\) await assertUniquePhysicalEvent/);
-  assert.match(source, /excludeEventId: before\\.id/);
-  assert.match(source, /await assertUniquePhysicalEvent\\(connection, \\{ processId: ctx\\.process\\.id/);
+  assert.match(source, /if \(dimensionsChanged\) await assertUniquePhysicalEvent/);
+  assert.match(source, /excludeEventId: before\.id/);
+  assert.match(source, /await assertUniquePhysicalEvent\(connection, \{ processId: ctx\.process\.id/);
 });
