@@ -1,6 +1,12 @@
 name: GC Machine Accounting Regression
 
 on:
+  push:
+    branches: [test]
+    paths:
+      - 'backend/services/machineProductionEventService.js'
+      - 'backend/tests/gc-event-concurrency.test.js'
+      - '.github/workflows/gc-machine-accounting-regression.yml'
   workflow_dispatch:
 
 permissions:
@@ -32,4 +38,4 @@ jobs:
           node --check services/gcWorkerReportRows.js
           node --check services/commonProcessMonthlyExcelService.js
       - name: Run GC machine accounting regression tests
-        run: node --test tests/gc-machine-time-accounting.test.js tests/shared-machine-accounting-flow.test.js tests/gc-worker-report-excel.test.js tests/common-process-gc-excel.test.js
+        run: node --test tests/gc-event-concurrency.test.js tests/gc-machine-time-accounting.test.js tests/shared-machine-accounting-flow.test.js tests/gc-worker-report-excel.test.js tests/common-process-gc-excel.test.js
