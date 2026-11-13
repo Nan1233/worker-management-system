@@ -15,8 +15,10 @@ function buildCommonProcessExcelRowValues(report, deductionTypes, defectTypes, i
   //   % định mức = TT / Định mức × % học việc
   // The training percentage is the immutable snapshot captured at report time.
   const standardRate = num(report.standard_output);
-  const actual = num(report.actual_output || (num(report.tt_ok) + num(report.tt_ng)));
-  const trainingPercent = Math.min(100, Math.max(0, num(report.training_percent ?? report.training_percent_snapshot)));
+  // Zero is a legitimate approved snapshot. Do not replace it with OK + NG.
+  const actual = num(report.actual_output ?? (num(report.tt_ok) + num(report.tt_ng)));
+  // Historical snapshot is authoritative; current worker training must not override it.
+  const trainingPercent = Math.min(100, Math.max(0, num(report.training_percent_snapshot ?? report.training_percent ?? 100)));
   const trainingFactor = trainingPercent / 100;
   const standard = standardRate * actualTime;
   const achievement = standard > 0 ? (actual / standard) * trainingFactor : 0;
