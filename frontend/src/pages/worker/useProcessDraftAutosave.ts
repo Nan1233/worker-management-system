@@ -6,7 +6,6 @@ import type {
 } from "./processPageConfig";
 import type { ProcessDraft } from "./processDraftStorage";
 import {
-    clearProcessDraftAsync,
     hasMeaningfulProcessDraft,
     saveProcessDraftAsync,
 } from "./processDraftStorage";
@@ -38,7 +37,7 @@ export function useProcessDraftAutosave({
     process, processCode, form, deductions, selectedDeduction, selectedNg,
     machineLines, machineCount, operationType, operationMode, isCvkMode,
     cutExecutionMode, extraData, loadingWorker, loadingMasterData, submitting,
-    isRestoringDraftRef, draftSaveTimerRef, resetVersionRef,
+    isRestoringDraftRef, resetVersionRef,
 }: Params): void {
     // DO persists immediately on pagehide, including edits inside the debounce window.
     const doDraftSnapshotRef = useRef<ProcessDraft | null>(null);
@@ -95,6 +94,6 @@ export function useProcessDraftAutosave({
         process, form, deductions, selectedDeduction, selectedNg, machineLines,
         machineCount, operationType, operationMode, isCvkMode, cutExecutionMode,
         extraData, loadingWorker, loadingMasterData, submitting,
-        isRestoringDraftRef, draftSaveTimerRef, resetVersionRef,
+        isRestoringDraftRef, resetVersionRef,
     ]);
 }
