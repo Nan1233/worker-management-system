@@ -3,7 +3,6 @@
 // Diagnostics are intentionally constrained to timings and an opaque install ID.
 // No credentials, user-agent strings, hostnames, paths or log text are accepted.
 const db = require('../config/db');
-const crypto = require('node:crypto');
 
 const POINTS = ['process_start','excel_patches_ready','main_require_begin',
   'bundled_fe_ready','main_require_end','window_create_begin','window_created',
@@ -74,13 +73,44 @@ async function submit(userId, payload) {
   return Number(result.insertId || 0);
 }
 
-async function recent(limit = 30) {
+function analyze(points) {
+  const stages = [
+    ['excel_patches', 'process_start', 'excel_patches_ready'],
+    ['pre_main', 'excel_patches_ready', 'main_require_begin'],
+    ['bundled_frontend', 'main_require_begin', 'bundled_fe_ready'],
+    ['main_module', 'bundled_fe_ready', 'main_require_end'],
+    ['window_creation', 'window_create_begin', 'window_created'],
+    ['window_render', 'window_created', 'window_ready_to_show'],
+    ['frontend_load', 'window_created', 'frontend_loaded']
+  ];
+  const durationsMs = {};
+  for (const [label, from, to] of stages) {
+    if (typeof points[from] === 'number' && typeof points[to] === 'number' && points[to] >= points[from]) {
+      durationsMs[label] = points[to] - points[from];
+    }
+  }
+  const slowest = Object.entries(durationsMs).sort((a, b) => b[1] - a[1])[0] || null;
+  return {
+    durationsMs,
+    slowestMeasuredPhase: slowest ? slowest[0] : null,
+    slowestMeasuredMs: slowest ? slowest[1] : null,
+    totalElectronMs: typeof points.window_ready_to_show === 'number'
+      ? points.window_ready_to_show
+      : typeof points.frontend_loaded === 'number' ? points.frontend_loaded : null,
+    // Portable self-extraction happens before process_start and cannot be measured here.
+    preElectronExtractionMeasured: false
+  };
+}
+
+async function recent(limit = 30, userId = null) {
   await ensureTable();
   const take = Math.min(100, Math.max(1, Math.floor(Number(limit) || 30)));
   const [rows] = await db.promise().query(
     `SELECT id, user_id, install_id, version, started_at, uploaded_at,
             platform, arch, portable, bundled_frontend, points_json
-       FROM ktc_desktop_startup_diagnostics ORDER BY id DESC LIMIT ${take}`
+       FROM ktc_desktop_startup_diagnostics
+      ${userId ? 'WHERE user_id=?' : ''} ORDER BY id DESC LIMIT ${take}`,
+    userId ? [userId] : []
   );
   return (rows || []).map((row) => {
     let points = row.points_json;
@@ -88,8 +118,8 @@ async function recent(limit = 30) {
     return { id: row.id, userId: row.user_id, installId: row.install_id,
       version: row.version, startedAt: row.started_at, uploadedAt: row.uploaded_at,
       platform: row.platform, arch: row.arch, portable: Boolean(row.portable),
-      bundledFrontend: Boolean(row.bundled_frontend), points: points || {} };
+      bundledFrontend: Boolean(row.bundled_frontend), points: points || {}, analysis: analyze(points || {}) };
   });
 }
 
-module.exports = { normalize, submit, recent, POINT_SET };
+module.exports = { normalize, submit, recent, analyze, POINT_SET };
