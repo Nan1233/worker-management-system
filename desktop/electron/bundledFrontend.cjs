@@ -18,8 +18,8 @@ const MIME = Object.freeze({
 function bundledFrontendPath(root, pathname) {
   let decoded;
   try { decoded = decodeURIComponent(pathname); } catch { return null; }
-  if (decoded.includes('\\') || decoded.includes('\\0')) return null;
-  const relative = decoded.replace(/^\\/+/, '') || 'index.html';
+  if (decoded.includes('\\') || decoded.includes('\0')) return null;
+  const relative = decoded.replace(/^\/+/, '') || 'index.html';
   const rootPath = path.resolve(root);
   const fullPath = path.resolve(rootPath, relative);
   if (!fullPath.startsWith(rootPath + path.sep)) return null;
