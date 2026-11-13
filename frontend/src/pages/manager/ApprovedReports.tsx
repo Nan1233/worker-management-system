@@ -111,7 +111,7 @@ export default function ApprovedReports() {
             setLoading(true); setError("");
             const r = range || { dateFrom: date, dateTo: date };
             const filters = { dateFrom: r.dateFrom, dateTo: r.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined };
-            const result = await getApprovedReports({ ...filters, page, pageSize: 8 });
+            const result = await getApprovedReports({ ...filters, page, pageSize: 20 });
             if (!isCurrentRequest()) return;
             const lastPage = Math.max(1, result.pagination?.total_pages || 1);
             setTotal(result.pagination?.total || 0); setPages(lastPage);
