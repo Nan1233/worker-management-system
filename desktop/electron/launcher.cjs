@@ -1,4 +1,6 @@
 const { app, ipcMain, dialog, BrowserWindow } = require('electron');
+const startupClock = process.hrtime.bigint();
+const startupElapsedMs = () => Number((process.hrtime.bigint() - startupClock) / 1000000n);
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -93,9 +95,8 @@ app.on('browser-window-created', (_event, window) => {
     if (fileName === 'index.html') {
       // Avoid delaying the first navigation for cache cleanup. The request
       // headers below still ask the remote frontend for fresh content.
-      await window.loadURL(FRONTEND_URL, {
-        extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n'
-      });
+      void writeLauncherLog('INFO', 'REMOTE_FE_NAVIGATION_START', { elapsedMs: startupElapsedMs() });
+      await window.loadURL(FRONTEND_URL);
       return window;
     }
     return originalWindowLoadFile(filePath, ...args);
@@ -103,7 +104,7 @@ app.on('browser-window-created', (_event, window) => {
 
   window.webContents.on('did-navigate', (_navigateEvent, url) => {
     if (url === FRONTEND_URL || url.startsWith(`${FRONTEND_URL}/`)) {
-      void writeLauncherLog('INFO', 'REMOTE_FE_LOADED', { url });
+      void writeLauncherLog('INFO', 'REMOTE_FE_LOADED', { url, elapsedMs: startupElapsedMs() });
     }
   });
 
@@ -113,6 +114,7 @@ app.on('browser-window-created', (_event, window) => {
         errorCode,
         errorDescription,
         validatedURL,
+        elapsedMs: startupElapsedMs(),
       });
     }
   });
