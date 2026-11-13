@@ -1,0 +1,36 @@
+name: Backend RBAC and process scope regression
+
+on:
+  push:
+    branches: [test]
+    paths:
+      - 'backend/middleware/authMiddleware.js'
+      - 'backend/services/processAuthorizationService.js'
+      - 'backend/tests/auth-token-identity-binding.test.cjs'
+      - 'backend/tests/permission-matrix.test.cjs'
+      - 'backend/tests/authorization-process-scope.test.js'
+      - 'backend/tests/authorization-f09-scope.test.js'
+      - '.github/workflows/backend-rbac-process-scope.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rbac:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --check middleware/authMiddleware.js
+      - name: Authentication, permission matrix and process scope (mock DB only)
+        run: node --test tests/auth-token-identity-binding.test.cjs tests/permission-matrix.test.cjs tests/authorization-process-scope.test.js tests/authorization-f09-scope.test.js
