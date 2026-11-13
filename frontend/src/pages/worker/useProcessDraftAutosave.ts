@@ -84,21 +84,13 @@ export function useProcessDraftAutosave({
             extraData,
         };
 
-        const timer = window.setTimeout(() => {
-            if (resetVersionRef.current !== resetVersion) return;
-            if (hasMeaningfulProcessDraft(snapshot)) {
-                void saveProcessDraftAsync(snapshot);
-            } else {
-                void clearProcessDraftAsync(process);
-            }
-            draftSaveTimerRef.current = null;
-        }, 700);
-        draftSaveTimerRef.current = timer;
-
-        return () => {
-            window.clearTimeout(timer);
-            if (draftSaveTimerRef.current === timer) draftSaveTimerRef.current = null;
-        };
+        // Persist immediately after each committed form change. A 700ms debounce
+        // could lose the last edits on reload, tab close, or navigation.
+        if (resetVersionRef.current === resetVersion && hasMeaningfulProcessDraft(snapshot)) {
+            void saveProcessDraftAsync(snapshot);
+        }
+        // Never delete a saved draft merely because the initial form is empty.
+        // Only explicit reset or confirmed submission may clear it.
     }, [
         process, form, deductions, selectedDeduction, selectedNg, machineLines,
         machineCount, operationType, operationMode, isCvkMode, cutExecutionMode,
