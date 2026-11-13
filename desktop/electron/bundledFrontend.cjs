@@ -45,7 +45,7 @@ async function installBundledFrontend({ session, net, frontendOrigin, root, log 
       return new Response(data, {
         status: 200, headers: {
           'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
-          'Cache-Control': 'no-store',
+          'Cache-Control': url.pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-store',
           'X-Content-Type-Options': 'nosniff'
         }
       });
