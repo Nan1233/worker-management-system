@@ -52,6 +52,31 @@ function writeLauncherLog(level, event, payload = {}) {
   }
 }
 
+// Observe fatal startup failures without replacing Node's default crash behavior.
+// Never log environment variables, renderer storage, auth tokens or full URLs.
+function safeCrashSummary(reason) {
+  const error = reason instanceof Error ? reason : new Error(String(reason));
+  const sanitize = (value) => String(value || '')
+    .replace(/(authorization|bearer|token|password|cookie|secret)\\s*[:=]\\s*[^\\s,;]+/gi, '$1=[REDACTED]')
+    .slice(0, 1500);
+  return { name: sanitize(error.name), message: sanitize(error.message), code: sanitize(error.code || '') };
+}
+
+process.on('uncaughtExceptionMonitor', (error, origin) => {
+  void writeLauncherLog('ERROR', 'MAIN_UNCAUGHT_EXCEPTION', {
+    origin: String(origin || ''), ...safeCrashSummary(error)
+  });
+});
+process.on('unhandledRejection', (reason) => {
+  void writeLauncherLog('ERROR', 'MAIN_UNHANDLED_REJECTION', safeCrashSummary(reason));
+});
+app.on('child-process-gone', (_event, details) => {
+  void writeLauncherLog('ERROR', 'ELECTRON_CHILD_PROCESS_GONE', {
+    type: String(details?.type || ''), reason: String(details?.reason || ''),
+    exitCode: Number(details?.exitCode || 0)
+  });
+});
+
 app.on('browser-window-created', (_event, window) => {
   try {
     if (process.platform === 'win32') window.setIcon(DESKTOP_ICON);
