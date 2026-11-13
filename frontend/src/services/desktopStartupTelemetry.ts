@@ -1,5 +1,4 @@
-import api from "./api";
-import { getAccessToken } from "../utils/authStorage";
+import { API_BASE_URL } from "../config/env";
 
 type Snapshot = {
   schema: number;
@@ -12,7 +11,7 @@ type Snapshot = {
   points: Record<string, number>;
 };
 
-type DesktopTelemetryBridge = Window & {
+type DesktopBridge = Window & {
   ktcDesktop?: {
     isDesktop?: boolean;
     getStartupDiagnostics?: () => Promise<Snapshot>;
@@ -23,58 +22,46 @@ const INSTALL_KEY = "ktc:startup-diagnostics-install-id-v1";
 
 function installId(): string {
   const stored = localStorage.getItem(INSTALL_KEY);
-  if (stored && /^[0-9a-f-]{36}$/i.test(stored)) return stored;
+  if (stored && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(stored)) return stored;
   const id = crypto.randomUUID();
   localStorage.setItem(INSTALL_KEY, id);
   return id;
 }
 
-// Passive, best-effort startup upload; never blocks login or opening the app.
-// Retry only while waiting for the user to sign in or for a temporary network
-// outage. Send an opaque per-install UUID, never hostname/token/log file.
-export function startDesktopStartupTelemetry(): () => void {
-  const bridge = (window as DesktopTelemetryBridge).ktcDesktop;
-  if (!bridge?.isDesktop || typeof bridge.getStartupDiagnostics !== "function") return () => {};
-
-  let stopped = false;
-  let inFlight = false;
-  let uploaded = false;
-  let attempts = 0;
-  let errors = 0;
-
-  const upload = async () => {
-    if (stopped || uploaded || inFlight || attempts >= 60 || errors >= 5) return;
-    attempts += 1;
-    if (!getAccessToken()) return;
-    inFlight = true;
+// Called AFTER window.load and two animation frames, never during first paint.
+// One best-effort unauthenticated POST; no token, cookies, retry timer or report data.
+export async function uploadDesktopStartupTelemetry(): Promise<void> {
+  const bridge = (window as DesktopBridge).ktcDesktop;
+  if (!bridge?.isDesktop || typeof bridge.getStartupDiagnostics !== "function") return;
+  try {
+    const snapshot = await bridge.getStartupDiagnostics();
+    const payload = {
+      installId: installId(),
+      schema: snapshot.schema,
+      startedAt: snapshot.startedAt,
+      version: snapshot.version,
+      portable: snapshot.portable,
+      bundledFrontend: snapshot.bundledFrontend,
+      platform: snapshot.platform,
+      arch: snapshot.arch,
+      points: snapshot.points,
+    };
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 3500);
     try {
-      const snapshot = await bridge.getStartupDiagnostics!();
-      if (stopped) return;
-      const payload = {
-        installId: installId(),
-        schema: snapshot.schema,
-        startedAt: snapshot.startedAt,
-        version: snapshot.version,
-        portable: snapshot.portable,
-        bundledFrontend: snapshot.bundledFrontend,
-        platform: snapshot.platform,
-        arch: snapshot.arch,
-        points: snapshot.points,
-      };
-      await api.post("/system/desktop-startup", payload, { timeout: 8000 });
-      uploaded = true;
-    } catch {
-      errors += 1;
-      // No user-visible error: diagnostic traffic must never affect production.
+      await fetch(`${API_BASE_URL}/system/desktop-startup/anonymous`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        credentials: "omit",
+        cache: "no-store",
+        keepalive: false,
+        signal: controller.signal,
+      });
     } finally {
-      inFlight = false;
+      window.clearTimeout(timeout);
     }
-  };
-
-  const timer = window.setInterval(() => {
-    if (uploaded || attempts >= 60 || errors >= 5) window.clearInterval(timer);
-    else void upload();
-  }, 4000);
-  void upload();
-  return () => { stopped = true; window.clearInterval(timer); };
+  } catch {
+    // Telemetry must never interrupt app startup, login or production reports.
+  }
 }
