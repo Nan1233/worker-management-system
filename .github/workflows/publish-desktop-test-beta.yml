@@ -1,0 +1,98 @@
+name: Publish KTC TEST Setup auto-update (beta)
+
+# A controlled release only. Normal push builds remain artifacts, not updates.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New TEST version, e.g. 1.9.18-beta.1 (must increase each release)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ktc-test-beta-release
+  cancel-in-progress: false
+
+jobs:
+  publish-test-setup:
+    if: github.ref == 'refs/heads/test'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Validate release version and uniqueness
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+-beta\.\d+$') {
+            throw 'TEST releases require a semver beta version, e.g. 1.9.18-beta.1'
+          }
+          $existing = gh release view "v$env:RELEASE_VERSION" --repo "${{ github.repository }}" --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { throw 'This release tag already exists; choose a new higher version.' }
+          exit 0
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Stamp release version in package metadata (no repository commit)
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: npm version $env:RELEASE_VERSION --no-git-tag-version
+
+      - name: Build bundled TEST frontend
+        run: node scripts/buildBundledFrontend.cjs
+
+      - name: Validate app and Excel exports
+        run: |
+          npm run check
+          npm run smoke:excel
+
+      - name: Build Setup and beta update metadata
+        run: npx electron-builder --win nsis --x64 --config.asar=true --config.extraMetadata.ktcBundledFrontend=true --publish never
+
+      - name: Check all assets needed by electron-updater
+        shell: pwsh
+        run: |
+          foreach ($path in @('release/KTC-Production-Control-Setup.exe', 'release/KTC-Production-Control-Setup.exe.blockmap', 'release/beta.yml')) {
+            if (-not (Test-Path $path)) { throw "Update asset missing: $path. Refusing to publish incomplete release." }
+          }
+
+      - name: Publish GitHub prerelease with beta.yml
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          gh release create "v$env:RELEASE_VERSION" `
+            "release/KTC-Production-Control-Setup.exe" `
+            "release/KTC-Production-Control-Setup.exe.blockmap" `
+            "release/beta.yml" `
+            --repo "${{ github.repository }}" `
+            --prerelease --latest=false `
+            --title "KTC TEST $env:RELEASE_VERSION" `
+            --notes "TEST desktop installer auto-update. Does not target production clients."
+
+      - name: Archive installed-version Setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTC-TEST-Setup-${{ inputs.version }}
+          path: desktop/release/KTC-Production-Control-Setup.exe
+          retention-days: 30
