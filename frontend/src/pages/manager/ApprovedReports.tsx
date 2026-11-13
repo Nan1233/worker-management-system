@@ -119,7 +119,7 @@ export default function ApprovedReports() {
             if (page > lastPage) { setReports([]); setPage(lastPage); return; }
             setReports(result.data || []);
             const ranges = (["day", "week", "month", "year"] as const).map(type => ({ type, ...rangeFor(date, type) }));
-            const values = await Promise.allSettled(ranges.map(x => getApprovedReports({ dateFrom: x.dateFrom, dateTo: x.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page: 1, pageSize: 1 })));
+            const values = await Promise.allSettled(ranges.map(x => getApprovedReports({ dateFrom: x.dateFrom, dateTo: x.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page: 1, pageSize: 1, includeMeta: false })));
             if (!isCurrentRequest()) return;
             setCounts(previous => {
                 const count = (index: number, fallback: number) => {
@@ -149,7 +149,7 @@ export default function ApprovedReports() {
         setDetail(null); setDetailError(""); setDetailLoading(false);
     }, [date, range, process, shift, searchQuery, page]);
 
-    const processes = useMemo(() => Array.from(new Set([...processOptions, ...reports.map(r => String(r.process_name || "")).filter(Boolean), process].filter(Boolean))).sort((a, b) => a.localeCompare(b, "vi")), [processOptions, reports, process]);
+    const processes = useMemo(() => Array.from(new Set([...processOptions, process].filter(Boolean))).sort((a, b) => a.localeCompare(b, "vi")), [processOptions, process]);
     const shifts = useMemo(() => Array.from(new Set(["A", "B", "C", "D", ...reports.map(r => String(r.shift || "")).filter(Boolean), shift].filter(Boolean))).sort(), [reports, shift]);
     const quick = (type: "day" | "week" | "month" | "year") => { setDate(getToday()); setRange(type === "day" ? null : rangeFor(getToday(), type)); };
 
