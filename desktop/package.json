@@ -49,7 +49,9 @@
     "dist:portable:optimized": "npm run preflight && npm run smoke:excel && electron-builder --win portable --x64 --config.asar=true --config.compression=store --publish never",
     "dist:portable:optimized:quick": "electron-builder --win portable --x64 --config.asar=true --config.compression=store --publish never",
     "dist:setup:optimized": "npm run preflight && npm run smoke:excel && electron-builder --win nsis --x64 --config.asar=true --publish never",
-    "dist:dir:optimized": "npm run preflight && npm run smoke:excel && electron-builder --win dir --x64 --config.asar=true --publish never"
+    "dist:dir:optimized": "npm run preflight && npm run smoke:excel && electron-builder --win dir --x64 --config.asar=true --publish never",
+    "dist:portable:bundled-fe": "node scripts/buildBundledFrontend.cjs && npm run preflight && npm run smoke:excel && electron-builder --win portable --x64 --config.asar=true --config.compression=store --config.extraMetadata.ktcBundledFrontend=true --publish never",
+    "dist:setup:bundled-fe": "node scripts/buildBundledFrontend.cjs && npm run preflight && npm run smoke:excel && electron-builder --win nsis --x64 --config.asar=true --config.extraMetadata.ktcBundledFrontend=true --publish never"
   },
   "devDependencies": {
     "electron": "37.10.3",
@@ -65,7 +67,8 @@
     "files": [
       "electron/monthlyWorkbookLocal.cjs",
       "electron/**/*",
-      "package.json"
+      "package.json",
+      "frontend/dist/**/*"
     ],
     "win": {
       "target": [
