@@ -40,18 +40,6 @@ const bundledFrontendEnabled = desktopPackage.ktcBundledFrontend === true;
 if (bundledFrontendEnabled && desktopDeployment.environment !== 'test') {
   throw new Error('Bundled frontend is restricted to TEST until production validation is complete');
 }
-if (bundledFrontendEnabled) {
-  const { installBundledFrontend } = require('./bundledFrontend.cjs');
-  // Register before main.cjs creates a window; keep the same remote HTTPS
-  // origin so existing authentication/CORS rules continue to work.
-  app.whenReady().then(() => installBundledFrontend({
-    session, net, frontendOrigin: FRONTEND_URL,
-    root: path.join(__dirname, '..', 'frontend', 'dist'),
-    log: (event, payload) => void writeLauncherLog('INFO', event, payload)
-  })).catch((error) => {
-    void writeLauncherLog('ERROR', 'BUNDLED_FE_SETUP_FAILED', safeCrashSummary(error));
-  });
-}
 
 let launcherLogWriter = null;
 function writeLauncherLog(level, event, payload = {}) {
@@ -338,5 +326,23 @@ fsp.readdir = async (...args) => {
 
 void writeLauncherLog('INFO', 'STARTUP_MAIN_REQUIRE_BEGIN', { elapsedMs: startupElapsedMs() });
 require('./autoUpdate.cjs');
-require('./main.cjs');
-void writeLauncherLog('INFO', 'STARTUP_MAIN_REQUIRE_END', { elapsedMs: startupElapsedMs() });
+if (bundledFrontendEnabled) {
+  // Ensure interception is registered BEFORE main.cjs creates its first window.
+  app.whenReady().then(async () => {
+    const { installBundledFrontend } = require('./bundledFrontend.cjs');
+    await installBundledFrontend({
+      session, net, frontendOrigin: FRONTEND_URL,
+      root: path.join(__dirname, '..', 'frontend', 'dist'),
+      log: (event, payload) => void writeLauncherLog('INFO', event, payload)
+    });
+    require('./main.cjs');
+    void writeLauncherLog('INFO', 'STARTUP_MAIN_REQUIRE_END', { elapsedMs: startupElapsedMs() });
+  }).catch((error) => {
+    void writeLauncherLog('ERROR', 'BUNDLED_FE_SETUP_FAILED', safeCrashSummary(error));
+    dialog.showErrorBox('KTC Desktop', 'Không tải được Frontend đã đóng gói. Vui lòng cài lại bản TEST mới.');
+    app.quit();
+  });
+} else {
+  require('./main.cjs');
+  void writeLauncherLog('INFO', 'STARTUP_MAIN_REQUIRE_END', { elapsedMs: startupElapsedMs() });
+}
