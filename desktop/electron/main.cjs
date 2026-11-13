@@ -1484,6 +1484,7 @@ function scheduleSyncAfterApprovedMutation(url, statusCode) {
 }
 
 function createWindow() {
+  const windowStart = process.hrtime.bigint();
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -1503,6 +1504,9 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    void writeLog('INFO', 'WINDOW_READY_TO_SHOW', {
+      elapsedMs: Number((process.hrtime.bigint() - windowStart) / 1000000n)
+    });
     mainWindow.maximize();
     mainWindow.show();
   });
@@ -1741,13 +1745,10 @@ ipcMain.handle('ktc-open-log-folder', async () => {
 
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  try {
-    await session.defaultSession.clearCache();
-    await session.defaultSession.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
-  } catch (error) {
-    await writeLog('WARN', 'CACHE_CLEAR_FAILED', normalizeError(error));
-  }
-  await writeLog('INFO', 'APP_READY', {
+  // Keep the Chromium cache and renderer storage between launches. Clearing
+  // both on every startup delays first paint and can reset offline resources.
+  // Any targeted recovery must be explicit and diagnosed from logs.
+  void writeLog('INFO', 'APP_READY', {
     version: app.getVersion(),
     exportRoot: getExportRoot(),
     userData: app.getPath('userData'),
