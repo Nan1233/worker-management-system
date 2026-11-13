@@ -1,4 +1,4 @@
-const { app, ipcMain, dialog, BrowserWindow } = require('electron');
+const { app, ipcMain, dialog, BrowserWindow, session, net } = require('electron');
 const startupClock = process.hrtime.bigint();
 const startupElapsedMs = () => Number((process.hrtime.bigint() - startupClock) / 1000000n);
 const fs = require('node:fs');
@@ -35,6 +35,23 @@ const desktopDeployment = resolveDesktopDeploymentProfile(
 const FRONTEND_URL = desktopDeployment.frontendUrl;
 process.env.KTC_API_URL = desktopDeployment.apiUrl;
 process.env.KTC_WEB_ORIGIN = FRONTEND_URL;
+
+const bundledFrontendEnabled = desktopPackage.ktcBundledFrontend === true;
+if (bundledFrontendEnabled && desktopDeployment.environment !== 'test') {
+  throw new Error('Bundled frontend is restricted to TEST until production validation is complete');
+}
+if (bundledFrontendEnabled) {
+  const { installBundledFrontend } = require('./bundledFrontend.cjs');
+  // Register before main.cjs creates a window; keep the same remote HTTPS
+  // origin so existing authentication/CORS rules continue to work.
+  app.whenReady().then(() => installBundledFrontend({
+    session, net, frontendOrigin: FRONTEND_URL,
+    root: path.join(__dirname, '..', 'frontend', 'dist'),
+    log: (event, payload) => void writeLauncherLog('INFO', event, payload)
+  })).catch((error) => {
+    void writeLauncherLog('ERROR', 'BUNDLED_FE_SETUP_FAILED', safeCrashSummary(error));
+  });
+}
 
 let launcherLogWriter = null;
 function writeLauncherLog(level, event, payload = {}) {
