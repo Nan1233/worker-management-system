@@ -5,6 +5,7 @@ declare global {
         ktcDesktop?: {
             isDesktop: boolean;
             getStartupDiagnostics?: () => Promise<{ schema: number; startedAt: string; version: string; portable: boolean; bundledFrontend: boolean; platform: string; arch: string; points: Record<string, number> }>;
+            markFrontendPaint?: () => void;
             saveExcel: (token: string, date: string) => Promise<DesktopExcelSyncResult>;
             syncAllExcel: (token: string, date: string) => Promise<DesktopExcelSyncResult>;
             previewExcelDbSync: (token: string, yearMonth: string) => Promise<DesktopExcelDbSyncPreview>;
