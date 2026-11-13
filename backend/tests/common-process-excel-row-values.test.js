@@ -47,3 +47,27 @@ test('non-GC Excel rows keep product and NG totals in template columns with spar
   assert.equal(values[51], 18);
   assert.equal(values[52], 2);
 });
+
+test('approved zero output is not replaced by OK plus NG during re-export', () => {
+  const report = {
+    process_code: 'MAI', actual_output: 0, tt_ok: 9, tt_ng: 1,
+    standard_output: 10, training_percent_snapshot: 100,
+    excelExportTimes: { totalHours: 2, actualHours: 2, deductionHours: 0, deductions: [] }
+  };
+  const first = buildCommonProcessExcelRowValues(report, [], [], 0);
+  const exportedAgain = buildCommonProcessExcelRowValues({ ...report }, [], [], 0);
+  assert.equal(first[28], 0);
+  assert.equal(first[29], 0);
+  assert.deepEqual(exportedAgain, first);
+});
+
+test('approved historical training snapshot wins over mutable worker percentage', () => {
+  const report = {
+    actual_output: 20, tt_ok: 20, tt_ng: 0, standard_output: 10,
+    training_percent_snapshot: 50, training_percent: 100,
+    excelExportTimes: { totalHours: 2, actualHours: 2, deductionHours: 0, deductions: [] }
+  };
+  const values = buildCommonProcessExcelRowValues(report, [], [], 0);
+  assert.equal(values[5], 0.5);
+  assert.equal(values[29], 0.5);
+});
