@@ -28,6 +28,7 @@ test('Electron captures app/window events without reading report data', () => {
   assert.match(launcher, /__KTC_STARTUP_DIAGNOSTICS__/);
   assert.match(main, /window_ready_to_show/);
   assert.match(main, /frontend_loaded/);
+  assert.match(main, /frontend_painted/);
   assert.match(main, /ktc-startup-diagnostics/);
   assert.match(preload, /getStartupDiagnostics/);
 });
@@ -49,6 +50,7 @@ test('renderer only loads and sends telemetry after frontend load and first pain
   assert.doesNotMatch(service, /getAccessToken|from "\.\/api"|setInterval/);
   assert.match(frontend, /window\.addEventListener\("load", afterPaint/);
   assert.match(frontend, /window\.requestAnimationFrame/);
+  assert.match(frontend, /markFrontendPaint/);
   assert.match(frontend, /import\("\.\/services\/desktopStartupTelemetry"\)/);
   assert.doesNotMatch(auth, /startDesktopStartupTelemetry/);
 });
