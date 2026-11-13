@@ -6,7 +6,7 @@ const db = require('../config/db');
 
 const POINTS = ['process_start','excel_patches_ready','main_require_begin',
   'bundled_fe_ready','main_require_end','window_create_begin','window_created',
-  'window_ready_to_show','frontend_loaded'];
+  'window_ready_to_show','frontend_loaded','frontend_painted'];
 const POINT_SET = new Set(POINTS);
 const clampMs = (value) => Number.isFinite(Number(value))
   ? Math.min(600000, Math.max(0, Math.round(Number(value)))) : null;
@@ -81,7 +81,8 @@ function analyze(points) {
     ['main_module', 'bundled_fe_ready', 'main_require_end'],
     ['window_creation', 'window_create_begin', 'window_created'],
     ['window_render', 'window_created', 'window_ready_to_show'],
-    ['frontend_load', 'window_created', 'frontend_loaded']
+    ['frontend_load', 'window_created', 'frontend_loaded'],
+    ['frontend_first_paint', 'window_created', 'frontend_painted']
   ];
   const durationsMs = {};
   for (const [label, from, to] of stages) {
@@ -94,9 +95,10 @@ function analyze(points) {
     durationsMs,
     slowestMeasuredPhase: slowest ? slowest[0] : null,
     slowestMeasuredMs: slowest ? slowest[1] : null,
-    totalElectronMs: typeof points.window_ready_to_show === 'number'
-      ? points.window_ready_to_show
-      : typeof points.frontend_loaded === 'number' ? points.frontend_loaded : null,
+    totalElectronMs: typeof points.frontend_painted === 'number'
+      ? points.frontend_painted
+      : typeof points.frontend_loaded === 'number' ? points.frontend_loaded
+      : typeof points.window_ready_to_show === 'number' ? points.window_ready_to_show : null,
     // Portable self-extraction happens before process_start and cannot be measured here.
     preElectronExtractionMeasured: false
   };
