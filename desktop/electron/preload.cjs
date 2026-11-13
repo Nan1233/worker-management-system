@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('ktcDesktop', {
   isDesktop: true,
   getStartupDiagnostics: () => ipcRenderer.invoke('ktc-startup-diagnostics'),
+  markFrontendPaint: () => ipcRenderer.send('ktc-frontend-painted'),
   saveExcel: (token, date) => ipcRenderer.invoke('ktc-save-excel', { token, date }),
   syncAllExcel: (token, date) => ipcRenderer.invoke('ktc-sync-all-excel', { token, date }),
   previewExcelDbSync: (token, yearMonth) => ipcRenderer.invoke('ktc-preview-excel-db-sync', { token, yearMonth }),
