@@ -57,6 +57,8 @@ function serviceFixture({ tempLineEventId = null } = {}) {
       work_date: '2026-11-12', shift: 'A', status: 'pending', physical_ng_quantity: 0
     },
     tempLineEventId,
+    existingEventIds: [],
+    sql: [],
     transitions: 0,
     commits: 0,
     rollbacks: 0,
@@ -80,6 +82,11 @@ function serviceFixture({ tempLineEventId = null } = {}) {
     async rollback() { state.rollbacks++; unlock(); }
     release() {}
     async query(sql) {
+      state.sql.push(sql);
+      if (/SELECT id FROM machines WHERE id=\? FOR UPDATE/.test(sql)) return [[{ id: 5 }]];
+      if (/SELECT id FROM machine_production_events\s+WHERE process_id=/.test(sql)) {
+        return [state.existingEventIds.map(id => ({ id }))];
+      }
       if (/FROM machine_production_events e JOIN processes p/.test(sql)) {
         if (/FOR UPDATE/.test(sql)) await acquire();
         return [[{ ...state.event, process_code: 'GC' }]];
@@ -165,4 +172,33 @@ test('two concurrent approvals of the same event yield exactly one transition', 
   assert.equal(state.auditCalls, 1);
   assert.equal(state.commits, 1);
   assert.equal(state.rollbacks, 1);
+});
+
+test('duplicate machine/product/date/shift event is rejected under machine lock', async () => {
+  const { service, state } = serviceFixture();
+  state.existingEventIds = [700];
+  await assert.rejects(
+    service.assertUniquePhysicalEvent({
+      constructor: { name: 'PromiseConnection' },
+      query: async sql => {
+        state.sql.push(sql);
+        if (/FROM machines WHERE/.test(sql)) return [[{ id: 5 }]];
+        if (/FROM machine_production_events/.test(sql)) return [[{ id: 700 }]];
+        throw new Error('Unexpected SQL');
+      }
+    }, {
+      processId: 1, machineId: 5, productCode: 'PX',
+      workDate: '2026-11-12', shift: 'A'
+    }),
+    error => error.code === 'MACHINE_EVENT_ALREADY_EXISTS' && error.status === 409
+  );
+  assert.match(state.sql[0], /FROM machines WHERE id=\\? FOR UPDATE/);
+  assert.match(state.sql[1], /FROM machine_production_events[\\s\\S]*FOR UPDATE/);
+});
+
+test('event edit preserves identity and checks a new identity before changing dimensions', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../services/machineProductionEventService.js'), 'utf8');
+  assert.match(source, /if \\(dimensionsChanged\\) await assertUniquePhysicalEvent/);
+  assert.match(source, /excludeEventId: before\\.id/);
+  assert.match(source, /await assertUniquePhysicalEvent\\(connection, \\{ processId: ctx\\.process\\.id/);
 });
