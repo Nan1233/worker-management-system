@@ -17,7 +17,7 @@ test('telemetry is bounded, redacted, and saved separately from production repor
   assert.doesNotMatch(source, /CREATE TABLE|ensureTable/, 'telemetry handlers must never run schema DDL');
   assert.match(source, /INSERT INTO ktc_desktop_startup_diagnostics/);
   assert.match(source, /const POINTS =/);
-  assert.match(source, /install_id CHAR\(36\)/);
+  assert.match(source, /const installId = String\(payload\.installId/);
   assert.doesNotMatch(source, /process\.env|hostname\(|userAgent|req\.headers|authorization/i);
 });
 
