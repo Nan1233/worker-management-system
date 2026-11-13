@@ -39,6 +39,12 @@ router.post('/desktop-startup', auth, async (req, res) => {
     return res.status(503).json({ success: false, code: 'STARTUP_DIAGNOSTICS_UNAVAILABLE' });
   }
 });
+router.get('/desktop-startup/mine', auth, async (req, res) => {
+  const userId = Number(req.user?.id);
+  if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(401).json({ success: false });
+  try { return res.json({ success: true, data: await startupDiag.recent(10, userId) }); }
+  catch (error) { return res.status(503).json({ success: false, code: 'STARTUP_DIAGNOSTICS_UNAVAILABLE' }); }
+});
 router.get('/desktop-startup', auth, role('admin'), permission('SYSTEM_HEALTH_VIEW'), async (req, res) => {
   try { return res.json({ success: true, data: await startupDiag.recent(req.query?.limit) }); }
   catch (error) {
