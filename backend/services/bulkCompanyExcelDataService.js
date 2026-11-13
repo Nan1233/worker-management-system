@@ -40,27 +40,40 @@ function sameNumber(a, b, tolerance = 0.01) {
 
 function groupMachineDefects(rows, keyField) {
   const result = new Map();
+  const seenPhysicalDefects = new Set();
   for (const row of Array.isArray(rows) ? rows : []) {
     const key = Number(row?.[keyField]);
     if (!Number.isInteger(key) || key <= 0) continue;
+    // The event-defect SQL joins the worker lines. Two participants can
+    // therefore return the same physical defect ID twice; it is not two NG.
+    if (keyField === 'machine_event_id' && Number(row?.id) > 0) {
+      const identity = key + ':' + Number(row.id);
+      if (seenPhysicalDefects.has(identity)) continue;
+      seenPhysicalDefects.add(identity);
+    }
     if (!result.has(key)) result.set(key, []);
     result.get(key).push({
       id: Number(row.id) || undefined,
       defect_type_id: Number(row.defect_type_id) || undefined,
       defect_code: row.defect_code || '',
       defect_name: row.defect_name || '',
-      quantity: Number(row.quantity) || 0
+      quantity: Number(row.quantity) || 0,
+      responsible_worker_id: Number(row.responsible_worker_id) || null
     });
   }
   return result;
 }
 
-function hydrateMachineLineDefects(machineLines, machineDefectsByLine, eventDefectsByEvent) {
+function hydrateMachineLineDefects(machineLines, machineDefectsByLine, eventDefectsByEvent, workerId = null) {
   return (Array.isArray(machineLines) ? machineLines : []).map((line) => {
     const persisted = machineDefectsByLine.get(Number(line.id)) || [];
     if (persisted.length) return { ...line, defects: persisted, defects_json: JSON.stringify(persisted) };
     if (line?.defects_json) return line;
-    const eventDetails = eventDefectsByEvent.get(Number(line.machine_event_id)) || [];
+    // Event NG is physical truth, not a credit assigned to every worker.
+    // Only use this fallback for the explicitly responsible participant.
+    const eventDetails = (eventDefectsByEvent.get(Number(line.machine_event_id)) || [])
+      .filter(item => Number(item.responsible_worker_id) > 0
+        && Number(item.responsible_worker_id) === Number(workerId));
     if (eventDetails.length) return { ...line, defects: eventDetails, defects_json: JSON.stringify(eventDetails) };
     return { ...line, defects: [] };
   });
@@ -193,7 +206,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
                INNER JOIN production_report_machine_lines ml ON ml.id=md.machine_line_id
               WHERE ml.report_id IN (${p}) AND md.quantity > 0
               ORDER BY ml.report_id,md.machine_line_id,md.id`, ids),
-      query(`SELECT ml.report_id, ed.id, ed.machine_event_id, ed.defect_type_id, ed.defect_code, ed.defect_name, ed.quantity
+      query(`SELECT ml.report_id, ed.id, ed.machine_event_id, ed.defect_type_id, ed.defect_code, ed.defect_name, ed.quantity, ed.responsible_worker_id
                FROM machine_production_event_defects ed
                INNER JOIN production_report_machine_lines ml ON ml.machine_event_id=ed.machine_event_id
               WHERE ml.report_id IN (${p}) AND ed.quantity > 0
@@ -367,7 +380,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
       .map((report) => {
         const reportId = Number(report.id);
         const rawMachineLines = machineLinesByReport.get(reportId) || [];
-        const machineLines = hydrateMachineLineDefects(rawMachineLines, machineDefectsByLine, eventDefectsByEvent)
+        const machineLines = hydrateMachineLineDefects(rawMachineLines, machineDefectsByLine, eventDefectsByEvent, report.worker_id)
           .map((line) => {
             const event = eventMap.get(Number(line.machine_event_id));
             return {
@@ -430,4 +443,4 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   return { processData, processIds, scope };
 }
 
-module.exports = { loadBulkCompanyReports, PROCESS_CODES, resolveReportDefects };
+module.exports = { loadBulkCompanyReports, PROCESS_CODES, resolveReportDefects, _test: { groupMachineDefects, hydrateMachineLineDefects } };
