@@ -158,3 +158,23 @@
  .worker-home-metrics .metric{min-width:0}
  .worker-home-report-main{min-width:0}
 }
+
+
+/* Restore a clearer, warmer home hierarchy without changing worker actions. */
+.worker-home-page{background:linear-gradient(180deg,#eef4ff 0,#f6f8fc 280px,#f8fafc 100%)}
+.worker-home-welcome{background:linear-gradient(115deg,#173f86,#3267c5);border-color:#2b5ca9;box-shadow:0 12px 28px rgba(27,70,145,.16)}
+.worker-home-welcome h1,.worker-home-welcome h1 strong{color:#fff}
+.worker-home-welcome .worker-home-date{color:#dbe9ff}
+.worker-home-welcome .worker-home-identity span{background:rgba(255,255,255,.17);color:#fff}
+.worker-home-welcome .worker-home-identity .worker-home-training{background:#dcfce7;color:#166534}
+.worker-home-action.primary{background:linear-gradient(115deg,#174d9d,#2879dc);border-color:#2879dc}
+@media(max-width:800px){
+ .worker-home-shell{padding-inline:12px}
+ .worker-home-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .worker-home-action{grid-template-columns:minmax(0,1fr);justify-items:start;gap:7px;padding:13px;min-height:116px}
+ .worker-home-action.primary{min-height:116px}
+ .worker-home-action-arrow{display:none}
+ .worker-home-action strong{font-size:13px}
+ .worker-home-report{grid-template-columns:50px minmax(0,1fr) auto}
+}
+@media(max-width:360px){.worker-home-actions{grid-template-columns:1fr}.worker-home-action{grid-template-columns:42px minmax(0,1fr);min-height:72px}.worker-home-action.primary{min-height:72px}}
