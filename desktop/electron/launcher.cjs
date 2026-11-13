@@ -330,6 +330,13 @@ if (bundledFrontendEnabled) {
   // Ensure interception is registered BEFORE main.cjs creates its first window.
   app.whenReady().then(async () => {
     const { installBundledFrontend } = require('./bundledFrontend.cjs');
+    // An older remote KTC version may have registered a service worker on this
+    // origin. Remove only that worker cache once, preserving cookies and local DB.
+    const swMarker = path.join(app.getPath('userData'), 'bundled-frontend-sw-cleaned-v1');
+    if (!fs.existsSync(swMarker)) {
+      await session.defaultSession.clearStorageData({ storages: ['serviceworkers'] });
+      await fsp.writeFile(swMarker, '1', 'utf8');
+    }
     await installBundledFrontend({
       session, net, frontendOrigin: FRONTEND_URL,
       root: path.join(__dirname, '..', 'frontend', 'dist'),
