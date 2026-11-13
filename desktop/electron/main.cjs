@@ -5,16 +5,13 @@ const path = require('node:path');
 const os = require('node:os');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
-const { getExcelRuntime } = require('./excelRuntime.cjs');
-const buildCompanyExcelLocal = (...args) => getExcelRuntime().company.buildCompanyExcelLocal(...args);
-const buildProcessExcelLocal = (...args) => getExcelRuntime().company.buildProcessExcelLocal(...args);
+const { buildCompanyExcelLocal, buildProcessExcelLocal } = require('./companyExcelLocal.cjs');
 const { createDesktopLogger, normalizeError } = require('./desktopLog.cjs');
 const { normalizeAccessToken, isUsableAccessToken } = require('./authToken.cjs');
-const buildSplitMonthlyWorkbooksLocal = (...args) => getExcelRuntime().monthly.buildSplitMonthlyWorkbooksLocal(...args);
-const getProcessSheets = () => getExcelRuntime().monthly.PROCESS_SHEETS;
+const { buildSplitMonthlyWorkbooksLocal, PROCESS_SHEETS } = require('./monthlyWorkbookLocal.cjs');
 const { getCompanyMonthTarget } = require('./excelDualLayout.cjs');
 const { getDesktopDataRoot, getDocumentsRoot } = require('./platformPaths.cjs');
-const readExcelChanges = (...args) => getExcelRuntime().dbSync.readExcelChanges(...args);
+const { readExcelChanges } = require('./excelDbSync.cjs');
 const { createExcelBackupRetention } = require('./excelBackupRetention.cjs');
 const {
   isTrustedRendererNavigation,
@@ -922,7 +919,7 @@ async function performSyncSingleMonth({ date, source }) {
     await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_START', {
       date,
       folder,
-      expectedFileCount: Object.keys(getProcessSheets()).length + 1,
+      expectedFileCount: Object.keys(PROCESS_SHEETS).length + 1,
       excelEngine: 'desktop-local'
     });
 
@@ -935,7 +932,7 @@ async function performSyncSingleMonth({ date, source }) {
       }
     });
 
-    const expectedProcessCodes = Object.keys(getProcessSheets());
+    const expectedProcessCodes = Object.keys(PROCESS_SHEETS);
     const builtProcessCodes = (built.processes || []).map((item) => String(item.processCode || '').toUpperCase());
     const missingProcessCodes = expectedProcessCodes.filter((code) => !builtProcessCodes.includes(code));
     if (missingProcessCodes.length || builtProcessCodes.length !== expectedProcessCodes.length) {
@@ -1050,7 +1047,7 @@ async function performSyncSingleMonth({ date, source }) {
     });
   }
 
-  const expectedFileCount = Object.keys(getProcessSheets()).length + 1;
+  const expectedFileCount = Object.keys(PROCESS_SHEETS).length + 1;
   const success = files.length === expectedFileCount && files.every((file) => file.success === true);
   const result = {
     success,
