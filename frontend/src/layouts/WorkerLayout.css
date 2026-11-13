@@ -95,3 +95,8 @@
 @media(prefers-reduced-motion:reduce){
  .worker-layout :is(.worker-nav button,.worker-logout,.worker-header-notification){transition:none!important}
 }
+
+/* Desktop sidebar already contains the brand; avoid rendering it twice. */
+@media (min-width: 801px) {
+  .worker-header-brand { display: none; }
+}
