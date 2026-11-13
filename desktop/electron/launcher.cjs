@@ -1,6 +1,21 @@
 const { app, ipcMain, dialog, BrowserWindow, session, net } = require('electron');
 const startupClock = process.hrtime.bigint();
 const startupElapsedMs = () => Number((process.hrtime.bigint() - startupClock) / 1000000n);
+const startupDiagnostics = {
+  schema: 1,
+  startedAt: new Date().toISOString(),
+  points: { process_start: 0 },
+  portable: Boolean(process.env.PORTABLE_EXECUTABLE_FILE),
+  // No machine identifiers, environment variables, tokens or paths.
+  bundledFrontend: false
+};
+global.__KTC_STARTUP_DIAGNOSTICS__ = startupDiagnostics;
+global.__KTC_STARTUP_MARK__ = (point) => {
+  if (/^[a-z_]{3,40}$/.test(String(point)) && startupDiagnostics.points[point] === undefined) {
+    startupDiagnostics.points[point] = startupElapsedMs();
+  }
+};
+
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -37,6 +52,7 @@ process.env.KTC_API_URL = desktopDeployment.apiUrl;
 process.env.KTC_WEB_ORIGIN = FRONTEND_URL;
 
 const bundledFrontendEnabled = desktopPackage.ktcBundledFrontend === true;
+startupDiagnostics.bundledFrontend = bundledFrontendEnabled;
 if (bundledFrontendEnabled && desktopDeployment.environment !== 'test') {
   throw new Error('Bundled frontend is restricted to TEST until production validation is complete');
 }
@@ -137,6 +153,7 @@ require('./compactGcExcelPatch.cjs');
 require('./excelReportDateSubmissionPatch.cjs');
 // v6 replaces the legacy split/monthly layout with the worker-report template.
 require('./excelExportContractPatch.v6.cjs');
+global.__KTC_STARTUP_MARK__('excel_patches_ready');
 void writeLauncherLog('INFO', 'STARTUP_EXCEL_PATCHES_READY', { elapsedMs: startupElapsedMs() });
 
 function normalizeExportRoot(value) {
@@ -327,6 +344,7 @@ fsp.readdir = async (...args) => {
   });
 };
 
+global.__KTC_STARTUP_MARK__('main_require_begin');
 void writeLauncherLog('INFO', 'STARTUP_MAIN_REQUIRE_BEGIN', { elapsedMs: startupElapsedMs() });
 // The portable target is manually updated: do not load electron-updater or
 // its dependency graph during startup. Installed builds check after the first
@@ -359,7 +377,9 @@ if (bundledFrontendEnabled) {
       root: path.join(__dirname, '..', 'frontend', 'dist'),
       log: (event, payload) => void writeLauncherLog('INFO', event, payload)
     });
+    global.__KTC_STARTUP_MARK__('bundled_fe_ready');
     require('./main.cjs');
+    global.__KTC_STARTUP_MARK__('main_require_end');
     void writeLauncherLog('INFO', 'STARTUP_MAIN_REQUIRE_END', { elapsedMs: startupElapsedMs() });
   }).catch((error) => {
     void writeLauncherLog('ERROR', 'BUNDLED_FE_SETUP_FAILED', safeCrashSummary(error));
@@ -368,5 +388,6 @@ if (bundledFrontendEnabled) {
   });
 } else {
   require('./main.cjs');
+  global.__KTC_STARTUP_MARK__('main_require_end');
   void writeLauncherLog('INFO', 'STARTUP_MAIN_REQUIRE_END', { elapsedMs: startupElapsedMs() });
 }
