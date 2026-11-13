@@ -1,5 +1,7 @@
 const { app, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const { resolveUpdateChannel } = require('./updateChannel.cjs');
+const { ktcDeploymentEnvironment } = require('../package.json');
 
 // electron-builder portable executables are replaced manually; the installer
 // updater must not attempt to install over a portable running executable.
@@ -34,9 +36,14 @@ async function checkForUpdates() {
   }
 }
 
+// TEST installers are updated only from beta.yml / prerelease GitHub assets.
+// Never let an experimental TEST build receive production latest.yml releases.
+const updateSettings = resolveUpdateChannel(ktcDeploymentEnvironment);
+autoUpdater.channel = updateSettings.channel;
+autoUpdater.allowPrerelease = updateSettings.allowPrerelease;
 autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
-autoUpdater.allowPrerelease = false;
+// An explicit 'Later' must not silently install when the worker closes KTC.
+autoUpdater.autoInstallOnAppQuit = false;
 autoUpdater.allowDowngrade = false;
 
 autoUpdater.on('checking-for-update', () => logUpdate('CHECKING'));
