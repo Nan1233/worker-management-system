@@ -1430,7 +1430,8 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     void writeLog('INFO', 'WINDOW_READY_TO_SHOW', {
-      elapsedMs: Number((process.hrtime.bigint() - windowStart) / 1000000n)
+      elapsedMs: Number((process.hrtime.bigint() - windowStart) / 1000000n),
+      processUptimeMs: Math.round(process.uptime() * 1000)
     });
     mainWindow.maximize();
     mainWindow.show();
@@ -1466,6 +1467,11 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
+    // Distinguish slow Windows portable extraction from frontend/network latency.
+    void writeLog('INFO', 'FRONTEND_DID_FINISH_LOAD', {
+      elapsedSinceWindowMs: Number((process.hrtime.bigint() - windowStart) / 1000000n),
+      processUptimeMs: Math.round(process.uptime() * 1000)
+    });
     startTokenDiscovery();
   });
 
