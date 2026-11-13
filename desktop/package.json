@@ -45,7 +45,10 @@
     "test:startup-performance": "node --test tests/startup-performance.test.cjs",
     "test:portable-upgrade": "node --test tests/portable-upgrade-safety.test.cjs",
     "test:export-parity": "node --test tests/desktop-web-export-parity.test.cjs",
-    "dist:setup:quick": "electron-builder --win nsis --x64 --publish never"
+    "dist:setup:quick": "electron-builder --win nsis --x64 --publish never",
+    "dist:portable:optimized": "npm run preflight && npm run smoke:excel && electron-builder --win portable --x64 --config.asar=true --config.compression=store --publish never",
+    "dist:portable:optimized:quick": "electron-builder --win portable --x64 --config.asar=true --config.compression=store --publish never",
+    "dist:setup:optimized": "npm run preflight && npm run smoke:excel && electron-builder --win nsis --x64 --config.asar=true --publish never"
   },
   "devDependencies": {
     "electron": "37.10.3",
