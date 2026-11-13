@@ -37,3 +37,20 @@ jobs:
         run: npm run test:portable-upgrade
       - name: Startup regression
         run: npm run test:startup-performance && npm run test:startup-crash
+      - name: Build Windows x64 portable EXE (TEST profile)
+        run: npm run dist:portable:quick
+      - name: Verify portable EXE exists
+        shell: pwsh
+        run: |
+          $exe = 'release/KTC-Production-Control.exe'
+          if (-not (Test-Path $exe)) { throw "Portable executable missing: $exe" }
+          $file = Get-Item $exe
+          if ($file.Length -lt 1000000) { throw "Portable executable unexpectedly small: $($file.Length) bytes" }
+          Get-FileHash $exe -Algorithm SHA256 | Format-List
+      - name: Upload unsigned TEST portable EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: ktc-portable-test-windows-x64
+          path: desktop/release/KTC-Production-Control.exe
+          if-no-files-found: error
+          retention-days: 7
