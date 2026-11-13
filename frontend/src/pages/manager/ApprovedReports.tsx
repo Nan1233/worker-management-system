@@ -118,9 +118,25 @@ export default function ApprovedReports() {
             if (result.processes) setProcessOptions(result.processes.map(item => String(item?.process_name || item?.process_code || "")).filter(Boolean).sort((a, b) => a.localeCompare(b, "vi")));
             if (page > lastPage) { setReports([]); setPage(lastPage); return; }
             setReports(result.data || []);
-            const ranges = (["day", "week", "month", "year"] as const).map(type => ({ type, ...rangeFor(date, type) }));
-            const values = await Promise.allSettled(ranges.map(x => getApprovedReports({ dateFrom: x.dateFrom, dateTo: x.dateTo, processName: process || undefined, shift: shift || undefined, search: searchQuery || undefined, page: 1, pageSize: 1, includeMeta: false })));
+
+        } catch (e: unknown) {
             if (!isCurrentRequest()) return;
+            setError(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể tải báo cáo đã duyệt" : "Không thể tải báo cáo đã duyệt");
+            /* Keep the previous list visible when refresh fails. */
+        } finally { if (isCurrentRequest()) setLoading(false); }
+    }, [date, range, process, shift, searchQuery, page]);
+
+    // KPI counts depend on filters, not on the current table page. Keep them
+    // separate from paged rows to avoid four redundant API calls per page turn.
+    useEffect(() => {
+        let cancelled = false;
+        const ranges = (["day", "week", "month", "year"] as const).map(type => rangeFor(date, type));
+        void Promise.allSettled(ranges.map(x => getApprovedReports({
+            dateFrom: x.dateFrom, dateTo: x.dateTo,
+            processName: process || undefined, shift: shift || undefined,
+            search: searchQuery || undefined, page: 1, pageSize: 1, includeMeta: false,
+        }))).then(values => {
+            if (cancelled) return;
             setCounts(previous => {
                 const count = (index: number, fallback: number) => {
                     const result = values[index];
@@ -128,12 +144,9 @@ export default function ApprovedReports() {
                 };
                 return { day: count(0, previous.day), week: count(1, previous.week), month: count(2, previous.month), year: count(3, previous.year) };
             });
-        } catch (e: unknown) {
-            if (!isCurrentRequest()) return;
-            setError(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể tải báo cáo đã duyệt" : "Không thể tải báo cáo đã duyệt");
-            /* Keep the previous list visible when refresh fails. */
-        } finally { if (isCurrentRequest()) setLoading(false); }
-    }, [date, range, process, shift, searchQuery, page]);
+        });
+        return () => { cancelled = true; };
+    }, [date, process, shift, searchQuery]);
 
     const filterKey = JSON.stringify([date, range?.dateFrom || "", range?.dateTo || "", process, shift, searchQuery]);
     useEffect(() => {
