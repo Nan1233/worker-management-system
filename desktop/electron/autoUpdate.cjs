@@ -1,6 +1,12 @@
 const { app, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
+// electron-builder portable executables are replaced manually; the installer
+// updater must not attempt to install over a portable running executable.
+function isPortableBuild(env = process.env) {
+  return Boolean(String(env.PORTABLE_EXECUTABLE_FILE || '').trim());
+}
+
 const UPDATE_CHECK_DELAY_MS = 8000;
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
@@ -16,7 +22,7 @@ function logUpdate(event, payload = {}) {
 }
 
 async function checkForUpdates() {
-  if (!app.isPackaged || checking) return;
+  if (!app.isPackaged || isPortableBuild() || checking) return;
   checking = true;
   try {
     logUpdate('CHECK', { currentVersion: app.getVersion() });
@@ -89,9 +95,9 @@ autoUpdater.on('update-downloaded', async (info) => {
 });
 
 app.whenReady().then(() => {
-  if (!app.isPackaged) return;
+  if (!app.isPackaged || isPortableBuild()) return;
   setTimeout(() => void checkForUpdates(), UPDATE_CHECK_DELAY_MS);
   setInterval(() => void checkForUpdates(), UPDATE_CHECK_INTERVAL_MS);
 });
 
-module.exports = { checkForUpdates };
+module.exports = { checkForUpdates, isPortableBuild };
