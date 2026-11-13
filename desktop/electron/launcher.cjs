@@ -128,16 +128,9 @@ app.on('browser-window-created', (_event, window) => {
   });
 });
 
-// v5 is the single active GC Excel contract. Older contract patches are no longer loaded.
-require('./excelExportContractPatch.v5.cjs');
-void writeLauncherLog('INFO', 'STARTUP_EXCEL_PATCH_V5_READY', { elapsedMs: startupElapsedMs() });
-// Compact one-sheet GC template is layered after v5 and remains DB-first.
-require('./compactGcExcelPatch.cjs');
-// Patch the existing white B column before v6 loads workerReportTemplateLocal.v2.
-require('./excelReportDateSubmissionPatch.cjs');
-// v6 replaces the legacy split/monthly layout with the worker-report template.
-require('./excelExportContractPatch.v6.cjs');
-void writeLauncherLog('INFO', 'STARTUP_EXCEL_PATCHES_READY', { elapsedMs: startupElapsedMs() });
+// The order-dependent Excel patches are now loaded by excelRuntime.cjs on the
+// first actual Excel operation; startup is no longer blocked by ExcelJS.
+void writeLauncherLog('INFO', 'STARTUP_EXCEL_PATCHES_DEFERRED', { elapsedMs: startupElapsedMs() });
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
