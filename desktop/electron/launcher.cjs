@@ -12,7 +12,10 @@ const LOCAL_FALLBACK_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', '
 const LEGACY_LOCAL_EXPORT_ROOT = LOCAL_FALLBACK_EXPORT_ROOT;
 // Set the persistent data path before any config or launcher log path is resolved.
 const { getDesktopDataRoot } = require('./platformPaths.cjs');
-app.setPath('userData', path.join(getDesktopDataRoot(), 'UserData'));
+// Electron requires the target directory to exist, including on a clean PC.
+const persistentUserData = path.join(getDesktopDataRoot(), 'UserData');
+fs.mkdirSync(persistentUserData, { recursive: true });
+app.setPath('userData', persistentUserData);
 const CONFIG_FILE = path.join(app.getPath('userData'), 'excel-export-config.json');
 const DESKTOP_ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 
