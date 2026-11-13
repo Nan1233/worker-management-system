@@ -64,6 +64,17 @@ jobs:
             Get-FileHash $file -Algorithm SHA256 | Format-List
           }
 
+      - name: Build unpacked portable folder (fastest repeat launches)
+        run: npx electron-builder --win dir --x64 --config.asar=true --config.extraMetadata.ktcBundledFrontend=true --publish never
+
+      - name: Upload unpacked Portable folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTC-Portable-Unpacked-BundledFE-test
+          path: desktop/release/win-unpacked/**
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload Setup EXE
         uses: actions/upload-artifact@v4
         with:
