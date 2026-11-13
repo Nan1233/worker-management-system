@@ -77,6 +77,24 @@ if (!isNativeCapacitor && import.meta.env.VITE_KTC_BUNDLED_FE !== "1" && "servic
     });
 }
 
+// Run diagnostics strictly AFTER the frontend load and initial paint.
+// Dynamic import keeps telemetry code and network requests outside the startup path.
+if ((window as Window & { ktcDesktop?: { isDesktop?: boolean } }).ktcDesktop?.isDesktop) {
+  const afterPaint = () => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        window.setTimeout(() => {
+          void import("./services/desktopStartupTelemetry")
+            .then(({ uploadDesktopStartupTelemetry }) => uploadDesktopStartupTelemetry())
+            .catch(() => undefined);
+        }, 1500);
+      });
+    });
+  };
+  if (document.readyState === "complete") afterPaint();
+  else window.addEventListener("load", afterPaint, { once: true });
+}
+
 console.info(`[KTC] frontendVersion=${FRONTEND_VERSION} commitSha=${FRONTEND_COMMIT_SHA}`);
 
 // A deployment can keep the same semantic frontend version while changing code.
