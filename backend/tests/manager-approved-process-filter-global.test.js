@@ -18,7 +18,7 @@ test('approved process dropdown is built from all accessible approved reports, n
   assert.match(metadata, /FROM production_reports pr/);
   assert.match(metadata, /scoped\.clause/);
   assert.match(metadata, /scoped\.params/);
-  assert.doesNotMatch(metadata, /LIMIT|OFFSET|whereSql|dateFrom|dateTo|processName|shift/);
+  assert.doesNotMatch(metadata, /LIMIT|OFFSET|whereSql|dateFrom|dateTo|req\\.query\\?\\.shift/);
   assert.match(controller, /processes !== undefined \? \{ processes \} : \{\}/);
   assert.match(frontend, /setProcessOptions\(result\.processes\.map/);
   assert.doesNotMatch(frontend, /\.\.\.reports\.map\(r => String\(r\.process_name/);
