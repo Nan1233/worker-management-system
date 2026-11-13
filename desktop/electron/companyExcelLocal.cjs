@@ -652,9 +652,12 @@ function getMetrics(report) {
   const actualTime = isGiaCongMachine
     ? (hasValue(report.actual_time) ? Math.max(0, num(report.actual_time)) : Math.max(0, workerTotalTime - workerDeductionTime))
     : num(report.actual_time ?? report.working_time ?? report.work_time);
-  const rawTraining = report.training_percent === null || report.training_percent === undefined || (typeof report.training_percent === 'string' && report.training_percent.trim() === '')
-    ? 100
-    : num(report.training_percent);
+  // Approved historical snapshot takes precedence over mutable worker master data.
+  const snapshot = report.training_percent_snapshot;
+  const trainingSource = snapshot !== null && snapshot !== undefined && String(snapshot).trim() !== ''
+    ? snapshot : report.training_percent;
+  const rawTraining = trainingSource === null || trainingSource === undefined || String(trainingSource).trim() === ''
+    ? 100 : num(trainingSource);
   const trainingPercent = Math.min(100, Math.max(0, rawTraining));
   const trainingFactor = trainingPercent / 100;
   // Không làm tròn định mức theo giờ. Nhiều mã có định mức thập phân
