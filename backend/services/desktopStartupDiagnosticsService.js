@@ -11,28 +11,8 @@ const POINT_SET = new Set(POINTS);
 const clampMs = (value) => Number.isFinite(Number(value))
   ? Math.min(600000, Math.max(0, Math.round(Number(value)))) : null;
 
-let schemaPromise;
-function ensureTable() {
-  if (!schemaPromise) {
-    schemaPromise = db.promise().query(`
-      CREATE TABLE IF NOT EXISTS ktc_desktop_startup_diagnostics (
-        id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        user_id BIGINT NOT NULL,
-        install_id CHAR(36) NOT NULL,
-        version VARCHAR(32) NOT NULL,
-        started_at DATETIME(3) NOT NULL,
-        uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        platform VARCHAR(16) NOT NULL,
-        arch VARCHAR(16) NOT NULL,
-        portable TINYINT(1) NOT NULL,
-        bundled_frontend TINYINT(1) NOT NULL,
-        points_json JSON NOT NULL,
-        KEY idx_ktc_startup_uploaded (uploaded_at),
-        KEY idx_ktc_startup_install (install_id, uploaded_at)
-      )`).catch((error) => { schemaPromise = null; throw error; });
-  }
-  return schemaPromise;
-}
+// Table must be provisioned through the operator-managed schema process.
+// Request handlers must never issue DDL (especially on Cloudflare Workers).
 
 function normalize(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
@@ -62,7 +42,6 @@ function normalize(payload) {
 async function submit(userId, payload) {
   const record = normalize(payload);
   if (!record) return null;
-  await ensureTable();
   const [result] = await db.promise().query(
     `INSERT INTO ktc_desktop_startup_diagnostics
        (user_id, install_id, version, started_at, platform, arch, portable, bundled_frontend, points_json)
@@ -105,7 +84,6 @@ function analyze(points) {
 }
 
 async function recent(limit = 30, userId = null) {
-  await ensureTable();
   const take = Math.min(100, Math.max(1, Math.floor(Number(limit) || 30)));
   const [rows] = await db.promise().query(
     `SELECT id, user_id, install_id, version, started_at, uploaded_at,
