@@ -527,7 +527,13 @@ const machineAutocompleteOptions =
             window.clearTimeout(draftSaveTimerRef.current);
             draftSaveTimerRef.current = null;
         }
-        void clearProcessDraftAsync(process);
+        isRestoringDraftRef.current = true;
+                    resetVersionRef.current += 1;
+                    if (draftSaveTimerRef.current !== null) {
+                        window.clearTimeout(draftSaveTimerRef.current);
+                        draftSaveTimerRef.current = null;
+                    }
+                    void clearProcessDraftAsync(process);
         setDuplicatePrompt(null);
         pendingSplitPayloadsRef.current = [];
         duplicatePrimaryCompletedRef.current = false;
@@ -1370,6 +1376,12 @@ const updateDeductionValue = (
                 if (!navigator.onLine) {
                     queueRemainingMachineReports(payloads);
                     showToast("Đang mất mạng. Các báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
+                    isRestoringDraftRef.current = true;
+                    resetVersionRef.current += 1;
+                    if (draftSaveTimerRef.current !== null) {
+                        window.clearTimeout(draftSaveTimerRef.current);
+                        draftSaveTimerRef.current = null;
+                    }
                     void clearProcessDraftAsync(process);
                     clientRequestIdRef.current = null;
                     window.setTimeout(() => navigate("/worker", { replace: true }), 900);
@@ -1404,7 +1416,13 @@ const updateDeductionValue = (
                         if (isTransientNetworkFailure(error)) {
                             queueRemainingMachineReports(payloads.slice(index));
                             showToast("Kết nối Internet bị gián đoạn. Các báo cáo còn lại đã được lưu trên thiết bị và sẽ tự gửi khi có mạng.", "warning");
-                            void clearProcessDraftAsync(process);
+                            isRestoringDraftRef.current = true;
+                    resetVersionRef.current += 1;
+                    if (draftSaveTimerRef.current !== null) {
+                        window.clearTimeout(draftSaveTimerRef.current);
+                        draftSaveTimerRef.current = null;
+                    }
+                    void clearProcessDraftAsync(process);
                             clientRequestIdRef.current = null;
                             window.setTimeout(() => navigate("/worker", { replace: true }), 900);
                             return;
@@ -1427,7 +1445,13 @@ const updateDeductionValue = (
 
                 pendingSplitPayloadsRef.current = [];
                 showToast("Lưu báo cáo thành công. Các báo cáo đã được gửi chờ duyệt.", "success");
-                void clearProcessDraftAsync(process);
+                isRestoringDraftRef.current = true;
+                    resetVersionRef.current += 1;
+                    if (draftSaveTimerRef.current !== null) {
+                        window.clearTimeout(draftSaveTimerRef.current);
+                        draftSaveTimerRef.current = null;
+                    }
+                    void clearProcessDraftAsync(process);
                 clientRequestIdRef.current = null;
                 window.setTimeout(() => navigate("/worker", { replace: true }), 900);
 
