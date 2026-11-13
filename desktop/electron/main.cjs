@@ -1681,7 +1681,10 @@ app.whenReady().then(async () => {
   createWindow();
   void writeLog('INFO', 'APP_READY', {
     version: app.getVersion(),
-    exportRoot: getExportRoot(),
+    // Never call getExportRoot() on the Electron UI startup path: it performs
+    // synchronous SMB mkdir/access, potentially blocking the event loop for
+    // tens of seconds on slow/offline company NAS connections.
+    exportRootConfigured: process.env.KTC_EXPORT_ROOT || '',
     userData: app.getPath('userData'),
     api: API_BASE_URL
   });
