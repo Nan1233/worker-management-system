@@ -66,7 +66,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </React.StrictMode>
 );
 
-if (!isNativeCapacitor && "serviceWorker" in navigator && import.meta.env.PROD && /^https?:$/.test(window.location.protocol)) {
+if (!isNativeCapacitor && import.meta.env.VITE_KTC_BUNDLED_FE !== "1" && "serviceWorker" in navigator && import.meta.env.PROD && /^https?:$/.test(window.location.protocol)) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((registration) => {
             registration.update().catch(() => undefined);
