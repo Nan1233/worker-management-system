@@ -31,6 +31,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Validate accounting and export service syntax
         run: |
+          node --check services/machineProductionEventService.js
           node --check services/giaCongMachineAccounting.js
           node --check services/bulkCompanyExcelDataService.js
           node --check services/processExcelExportService.js
@@ -39,3 +40,6 @@ jobs:
           node --check services/commonProcessMonthlyExcelService.js
       - name: Run GC machine accounting regression tests
         run: node --test tests/gc-event-concurrency.test.js tests/gc-machine-time-accounting.test.js tests/shared-machine-accounting-flow.test.js tests/gc-worker-report-excel.test.js tests/common-process-gc-excel.test.js
+      - name: Full backend regression suite (including non-GC processes)
+        if: always()
+        run: npm test
