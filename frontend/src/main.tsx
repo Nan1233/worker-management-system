@@ -83,6 +83,8 @@ if ((window as Window & { ktcDesktop?: { isDesktop?: boolean } }).ktcDesktop?.is
   const afterPaint = () => {
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
+        // Notify Electron after the first visible frames, before any telemetry I/O.
+        (window as Window & { ktcDesktop?: { markFrontendPaint?: () => void } }).ktcDesktop?.markFrontendPaint?.();
         window.setTimeout(() => {
           void import("./services/desktopStartupTelemetry")
             .then(({ uploadDesktopStartupTelemetry }) => uploadDesktopStartupTelemetry())
