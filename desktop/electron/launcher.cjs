@@ -328,7 +328,21 @@ fsp.readdir = async (...args) => {
 };
 
 void writeLauncherLog('INFO', 'STARTUP_MAIN_REQUIRE_BEGIN', { elapsedMs: startupElapsedMs() });
-require('./autoUpdate.cjs');
+// The portable target is manually updated: do not load electron-updater or
+// its dependency graph during startup. Installed builds check after the first
+// window is created; updater setup must never delay first paint.
+if (!process.env.PORTABLE_EXECUTABLE_FILE && app.isPackaged) {
+  app.whenReady().then(() => {
+    setTimeout(() => {
+      try {
+        require('./autoUpdate.cjs');
+        void writeLauncherLog('INFO', 'AUTO_UPDATER_LOADED_AFTER_STARTUP', { elapsedMs: startupElapsedMs() });
+      } catch (error) {
+        void writeLauncherLog('ERROR', 'AUTO_UPDATER_LOAD_FAILED', safeCrashSummary(error));
+      }
+    }, 10000);
+  });
+}
 if (bundledFrontendEnabled) {
   // Ensure interception is registered BEFORE main.cjs creates its first window.
   app.whenReady().then(async () => {
