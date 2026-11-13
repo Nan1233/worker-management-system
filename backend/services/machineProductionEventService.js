@@ -179,6 +179,12 @@ async function linkTempLines(executor, event, tempLineIds = []) {
       && isoDate(row.work_date)===isoDate(event.work_date)
       && String(row.shift||'').trim().toUpperCase()===String(event.shift||'').trim().toUpperCase();
     if (!same) throw eventError(422, 'MACHINE_EVENT_DIMENSION_MISMATCH', `Dòng máy #${row.id} không khớp công đoạn/máy/sản phẩm/ngày/ca của event`);
+    // A worker line is participation in ONE physical run. Never silently move it
+    // to another event (including during concurrent create/link retries).
+    const linkedId = Number(row.machine_event_id) || 0;
+    if (linkedId && linkedId !== Number(event.id)) {
+      throw eventError(409, 'MACHINE_LINE_ALREADY_LINKED', `Dòng máy #${row.id} đã liên kết production event #${linkedId}`);
+    }
   }
   await q(executor, `UPDATE production_temp_machine_lines SET machine_event_id=? WHERE id IN (${placeholders})`, [Number(event.id), ...ids]);
   await assertParticipantLimit(executor, event);
@@ -281,13 +287,22 @@ async function linkParticipants({ id, actor, tempMachineLineIds, req = null }) {
 
 async function approveEvent({ id, actor, req = null }) {
   const connection=await getDb().promise().getConnection();
-  try{await connection.beginTransaction();const event=await loadEvent(connection,id,{lock:true});await assertActorProcessScope(connection,actor,event.process_id);const participantInfo=await assertParticipantLimit(connection,event);
+  try{await connection.beginTransaction();const event=await loadEvent(connection,id,{lock:true});await assertActorProcessScope(connection,actor,event.process_id);
+    // FOR UPDATE serializes approvals of the same physical event. A second
+    // approval must not write another transition or audit an additional run.
+    if (String(event.status || '').toLowerCase() !== 'pending') {
+      throw eventError(409, 'MACHINE_EVENT_ALREADY_REVIEWED', 'Production event đã được duyệt hoặc không còn chờ duyệt');
+    }
+    const participantInfo=await assertParticipantLimit(connection,event);
     if(!participantInfo.workerIds.length) throw eventError(422,'MACHINE_EVENT_PARTICIPANTS_REQUIRED','Event phải có ít nhất một worker participant trước khi duyệt');
     await assertEventDefectWorkers(connection,event.id);
     const defectRows=await q(connection,'SELECT quantity FROM machine_production_event_defects WHERE machine_event_id=?',[event.id]);
     const defectTotal=defectRows.reduce((s,r)=>s+Number(r.quantity||0),0);
     if(defectTotal!==Number(event.physical_ng_quantity||0)) throw eventError(422,'MACHINE_EVENT_DEFECT_TOTAL_MISMATCH','Tổng NG event không khớp chi tiết NG');
-    await connection.query(`UPDATE machine_production_events SET status='approved',updated_by=?,updated_at=NOW() WHERE id=?`,[Number(actor.id),event.id]);
+    const [transition] = await connection.query(`UPDATE machine_production_events SET status='approved',updated_by=?,updated_at=NOW() WHERE id=? AND status='pending'`,[Number(actor.id),event.id]);
+    if (Number(transition.affectedRows) !== 1) {
+      throw eventError(409, 'MACHINE_EVENT_ALREADY_REVIEWED', 'Production event đã được duyệt đồng thời');
+    }
     await getAuditService().logActivity({userId:actor.id,action:'MACHINE_EVENT_APPROVED',entityType:'machine_production_event',entityId:event.id,description:`Duyệt production event #${event.id}`,metadata:{participant_count:participantInfo.workerIds.length},req},connection);
     await connection.commit();return getEvent(event.id,actor);}catch(error){await connection.rollback().catch(()=>{});throw error;}finally{connection.release();}
 }
