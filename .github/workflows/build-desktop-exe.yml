@@ -1,40 +1,81 @@
-name: Build KTC Desktop Setup
+name: Build KTC Desktop (Bundled FE TEST)
 
 on:
+  push:
+    branches: [test]
+    paths:
+      - 'frontend/**'
+      - 'desktop/**'
+      - 'backend/templates/**'
+      - 'shared/**'
+      - '.github/workflows/build-desktop-exe.yml'
   workflow_dispatch:
+
 permissions:
   contents: read
+
+concurrency:
+  group: ktc-desktop-test-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     defaults:
       run:
         working-directory: desktop
     steps:
-      - name: Checkout
+      - name: Checkout exact branch commit
         uses: actions/checkout@v4
-        with:
-          ref: test
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install Desktop dependencies
+        run: npm ci --no-audit --no-fund
 
-      - name: Build Windows Setup
-        run: npm run dist:setup:fast
+      - name: Check desktop source and startup safeguards
+        run: npm run check
 
-      - name: Upload Setup artifact
+      - name: Compile latest TEST frontend (includes Approved 20/page)
+        run: node scripts/buildBundledFrontend.cjs
+
+      - name: Verify bundled frontend exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'frontend/dist/index.html')) { throw 'Bundled frontend missing' }
+
+      - name: Run Excel regression tests
+        run: npm run smoke:excel
+
+      - name: Build both Setup and single-file Portable (bundled FE)
+        run: npx electron-builder --win nsis portable --x64 --config.asar=true --config.compression=store --config.extraMetadata.ktcBundledFrontend=true --publish never
+
+      - name: Check EXEs and SHA256
+        shell: pwsh
+        run: |
+          foreach ($file in @('release/KTC-Production-Control-Setup.exe','release/KTC-Production-Control.exe')) {
+            if (-not (Test-Path $file)) { throw "Missing EXE: $file" }
+            Get-FileHash $file -Algorithm SHA256 | Format-List
+          }
+
+      - name: Upload Setup EXE
         uses: actions/upload-artifact@v4
         with:
-          name: KTC-Desktop-Setup-test
+          name: KTC-Setup-BundledFE-test
           path: desktop/release/KTC-Production-Control-Setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Portable EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTC-Portable-BundledFE-test
+          path: desktop/release/KTC-Production-Control.exe
           if-no-files-found: error
           retention-days: 14
