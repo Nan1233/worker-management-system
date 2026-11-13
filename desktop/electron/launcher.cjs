@@ -64,6 +64,9 @@ function writeLauncherLog(level, event, payload = {}) {
 
 // Observe fatal startup failures without replacing Node's default crash behavior.
 // Never log environment variables, renderer storage, auth tokens or full URLs.
+// Per-launch marker: distinguishes first start from subsequent restarts in the append-only log.
+void writeLauncherLog('INFO', 'STARTUP_PROCESS_BEGIN', { elapsedMs: startupElapsedMs(), portable: Boolean(process.env.PORTABLE_EXECUTABLE_FILE), bundledFrontend: bundledFrontendEnabled });
+
 function safeCrashSummary(reason) {
   const error = reason instanceof Error ? reason : new Error(String(reason));
   const sanitize = (value) => String(value || '')
