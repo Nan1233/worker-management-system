@@ -6,6 +6,8 @@ on:
     paths:
       - 'backend/services/machineProductionEventService.js'
       - 'backend/services/bulkCompanyExcelDataService.js'
+      - 'backend/services/commonProcessExcelRowValues.js'
+      - 'backend/tests/common-process-excel-row-values.test.js'
       - 'backend/tests/gc-event-concurrency.test.js'
       - 'backend/tests/machine-event-optimistic-lock.contract.test.js'
       - '.github/workflows/gc-machine-accounting-regression.yml'
@@ -35,6 +37,7 @@ jobs:
         run: |
           node --check services/machineProductionEventService.js
           node --check services/bulkCompanyExcelDataService.js
+          node --check services/commonProcessExcelRowValues.js
           node --check tests/gc-event-concurrency.test.js
           node --check tests/machine-event-optimistic-lock.contract.test.js
           node --check services/giaCongMachineAccounting.js
@@ -43,7 +46,7 @@ jobs:
           node --check services/gcWorkerReportRows.js
           node --check services/commonProcessMonthlyExcelService.js
       - name: Run new GC concurrency and Excel defect regressions
-        run: timeout 90s node --test tests/gc-event-concurrency.test.js tests/machine-event-optimistic-lock.contract.test.js
+        run: timeout 90s node --test tests/gc-event-concurrency.test.js tests/machine-event-optimistic-lock.contract.test.js tests/common-process-excel-row-values.test.js
       - name: Run existing GC regression suite (known pre-existing failures)
         continue-on-error: true
         run: timeout 90s node --test tests/gc-machine-time-accounting.test.js tests/shared-machine-accounting-flow.test.js tests/gc-worker-report-excel.test.js tests/common-process-gc-excel.test.js
