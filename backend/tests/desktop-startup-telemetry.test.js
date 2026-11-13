@@ -32,10 +32,23 @@ test('Electron captures app/window events without reading report data', () => {
   assert.match(preload, /getStartupDiagnostics/);
 });
 
-test('renderer uploads only after access token and does not block auth bootstrap', () => {
+test('anonymous startup telemetry needs no login and is strictly rate-limited', () => {
+  const routes = read('routes/systemRoutes.js');
+  assert.match(routes, /router\.post\('\/desktop-startup\/anonymous', anonymousStartupLimiter/);
+  assert.match(routes, /windowMs:\s*60 \* 60 \* 1000/);
+  assert.match(routes, /limit:\s*12/);
+  assert.match(routes, /startupDiag\.submit\(0, req\.body\)/);
+});
+
+test('renderer only loads and sends telemetry after frontend load and first paints', () => {
   const service = read('../frontend/src/services/desktopStartupTelemetry.ts');
+  const frontend = read('../frontend/src/main.tsx');
   const auth = read('../frontend/src/components/AuthBootstrap.tsx');
-  assert.match(service, /if \(!getAccessToken\(\)\) return/);
-  assert.match(service, /api\.post\("\/system\/desktop-startup"/);
-  assert.match(auth, /startDesktopStartupTelemetry\(\)/);
+  assert.match(service, /credentials:\s*"omit"/);
+  assert.match(service, /desktop-startup\/anonymous/);
+  assert.doesNotMatch(service, /getAccessToken|from "\.\/api"|setInterval/);
+  assert.match(frontend, /window\.addEventListener\("load", afterPaint/);
+  assert.match(frontend, /window\.requestAnimationFrame/);
+  assert.match(frontend, /import\("\.\/services\/desktopStartupTelemetry"\)/);
+  assert.doesNotMatch(auth, /startDesktopStartupTelemetry/);
 });
