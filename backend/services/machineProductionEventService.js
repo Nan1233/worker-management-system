@@ -205,6 +205,27 @@ function calculateEventPhysical({ physicalOkQuantity, defects, machineTimeHours,
   };
 }
 
+// One physical snapshot per GC machine/product/date/shift. Lock the machine row
+// before looking for an existing event so concurrent requests on different
+// workers cannot each insert the same physical output. This is a locking read:
+// an earlier consistent-read snapshot must not hide a just-committed event.
+async function assertUniquePhysicalEvent(executor, { processId, machineId, productCode, workDate, shift, excludeEventId = 0 }) {
+  await q(executor, 'SELECT id FROM machines WHERE id=? FOR UPDATE', [Number(machineId)]);
+  const rows = await q(executor, `SELECT id FROM machine_production_events
+    WHERE process_id=? AND machine_id=? AND work_date=? AND shift=?
+      AND UPPER(TRIM(product_code))=UPPER(TRIM(?))
+      AND status IN ('pending','approved') AND id<>?
+    LIMIT 2 FOR UPDATE`, [
+    Number(processId), Number(machineId), isoDate(workDate), normalizeShift(shift),
+    String(productCode || '').trim(), Number(excludeEventId) || 0
+  ]);
+  if (rows.length) {
+    throw eventError(409, 'MACHINE_EVENT_ALREADY_EXISTS',
+      'Máy/sản phẩm/ngày/ca đã có production event; hãy sửa event hiện có thay vì ghi sản lượng lần nữa',
+      { event_ids: rows.map(row => Number(row.id)) });
+  }
+}
+
 async function createEvent({ actor, data, req = null }) {
   const connection = await getDb().promise().getConnection();
   try {
@@ -213,6 +234,7 @@ async function createEvent({ actor, data, req = null }) {
     const shift = normalizeShift(data.shift);
     const ctx = await loadEventContext(connection, { processId:data.process_id, machineId:data.machine_id, machineCode:data.machine_code, productCode:data.product_code, workDate });
     await assertActorProcessScope(connection, actor, ctx.process.id);
+    await assertUniquePhysicalEvent(connection, { processId: ctx.process.id, machineId: ctx.machine.id, productCode: ctx.resolved.productCode, workDate, shift });
     const defects = await authoritativeDefects(connection, ctx.process.id, data.defects);
     const calc = calculateEventPhysical({ physicalOkQuantity:data.physical_ok_quantity, defects, machineTimeHours:data.machine_time_hours, standardOutput:ctx.resolved.standardOutput });
     const [insert] = await connection.query(`INSERT INTO machine_production_events
@@ -256,6 +278,7 @@ async function updateEvent({ id, actor, patch, req = null }) {
     if(dimensionsChanged && linked.length) throw eventError(422,'EVENT_DIMENSION_CHANGE_WITH_PARTICIPANTS','Không đổi dimensions khi event đã có participant; hãy tạo event mới');
     const resulting={...before,...(patch||{})};
     const ctx=await loadEventContext(connection,{processId:resulting.process_id,machineId:resulting.machine_id,machineCode:resulting.machine_code,productCode:resulting.product_code,workDate:resulting.work_date});
+    if (dimensionsChanged) await assertUniquePhysicalEvent(connection, { processId: ctx.process.id, machineId: ctx.machine.id, productCode: ctx.resolved.productCode, workDate: resulting.work_date, shift: resulting.shift, excludeEventId: before.id });
     const defects=Object.prototype.hasOwnProperty.call(patch||{},'defects')
       ? await authoritativeDefects(connection,ctx.process.id,patch.defects)
       : await q(connection,`SELECT defect_type_id,defect_code,defect_name,quantity,responsible_worker_id FROM machine_production_event_defects WHERE machine_event_id=? ORDER BY id`,[before.id]);
@@ -483,4 +506,4 @@ async function assertApprovedEventForTempLine(executor,{report,line,context=null
   return true;
 }
 
-module.exports={eventError,isSharedEventManaged,calculateEventPhysical,createEvent,updateEvent,linkParticipants,approveEvent,getEvent,listEvents,assertApprovedEventForTempLine,prepareApprovedEventContext,participantRows};
+module.exports={eventError,isSharedEventManaged,calculateEventPhysical,assertUniquePhysicalEvent,createEvent,updateEvent,linkParticipants,approveEvent,getEvent,listEvents,assertApprovedEventForTempLine,prepareApprovedEventContext,participantRows};
