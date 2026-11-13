@@ -272,3 +272,28 @@
   opacity: .55;
   cursor: not-allowed;
 }
+
+
+/* Mobile report form: never shrink fields or clip controls at narrow widths. */
+@media(max-width:600px){
+ .worker-form-page{width:100%;min-width:0;padding:12px 10px 36px;overflow-x:clip}
+ .worker-form-shell,.worker-form-card,.machine-line,.worker-field-block{min-width:0;max-width:100%;box-sizing:border-box}
+ .worker-form-card{padding:15px 12px}
+ .worker-sticky-info{flex-wrap:wrap;min-width:0}
+ .worker-sticky-person{flex:1 1 100%;flex-wrap:wrap}
+ .worker-sticky-person strong{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+ .worker-sticky-meta{width:100%;min-width:0;flex-wrap:wrap}
+ .worker-sticky-date-select{min-width:0;max-width:100%;flex:1 1 170px}
+ .worker-basic-grid,.worker-dynamic-grid,.multi-machine-controls,.machine-time-row,.machine-quantity-row,.worker-time-grid,.worker-quality-summary{grid-template-columns:minmax(0,1fr)}
+ .worker-time-split,.machine-deduction-options,.worker-dropdown-options{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .machine-performance-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .worker-field-block input:not([type=checkbox]):not([type=radio]),.worker-field-block select,.worker-field-block textarea,.worker-text-input,.worker-time-item input,.worker-quality-card input{min-width:0;max-width:100%;box-sizing:border-box;font-size:16px}
+ .worker-choice-row button{min-height:44px}
+ .machine-deduction-option{grid-template-columns:auto minmax(0,1fr);min-width:0}
+ .machine-deduction-minute{grid-column:2;min-width:0;font-size:16px}
+ .worker-dropdown-title-main{min-width:0;flex-wrap:wrap}
+}
+@media(max-width:360px){
+ .worker-time-split,.machine-deduction-options,.worker-dropdown-options{grid-template-columns:minmax(0,1fr)}
+ .worker-form-title-row h1{font-size:21px}
+}
