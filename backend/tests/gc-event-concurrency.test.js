@@ -203,9 +203,31 @@ test('event edit preserves identity and checks a new identity before changing di
   assert.match(source, /await assertUniquePhysicalEvent\(connection, \{ processId: ctx\.process\.id/);
 });
 
+// Load the pure Excel hydration helpers without importing the live TiDB pool.
+// Requiring the full export service normally leaves a connection-pool handle
+// alive, which previously made node --test wait until CI job timeout.
+function loadExcelHydrationHelpers() {
+  const servicePath = path.resolve(__dirname, '../services/bulkCompanyExcelDataService.js');
+  const source = fs.readFileSync(servicePath, 'utf8');
+  const moduleObj = { exports: {} };
+  const fakeRequire = request => {
+    if (request === '../config/db') return { promise: () => ({ query: async () => [[]] }) };
+    if (request === './processAuthorizationService') return { getActorProcessScope: async () => ({ type: 'ALL' }) };
+    if (request === './excelExportGuards') return { assertReportVolume: async () => {}, chunkArray: items => [items] };
+    if (request === './schemaCompatibilityService') return { hasColumn: async () => true };
+    if (request === './trainingSnapshotService') return { assertTrainingSnapshotAvailable: async () => {} };
+    if (request === './giaCongMachineAccounting') return { buildGiaCongMachineAccounting };
+    if (request === '../domain/gcWorkerDefectResolver.cjs') return { resolveReportDefects: () => [] };
+    throw new Error('Unexpected export service import: ' + request);
+  };
+  const wrapper = vm.runInNewContext('(function(require,module,exports) {\\n' + source + '\\n})', { console }, { filename: servicePath });
+  wrapper(fakeRequire, moduleObj, moduleObj.exports);
+  return moduleObj.exports._test;
+}
+
 test('GC Excel does not repeat physical NG across shared workers', () => {
   const { groupMachineDefects, hydrateMachineLineDefects } =
-    require('../services/bulkCompanyExcelDataService')._test;
+    loadExcelHydrationHelpers();
   // The SQL event-defect JOIN returns each physical defect once per participant.
   const rows = [
     { id: 501, machine_event_id: 701, defect_code: 'BAVIA', quantity: 8, responsible_worker_id: 11 },
@@ -229,7 +251,7 @@ test('GC Excel does not repeat physical NG across shared workers', () => {
 
 test('GC Excel keeps saved worker defect details as authoritative', () => {
   const { groupMachineDefects, hydrateMachineLineDefects } =
-    require('../services/bulkCompanyExcelDataService')._test;
+    loadExcelHydrationHelpers();
   const eventDetails = groupMachineDefects([
     { id: 503, machine_event_id: 701, defect_code: 'BAVIA', quantity: 8, responsible_worker_id: 11 }
   ], 'machine_event_id');
