@@ -242,8 +242,8 @@ test('GC Excel does not repeat physical NG across shared workers', () => {
   const line = { id: 91, machine_event_id: 701, defects_json: null, ng_quantity: 8 };
   const first = hydrateMachineLineDefects([line], new Map(), physical, 11)[0];
   const second = hydrateMachineLineDefects([{ ...line, id: 92, ng_quantity: 2 }], new Map(), physical, 12)[0];
-  assert.deepEqual(first.defects.map(item => item.quantity), [8]);
-  assert.deepEqual(second.defects.map(item => item.quantity), [2]);
+  assert.deepEqual(Array.from(first.defects, item => item.quantity), [8]);
+  assert.deepEqual(Array.from(second.defects, item => item.quantity), [2]);
   assert.equal(first.ng_quantity, 8);
   assert.equal(second.ng_quantity, 2);
   assert.equal(first.defects.length + second.defects.length, 2);
