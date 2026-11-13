@@ -24,6 +24,29 @@ router.get('/observability', auth, role('admin','manager'), permission('SYSTEM_H
 router.get('/activities', auth, role('admin','admin_ops','manager','lead'), permission('AUDIT_VIEW'), c.getActivities);
 router.get('/deleted-reports', auth, role('admin','admin_ops','manager','lead'), permission('AUDIT_VIEW'), c.getDeletedReports);
 
+// Startup performance telemetry: authenticated writes; administrator-only reads.
+// No raw logs, device hostname, tokens or file paths are accepted.
+const startupDiag = require('../services/desktopStartupDiagnosticsService');
+router.post('/desktop-startup', auth, async (req, res) => {
+  const userId = Number(req.user?.id);
+  if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(401).json({ success: false });
+  try {
+    const id = await startupDiag.submit(userId, req.body);
+    if (id === null) return res.status(400).json({ success: false, code: 'INVALID_STARTUP_DIAGNOSTICS' });
+    return res.status(201).json({ success: true, id });
+  } catch (error) {
+    console.error('DESKTOP_STARTUP_SAVE_FAILED', String(error?.code || 'DB_ERROR'));
+    return res.status(503).json({ success: false, code: 'STARTUP_DIAGNOSTICS_UNAVAILABLE' });
+  }
+});
+router.get('/desktop-startup', auth, role('admin'), permission('SYSTEM_HEALTH_VIEW'), async (req, res) => {
+  try { return res.json({ success: true, data: await startupDiag.recent(req.query?.limit) }); }
+  catch (error) {
+    console.error('DESKTOP_STARTUP_LIST_FAILED', String(error?.code || 'DB_ERROR'));
+    return res.status(503).json({ success: false, code: 'STARTUP_DIAGNOSTICS_UNAVAILABLE' });
+  }
+});
+
 const reportVersionPermission = (req,res,next) => {
   const role = String(req.user?.role || '').trim().toLowerCase();
   const type = String(req.query?.type || '').trim().toLowerCase();
