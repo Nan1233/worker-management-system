@@ -31,9 +31,13 @@ const startupDiag = require('../services/desktopStartupDiagnosticsService');
 // untrusted data is schema-validated by the diagnostics service.
 // The POST contains no auth token, cookie, hostname or private application data.
 const { rateLimit } = require('express-rate-limit');
+const { safeClientIp, hashKey } = require('../services/rateLimitIdentityService');
 const anonymousStartupLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 12,
+  // In Cloudflare's Node.js adapter req.ip may be undefined. The default
+  // express-rate-limit IP key generator is not safe in that environment.
+  keyGenerator: (req) => `startup:${hashKey(safeClientIp(req), 'startup-ip')}`,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { success: false, code: 'STARTUP_TELEMETRY_RATE_LIMIT' },
