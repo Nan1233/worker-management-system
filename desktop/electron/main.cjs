@@ -1678,6 +1678,13 @@ ipcMain.handle('ktc-open-log-folder', async () => {
   return folder;
 });
 
+ipcMain.on('ktc-frontend-painted', (event) => {
+  // Only our own window may mark first paint; no renderer data is accepted.
+  if (mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents) {
+    global.__KTC_STARTUP_MARK__?.('frontend_painted');
+  }
+});
+
 ipcMain.handle('ktc-startup-diagnostics', () => {
   // Immutable, restricted metadata: never return log contents or auth data.
   const diagnostics = global.__KTC_STARTUP_DIAGNOSTICS__ || {};
