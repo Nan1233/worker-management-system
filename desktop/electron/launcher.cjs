@@ -10,6 +10,12 @@ const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh ti
 const LEGACY_NETWORK_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
 const LOCAL_FALLBACK_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
 const LEGACY_LOCAL_EXPORT_ROOT = LOCAL_FALLBACK_EXPORT_ROOT;
+// Set the persistent data path before any config or launcher log path is resolved.
+const { getDesktopDataRoot } = require('./platformPaths.cjs');
+// Electron requires the target directory to exist, including on a clean PC.
+const persistentUserData = path.join(getDesktopDataRoot(), 'UserData');
+fs.mkdirSync(persistentUserData, { recursive: true });
+app.setPath('userData', persistentUserData);
 const CONFIG_FILE = path.join(app.getPath('userData'), 'excel-export-config.json');
 const DESKTOP_ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 
@@ -48,6 +54,31 @@ function writeLauncherLog(level, event, payload = {}) {
     return Promise.resolve();
   }
 }
+
+// Observe fatal startup failures without replacing Node's default crash behavior.
+// Never log environment variables, renderer storage, auth tokens or full URLs.
+function safeCrashSummary(reason) {
+  const error = reason instanceof Error ? reason : new Error(String(reason));
+  const sanitize = (value) => String(value || '')
+    .replace(/(authorization|bearer|token|password|cookie|secret)\\s*[:=]\\s*[^\\s,;]+/gi, '$1=[REDACTED]')
+    .slice(0, 1500);
+  return { name: sanitize(error.name), message: sanitize(error.message), code: sanitize(error.code || '') };
+}
+
+process.on('uncaughtExceptionMonitor', (error, origin) => {
+  void writeLauncherLog('ERROR', 'MAIN_UNCAUGHT_EXCEPTION', {
+    origin: String(origin || ''), ...safeCrashSummary(error)
+  });
+});
+process.on('unhandledRejection', (reason) => {
+  void writeLauncherLog('ERROR', 'MAIN_UNHANDLED_REJECTION', safeCrashSummary(reason));
+});
+app.on('child-process-gone', (_event, details) => {
+  void writeLauncherLog('ERROR', 'ELECTRON_CHILD_PROCESS_GONE', {
+    type: String(details?.type || ''), reason: String(details?.reason || ''),
+    exitCode: Number(details?.exitCode || 0)
+  });
+});
 
 app.on('browser-window-created', (_event, window) => {
   try {
