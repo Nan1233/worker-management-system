@@ -16,7 +16,7 @@ test('SOURCE_CONTRACT: manager list service sends bounded server pagination and 
 test('SOURCE_CONTRACT: pending page consumes server pagination and total count instead of client slice', () => {
   const source = read('src/pages/manager/Reports.tsx');
   assert.match(source, /setTotal\(result\.pagination\?\.total \|\| 0\)/);
-  assert.match(source, /setPages\((?:Math\.max\(1, result\.pagination\?\.total_pages \|\| 1\)|lastPage)\)/);
+  assert.match(source, /setPages\\((?:Math\\.max\\(1, result\\.pagination\\?\\.total_pages \\|\\| 1\\)|lastPage)\\)/);
   assert.match(source, /page, pageSize: 8/);
   assert.doesNotMatch(source, /filteredReports\.slice/);
 });
@@ -24,7 +24,7 @@ test('SOURCE_CONTRACT: pending page consumes server pagination and total count i
 test('SOURCE_CONTRACT: approved page consumes server pagination and total count instead of client slice', () => {
   const source = read('src/pages/manager/ApprovedReports.tsx');
   assert.match(source, /setTotal\(result\.pagination\?\.total \|\| 0\)/);
-  assert.match(source, /setPages\(Math\.max\(1, result\.pagination\?\.total_pages \|\| 1\)\)/);
+  assert.match(source, /setPages\\((?:Math\\.max\\(1, result\\.pagination\\?\\.total_pages \\|\\| 1\\)|lastPage)\\)/);
   assert.match(source, /page, pageSize: 20/);
   assert.doesNotMatch(source, /filteredReports\.slice/);
 });
