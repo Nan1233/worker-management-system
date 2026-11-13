@@ -30,3 +30,10 @@ test('Electron ready callback does not synchronously probe company NAS', () => {
   assert.match(readyCallback, /exportRootConfigured:\s*process\.env\.KTC_EXPORT_ROOT/);
   assert.doesNotMatch(readyCallback, /exportRoot:\s*getExportRoot\(\)/);
 });
+
+test('startup diagnostics identify each Electron launch and preserve auth timing', () => {
+  assert.match(launcher, /STARTUP_PROCESS_BEGIN/);
+  const auth = fs.readFileSync(path.join(__dirname, '../../frontend/src/components/AuthBootstrap.tsx'), 'utf8');
+  assert.match(auth, /AUTH_BOOTSTRAP_START/);
+  assert.match(auth, /AUTH_BOOTSTRAP_FINISHED/);
+});
