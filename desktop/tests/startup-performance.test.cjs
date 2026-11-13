@@ -24,3 +24,9 @@ test('remote frontend navigation permits HTTP cache reuse and records latency', 
   assert.match(launcher, /await window\.loadURL\(FRONTEND_URL\)/);
   assert.doesNotMatch(launcher, /extraHeaders:\s*'Cache-Control: no-cache/);
 });
+
+test('Electron ready callback does not synchronously probe company NAS', () => {
+  const readyCallback = main.slice(main.indexOf('app.whenReady().then(async () => {'));
+  assert.match(readyCallback, /exportRootConfigured:\s*process\.env\.KTC_EXPORT_ROOT/);
+  assert.doesNotMatch(readyCallback, /exportRoot:\s*getExportRoot\(\)/);
+});
