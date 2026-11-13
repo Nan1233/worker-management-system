@@ -48,7 +48,8 @@
     "dist:setup:quick": "electron-builder --win nsis --x64 --publish never",
     "dist:portable:optimized": "npm run preflight && npm run smoke:excel && electron-builder --win portable --x64 --config.asar=true --config.compression=store --publish never",
     "dist:portable:optimized:quick": "electron-builder --win portable --x64 --config.asar=true --config.compression=store --publish never",
-    "dist:setup:optimized": "npm run preflight && npm run smoke:excel && electron-builder --win nsis --x64 --config.asar=true --publish never"
+    "dist:setup:optimized": "npm run preflight && npm run smoke:excel && electron-builder --win nsis --x64 --config.asar=true --publish never",
+    "dist:dir:optimized": "npm run preflight && npm run smoke:excel && electron-builder --win dir --x64 --config.asar=true --publish never"
   },
   "devDependencies": {
     "electron": "37.10.3",
