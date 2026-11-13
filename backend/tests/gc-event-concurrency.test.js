@@ -220,7 +220,7 @@ function loadExcelHydrationHelpers() {
     if (request === '../domain/gcWorkerDefectResolver.cjs') return { resolveReportDefects: () => [] };
     throw new Error('Unexpected export service import: ' + request);
   };
-  const wrapper = vm.runInNewContext('(function(require,module,exports) {\\n' + source + '\\n})', { console }, { filename: servicePath });
+  const wrapper = vm.runInNewContext('(function(require,module,exports) {\n' + source + '\n})', { console }, { filename: servicePath });
   wrapper(fakeRequire, moduleObj, moduleObj.exports);
   return moduleObj.exports._test;
 }
