@@ -44,7 +44,8 @@
     "test:startup-crash": "node --test tests/startup-crash-diagnostics.test.cjs",
     "test:startup-performance": "node --test tests/startup-performance.test.cjs",
     "test:portable-upgrade": "node --test tests/portable-upgrade-safety.test.cjs",
-    "test:export-parity": "node --test tests/desktop-web-export-parity.test.cjs"
+    "test:export-parity": "node --test tests/desktop-web-export-parity.test.cjs",
+    "dist:setup:quick": "electron-builder --win nsis --x64 --publish never"
   },
   "devDependencies": {
     "electron": "37.10.3",
