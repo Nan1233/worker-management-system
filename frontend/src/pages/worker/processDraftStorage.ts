@@ -445,56 +445,104 @@ const prepareOwnedDraft = (draft: ProcessDraft, workerId: number | null, workerC
   return owned;
 };
 
+// Keep IndexedDB operations ordered per worker/process. A completed submission
+// must not be followed by an older in-flight autosave.
+const draftWrites = new Map<string, Promise<void>>();
+const draftEpochs = new Map<string, number>();
+const clearedAtKey = (key: string) => `${key}:last-cleared-at`;
+const clearedAt = (key: string): number => {
+  try { return Number(localStorage.getItem(clearedAtKey(key)) || 0); } catch { return 0; }
+};
+const queueDraftWrite = (key: string, task: () => Promise<void>): Promise<void> => {
+  const previous = draftWrites.get(key) || Promise.resolve();
+  const next = previous.catch(() => undefined).then(task);
+  draftWrites.set(key, next);
+  void next.finally(() => { if (draftWrites.get(key) === next) draftWrites.delete(key); }).catch(() => undefined);
+  return next;
+};
+const notifyDraftSaveFailure = () => {
+  try { window.dispatchEvent(new Event(PROCESS_DRAFT_SAVE_FAILED_EVENT)); } catch { /* noop */ }
+};
+
 export async function loadProcessDraftAsync(process: string): Promise<ProcessDraft | null> {
   const { workerId, workerCode } = getCurrentWorkerIdentity();
   if (workerId == null && !workerCode) return null;
   const key = keyFor(process, workerId, workerCode);
+  // Local backup is written synchronously, including during the debounce window.
+  let backup: ProcessDraft | null = null;
   try {
-    const stored = await draftRequest<ProcessDraft | undefined>("readonly", store => store.get(key));
-    let draft = stored || null;
-    if (!draft) {
-      // Preserve legacy data until IndexedDB write has committed.
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        const legacy = JSON.parse(raw) as ProcessDraft;
-        if (validDraftForOwner(legacy, process, workerId, workerCode)) {
-          await draftRequest("readwrite", store => store.put(legacy, key));
-          draft = legacy;
-          try { localStorage.removeItem(key); } catch { /* legacy copy is safe */ }
-        }
-      }
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw) as ProcessDraft;
+      if (validDraftForOwner(parsed, process, workerId, workerCode)) backup = parsed;
     }
-    if (!validDraftForOwner(draft, process, workerId, workerCode) || !hasMeaningfulProcessDraft(draft)) return null;
-    const normalized = normalizeDraftForResume(draft);
-    if (String(process).toLowerCase() === "do" || isDefaultSameDayShiftDraft(normalized)) return normalized;
-    if (!window.confirm(buildDraftResumeMessage(normalized))) {
-      await draftRequest("readwrite", store => store.delete(key));
-      return null;
-    }
-    return normalized;
+  } catch { /* malformed backup must not hide a valid IndexedDB draft */ }
+  let stored: ProcessDraft | null = null;
+  try {
+    stored = (await draftRequest<ProcessDraft | undefined>("readonly", store => store.get(key))) || null;
   } catch (error) {
     console.warn("[KTC draft] IndexedDB restore failed", error instanceof Error ? error.name : "UnknownError");
-    // Do not erase the legacy draft when storage is unavailable.
-    return loadProcessDraft(process);
   }
+  const candidates = [backup, stored].filter((d): d is ProcessDraft =>
+    validDraftForOwner(d, process, workerId, workerCode) &&
+    hasMeaningfulProcessDraft(d) &&
+    Number(d.savedAt || 0) > clearedAt(key));
+  const draft = candidates.sort((a, b) => b.savedAt - a.savedAt)[0];
+  if (!draft) return null;
+  const normalized = normalizeDraftForResume(draft);
+  if (String(process).toLowerCase() === "do" || isDefaultSameDayShiftDraft(normalized)) return normalized;
+  if (!window.confirm(buildDraftResumeMessage(normalized))) {
+    await clearProcessDraftAsync(process);
+    return null;
+  }
+  return normalized;
 }
 
 export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> {
   const { workerId, workerCode } = getCurrentWorkerIdentity();
   if (workerId == null && !workerCode) return;
+  const key = keyFor(draft.process, workerId, workerCode);
+  if (isAutosaveSuppressed(draft.process, workerId, workerCode)) return;
+  const epoch = draftEpochs.get(key) || 0;
+  const owned = prepareOwnedDraft({ ...draft, savedAt: Date.now() }, workerId, workerCode);
+  // Persist a synchronous fallback before any asynchronous IndexedDB operation.
+  // Never replace a newer draft with a delayed older snapshot.
   try {
-    const owned = prepareOwnedDraft(draft, workerId, workerCode);
-    await draftRequest("readwrite", store => store.put(owned, keyFor(draft.process, workerId, workerCode)));
+    const raw = localStorage.getItem(key);
+    const existing = raw ? JSON.parse(raw) as ProcessDraft : null;
+    if (existing && !validDraftForOwner(existing, draft.process, workerId, workerCode)) {
+      throw new Error("Existing draft belongs to another worker or is invalid");
+    }
+    localStorage.setItem(key, JSON.stringify(owned));
   } catch (error) {
-    console.warn("[KTC draft] IndexedDB save failed", error instanceof Error ? error.name : "UnknownError");
-    // Existing localStorage draft is never deleted on failure.
-    try { window.dispatchEvent(new Event(PROCESS_DRAFT_SAVE_FAILED_EVENT)); } catch { /* noop */ }
+    console.warn("[KTC draft] Backup save failed", error instanceof Error ? error.name : "UnknownError");
+    notifyDraftSaveFailure();
   }
+  await queueDraftWrite(key, async () => {
+    if ((draftEpochs.get(key) || 0) !== epoch || owned.savedAt <= clearedAt(key)) return;
+    try {
+      await draftRequest("readwrite", store => store.put(owned, key));
+    } catch (error) {
+      console.warn("[KTC draft] IndexedDB save failed", error instanceof Error ? error.name : "UnknownError");
+      notifyDraftSaveFailure();
+    }
+  });
 }
 
 export async function clearProcessDraftAsync(process: string): Promise<void> {
   const { workerId, workerCode } = getCurrentWorkerIdentity();
   if (workerId == null && !workerCode) return;
-  await draftRequest("readwrite", store => store.delete(keyFor(process, workerId, workerCode)));
+  const key = keyFor(process, workerId, workerCode);
+  draftEpochs.set(key, (draftEpochs.get(key) || 0) + 1);
+  // Tombstone survives reload and prevents a failed delete from resurrecting
+  // an already-submitted report. It does not block genuinely newer drafts.
+  try { localStorage.setItem(clearedAtKey(key), String(Date.now())); } catch { /* noop */ }
   clearProcessDraft(process);
+  await queueDraftWrite(key, async () => {
+    try {
+      await draftRequest("readwrite", store => store.delete(key));
+    } catch (error) {
+      console.warn("[KTC draft] IndexedDB clear failed", error instanceof Error ? error.name : "UnknownError");
+    }
+  });
 }
