@@ -24,9 +24,32 @@ router.get('/observability', auth, role('admin','manager'), permission('SYSTEM_H
 router.get('/activities', auth, role('admin','admin_ops','manager','lead'), permission('AUDIT_VIEW'), c.getActivities);
 router.get('/deleted-reports', auth, role('admin','admin_ops','manager','lead'), permission('AUDIT_VIEW'), c.getDeletedReports);
 
-// Startup performance telemetry: authenticated writes; administrator-only reads.
+// Startup performance telemetry: anonymous and authenticated writes; administrator-only reads.
 // No raw logs, device hostname, tokens or file paths are accepted.
 const startupDiag = require('../services/desktopStartupDiagnosticsService');
+// Pre-login startup measurements. Strictly rate limited per source IP;
+// untrusted data is schema-validated by the diagnostics service.
+// The POST contains no auth token, cookie, hostname or private application data.
+const { rateLimit } = require('express-rate-limit');
+const anonymousStartupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 12,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { success: false, code: 'STARTUP_TELEMETRY_RATE_LIMIT' },
+});
+router.post('/desktop-startup/anonymous', anonymousStartupLimiter, async (req, res) => {
+  try {
+    // user_id=0 means no account is associated with this startup.
+    const id = await startupDiag.submit(0, req.body);
+    if (id === null) return res.status(400).json({ success: false, code: 'INVALID_STARTUP_DIAGNOSTICS' });
+    return res.status(201).json({ success: true, id });
+  } catch (error) {
+    console.error('ANONYMOUS_STARTUP_SAVE_FAILED', String(error?.code || 'DB_ERROR'));
+    return res.status(503).json({ success: false, code: 'STARTUP_DIAGNOSTICS_UNAVAILABLE' });
+  }
+});
+
 router.post('/desktop-startup', auth, async (req, res) => {
   const userId = Number(req.user?.id);
   if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(401).json({ success: false });
