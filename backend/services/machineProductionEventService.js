@@ -264,19 +264,41 @@ async function createEvent({ actor, data, req = null }) {
   finally { connection.release(); }
 }
 
+function assertExpectedEventVersion(event, expectedUpdatedAt) {
+  if (expectedUpdatedAt === undefined || expectedUpdatedAt === null || String(expectedUpdatedAt).trim() === '') {
+    throw eventError(409, 'MACHINE_EVENT_VERSION_REQUIRED', 'Thiếu phiên bản event; hãy tải lại trước khi sửa');
+  }
+  // Compare timestamps at the precision actually supplied by the DB. A
+  // malformed or stale token must fail closed; never silently accept it.
+  const parse = (value) => {
+    if (value instanceof Date) return value.getTime();
+    const raw = String(value || '').trim();
+    if (!/^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:?\\d{2})?$/.test(raw)) return NaN;
+    const iso = raw.replace(' ', 'T');
+    return Date.parse(/(?:Z|[+-]\\d{2}:?\\d{2})$/.test(iso) ? iso : iso + 'Z');
+  };
+  const expected = parse(expectedUpdatedAt);
+  const current = parse(event.updated_at);
+  if (!Number.isFinite(expected) || !Number.isFinite(current) || expected !== current) {
+    throw eventError(409, 'MACHINE_EVENT_VERSION_CONFLICT', 'Event đã thay đổi; hãy tải lại dữ liệu trước khi sửa');
+  }
+}
+
 async function updateEvent({ id, actor, patch, req = null }) {
   const connection=await getDb().promise().getConnection();
   try {
     await connection.beginTransaction();
     const before = await loadEvent(connection, id, {lock:true});
     await assertActorProcessScope(connection, actor, before.process_id);
+    assertExpectedEventVersion(before, patch?.expected_updated_at);
     if (String(before.status).toLowerCase()==='approved' && ['process_id','machine_id','machine_code','product_code','work_date','shift'].some((k)=>Object.prototype.hasOwnProperty.call(patch||{},k))) {
       throw eventError(422,'APPROVED_EVENT_DIMENSIONS_IMMUTABLE','Không đổi công đoạn/máy/sản phẩm/ngày/ca của event đã duyệt');
     }
     const dimensionsChanged=['process_id','machine_id','machine_code','product_code','work_date','shift'].some((k)=>Object.prototype.hasOwnProperty.call(patch||{},k) && String(patch[k]??'')!==String(before[k]??''));
     const linked=await participantRows(connection,before.id);
     if(dimensionsChanged && linked.length) throw eventError(422,'EVENT_DIMENSION_CHANGE_WITH_PARTICIPANTS','Không đổi dimensions khi event đã có participant; hãy tạo event mới');
-    const resulting={...before,...(patch||{})};
+    const { expected_updated_at: _expectedVersion, ...safePatch } = patch || {};
+    const resulting={...before,...safePatch};
     const ctx=await loadEventContext(connection,{processId:resulting.process_id,machineId:resulting.machine_id,machineCode:resulting.machine_code,productCode:resulting.product_code,workDate:resulting.work_date});
     if (dimensionsChanged) await assertUniquePhysicalEvent(connection, { processId: ctx.process.id, machineId: ctx.machine.id, productCode: ctx.resolved.productCode, workDate: resulting.work_date, shift: resulting.shift, excludeEventId: before.id });
     const defects=Object.prototype.hasOwnProperty.call(patch||{},'defects')
