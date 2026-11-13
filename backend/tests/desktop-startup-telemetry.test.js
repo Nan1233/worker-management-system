@@ -14,7 +14,7 @@ test('diagnostics API authenticates uploads and protects inspection with admin/p
 
 test('telemetry is bounded, redacted, and saved separately from production reports', () => {
   const source = read('services/desktopStartupDiagnosticsService.js');
-  assert.match(source, /CREATE TABLE IF NOT EXISTS ktc_desktop_startup_diagnostics/);
+  assert.doesNotMatch(source, /CREATE TABLE|ensureTable/, 'telemetry handlers must never run schema DDL');
   assert.match(source, /INSERT INTO ktc_desktop_startup_diagnostics/);
   assert.match(source, /const POINTS =/);
   assert.match(source, /install_id CHAR\(36\)/);
@@ -38,6 +38,7 @@ test('anonymous startup telemetry needs no login and is strictly rate-limited', 
   assert.match(routes, /router\.post\('\/desktop-startup\/anonymous', anonymousStartupLimiter/);
   assert.match(routes, /windowMs:\s*60 \* 60 \* 1000/);
   assert.match(routes, /limit:\s*12/);
+  assert.match(routes, /keyGenerator:\s*\(req\) => `startup:\$\{hashKey\(safeClientIp\(req\), 'startup-ip'\)\}`/);
   assert.match(routes, /startupDiag\.submit\(0, req\.body\)/);
 });
 
