@@ -12,7 +12,9 @@ async function loadCurrentUser(decoded) {
     const decodedUsername = String(decoded?.username || "").trim();
     if (Number.isInteger(decodedUserId) && decodedUserId > 0) {
         const [rows] = await db.promise().query(`SELECT u.id,u.username,u.role,u.status,w.id AS worker_id,w.status AS worker_status,DATABASE() AS database_name FROM users u LEFT JOIN workers w ON w.user_id=u.id WHERE u.id=? LIMIT 1`, [decodedUserId]);
-        if (rows[0]) return rows[0];
+        // A token bound to a user ID must never be rebound to a different account
+        // via its username/worker_id when that ID has been deleted or disabled.
+        return rows[0] || null;
     }
     const conditions = [], params = [];
     if (decodedUsername) { conditions.push("TRIM(u.username)=?"); params.push(decodedUsername); }
