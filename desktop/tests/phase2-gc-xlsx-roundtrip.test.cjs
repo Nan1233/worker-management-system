@@ -114,8 +114,10 @@ test('actual GC Desktop XLSX round trip preserves worker participation and one s
   const visible = opened.worksheets
     .filter((sheet) => sheet.state !== 'veryHidden' && sheet.state !== 'hidden')
     .map((sheet) => sheet.name);
-  assert.deepEqual(visible, ['CẮT LỒNG', 'TAY MÁY CẮT LỒNG']);
-  const sheet = opened.getWorksheet('CẮT LỒNG');
+  // The approved Workbook1 template names its visible GC sheet 'Gia công'.
+  // Preserve that template name instead of renaming the exported worksheet.
+  assert.deepEqual(visible, ['Gia công', 'TAY MÁY CẮT LỒNG']);
+  const sheet = opened.getWorksheet('Gia công');
   assert.equal(sheet.views[0].xSplit, 4);
   assert.equal(sheet.views[0].ySplit, 5);
 
