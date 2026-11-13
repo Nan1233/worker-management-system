@@ -5,6 +5,7 @@ on:
     branches: [test]
     paths:
       - 'backend/services/machineProductionEventService.js'
+      - 'backend/services/bulkCompanyExcelDataService.js'
       - 'backend/tests/gc-event-concurrency.test.js'
       - '.github/workflows/gc-machine-accounting-regression.yml'
   workflow_dispatch:
@@ -32,6 +33,7 @@ jobs:
       - name: Validate accounting and export service syntax
         run: |
           node --check services/machineProductionEventService.js
+          node --check services/bulkCompanyExcelDataService.js
           node --check services/giaCongMachineAccounting.js
           node --check services/bulkCompanyExcelDataService.js
           node --check services/processExcelExportService.js
@@ -42,4 +44,25 @@ jobs:
         run: node --test tests/gc-event-concurrency.test.js tests/gc-machine-time-accounting.test.js tests/shared-machine-accounting-flow.test.js tests/gc-worker-report-excel.test.js tests/common-process-gc-excel.test.js
       - name: Full backend regression suite (including non-GC processes)
         if: always()
+        run: npm test
+
+  baseline:
+    name: Pre-change baseline (historical commit, read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 3b9e62753c8657c289559a2c7c75a74b2a70d7ed
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Record original full backend test result (expected legacy failures)
+        continue-on-error: true
         run: npm test
