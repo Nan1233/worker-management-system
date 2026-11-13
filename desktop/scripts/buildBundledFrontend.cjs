@@ -15,7 +15,7 @@ function run(args, cwd, env) {
 }
 if (!fs.existsSync(path.join(root, 'node_modules'))) run(['ci'], root, process.env);
 run(['run', 'build:cloudflare:test'], root, {
-  ...process.env, VITE_API_URL: 'https://ktc-be-test.nan978971.workers.dev/api'
+  ...process.env, VITE_API_URL: 'https://ktc-be-test.nan978971.workers.dev/api', VITE_KTC_BUNDLED_FE: '1'
 });
 const source = path.join(root, 'dist');
 if (!fs.existsSync(path.join(source, 'index.html'))) throw new Error('Vite TEST dist/index.html missing');
