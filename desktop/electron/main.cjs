@@ -1408,6 +1408,7 @@ function scheduleSyncAfterApprovedMutation(url, statusCode) {
 }
 
 function createWindow() {
+  global.__KTC_STARTUP_MARK__?.('window_create_begin');
   const windowStart = process.hrtime.bigint();
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -1429,6 +1430,7 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    global.__KTC_STARTUP_MARK__?.('window_ready_to_show');
     void writeLog('INFO', 'WINDOW_READY_TO_SHOW', {
       elapsedMs: Number((process.hrtime.bigint() - windowStart) / 1000000n),
       processUptimeMs: Math.round(process.uptime() * 1000)
@@ -1467,6 +1469,7 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
+    global.__KTC_STARTUP_MARK__?.('frontend_loaded');
     // Distinguish slow Windows portable extraction from frontend/network latency.
     void writeLog('INFO', 'FRONTEND_DID_FINISH_LOAD', {
       elapsedSinceWindowMs: Number((process.hrtime.bigint() - windowStart) / 1000000n),
@@ -1479,6 +1482,7 @@ function createWindow() {
     scheduleSyncAfterApprovedMutation(details.url, details.statusCode);
   });
 
+  global.__KTC_STARTUP_MARK__?.('window_created');
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     void writeLog('ERROR', 'RENDER_PROCESS_GONE', details);
   });
@@ -1672,6 +1676,21 @@ ipcMain.handle('ktc-open-log-folder', async () => {
   const error = await shell.openPath(folder);
   if (error) throw new Error(error);
   return folder;
+});
+
+ipcMain.handle('ktc-startup-diagnostics', () => {
+  // Immutable, restricted metadata: never return log contents or auth data.
+  const diagnostics = global.__KTC_STARTUP_DIAGNOSTICS__ || {};
+  return {
+    schema: 1,
+    startedAt: String(diagnostics.startedAt || ''),
+    version: app.getVersion(),
+    portable: Boolean(diagnostics.portable),
+    bundledFrontend: Boolean(diagnostics.bundledFrontend),
+    points: { ...(diagnostics.points || {}) },
+    platform: process.platform,
+    arch: process.arch
+  };
 });
 
 app.whenReady().then(async () => {
