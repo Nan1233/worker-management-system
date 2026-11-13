@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { initializeAuthSession } from "../services/api";
+import { startDesktopStartupTelemetry } from "../services/desktopStartupTelemetry";
 import {
   getAccessToken,
   getStoredUser,
@@ -36,6 +37,8 @@ export default function AuthBootstrap({ children }: { children: ReactNode }) {
     // A refresh-only session still needs the bootstrap before protected routes.
     return !hasRefreshSessionHint() || isLoginRoute();
   });
+
+  useEffect(() => startDesktopStartupTelemetry(), []);
 
   useEffect(() => {
     let active = true;
