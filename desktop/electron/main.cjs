@@ -1408,6 +1408,7 @@ function scheduleSyncAfterApprovedMutation(url, statusCode) {
 }
 
 function createWindow() {
+  const windowStart = process.hrtime.bigint();
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -1428,6 +1429,9 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    void writeLog('INFO', 'WINDOW_READY_TO_SHOW', {
+      elapsedMs: Number((process.hrtime.bigint() - windowStart) / 1000000n)
+    });
     mainWindow.maximize();
     mainWindow.show();
   });
