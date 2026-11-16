@@ -9,7 +9,7 @@ const MAX_NAME_LENGTH = 100;
 function customCode(prefix, processId, name) {
   return prefix + crypto.createHash("sha256")
     .update(`${Number(processId)}:${String(name).normalize("NFC")}`)
-    .digest("hex").slice(0, 20).toUpperCase();
+    .digest("hex").slice(0, 16).toUpperCase();
 }
 
 function customName(item, field) {
