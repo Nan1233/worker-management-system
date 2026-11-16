@@ -11,3 +11,31 @@
 .pending-reference-table .select-col { width: 42px; min-width: 42px; text-align: center; }
 .pending-reference-table td:nth-last-child(-n+4) { font-variant-numeric: tabular-nums; text-align: right; }
 .pending-reference-table th:nth-last-child(-n+4) { text-align: right; }
+
+/* Calm review palette shared by pending and approved screens. */
+.pending-review-screen .pending-reference-table,
+.approved-review-screen .pending-reference-table { border-collapse: separate !important; border-spacing: 0; background: #fff; }
+.pending-review-screen .pending-reference-table thead th,
+.approved-review-screen .pending-reference-table thead th { background: #f3f7fd !important; color: #334c72 !important; border-bottom: 1px solid #e3ebf5; font-weight: 700; }
+.pending-review-screen .pending-reference-table tbody td,
+.approved-review-screen .pending-reference-table tbody td { background: #fff !important; color: #243955; border-bottom: 1px solid #edf1f7; box-shadow: none !important; font-weight: 400; }
+.pending-review-screen .pending-reference-table tbody tr:hover td,
+.approved-review-screen .pending-reference-table tbody tr:hover td { background: #f3f8ff !important; }
+.pending-review-screen .pending-reference-table tbody tr.pending-row-active td,
+.approved-review-screen .pending-reference-table tbody tr.pending-row-active td { background: #e8f1ff !important; color: #173b75; }
+.pending-review-screen .pending-reference-table tbody tr:focus-visible td,
+.approved-review-screen .pending-reference-table tbody tr:focus-visible td { outline: 2px solid #74a8f3; outline-offset: -2px; }
+.pending-reference-table .report-worker-cell strong { color: #203756; font-weight: 650; }
+.pending-reference-table .report-productivity-cell span,
+.pending-reference-table .report-pp-cell span { display: inline-block; min-width: 70px; padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; text-align: center; line-height: 1.3; white-space: nowrap; }
+.pending-reference-table .report-productivity-cell.is-low span { color: #a52735; background: #ffebed; }
+.pending-reference-table .report-productivity-cell.is-normal span { color: #0866b7; background: #e6f4ff; }
+.pending-reference-table .report-productivity-cell.is-high span { color: #167044; background: #e3f7eb; }
+.pending-reference-table .report-pp-cell.is-zero span { color: #167044; background: #e5f7e9; }
+.pending-reference-table .report-pp-cell.is-normal span { color: #7b5b17; background: #fff3d6; }
+.pending-reference-table .report-pp-cell.is-elevated span { color: #a52735; background: #ffebed; }
+.pending-review-screen .pending-reference-table .shift-chip,
+.approved-review-screen .pending-reference-table .shift-chip { background: #eaf2ff !important; color: #1454bb !important; border: 0 !important; border-radius: 999px; }
+.pending-review-screen .pending-bulk-toolbar,
+.approved-review-screen .pending-bulk-toolbar { background: #f8fbff !important; border-color: #e4edf8 !important; }
+@media (max-width: 900px) { .pending-reference-table .report-worker-cell { min-width: 135px; } .pending-reference-table th, .pending-reference-table td { padding: 10px 9px; } }
