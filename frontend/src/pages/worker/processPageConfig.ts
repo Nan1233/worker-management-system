@@ -19,8 +19,8 @@ export type FormState = {
     actualOutput: string;
     ttOk: string;
     ttNg: string;
-    otherNgName: string;
-    otherDeductionName: string;
+    otherNgName?: string;
+    otherDeductionName?: string;
     kqdDapLai: string;
     kqdTuot: string;
     voDoLong: string;
@@ -66,8 +66,8 @@ export type MachineLineState = {
     productCode: string;
     materialCode: string;
     grindingMachineNo: string;
-    otherNgName: string;
-    otherDeductionName: string;
+    otherNgName?: string;
+    otherDeductionName?: string;
     hours: string;
     minutes: string;
     adjustmentMinutes: string;
