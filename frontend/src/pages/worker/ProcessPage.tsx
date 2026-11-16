@@ -123,7 +123,6 @@ import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
-import { useRelatedGrindingMachines } from "./useRelatedGrindingMachines";
 import { useProcessProductOptions } from "./useProcessProductOptions";
 import { useMachineLineStandardLookup } from "./useMachineLineStandardLookup";
 import { useProcessDraftAutosave } from "./useProcessDraftAutosave";
@@ -233,7 +232,6 @@ function ProcessPage() {
         loadingMasterData,
     } = useProcessMasterData(processInfo.id, processCode);
 
-    const { extraFieldOptions, loadingRelatedMaiMachines } = useRelatedGrindingMachines(processCode);
 
     useEffect(() => {
         masterDataRequestSeqRef.current += 1;
@@ -1310,14 +1308,6 @@ const updateDeductionValue = (
             return `Vui lòng nhập ${missingExtraField.label}`;
         }
 
-        const relatedGrindingMachine = String(extraData.grinding_machine_no || "").trim();
-        if (processCode === "DO" && relatedGrindingMachine) {
-            if (loadingRelatedMaiMachines) return "Đang tải danh mục máy Mài, vui lòng chờ";
-            if (!extraFieldOptions.grinding_machine_no.some((machine) => machine.value.trim().toUpperCase() === relatedGrindingMachine.toUpperCase())) {
-                return "Máy Mài liên quan không còn trong danh mục hoạt động. Vui lòng chọn lại";
-            }
-        }
-
         return "";
 
     };
@@ -1645,8 +1635,6 @@ const updateDeductionValue = (
                     fields={currentExtraFields}
                     extraData={extraData}
                     setExtraData={setExtraData}
-                    fieldOptions={extraFieldOptions}
-                    loadingFieldOptions={loadingRelatedMaiMachines}
                 />}
 
                 {!usesMachineLineAccounting && (
