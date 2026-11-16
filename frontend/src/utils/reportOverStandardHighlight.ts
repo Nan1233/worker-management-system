@@ -8,6 +8,9 @@ function parsePercent(value: string) {
 
 function refresh() {
     document.querySelectorAll<HTMLTableElement>(TABLE_SELECTOR).forEach((table) => {
+        // The manager pending/approved screens own their KPI badge styles;
+        // never attach the historical full-row highlight classes to these tables.
+        if (table.closest(".pending-reference-page")) return;
         const headers = Array.from(table.querySelectorAll("thead th")).map((th) =>
             String(th.textContent || "").trim().toLowerCase()
         );
