@@ -598,3 +598,45 @@
     text-overflow: clip !important;
   }
 }
+
+/* KTC test: prevent overlapping machine detail dropdown labels at compact widths. */
+.worker-form-page .machine-line .machine-detail-dropdown-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  align-items: start !important;
+}
+.worker-form-page .machine-line .machine-detail-dropdown-item,
+.worker-form-page .machine-line .machine-detail-dropdown-item .worker-dropdown-box {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+.worker-form-page .machine-line .machine-detail-dropdown-item .worker-dropdown-title {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  height: auto !important;
+  padding: 9px 10px !important;
+  white-space: normal !important;
+  line-height: 1.35 !important;
+}
+.worker-form-page .machine-line .machine-detail-dropdown-item .worker-dropdown-title-main {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow-wrap: anywhere !important;
+}
+.worker-form-page .machine-line .machine-detail-dropdown-item .worker-dropdown-title > span:last-child {
+  flex: 0 0 auto !important;
+}
+.worker-form-page .machine-line .machine-detail-values-row {
+  margin-top: 10px !important;
+  min-width: 0 !important;
+}
+@media (max-width: 430px) {
+  .worker-form-page .machine-line .machine-detail-dropdown-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
