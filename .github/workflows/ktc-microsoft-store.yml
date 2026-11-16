@@ -1,0 +1,37 @@
+name: KTC Microsoft Store package (Windows)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install desktop dependencies
+        run: npm ci
+      - name: Preflight and Excel regression checks
+        run: npm run preflight && npm run smoke:excel
+      - name: Build Microsoft Store APPX package
+        run: npx electron-builder --config electron-builder.store.json --win appx --x64 --publish never
+      - name: Upload unsigned package for Store submission
+        uses: actions/upload-artifact@v4
+        with:
+          name: ktc-microsoft-store-appx
+          path: desktop/release/*.appx
+          if-no-files-found: error
+          retention-days: 14
