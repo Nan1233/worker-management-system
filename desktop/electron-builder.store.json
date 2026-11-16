@@ -1,0 +1,26 @@
+{
+  "extends": "./electron-builder.production.json",
+  "productName": "Quản lý Sản xuất KTC",
+  "win": {
+    "target": [
+      {
+        "target": "appx",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "assets/icon.ico"
+  },
+  "appx": {
+    "identityName": "QunlSnxutKTC.KTCHANOICO.LTD",
+    "publisher": "CN=EF752E64-AEF1-4006-8277-F07B5300732B",
+    "publisherDisplayName": "Quản lý Sản xuất KTC",
+    "displayName": "Quản lý Sản xuất KTC",
+    "applicationId": "KTCProductionControl",
+    "languages": [
+      "vi-VN",
+      "en-US"
+    ]
+  }
+}
