@@ -115,6 +115,12 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
     }
     const validation = validateProductionReport(payload, { enforceBackDate: false, skipActualOutputFormula: true });
     if (!validation.valid) throw httpError(422, 'REPORT_VALIDATION_FAILED', 'Dữ liệu báo cáo không hợp lệ', validation.errors);
+    await require("./customReportCategoryService").ensureCustomReportCategories({
+      processId: Number(before.process_id),
+      defects: validation.normalized.defects,
+      deductions: validation.normalized.deductions,
+      query: async (sql, params) => (await connection.query(sql, params))[0],
+    });
     // Master data (machine/product/standard lookups) only matters when the patch can change something it
     // governs. A note/shift-style edit must not be blocked because the stored values (for example a
     // multi-machine "M05, M06" list or a product whose standard has since ended) no longer resolve today.
