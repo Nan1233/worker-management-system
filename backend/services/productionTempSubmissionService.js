@@ -192,6 +192,11 @@ createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, 
 };
 
 const resolveMasterDetails = async (processId, defects, deductions, executor) => {
+    // Resolve worker-defined "other" names to real process-scoped type rows.
+    await require("./customReportCategoryService").ensureCustomReportCategories({
+        processId, defects, deductions,
+        query: (sql, params) => query(executor, sql, params)
+    });
     const defectItems = (Array.isArray(defects) ? defects : []).map((item) => ({
         id: Number(item?.defect_type_id || item?.id || 0) || null,
         code: String(item?.defect_code || item?.defect_type_code || item?.code || "").trim(),
