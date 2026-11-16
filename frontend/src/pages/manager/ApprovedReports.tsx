@@ -258,6 +258,15 @@ export default function ApprovedReports() {
             }
         } catch (error) {
             setReportImportStatus({ tone: "error", message: error instanceof Error ? error.message : "Không thể import báo cáo." });
+
+const reportCodes = (r: ProductionReport, kind: "machine" | "product"): string => {
+    const lines = Array.isArray(r.machine_lines) ? r.machine_lines : [];
+    const values = lines.map(line => kind === "machine" ? line.machine_code : line.product_code)
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+    if (kind === "machine" && r.machine_no?.trim()) values.push(r.machine_no.trim());
+    if (kind === "product" && r.product_name?.trim()) values.push(r.product_name.trim());
+    return [...new Set(values)].join(", ") || "—";
+};
         } finally { setReportImportBusy(false); }
     };
 
@@ -292,8 +301,8 @@ export default function ApprovedReports() {
                 <section className="pending-list-card">
                     <div className="pending-list-tabs"><button type="button" className="pending-list-tab active">Danh sách đã duyệt <span className="tab-badge" style={{ background: "#e8f8f0", color: "#159266" }}>{total}</span></button></div>
                     <div className={`pending-table-wrap ${!loading && !error && reports.length === 0 ? "pending-table-empty" : ""}`} role="region" aria-label="Bảng báo cáo đã duyệt, có thể cuộn ngang" tabIndex={0} style={{ overflowX: "auto" }}><table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}><caption className="approved-table-caption">Danh sách báo cáo đã duyệt</caption>
-                        <thead><tr><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian (giờ)</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% PP</th></tr></thead><tbody>{loading ? <tr><td colSpan={9} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={9} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}><div role="alert">{error}</div><button type="button" className="approved-retry-button" onClick={refreshReports}>Thử tải lại</button></td></tr> : reports.length === 0 ? <tr><td colSpan={9} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo đã duyệt.</td></tr> : reports.map((r, i) => { const x = kpi(r); return <tr key={r.id ?? i} tabIndex={0} aria-selected={detail?.id === r.id} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => void openDetail(r)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); void openDetail(r); } }} style={{ cursor: "pointer" }}>
-                            <td className="report-worker-cell"><strong>{text(r.full_name || r.worker_name)}</strong><small>{text(r.worker_code)}</small></td><td>{text(r.process_name)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(x.totalTime || x.actualTime)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
+                        <thead><tr><th>Công nhân</th><th>Công đoạn</th><th>Mã máy</th><th>Mã SP</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian (giờ)</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% PP</th></tr></thead><tbody>{loading ? <tr><td colSpan={11} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={11} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}><div role="alert">{error}</div><button type="button" className="approved-retry-button" onClick={refreshReports}>Thử tải lại</button></td></tr> : reports.length === 0 ? <tr><td colSpan={11} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo đã duyệt.</td></tr> : reports.map((r, i) => { const x = kpi(r); return <tr key={r.id ?? i} tabIndex={0} aria-selected={detail?.id === r.id} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => void openDetail(r)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); void openDetail(r); } }} style={{ cursor: "pointer" }}>
+                            <td className="report-worker-cell"><strong>{text(r.full_name || r.worker_name)}</strong><small>{text(r.worker_code)}</small></td><td>{text(r.process_name)}</td><td className="report-code-cell">{reportCodes(r, "machine")}</td><td className="report-code-cell">{reportCodes(r, "product")}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(x.totalTime || x.actualTime)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
                             <td className={`report-productivity-cell ${x.nangSuat <= 75 || x.nangSuat > 100 ? "is-low" : "is-normal"}`}><span>{pct(x.nangSuat)}</span></td><td className={`report-pp-cell ${x.pp === 0 ? "is-zero" : x.pp >= 1 ? "is-elevated" : "is-normal"}`}><span>{pct(x.pp)}</span></td>
                         </tr>; })}</tbody>
                     </table></div>
