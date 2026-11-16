@@ -331,7 +331,8 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const deductions = deductionResult.status === "fulfilled" ? { value: deductionResult.value } : null;
 
       if (defects) {
-        const normalized = normalizeDefectOptions(defects.value, resolvedProcessId);
+        const normalized = normalizeDefectOptions(defects.value, resolvedProcessId)
+          .filter((option) => !/^CUSTOM_NG_/i.test(String(option.code || "")));
         const maiFiltered = filterMaiMasterOptions(normalized, processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_");
         // K2 must use the canonical K2_NG_* catalogue only. Name-based filtering
         // is insufficient because the legacy KTC_DEF_K2_* rows share the same labels.
@@ -346,7 +347,8 @@ export function useProcessMasterData(processId: number, processCode: string) {
       if (deductions) {
         setActiveDeductionOptions([
           ...dedupeEncodedOrLegacyDeductions(
-            normalizeDeductionOptions(deductions.value, resolvedProcessId),
+            normalizeDeductionOptions(deductions.value, resolvedProcessId)
+              .filter((option) => !/^CUSTOM_DED_/i.test(String(option.code || ""))),
             processCode,
           ).filter((option) => !["TRỪ GIỜ KHÁC", "KHÁC"].includes(String(option.label || "").trim().toUpperCase())),
           OTHER_DEDUCTION_OPTION,
