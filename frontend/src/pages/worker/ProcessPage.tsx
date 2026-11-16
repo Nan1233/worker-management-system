@@ -1179,6 +1179,12 @@ const updateDeductionValue = (
             isCvkMode,
         });
         if (sharedError) return sharedError;
+        if (selectedNg.includes("__otherNg") && !String(form.otherNgName || "").trim()) return "Vui lòng nhập tên NG khác trước khi nhập số lượng";
+        if (selectedDeduction.includes("__otherDeduction") && !String(form.otherDeductionName || "").trim()) return "Vui lòng nhập lý do trừ giờ khác trước khi nhập số phút";
+        for (const [index, line] of machineLines.entries()) {
+            if (line.selectedDefects?.includes("__otherNg") && !String(line.otherNgName || "").trim()) return `Dòng máy ${index + 1}: vui lòng nhập tên NG khác`;
+            if (line.selectedDeductions?.includes("__otherDeduction") && !String(line.otherDeductionName || "").trim()) return `Dòng máy ${index + 1}: vui lòng nhập lý do trừ giờ khác`;
+        }
 
 
         if (!isCvkMode && !usesMultiMachineLines) {
@@ -1650,6 +1656,7 @@ const updateDeductionValue = (
                         onToggleDeduction={handleToggleDeduction}
                         onUpdateDeduction={updateDeductionValue}
                         onNormalizeDeduction={normalizeDeductionValue}
+                        onOtherDeductionName={(value) => setForm((current) => ({ ...current, otherDeductionName: value }))}
                         onWarning={(message) => showToast(message, "warning")}
                     />
                 )}
@@ -1690,6 +1697,7 @@ const updateDeductionValue = (
                     onNumberBlur={handleNumberBlur}
                     onToggleNg={handleToggleNg}
                     onNgValue={handleNgValue}
+                    onOtherNgName={(value) => setForm((current) => ({ ...current, otherNgName: value }))}
                 />
                 )}
 
