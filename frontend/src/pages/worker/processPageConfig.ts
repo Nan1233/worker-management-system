@@ -63,6 +63,7 @@ export type MachineLineState = {
     machineCode: string;
     productCode: string;
     materialCode: string;
+    grindingMachineNo: string;
     hours: string;
     minutes: string;
     adjustmentMinutes: string;
@@ -85,6 +86,7 @@ export const createEmptyMachineLine = (): MachineLineState => ({
     machineCode: "",
     productCode: "",
     materialCode: "",
+    grindingMachineNo: "",
     hours: "",
     minutes: "",
     adjustmentMinutes: "",
