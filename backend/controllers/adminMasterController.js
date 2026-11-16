@@ -179,10 +179,23 @@ exports.create = async (req,res,next) => {
     if (req.params.resource === 'machines') {
       await assertGcMachineCode(payload.process_id, payload.machine_code);
     }
-    if (req.params.resource === 'standards' && !payload.work_type);
+    if (req.params.resource === 'standards') {
+      // work_type is NOT NULL in TiDB; older clients may omit it.
+      payload.work_type = String(payload.work_type || '').trim() || 'standard';
+      payload.product_code = String(payload.product_code || '').trim();
+      if (!payload.product_code) {
+        return res.status(400).json({success:false,code:'PRODUCT_CODE_REQUIRED',message:'Vui lòng nhập mã sản phẩm'});
+      }
+    }
     db.query(`INSERT INTO ${cfg.table} SET ?`, payload, (error,result) => {
-      if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,message:'Mã hoặc dữ liệu đã tồn tại'});
-      if (error) return next(error);
+      if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,code:'MASTER_DUPLICATE',message:'Mã hoặc dữ liệu đã tồn tại trong công đoạn và loại công việc này'});
+      if (error) {
+        console.error('MASTER CREATE SQL ERROR', { resource:req.params.resource, code:error.code, errno:error.errno, sqlState:error.sqlState });
+        if (['ER_NO_DEFAULT_FOR_FIELD','ER_BAD_NULL_ERROR','ER_TRUNCATED_WRONG_VALUE_FOR_FIELD','ER_DATA_TOO_LONG','ER_WARN_DATA_OUT_OF_RANGE'].includes(error.code)) {
+          return res.status(422).json({success:false,code:'MASTER_INVALID_FIELD',message:'Dữ liệu sản phẩm hoặc định mức không phù hợp cấu trúc lưu trữ'});
+        }
+        return next(error);
+      }
       res.status(201).json({success:true,message:'Tạo mới thành công',data:{id:result.insertId}});
     });
   } catch(error) { res.status(error.status||error.statusCode||400).json({success:false,code:error.code||undefined,message:error.message}); }
