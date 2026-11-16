@@ -129,9 +129,9 @@ export function buildProductionReportPayload(args: {
     // Defect detail must come from the same selected machine as its OK/NG totals.
     // Never borrow defects from lines[0], which may be a stale/different machine.
     const singleLineDefects = selectedMachineLine?.defects?.length ? selectedMachineLine.defects.map((item) => ({
-      defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
+      defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, custom_other:(item as { custom_other?: boolean }).custom_other === true, quantity:item.quantity
     })) : defects.map((item) => ({
-      defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
+      defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, custom_other:(item as { custom_other?: boolean }).custom_other === true, quantity:item.quantity
     }));
     const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions, args.processCode || "");
     // For machine reports, the selected machine line is the source of truth.
