@@ -340,3 +340,27 @@ button { font-family:inherit; }
   .ktc-ui-page-header-actions { width: 100%; }
   .ktc-ui-button { min-height: 42px; }
 }
+
+
+/* Worker-only responsive workspace: keep machine entry usable on laptops. */
+@media (min-width: 801px) and (max-width: 1439px) {
+  .worker-layout .worker-sidebar {
+    width: 68px !important;
+    padding-inline: 8px !important;
+  }
+  .worker-layout .worker-sidebar .worker-brand span,
+  .worker-layout .worker-nav button > span,
+  .worker-layout .worker-logout > span { display: none !important; }
+  .worker-layout .worker-brand,
+  .worker-layout .worker-nav button,
+  .worker-layout .worker-logout {
+    justify-content: center !important;
+    padding-inline: 8px !important;
+  }
+  .worker-layout .worker-main { margin-left: 68px !important; min-width: 0; }
+  .worker-layout .worker-content { min-width: 0; }
+}
+@media (min-width: 801px) and (max-width: 1023px) {
+  .worker-layout .worker-sidebar { display: none !important; }
+  .worker-layout .worker-main { margin-left: 0 !important; }
+}
