@@ -640,3 +640,29 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
+
+/* MAI/DO/CAN/EP: machine cards are narrow even on desktop (two cards per row).
+   Size the time controls to each card, not to the browser viewport. */
+.worker-form-page .machine-line { container-type: inline-size; }
+.worker-form-page .machine-line .machine-data-grid .worker-time-grid.machine-worker-time-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+}
+.worker-form-page .machine-line .machine-worker-time-grid > .worker-time-item {
+  grid-column: auto !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  position: static !important;
+}
+.worker-form-page .machine-line .machine-worker-time-grid .worker-time-split,
+.worker-form-page .machine-line .machine-worker-time-grid .worker-time-value-with-unit {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+@container (min-width: 540px) {
+  .worker-form-page .machine-line .machine-data-grid .worker-time-grid.machine-worker-time-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
