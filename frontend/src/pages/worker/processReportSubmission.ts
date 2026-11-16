@@ -80,7 +80,7 @@ export function buildProductionReportPayload(args: {
 
   const formDefects=args.activeNgOptions.map(o=>({ key:String(o.key||""), id:Number(o.id||o.defect_type_id||0)||undefined,
     code:String(o.code||o.defect_code||""), label:String(o.label||o.defect_name||"") })).filter(o=>o.key)
-    .map(o=>({ defect_type_id:o.id, defect_code:o.code, defect_name:o.label, quantity:num(args.form[o.key]) })).filter(x=>x.quantity>0);
+    .map(o=>({ defect_type_id:o.key === "__otherNg" ? undefined : o.id, defect_code:o.key === "__otherNg" ? "" : o.code, defect_name:o.key === "__otherNg" ? String(args.form.otherNgName || "").trim() : o.label, custom_other:o.key === "__otherNg", quantity:num(args.form[o.key]) })).filter(x=>x.quantity>0);
 
   for (const [field, code, name] of LEGACY_DEFECT_BINDINGS) {
     const quantity=num(args.form[String(field)]); if (quantity<=0) continue;
@@ -93,9 +93,9 @@ export function buildProductionReportPayload(args: {
     const defectKeys = new Set<string>([...(l.selectedDefects || []).map(String), ...Object.keys(l.defects || {}).filter((key) => num(l.defects[key]) > 0)]);
     const lineDefects = [...defectKeys].map((key) => {
       const option = args.activeNgOptions.find(o => String(o.key) === key || String(o.code || o.defect_code || "").trim().toUpperCase() === key.trim().toUpperCase() || String(o.id || o.defect_type_id || "") === key);
-      return defectForOption(option, num(l.defects[key]));
+      return key === "__otherNg" ? { defect_type_id: undefined, defect_code: "", defect_name: String(l.otherNgName || "").trim(), custom_other: true, quantity:num(l.defects[key]) } : defectForOption(option, num(l.defects[key]));
     }).filter(x=>x.quantity>0);
-    const lineDeductions = args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(l.deductions?.[String(o.key||"")])/60 })).filter(x=>x.hours>0);
+    const lineDeductions = args.activeDeductionOptions.map(o=>({ deduction_type_id:o.key === "__otherDeduction" ? undefined : Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:o.key === "__otherDeduction" ? "" : String(o.code||""), deduction_name:o.key === "__otherDeduction" ? String(l.otherDeductionName || "").trim() : String(o.label||o.deduction_name||o.key||""), custom_other:o.key === "__otherDeduction", hours:num(l.deductions?.[String(o.key||"")])/60 })).filter(x=>x.hours>0);
     const lineDeductionHours = lineDeductions.reduce((sum,item)=>sum+num(item.hours),0);
     const fullProductCode = resolveSubmittedProductCode(l.productCode, l.machineCode, args.operationType, args.productOptions, args.processCode || "");
     // Worker chỉ nhập thời gian chạy thực tế (actual_time_hours); "Tổng thời gian"
@@ -144,7 +144,7 @@ export function buildProductionReportPayload(args: {
     });
   }
 
-  const deductions=args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(args.deductions[String(o.key||"")])/60 })).filter(x=>x.hours>0);
+  const deductions=args.activeDeductionOptions.map(o=>({ deduction_type_id:o.key === "__otherDeduction" ? undefined : Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:o.key === "__otherDeduction" ? "" : String(o.code||""), deduction_name:o.key === "__otherDeduction" ? String(args.form.otherDeductionName || "").trim() : String(o.label||o.deduction_name||o.key||""), custom_other:o.key === "__otherDeduction", hours:num(args.deductions[String(o.key||"")])/60 })).filter(x=>x.hours>0);
   const isMaiWithoutMachine = ["MAI", "DO", "CAN"].includes(String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase())
     && lines.length > 0
     && lines.every((line) => !String(line.machine_code || "").trim());
