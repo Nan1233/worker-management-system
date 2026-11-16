@@ -505,18 +505,22 @@ export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> 
   if (isAutosaveSuppressed(draft.process, workerId, workerCode)) return;
   const epoch = draftEpochs.get(key) || 0;
   const owned = prepareOwnedDraft({ ...draft, savedAt: Date.now() }, workerId, workerCode);
-  // Persist a synchronous fallback before any asynchronous IndexedDB operation.
-  // Never replace a newer draft with a delayed older snapshot.
+  // Either localStorage or IndexedDB is enough to restore this snapshot.
+  // A failure of only one store must not claim the draft was lost.
+  // Never overwrite another worker's saved backup.
+  let backupSaved = false;
   try {
     const raw = localStorage.getItem(key);
     const existing = raw ? JSON.parse(raw) as ProcessDraft : null;
     if (existing && !validDraftForOwner(existing, draft.process, workerId, workerCode)) {
       throw new Error("Existing draft belongs to another worker or is invalid");
     }
-    localStorage.setItem(key, JSON.stringify(owned));
+    const serialized = JSON.stringify(owned);
+    localStorage.setItem(key, serialized);
+    backupSaved = localStorage.getItem(key) === serialized;
+    if (!backupSaved) throw new Error("Local draft write verification failed");
   } catch (error) {
     console.warn("[KTC draft] Backup save failed", error instanceof Error ? error.name : "UnknownError");
-    notifyDraftSaveFailure();
   }
   await queueDraftWrite(key, async () => {
     if ((draftEpochs.get(key) || 0) !== epoch || owned.savedAt <= clearedAt(key)) return;
@@ -524,7 +528,8 @@ export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> 
       await draftRequest("readwrite", store => store.put(owned, key));
     } catch (error) {
       console.warn("[KTC draft] IndexedDB save failed", error instanceof Error ? error.name : "UnknownError");
-      notifyDraftSaveFailure();
+      // Warn only if both independent storage mechanisms failed.
+      if (!backupSaved) notifyDraftSaveFailure();
     }
   });
 }
