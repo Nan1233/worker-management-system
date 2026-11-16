@@ -1,11 +1,51 @@
 {
-  "extends": "./package.json",
+  "appId": "vn.ktc.productioncontrol",
   "productName": "Quản lý Sản xuất KTC",
+  "asar": true,
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "electron/monthlyWorkbookLocal.cjs",
+    "electron/**/*",
+    "package.json",
+    "frontend/dist/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "../backend/templates",
+      "to": "templates",
+      "filter": [
+        "Mau_Bao_Cao_Cong_Nhan_DB_day_du_chi_tiet_STT_FIX.xlsx",
+        "bao-cao-cat-long-export.xlsx",
+        "bao-cao-mai-do-export.xlsx",
+        "TT_MAI_TEMPLATE.xlsx",
+        "TT_DO_TEMPLATE.xlsx",
+        "01_MAU_MAI.xlsx",
+        "02_MAU_DO.xlsx",
+        "03_MAU_KIEM_1.xlsx",
+        "04_MAU_KIEM_2.xlsx",
+        "05_MAU_CAN.xlsx",
+        "06_MAU_EP.xlsx",
+        "07_MAU_XLBV.xlsx",
+        "Workbook1.xlsx"
+      ]
+    },
+    {
+      "from": "../shared",
+      "to": "shared",
+      "filter": [
+        "excelSyncContract.cjs",
+        "productionOutput.cjs",
+        "productionMetricPrimitives.cjs"
+      ]
+    }
+  ],
+  "compression": "maximum",
   "extraMetadata": {
     "ktcDeploymentEnvironment": "test",
     "ktcBundledFrontend": true
   },
-  "asar": true,
   "win": {
     "target": [
       {
@@ -15,7 +55,10 @@
         ]
       }
     ],
-    "icon": "assets/icon.ico"
+    "icon": "assets/icon.ico",
+    "signAndEditExecutable": true,
+    "signExecutable": false,
+    "requestedExecutionLevel": "asInvoker"
   },
   "appx": {
     "identityName": "QunlSnxutKTC.KTCHANOICO.LTD",
