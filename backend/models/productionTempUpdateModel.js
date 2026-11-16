@@ -126,6 +126,10 @@ module.exports = {
             const hasMachineLines = Object.prototype.hasOwnProperty.call(data, "machine_lines");
             const deductions = Array.isArray(data.deductions) ? data.deductions : [];
             const defects = Array.isArray(data.defects) ? data.defects : [];
+            await require("../services/customReportCategoryService").ensureCustomReportCategories({
+                processId: Number(current.process_id), defects, deductions,
+                query: (sql, params) => query(connection, sql, params),
+            });
             // Resolve all deduction/defect masters in at most one query per table.
             // Per-item SELECTs multiplied TiDB HTTP subrequests and could exhaust
             // the Cloudflare Worker budget before the report version was written.
