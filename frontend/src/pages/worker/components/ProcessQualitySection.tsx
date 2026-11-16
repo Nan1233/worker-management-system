@@ -39,6 +39,7 @@ export default function ProcessQualitySection({ form, activeNgOptions, selectedN
     if (shouldHide) return null;
     // XLBV workers need readable defect names; retain encoded labels for other processes.
     const getDisplayLabel = (item: NgOption) => {
+        if (item.key === "__otherNg") return "NG khác";
         const code = String(item.code || "").trim();
         const label = String(item.label || "").trim();
         return /^XLBV_NG_\d+$/i.test(code) ? `${code} — ${label || code}` : (code || label);
