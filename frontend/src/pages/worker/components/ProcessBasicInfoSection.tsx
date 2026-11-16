@@ -59,7 +59,7 @@ export default function ProcessBasicInfoSection({ inlineExtraFields, processCode
         const machineNumber = String(line.machineCode || "").trim().match(/([0-9]{1,2})$/)?.[1];
         return ["5", "6", "7", "11"].includes(machineNumber || "");
     });
-    const visibleNgOptions = isCutLongProcess ? activeNgOptions.filter((item) => { const code = normalizeDefectCode(item.code); return operationType === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG"); }) : activeNgOptions;
+    const visibleNgOptions = isCutLongProcess ? activeNgOptions.filter((item) => { const code = normalizeDefectCode(item.code); return item.key === "__otherNg" || (operationType === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG")); }) : activeNgOptions;
     const getDefectDisplayLabel = (item: NgOption): string => { const code = normalizeDefectCode(item.code); const label = String(item.label ?? "").trim(); if (!code) return label; if (label.toUpperCase().startsWith(`${code} `) || label.toUpperCase().startsWith(`${code} —`)) return label; return `${code} — ${label}`; };
     // Worker chỉ nhập "Thời gian chạy thực tế" (line.hours/line.minutes) và "Thời gian trừ"
     // (line.deductions, qua danh sách loại trừ giờ). "Tổng thời gian" không còn là input
@@ -199,9 +199,9 @@ export default function ProcessBasicInfoSection({ inlineExtraFields, processCode
 {line.selectedDeductions?.length > 0 && <div className="worker-dynamic-grid worker-deduction-detail-grid machine-worker-deduction-detail-grid">
 {activeDeductionOptions.filter((item) => line.selectedDeductions.includes(item.key)).map((item) => (
 <div key={item.key} className="worker-field-block">
-<label className="worker-field-label" htmlFor={`machine-${index}-${String(item.key)}`}>{item.label}</label>
+<label className="worker-field-label" htmlFor={`machine-${index}-${String(item.key)}`}>{item.label}</label>{item.key === "__otherDeduction" && <><label className="worker-field-label" htmlFor={`other-deduction-name-${index}`}>Lý do trừ giờ khác *</label><input id={`other-deduction-name-${index}`} className="worker-text-input" type="text" maxLength={100} value={line.otherDeductionName || ""} onChange={(event) => updateMachineLine(index, { otherDeductionName: event.target.value })} placeholder="Nhập lý do trước khi nhập phút" required /></>}
 <div className="worker-deduction-input-row">
-<input id={`machine-${index}-${String(item.key)}`} className="worker-text-input worker-deduction-input" type="number" min="0" inputMode="numeric" value={line.deductions?.[item.key] || ""} onChange={(event) => updateMachineDeduction(index, item.key, event.target.value)} placeholder="Phút" autoComplete="off" />
+<input id={`machine-${index}-${String(item.key)}`} className="worker-text-input worker-deduction-input" type="number" min="0" inputMode="numeric" value={line.deductions?.[item.key] || ""} disabled={item.key === "__otherDeduction" && !String(line.otherDeductionName || "").trim()} onChange={(event) => updateMachineDeduction(index, item.key, event.target.value)} placeholder="Phút" autoComplete="off" />
 <span className="worker-time-unit" aria-hidden="true">phút</span>
 </div>
 {item.key === "chinhMay" && <div className="worker-field-block worker-adjustment-count-inline">
@@ -220,8 +220,8 @@ export default function ProcessBasicInfoSection({ inlineExtraFields, processCode
 {line.selectedDefects.length > 0 && <div className="worker-dynamic-grid worker-ng-grid machine-worker-ng-detail-grid">
 {visibleNgOptions.filter((item) => line.selectedDefects.includes(item.key)).map((item) => (
 <div key={item.key} className="worker-field-block">
-<label className="worker-field-label" htmlFor={`machine-ng-${index}-${item.key}`}>{getDefectDisplayLabel(item)}</label>
-<input id={`machine-ng-${index}-${item.key}`} className="worker-text-input" name={item.key} value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value.replace(/\D/g, ""))} inputMode="numeric" autoComplete="off" placeholder="Số lượng" />
+<label className="worker-field-label" htmlFor={`machine-ng-${index}-${item.key}`}>{getDefectDisplayLabel(item)}</label>{item.key === "__otherNg" && <><label className="worker-field-label" htmlFor={`other-ng-name-${index}`}>Tên lỗi NG khác *</label><input id={`other-ng-name-${index}`} className="worker-text-input" type="text" maxLength={100} value={line.otherNgName || ""} onChange={(event) => updateMachineLine(index, { otherNgName: event.target.value })} placeholder="Nhập tên lỗi trước khi nhập số lượng" required /></>}
+<input id={`machine-ng-${index}-${item.key}`} className="worker-text-input" name={item.key} value={line.defects[item.key] || ""} disabled={item.key === "__otherNg" && !String(line.otherNgName || "").trim()} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value.replace(/\D/g, ""))} inputMode="numeric" autoComplete="off" placeholder="Số lượng" />
 </div>
 ))}
 </div>}
