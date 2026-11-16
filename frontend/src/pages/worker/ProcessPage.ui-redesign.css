@@ -666,3 +666,23 @@
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
+
+/* Responsive machine list: use one full-width machine per row whenever the
+   workspace cannot fit two readable cards (sidebar reduces available width). */
+.worker-form-page .worker-machine-workspace { container-type: inline-size; }
+.worker-form-page .worker-machine-workspace .machine-lines-list {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+}
+.worker-form-page .worker-machine-workspace .machine-lines-list > .machine-line {
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+@container (min-width: 900px) {
+  .worker-form-page .worker-machine-workspace .machine-lines-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
