@@ -36,9 +36,11 @@ const resolveSubmittedProductCode = (
   machineCode: string,
   operationType: OperationType,
   products: ProductStandardOption[],
+  processCode: string,
 ): string => {
   const resolved = String(getFullProductCode(alias, products) || alias || "").trim();
-  if (operationType !== "CUT" || !GC_AUTOMATIC_MACHINES.has(normalizeCode(machineCode))) return resolved;
+  // AUTO suffix is a Gia công-only convention; Mài/Đo machine numbers are not GC automatic machines.
+  if (String(processCode || "").trim().toUpperCase() !== "GC" || operationType !== "CUT" || !GC_AUTOMATIC_MACHINES.has(normalizeCode(machineCode))) return resolved;
   if (!resolved) return resolved;
   const normalized = normalizeCode(resolved);
   if (normalized.endsWith("-AUTO")) return resolved;
@@ -95,7 +97,7 @@ export function buildProductionReportPayload(args: {
     }).filter(x=>x.quantity>0);
     const lineDeductions = args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(l.deductions?.[String(o.key||"")])/60 })).filter(x=>x.hours>0);
     const lineDeductionHours = lineDeductions.reduce((sum,item)=>sum+num(item.hours),0);
-    const fullProductCode = resolveSubmittedProductCode(l.productCode, l.machineCode, args.operationType, args.productOptions);
+    const fullProductCode = resolveSubmittedProductCode(l.productCode, l.machineCode, args.operationType, args.productOptions, args.processCode || "");
     // Worker chỉ nhập thời gian chạy thực tế (actual_time_hours); "Tổng thời gian"
     // (machine_time_hours, giữ nguyên ý nghĩa "gross" cho kế toán giờ máy phía sau)
     // luôn được tự tính = thực tế + trừ giờ, không nhận input tổng trực tiếp từ Worker.
@@ -131,7 +133,7 @@ export function buildProductionReportPayload(args: {
     })) : defects.map((item) => ({
       defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     }));
-    const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions);
+    const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions, args.processCode || "");
     // For machine reports, the selected machine line is the source of truth.
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, actual_time_hours:parseHours(args.form.actualTime), machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
@@ -208,7 +210,7 @@ export function buildProductionReportPayload(args: {
   const isCvk = isDedicatedCvkProcess;
   const effectiveProcessId = isCvk ? 30002 : args.processId;
   const submittedMachineNo = isCvk || isNonProductWorkWithinProcess || isMaiWithoutMachine ? null : (useMachineLinesPayload ? lines.map(l=>l.machine_code).join(", ") : args.form.machineNo);
-  const submittedProductName = isCvk || isNonProductWorkWithinProcess ? "" : (isMaiWithoutMachine ? maiNoMachineProducts : (useMachineLinesPayload ? [...new Set(lines.map(l=>l.product_code).filter(Boolean))].join(", ") : resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions)));
+  const submittedProductName = isCvk || isNonProductWorkWithinProcess ? "" : (isMaiWithoutMachine ? maiNoMachineProducts : (useMachineLinesPayload ? [...new Set(lines.map(l=>l.product_code).filter(Boolean))].join(", ") : resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions, args.processCode || "")));
   const submittedOperationMode = isCvk || isNonProductWorkWithinProcess || isMaiWithoutMachine ? "MANUAL" : (useMachineLinesPayload ? "MACHINE" : (args.usesAnyMachine&&!args.isCutLongProcess ? "MACHINE" : "MANUAL"));
 
   return {
