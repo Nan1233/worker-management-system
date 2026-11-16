@@ -8,7 +8,7 @@ const MAX_NAME_LENGTH = 100;
  * paths persist custom names without changing the relational child-table schema. */
 function customCode(prefix, processId, name) {
   return prefix + crypto.createHash("sha256")
-    .update(`${Number(processId)}:${String(name).normalize("NFC").toLocaleLowerCase("vi")}`)
+    .update(`${Number(processId)}:${String(name).normalize("NFC")}`)
     .digest("hex").slice(0, 20).toUpperCase();
 }
 
