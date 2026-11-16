@@ -150,6 +150,9 @@ function scanProductivityTables() {
     installStyle();
 
     document.querySelectorAll("table").forEach((table) => {
+        // Manager review lists have their own pastel KPI presentation.
+        // Do not inject red/yellow backgrounds, outlines or warning icons into them.
+        if (table.closest(".pending-reference-page")) return;
         const headers = Array.from(table.querySelectorAll("thead th")).map((th) =>
             String(th.textContent || "").trim().toLowerCase()
         );
@@ -203,6 +206,7 @@ function scanDetailKpi() {
     installStyle();
 
     document.querySelectorAll<HTMLElement>(".pending-detail-info-grid").forEach((grid) => {
+        if (grid.closest(".pending-reference-page")) return;
         const fields = Array.from(grid.querySelectorAll<HTMLElement>(".pending-detail-field"));
         const productivityField = fields.find((field) =>
             String(field.querySelector("span")?.textContent || "").trim().toLowerCase().includes("năng suất")
