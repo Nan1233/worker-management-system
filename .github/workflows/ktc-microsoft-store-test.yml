@@ -7,6 +7,8 @@ on:
     paths:
       - '.github/workflows/ktc-microsoft-store-test.yml'
       - 'desktop/electron-builder.store-test.json'
+      - 'frontend/**'
+      - 'desktop/**'
   workflow_dispatch:
 
 permissions:
