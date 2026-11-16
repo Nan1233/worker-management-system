@@ -52,3 +52,21 @@
 .approved-review-screen .pending-reference-table tbody tr > td.report-productivity-cell,
 .pending-review-screen .pending-reference-table tbody tr > td.report-pp-cell,
 .approved-review-screen .pending-reference-table tbody tr > td.report-pp-cell { border-color: #edf1f7 !important; outline: none !important; }
+
+/* KTC pastel table: remove all legacy row alerts, including hover states. */
+.pending-review-screen .pending-reference-table tbody tr:hover,
+.approved-review-screen .pending-reference-table tbody tr:hover { background: transparent !important; }
+.pending-review-screen .pending-reference-table tbody tr:hover > td,
+.approved-review-screen .pending-reference-table tbody tr:hover > td { background: #f5f9ff !important; color: #243955 !important; }
+.pending-review-screen .pending-reference-table tbody tr.pending-row-active > td,
+.approved-review-screen .pending-reference-table tbody tr.pending-row-active > td { background: #f0f6ff !important; color: #243955 !important; }
+.pending-review-screen .pending-reference-table tbody td.report-productivity-cell,
+.approved-review-screen .pending-reference-table tbody td.report-productivity-cell,
+.pending-review-screen .pending-reference-table tbody td.report-pp-cell,
+.approved-review-screen .pending-reference-table tbody td.report-pp-cell { background-image: none !important; box-shadow: none !important; border-color: #edf1f7 !important; outline: none !important; }
+.pending-reference-table td.report-productivity-cell.is-high span { background: #eaf7ef !important; color: #27734b !important; border: none !important; }
+.pending-reference-table td.report-productivity-cell.is-low span { background: #fcecef !important; color: #a4445b !important; border: none !important; }
+.pending-reference-table td.report-productivity-cell.is-normal span { background: #eaf4ff !important; color: #2468ac !important; border: none !important; }
+.pending-reference-table td.report-pp-cell.is-zero span { background: #eaf7ef !important; color: #27734b !important; border: none !important; }
+.pending-reference-table td.report-pp-cell.is-normal span { background: #fff3e6 !important; color: #916622 !important; border: none !important; }
+.pending-reference-table td.report-pp-cell.is-elevated span { background: #fcecef !important; color: #a4445b !important; border: none !important; }
