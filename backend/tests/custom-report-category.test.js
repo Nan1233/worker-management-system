@@ -9,14 +9,16 @@ function fakeDb() {
   const query = async (sql, params = []) => {
     sqlLog.push({ sql, params });
     if (/INSERT IGNORE INTO/.test(sql)) {
-      const [processId, code, name] = params;
-      const key = `${processId}:${code}`;
-      if (!types.has(key)) types.set(key, { id: ++nextId, category_name: name });
+      for (let i = 0; i < params.length; i += 3) {
+        const [processId, code, name] = params.slice(i, i + 3);
+        const key = `${processId}:${code}`;
+        if (!types.has(key)) types.set(key, { id: ++nextId, category_code: code, category_name: name });
+      }
       return { affectedRows: 1 };
     }
     if (/SELECT id, .* AS category_name FROM/.test(sql)) {
-      const [processId, code] = params;
-      return types.has(`${processId}:${code}`) ? [types.get(`${processId}:${code}`)] : [];
+      const [processId, ...codes] = params;
+      return codes.map((code) => types.get(`${processId}:${code}`)).filter(Boolean);
     }
     throw new Error(`Unexpected query ${sql}`);
   };
