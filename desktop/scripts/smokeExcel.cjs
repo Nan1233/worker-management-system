@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
 require('../electron/excelReportDateSubmissionPatch.cjs');
 require('../electron/excelExportContractPatch.v6.cjs');
-const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES, TEMPLATE_NAME } = require('../electron/workerReportTemplateLocal.v2.cjs');
+const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES, TEMPLATE_NAME, MULTI_PROCESS_TEMPLATE_NAME, PROCESS_TEMPLATE_SHEETS } = require('../electron/workerReportTemplateLocal.v2.cjs');
 
 function report(overrides = {}) {
   return {
@@ -110,7 +110,7 @@ function report(overrides = {}) {
 
     const built = await buildWorkerProcessWorkbook({ appPath: path.resolve(__dirname, '..'), processCode: 'GC', processName: 'Gia công', date: '2026-08-01', processData });
     assert.equal(built.fileName, `${PROCESS_FILE_PREFIXES.GC}_08-2026.xlsx`);
-    assert.equal(built.templateFile, TEMPLATE_NAME);
+    assert.equal(built.templateFile, PROCESS_TEMPLATE_SHEETS.GC ? MULTI_PROCESS_TEMPLATE_NAME : TEMPLATE_NAME);
     assert.equal(built.reportCount, 3);
 
     const filePath = path.join(temp, built.fileName);
