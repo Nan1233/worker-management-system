@@ -1595,8 +1595,6 @@ const updateDeductionValue = (
                 />
 
                 <ProcessBasicInfoSection
-                    grindingMachineNo={extraData.grinding_machine_no || ""}
-                    onGrindingMachineChange={(value) => setExtraData((current) => ({ ...current, grinding_machine_no: value }))}
                     processCode={processCode}
                     inlineExtraFields={undefined}
                     form={form}
