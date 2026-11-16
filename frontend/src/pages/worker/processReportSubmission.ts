@@ -86,7 +86,7 @@ export function buildProductionReportPayload(args: {
     const quantity=num(args.form[String(field)]); if (quantity<=0) continue;
     const identity=normalizeDefectIdentity(code,name); const existing=formDefects.find(item=>normalizeDefectIdentity(item.defect_code,item.defect_name)===identity); if (existing) continue;
     const master=args.activeNgOptions.find(o=>normalizeDefectIdentity(String(o.code||o.defect_code||""),String(o.label||o.defect_name||""))===identity);
-    formDefects.push({ defect_type_id:Number(master?.id||master?.defect_type_id||0)||undefined, defect_code:String(master?.code||master?.defect_code||code), defect_name:String(master?.label||master?.defect_name||name), quantity });
+    formDefects.push({ defect_type_id:Number(master?.id||master?.defect_type_id||0)||undefined, defect_code:String(master?.code||master?.defect_code||code), defect_name:String(master?.label||master?.defect_name||name), custom_other:false, quantity });
   }
 
   const lines=args.machineLines.filter(l=>l.machineCode.trim()||l.productCode.trim()||(String(args.processCode || "").trim().toUpperCase() === "CAN" && String(l.materialCode || "").trim())).map(l=>{
