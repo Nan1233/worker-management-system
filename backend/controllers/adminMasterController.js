@@ -12,6 +12,11 @@ const TABLES = {
   standards: { table:'product_standards', fields:['process_id','work_type','product_code','standard_output','status'], required:['process_id','product_code','standard_output'], order:'process_id, product_code' }
 };
 
+// Serverless TiDB cannot expand object bindings in SQL SET ? statements.
+function masterWriteFields(cfg, payload) {
+  const fields = cfg.fields.filter(field => Object.prototype.hasOwnProperty.call(payload, field));
+  return {fields, values: fields.map(field => payload[field])};
+}
 const PROCESS_BOUND_RESOURCES = new Set(['defects','deductions','machines','standards']);
 const LEAD_MANAGER_MASTER_RESOURCES = new Set(['machines','standards','deductions']);
 
@@ -187,17 +192,16 @@ exports.create = async (req,res,next) => {
         return res.status(400).json({success:false,code:'PRODUCT_CODE_REQUIRED',message:'Vui lòng nhập mã sản phẩm'});
       }
     }
-    db.query(`INSERT INTO ${cfg.table} SET ?`, payload, (error,result) => {
-      if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,code:'MASTER_DUPLICATE',message:'Mã hoặc dữ liệu đã tồn tại trong công đoạn và loại công việc này'});
-      if (error) {
-        console.error('MASTER CREATE SQL ERROR', { resource:req.params.resource, code:error.code, errno:error.errno, sqlState:error.sqlState });
-        if (['ER_NO_DEFAULT_FOR_FIELD','ER_BAD_NULL_ERROR','ER_TRUNCATED_WRONG_VALUE_FOR_FIELD','ER_DATA_TOO_LONG','ER_WARN_DATA_OUT_OF_RANGE'].includes(error.code)) {
-          return res.status(422).json({success:false,code:'MASTER_INVALID_FIELD',message:'Dữ liệu sản phẩm hoặc định mức không phù hợp cấu trúc lưu trữ'});
-        }
-        return next(error);
-      }
-      res.status(201).json({success:true,message:'Tạo mới thành công',data:{id:result.insertId}});
-    });
+    const {fields, values} = masterWriteFields(cfg,payload);
+    try {
+      const [result] = await db.promise().query(`INSERT INTO ${cfg.table} (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`, values);
+      return res.status(201).json({success:true,message:'Tạo mới thành công',data:{id:result.insertId}});
+    } catch(error) {
+      const code = error?.code || error?.cause?.code || error?.details?.code;
+      if(code === 'ER_DUP_ENTRY' || code === 1062) return res.status(409).json({success:false,code:'MASTER_DUPLICATE',message:'Mã hoặc dữ liệu đã tồn tại'});
+      if(['ER_NO_DEFAULT_FOR_FIELD','ER_BAD_NULL_ERROR','ER_DATA_TOO_LONG','ER_WARN_DATA_OUT_OF_RANGE'].includes(code)) return res.status(422).json({success:false,code:'MASTER_INVALID_FIELD',message:'Dữ liệu định mức không hợp lệ'});
+      return next(error);
+    }
   } catch(error) { res.status(error.status||error.statusCode||400).json({success:false,code:error.code||undefined,message:error.message}); }
 };
 
@@ -241,7 +245,8 @@ exports.update = async (req,res,next) => {
         const targetMachineCode = 'machine_code' in payload ? payload.machine_code : machineRows[0]?.machine_code;
         await assertGcMachineCode(targetProcessId, targetMachineCode, connection);
       }
-      const [result] = await connection.query(`UPDATE ${cfg.table} SET ? WHERE id=?`,[payload,id]);
+      const {fields,values} = masterWriteFields(cfg,payload);
+      const [result] = await connection.query(`UPDATE ${cfg.table} SET ${fields.map(field => field + '=?').join(', ')} WHERE id=?`,[...values,id]);
       await connection.commit();
       return res.json({success:true,message:'Cập nhật thành công'});
     } catch (error) {
