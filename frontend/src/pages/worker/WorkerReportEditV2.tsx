@@ -103,6 +103,7 @@ function WorkerReportEditV2() {
     const result = [...activeNgOptions] as any[];
     const seen = new Set(result.map((x: any) => String(x.key || x.code || x.label).toUpperCase()));
     sourceDefects.forEach((d: any, index: number) => {
+      if (/^CUSTOM_NG_/i.test(s(d.defect_code))) return;
       const code = s(d.defect_code).trim();
       const label = s(d.defect_name || d.defect_label || code || `Lỗi ${index + 1}`).trim();
       const key = code ? `legacy_ng_${code.toUpperCase()}` : `legacy_ng_${label.toUpperCase().replace(/\W+/g, "_")}`;
@@ -118,6 +119,7 @@ function WorkerReportEditV2() {
     const result = [...activeDeductionOptions] as any[];
     const seen = new Set(result.map((x: any) => String(x.key || x.code || x.label).toUpperCase()));
     sourceDeductions.forEach((d: any, index: number) => {
+      if (/^CUSTOM_DED_/i.test(s(d.deduction_code))) return;
       const code = s(d.deduction_code).trim();
       const label = s(d.deduction_name || d.deduction_label || code || `Trừ giờ ${index + 1}`).trim();
       const key = code ? `legacy_deduction_${code.toUpperCase()}` : `legacy_deduction_${label.toUpperCase().replace(/\W+/g, "_")}`;
@@ -262,10 +264,12 @@ function WorkerReportEditV2() {
       const time = hm(actualTimeHours);
       return { ...createEmptyMachineLine(), otherNgName: s(customNg?.defect_name), otherDeductionName: s(customDeduction?.deduction_name), machineCode: s(line.machine_code), productCode: s(line.product_code), grindingMachineNo: s(line.grinding_machine_no ?? dataFromReportGrindingMachine(report)), hours: time.hours, minutes: time.minutes, deductions: lineDeductions, selectedDeductions: selectedLineDeductions, adjustmentMinutes: s(line.adjustment_minutes ?? ""), adjustmentCount: s(line.adjustment_count ?? ""), okQuantity: s(line.ok_quantity ?? ""), ngQuantity: s(line.ng_quantity ?? ""), standardOutputPerHour: n(line.standard_output), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null, selectedDefects, defects, machineEventId: line.machine_event_id ?? null } as any;
     }));
+    const existingOtherDeduction = sourceDeductions.find((item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)));
+    if (existingOtherDeduction) setForm((current) => ({ ...current, otherDeductionName: s(existingOtherDeduction.deduction_name) }));
     setDeductions((current) => {
       const next: DeductionState = { ...current };
       const selected: string[] = [];
-      sourceDeductions.forEach((d: any) => { const key = findDeductionKey(d); const minutes = d.minutes ?? d.deduction_minutes ?? n(d.hours) * 60; if (key) { next[key] = String(Math.round(n(minutes))); selected.push(key); if (key === "__otherDeduction") setForm((prev) => ({ ...prev, otherDeductionName: s(d.deduction_name) })); } });
+      sourceDeductions.forEach((d: any) => { const key = findDeductionKey(d); const minutes = d.minutes ?? d.deduction_minutes ?? n(d.hours) * 60; if (key) { next[key] = String(Math.round(n(minutes))); selected.push(key); } });
       setSelectedDeduction(selected);
       return next;
     });
