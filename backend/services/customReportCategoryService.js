@@ -34,7 +34,8 @@ async function ensureCustomReportCategories({ processId, defects = [], deduction
         throw error;
       }
       const code = customCode(prefix, processId, name);
-      if (seen.has(code)) continue;
+      // The same custom name may be present on multiple machine lines; each
+      // item must receive its canonical type identity, not just the first.
       seen.add(code);
       // Avoid creating duplicates on retries. The generated code is stable
       // for a process/name pair; INSERT IGNORE handles concurrent submissions.
@@ -51,6 +52,9 @@ async function ensureCustomReportCategories({ processId, defects = [], deduction
         error.status = 422; error.code = "CUSTOM_CATEGORY_CONFLICT"; error.isPublic = true;
         throw error;
       }
+      const isNg = table === "defect_types";
+      item[isNg ? "defect_type_id" : "deduction_type_id"] = Number(rows[0].id);
+      item[codeColumn] = code;
     }
   }
 }
