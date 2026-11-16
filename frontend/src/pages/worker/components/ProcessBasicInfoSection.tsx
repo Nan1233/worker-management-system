@@ -60,7 +60,7 @@ export default function ProcessBasicInfoSection({ inlineExtraFields, processCode
         return ["5", "6", "7", "11"].includes(machineNumber || "");
     });
     const visibleNgOptions = isCutLongProcess ? activeNgOptions.filter((item) => { const code = normalizeDefectCode(item.code); return item.key === "__otherNg" || (operationType === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG")); }) : activeNgOptions;
-    const getDefectDisplayLabel = (item: NgOption): string => { const code = normalizeDefectCode(item.code); const label = String(item.label ?? "").trim(); if (!code) return label; if (label.toUpperCase().startsWith(`${code} `) || label.toUpperCase().startsWith(`${code} —`)) return label; return `${code} — ${label}`; };
+    const getDefectDisplayLabel = (item: NgOption): string => { if (item.key === "__otherNg") return "NG khác"; const code = normalizeDefectCode(item.code); const label = String(item.label ?? "").trim(); if (!code) return label; if (label.toUpperCase().startsWith(`${code} `) || label.toUpperCase().startsWith(`${code} —`)) return label; return `${code} — ${label}`; };
     // Worker chỉ nhập "Thời gian chạy thực tế" (line.hours/line.minutes) và "Thời gian trừ"
     // (line.deductions, qua danh sách loại trừ giờ). "Tổng thời gian" không còn là input
     // trực tiếp: hệ thống luôn tự tính = thực tế + trừ, giống logic đã dùng ở
