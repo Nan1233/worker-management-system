@@ -16,7 +16,7 @@ export const PROCESS_SPECIFIC_FIELDS: Record<string, ExtraFieldDefinition[]> = {
   "cat-long": [],
   mai: [],
   do: [
-    { key: "grinding_machine_no", label: "Máy Mài liên quan (không bắt buộc)", type: "select", placeholder: "Chọn máy Mài hoặc để trống" },
+    { key: "grinding_machine_no", label: "Máy Mài liên quan (không bắt buộc)", type: "text", placeholder: "Nhập số máy Mài (có thể để trống)" },
   ],
 
   "kiem-1": [
