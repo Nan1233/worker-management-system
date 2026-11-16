@@ -1595,6 +1595,8 @@ const updateDeductionValue = (
                 />
 
                 <ProcessBasicInfoSection
+                    grindingMachineNo={extraData.grinding_machine_no || ""}
+                    onGrindingMachineChange={(value) => setExtraData((current) => ({ ...current, grinding_machine_no: value }))}
                     processCode={processCode}
                     inlineExtraFields={undefined}
                     form={form}
@@ -1631,7 +1633,7 @@ const updateDeductionValue = (
                     updateMachineDefectValue={updateMachineDefectValue}
                 />
 
-                {processCode !== "CAN" && <ProcessExtraFieldsSection
+                {processCode !== "CAN" && processCode !== "DO" && <ProcessExtraFieldsSection
                     fields={currentExtraFields}
                     extraData={extraData}
                     setExtraData={setExtraData}
