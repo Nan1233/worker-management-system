@@ -37,6 +37,7 @@ const parseDbDateMs = (value?: string | null) => {
   const parsed = new Date(normalized).getTime();
   return Number.isFinite(parsed) ? parsed : NaN;
 };
+const dataFromReportGrindingMachine = (report: any): string => s(report?.extra_data?.grinding_machine_no);
 const slug = (code?: string | null) => ({ GC: "cat-long", MAI: "mai", DO: "do", K1: "kiem-1", K2: "kiem-2", CAN: "can", EP: "ep", XLBV: "bavia", SX3: "sx3", CVK: "cvk" } as Record<string, string>)[s(code).trim().toUpperCase()] || "cat-long";
 
 function WorkerReportEditV2() {
@@ -257,7 +258,7 @@ function WorkerReportEditV2() {
       const deductionTimeHours = n(line.deduction_time_hours);
       const actualTimeHours = Math.max(0, n(line.machine_time_hours) - deductionTimeHours);
       const time = hm(actualTimeHours);
-      return { ...createEmptyMachineLine(), machineCode: s(line.machine_code), productCode: s(line.product_code), hours: time.hours, minutes: time.minutes, deductions: lineDeductions, selectedDeductions: selectedLineDeductions, adjustmentMinutes: s(line.adjustment_minutes ?? ""), adjustmentCount: s(line.adjustment_count ?? ""), okQuantity: s(line.ok_quantity ?? ""), ngQuantity: s(line.ng_quantity ?? ""), standardOutputPerHour: n(line.standard_output), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null, selectedDefects, defects, machineEventId: line.machine_event_id ?? null } as any;
+      return { ...createEmptyMachineLine(), machineCode: s(line.machine_code), productCode: s(line.product_code), grindingMachineNo: s(line.grinding_machine_no ?? dataFromReportGrindingMachine(report)), hours: time.hours, minutes: time.minutes, deductions: lineDeductions, selectedDeductions: selectedLineDeductions, adjustmentMinutes: s(line.adjustment_minutes ?? ""), adjustmentCount: s(line.adjustment_count ?? ""), okQuantity: s(line.ok_quantity ?? ""), ngQuantity: s(line.ng_quantity ?? ""), standardOutputPerHour: n(line.standard_output), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null, selectedDefects, defects, machineEventId: line.machine_event_id ?? null } as any;
     }));
     setDeductions((current) => {
       const next: DeductionState = { ...current };
@@ -373,7 +374,7 @@ function WorkerReportEditV2() {
     }
     payload = buildProductionReportPayload({
       clientRequestId: null, processId: report.process_id, form: { ...form, actualTime: `${form.actualHours}:${form.actualMinutes}`, deductionTime: form.deductionTime, totalTime: `${Math.floor(totalHours)}:${String(Math.round((totalHours % 1) * 60)).padStart(2, "0")}` },
-      extraData, operationType, isCutLongProcess: capabilities.isCutLongProcess, processCode: capabilities.processCode, isCvkMode, usesAnyMachine: operationMode === "MACHINE", usesMultiMachineLines, usesSingleMachine,
+      extraData: capabilities.processCode === "DO" ? { ...extraData, grinding_machine_no: String(normalizedLines[0]?.grindingMachineNo ?? extraData.grinding_machine_no ?? "").trim() } : extraData, operationType, isCutLongProcess: capabilities.isCutLongProcess, processCode: capabilities.processCode, isCvkMode, usesAnyMachine: operationMode === "MACHINE", usesMultiMachineLines, usesSingleMachine,
       machineLines: normalizedLines, machineOptions: editMachineOptions, productOptions: editProductOptions, activeNgOptions: editNgOptions, deductions, activeDeductionOptions: editDeductionOptions,
     });
     }
