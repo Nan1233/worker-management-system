@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/ktc-microsoft-store.yml'
       - 'desktop/electron-builder.store.json'
+      - 'desktop/scripts/smokeExcel.cjs'
   workflow_dispatch:
 
 permissions:
