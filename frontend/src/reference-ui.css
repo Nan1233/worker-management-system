@@ -348,3 +348,11 @@ button { font-family:inherit; }
   .ktc-ui-page-header-actions { width: 100%; }
   .ktc-ui-button { min-height: 42px; }
 }
+
+
+/* Worker production: free horizontal space on compact desktop windows. */
+@media (min-width: 801px) and (max-width: 1439px) {
+  .worker-layout .worker-sidebar { display: none !important; }
+  .worker-layout .worker-main { margin-left: 0 !important; width: 100% !important; min-width: 0 !important; }
+  .worker-layout .worker-content { min-width: 0 !important; }
+}
