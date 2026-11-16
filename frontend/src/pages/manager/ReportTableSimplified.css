@@ -39,3 +39,16 @@
 .pending-review-screen .pending-bulk-toolbar,
 .approved-review-screen .pending-bulk-toolbar { background: #f8fbff !important; border-color: #e4edf8 !important; }
 @media (max-width: 900px) { .pending-reference-table .report-worker-cell { min-width: 135px; } .pending-reference-table th, .pending-reference-table td { padding: 10px 9px; } }
+
+/* Never paint an entire report row red for productivity > 100%.
+   Neutralize legacy row/cell alert rules while retaining blue selection. */
+.pending-review-screen .pending-reference-table tbody tr,
+.approved-review-screen .pending-reference-table tbody tr { background: transparent !important; box-shadow: none !important; }
+.pending-review-screen .pending-reference-table tbody tr:not(.pending-row-active) > td,
+.approved-review-screen .pending-reference-table tbody tr:not(.pending-row-active) > td { background-color: #fff !important; }
+.pending-review-screen .pending-reference-table tbody tr.pending-row-active > td,
+.approved-review-screen .pending-reference-table tbody tr.pending-row-active > td { background-color: #f0f6ff !important; }
+.pending-review-screen .pending-reference-table tbody tr > td.report-productivity-cell,
+.approved-review-screen .pending-reference-table tbody tr > td.report-productivity-cell,
+.pending-review-screen .pending-reference-table tbody tr > td.report-pp-cell,
+.approved-review-screen .pending-reference-table tbody tr > td.report-pp-cell { border-color: #edf1f7 !important; outline: none !important; }
