@@ -241,6 +241,26 @@ export function buildProductionReportPayloads(args: Parameters<typeof buildProdu
   const isMai = processCode === "MAI";
   const isDo = processCode === "DO" || processCode === "CAN";
   const completedLines = args.machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim() || (processCode === "CAN" && String(line.materialCode || "").trim()));
+  if (processCode === "DO") {
+    // Each product run has its own related grinding machine. Persist it in the
+    // report's existing extra_data field so the association survives approval,
+    // editing, and export even when several products are entered together.
+    const requestId = String(args.clientRequestId || "").trim();
+    return completedLines.map((line, index) => buildProductionReportPayload({
+      ...args,
+      clientRequestId: requestId ? `${requestId}-D${index + 1}` : null,
+      extraData: {
+        ...args.extraData,
+        grinding_machine_no: String(line.grindingMachineNo || "").trim(),
+      },
+      machineLines: [line],
+      ...(line.machineCode.trim() ? {} : {
+        usesAnyMachine: false,
+        usesMultiMachineLines: false,
+        usesSingleMachine: false,
+      }),
+    }));
+  }
   if (processCode === "CAN") {
     const requestId = String(args.clientRequestId || "").trim();
     return completedLines.map((line, index) => buildProductionReportPayload({
