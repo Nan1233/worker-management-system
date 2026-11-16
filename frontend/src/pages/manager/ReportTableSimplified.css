@@ -70,3 +70,24 @@
 .pending-reference-table td.report-pp-cell.is-zero span { background: #eaf7ef !important; color: #27734b !important; border: none !important; }
 .pending-reference-table td.report-pp-cell.is-normal span { background: #fff3e6 !important; color: #916622 !important; border: none !important; }
 .pending-reference-table td.report-pp-cell.is-elevated span { background: #fcecef !important; color: #a4445b !important; border: none !important; }
+
+/* Final KPI display: no full-cell alerts, outlines or triangle pseudo-elements. */
+.pending-review-screen .pending-reference-table tbody td.report-productivity-cell,
+.approved-review-screen .pending-reference-table tbody td.report-productivity-cell,
+.pending-review-screen .pending-reference-table tbody td.report-pp-cell,
+.approved-review-screen .pending-reference-table tbody td.report-pp-cell { background-color: #fff !important; border: 0 !important; outline: 0 !important; box-shadow: none !important; }
+.pending-review-screen .pending-reference-table tbody tr:hover td.report-productivity-cell,
+.approved-review-screen .pending-reference-table tbody tr:hover td.report-productivity-cell,
+.pending-review-screen .pending-reference-table tbody tr:hover td.report-pp-cell,
+.approved-review-screen .pending-reference-table tbody tr:hover td.report-pp-cell { background-color: #f5f9ff !important; }
+.pending-review-screen .pending-reference-table tbody tr.pending-row-active td.report-productivity-cell,
+.approved-review-screen .pending-reference-table tbody tr.pending-row-active td.report-productivity-cell,
+.pending-review-screen .pending-reference-table tbody tr.pending-row-active td.report-pp-cell,
+.approved-review-screen .pending-reference-table tbody tr.pending-row-active td.report-pp-cell { background-color: #f0f6ff !important; }
+.pending-reference-table .report-productivity-cell::before,
+.pending-reference-table .report-productivity-cell::after,
+.pending-reference-table .report-pp-cell::before,
+.pending-reference-table .report-pp-cell::after { content: none !important; display: none !important; }
+.pending-reference-table .report-productivity-cell span,
+.pending-reference-table .report-pp-cell span { border: 0 !important; outline: 0 !important; box-shadow: none !important; }
+.pending-reference-table td.report-productivity-cell.is-low span { background: #fcecef !important; color: #b33d51 !important; }
