@@ -1,0 +1,51 @@
+name: KTC Microsoft Store TEST (Bundled FE)
+
+on:
+  push:
+    branches:
+      - feature/microsoft-store-msix-test
+    paths:
+      - '.github/workflows/ktc-microsoft-store-test.yml'
+      - 'desktop/electron-builder.store-test.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - name: Checkout TEST-derived source
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install Desktop dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Validate Desktop
+        run: npm run check
+      - name: Compile bundled TEST frontend
+        run: node scripts/buildBundledFrontend.cjs
+      - name: Verify bundled frontend
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'frontend/dist/index.html')) { throw 'Bundled TEST frontend missing' }
+      - name: Check Excel export
+        run: npm run smoke:excel
+      - name: Build Windows Store APPX (TEST)
+        run: npx electron-builder --config electron-builder.store-test.json --win appx --x64 --publish never
+      - name: Upload Store package
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTC-Store-TEST-BundledFE-APPX
+          path: desktop/release/*.appx
+          if-no-files-found: error
+          retention-days: 14
