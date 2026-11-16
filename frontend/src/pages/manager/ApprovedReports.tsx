@@ -9,6 +9,15 @@ import "./ReportsSplitReference.css";
 import "./ReportTableSimplified.css";
 import "./ApprovedReviewScreen.css";
 
+const reportCodes = (r: ProductionReport, kind: "machine" | "product"): string => {
+    const lines = Array.isArray(r.machine_lines) ? r.machine_lines : [];
+    const values = lines.map(line => kind === "machine" ? line.machine_code : line.product_code)
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+    if (kind === "machine" && r.machine_no?.trim()) values.push(r.machine_no.trim());
+    if (kind === "product" && r.product_name?.trim()) values.push(r.product_name.trim());
+    return [...new Set(values)].join(", ") || "—";
+};
+
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const text = (v: unknown, fallback = "—") => v === null || v === undefined || v === "" ? fallback : String(v);
 const fmt = (v: unknown) => num(v).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
@@ -259,14 +268,7 @@ export default function ApprovedReports() {
         } catch (error) {
             setReportImportStatus({ tone: "error", message: error instanceof Error ? error.message : "Không thể import báo cáo." });
 
-const reportCodes = (r: ProductionReport, kind: "machine" | "product"): string => {
-    const lines = Array.isArray(r.machine_lines) ? r.machine_lines : [];
-    const values = lines.map(line => kind === "machine" ? line.machine_code : line.product_code)
-        .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
-    if (kind === "machine" && r.machine_no?.trim()) values.push(r.machine_no.trim());
-    if (kind === "product" && r.product_name?.trim()) values.push(r.product_name.trim());
-    return [...new Set(values)].join(", ") || "—";
-};
+
         } finally { setReportImportBusy(false); }
     };
 
