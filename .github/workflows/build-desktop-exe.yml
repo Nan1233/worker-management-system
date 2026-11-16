@@ -5,6 +5,7 @@ on:
     branches: [test]
     paths:
       - 'frontend/**'
+      - 'backend/controllers/adminMasterController.js'
       - 'desktop/**'
       - 'backend/templates/**'
       - 'shared/**'
