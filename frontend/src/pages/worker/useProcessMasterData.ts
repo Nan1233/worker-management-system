@@ -344,14 +344,13 @@ export function useProcessMasterData(processId: number, processCode: string) {
       }
 
       if (deductions) {
-        setActiveDeductionOptions(
-          dedupeEncodedOrLegacyDeductions(
+        setActiveDeductionOptions([
+          ...dedupeEncodedOrLegacyDeductions(
             normalizeDeductionOptions(deductions.value, resolvedProcessId),
             processCode,
-
-          ),
+          ).filter((option) => String(option.label || "").trim().toUpperCase() !== "TRỪ GIỜ KHÁC"),
           OTHER_DEDUCTION_OPTION,
-        );
+        ]);
       } else {
         setActiveDeductionOptions([]);
       }
