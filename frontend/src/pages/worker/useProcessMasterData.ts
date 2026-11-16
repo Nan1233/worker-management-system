@@ -338,7 +338,7 @@ export function useProcessMasterData(processId: number, processCode: string) {
         const k2Filtered = Number(resolvedProcessId) === 5 || String(processCode || "").trim().toUpperCase() === "K2"
           ? maiFiltered.filter((option) => /^K2_NG_/i.test(String(option.code || "").trim()))
           : filterK2MasterOptions(maiFiltered, processCode, K2_ALLOWED_DEFECT_NAMES);
-        setActiveNgOptions([...displayXlbvDefectNames(filterEncodedOptions(k2Filtered, processCode, "ng"), processCode)).filter((option) => String(option.label || "").trim().toUpperCase() !== "NG KHÁC"), OTHER_NG_OPTION]);
+        setActiveNgOptions([...displayXlbvDefectNames(filterEncodedOptions(k2Filtered, processCode, "ng"), processCode)).filter((option) => !["NG KHÁC", "KHÁC"].includes(String(option.label || "").trim().toUpperCase())), OTHER_NG_OPTION]);
       } else {
         setActiveNgOptions([]);
       }
@@ -348,7 +348,7 @@ export function useProcessMasterData(processId: number, processCode: string) {
           ...dedupeEncodedOrLegacyDeductions(
             normalizeDeductionOptions(deductions.value, resolvedProcessId),
             processCode,
-          ).filter((option) => String(option.label || "").trim().toUpperCase() !== "TRỪ GIỜ KHÁC"),
+          ).filter((option) => !["TRỪ GIỜ KHÁC", "KHÁC"].includes(String(option.label || "").trim().toUpperCase())),
           OTHER_DEDUCTION_OPTION,
         ]);
       } else {
