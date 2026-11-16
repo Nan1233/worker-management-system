@@ -1,0 +1,13 @@
+/* Shared compact report list presentation for pending and approved pages. */
+.pending-reference-table { width: 100%; table-layout: auto; }
+.pending-reference-table th, .pending-reference-table td { padding: 11px 12px; vertical-align: middle; }
+.pending-reference-table th { white-space: nowrap; font-size: 12px; }
+.pending-reference-table td { font-size: 13px; }
+.pending-reference-table tbody tr:hover { background: #f4f8ff; }
+.pending-reference-table .report-worker-cell { min-width: 155px; }
+.pending-reference-table .report-worker-cell strong { display: block; font-weight: 600; color: #1b3556; white-space: normal; }
+.pending-reference-table .report-worker-cell small { display: block; margin-top: 3px; font-size: 11px; color: #75849b; }
+.pending-reference-table .report-pp-cell { font-weight: 600; color: #334155; }
+.pending-reference-table .select-col { width: 42px; min-width: 42px; text-align: center; }
+.pending-reference-table td:nth-last-child(-n+4) { font-variant-numeric: tabular-nums; text-align: right; }
+.pending-reference-table th:nth-last-child(-n+4) { text-align: right; }
