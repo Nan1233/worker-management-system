@@ -30,7 +30,7 @@ test("named NG khác is registered, gets an ID, and stays process scoped", async
   const defects = [{ defect_name: "Vết xước lạ", custom_other: true, quantity: 4 }];
   await ensureCustomReportCategories({ processId: 3, defects, query: db.query });
   assert.ok(defects[0].defect_type_id > 0);
-  assert.match(defects[0].defect_code, /^CUSTOM_NG_[A-F0-9]{20}$/);
+  assert.match(defects[0].defect_code, /^CUSTOM_NG_[A-F0-9]{16}$/);
   assert.equal(db.types.size, 1);
   await ensureCustomReportCategories({ processId: 3, defects, query: db.query });
   assert.equal(db.types.size, 1);
@@ -44,7 +44,7 @@ test("named Trừ giờ khác receives canonical deduction ID", async () => {
   const deductions = [{ deduction_name: "Kiểm tra linh kiện", custom_other: true, hours: 0.5 }];
   await ensureCustomReportCategories({ processId: 4, deductions, query: db.query });
   assert.ok(deductions[0].deduction_type_id > 0);
-  assert.match(deductions[0].deduction_code, /^CUSTOM_DED_[A-F0-9]{20}$/);
+  assert.match(deductions[0].deduction_code, /^CUSTOM_DED_[A-F0-9]{16}$/);
 });
 
 test("rejects blank or invalid user-defined names", async () => {
