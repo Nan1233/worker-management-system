@@ -1,6 +1,12 @@
 name: KTC Microsoft Store package (Windows)
 
 on:
+  push:
+    branches:
+      - feature/microsoft-store-msix
+    paths:
+      - '.github/workflows/ktc-microsoft-store.yml'
+      - 'desktop/electron-builder.store.json'
   workflow_dispatch:
 
 permissions:
