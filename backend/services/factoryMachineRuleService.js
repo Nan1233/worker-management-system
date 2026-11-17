@@ -124,6 +124,16 @@ const validateFactoryMachineRules = async ({
 
   if (!lines.length) return { valid: true, errors: {}, rules: [] };
 
+  const uniqueMachineCodes = new Set(lines.map((line) =>
+    String(line.machine_code).trim().toUpperCase()));
+  const maxMachines = getMaxMachinesPerWorker(code);
+  if (MULTI_MACHINE_PROCESS_CODES.has(code) && uniqueMachineCodes.size > maxMachines) {
+    return {
+      valid: false,
+      errors: { machine_lines: `Một công nhân chỉ được chạy tối đa ${maxMachines} máy trong công đoạn ${code}.` }
+    };
+  }
+
   // `machineRows`: rows the caller already loaded for exactly these machines of this process in the same request.
   // Multiple workers may use the same machine during one work date/shift,
   // across every process. Keep the per-worker machine-count check above.
