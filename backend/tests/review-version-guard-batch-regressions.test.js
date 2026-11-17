@@ -1,18 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-
-const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalSelection.js'), 'utf8');
-const start = source.indexOf('function buildApprovalSelection(');
-const end = source.indexOf('module.exports = {', start);
-assert.ok(start >= 0 && end > start);
-const context = { normalizeIds: (ids) => [...new Set(ids.map(Number).filter((id) => Number.isInteger(id) && id > 0))] };
-vm.runInNewContext(source.slice(start, end), context);
-const build = vm.runInNewContext('buildApprovalSelection', context);
-const versions = vm.runInNewContext('assertApprovalSelectionVersions', context);
+const { buildApprovalSelection: build, assertApprovalSelectionVersions: versions } = require('../models/productionTempApprovalSelection');
 
 test('version checks are per-report, not shared across a mixed guarded and unguarded batch', () => {
   const selection = build([{ id: 1, expected_updated_at: '2026-10-30T01:00:00Z' }, { id: 2 }]);
