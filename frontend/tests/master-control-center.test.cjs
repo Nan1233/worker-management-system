@@ -89,7 +89,7 @@ test('database explorer UI keeps the SQL console disabled; backup page offers no
 
 test('super admin is shown as Super Admin, routed like admin, and never offered as a permission-override target', () => {
   assert.match(read('frontend/src/layouts/AdminLayout.tsx'), /const roleLabel=user\?\.is_super_admin\?"Super Admin":ADMIN_LABEL;/);
-  assert.match(read('frontend/src/layouts/MasterControlLayout.tsx'), /user\?\.is_super_admin \? "Super Admin" : "Admin"/);
+  assert.match(read('frontend/src/layouts/MasterControlLayout.tsx'), /user\?\.is_super_admin\s*\? "Super Admin" : "Admin"/);
   assert.match(read('frontend/src/pages/admin/Permissions.tsx'), /u\.role!=='admin'&&u\.role!=='super_admin'/);
   assert.match(read('frontend/src/utils/authStorage.ts'), /is_super_admin: payload\.is_super_admin === true/);
   // Routing stays role-based on "admin": the backend presents super_admin as admin + is_super_admin.
