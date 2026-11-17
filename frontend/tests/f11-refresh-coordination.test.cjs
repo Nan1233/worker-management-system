@@ -177,7 +177,7 @@ test('F11 FE 35 desktop currently creates one renderer BrowserWindow', () => {
 // Static security boundaries.
 test('F11 FE 36 normal web setRefreshToken removes JS-readable refresh token', () => {
   const source = storage();
-  assert.match(source, /Refresh credentials remain HttpOnly on the web; Electron uses localStorage/);
+  assert.match(source, /Normal web sessions never persist a JS-readable refresh token; refresh uses the HttpOnly cookie/);
   assert.match(source, /return null;/);
   assert.match(source, /localStorage\.removeItem\(REFRESH_TOKEN_KEY\)/);
   assert.match(source, /sessionStorage\.removeItem\(REFRESH_TOKEN_KEY\)/);
