@@ -9,7 +9,9 @@ test('canonical schema contract parses the full production source', () => {
 
   assert.equal(schema.version, 26);
   assert.equal(CONTRACT_VERSION, 26);
-  assert.equal(Object.keys(schema.tables).length, 50);
+  // The historical SQL includes product_aliases, retired by migration 060.
+  assert.equal(Object.keys(schema.tables).length, 49);
+  assert.equal(schema.tables.product_aliases, undefined);
 
   for (const table of [
     'users',
