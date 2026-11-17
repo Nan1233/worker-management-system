@@ -73,13 +73,13 @@ test('monthly workbook resets sequence for each report date', () => {
 test('monthly reports are ordered by report date and input time', () => {
   assert.match(
     source,
-    /dateKey\(a\.work_date\)\.localeCompare\(dateKey\(b\.work_date\)\)/,
+    /dateKey\((?:left|a)\.work_date\)\.localeCompare\(dateKey\((?:right|b)\.work_date\)\)/,
     'Báo cáo phải được nhóm theo ngày báo cáo'
   );
 
   assert.match(
     source,
-    /reportTimeKey\(a\)\.localeCompare\(reportTimeKey\(b\)\)/,
+    /reportTimeKey\((?:left|a)\)\.localeCompare\(reportTimeKey\((?:right|b)\)\)/,
     'Trong cùng ngày phải ưu tiên thứ tự thời gian'
   );
 });
