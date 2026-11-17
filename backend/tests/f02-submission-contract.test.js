@@ -28,7 +28,9 @@ test('F02 frontend recovers only unsent split requests after connection loss', (
   assert.ok(submitStart >= 0 && submitEnd > submitStart);
   const submit = page.slice(submitStart, submitEnd);
   assert.match(submit, /for \(let index = 0; index < payloads\.length; index \+= 1\)/);
-  assert.match(submit, /queueRemainingMachineReports\(payloads\.slice\(index\)\)/);\n  const queueHelper = read('frontend/src/pages/worker/processMachineReportQueue.ts');\n  assert.match(queueHelper, /enqueueOfflineReports\(reports\)/);
+  assert.match(submit, /queueRemainingMachineReports\(payloads\.slice\(index\)\)/);
+  const queueHelper = read('frontend/src/pages/worker/processMachineReportQueue.ts');
+  assert.match(queueHelper, /enqueueOfflineReports\(reports\)/);
   assert.match(submit, /if \(isTransientNetworkFailure\(error\)\)/);
   assert.match(submit, /clientRequestIdRef\.current \|\|= createClientRequestId\(\)/);
 });
