@@ -478,7 +478,7 @@ function WorkerReportEditV2() {
           onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
           placeholder="Nhập ghi chú về quá trình sản xuất hoặc sự cố máy (nếu có)"
           rows={3}
-          maxLength={2000}
+          maxLength={1000}
           disabled={saving || readOnly}
         />
       </section>}
