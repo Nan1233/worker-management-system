@@ -11,18 +11,20 @@ function action(start, end) {
   return source.slice(a, b);
 }
 
+const queueHelper = fs.readFileSync(path.join(__dirname, '../src/pages/worker/processMachineReportQueue.ts'), 'utf8');
+
 test('confirmed duplicate create/update preserve the remaining split queue on transient errors', () => {
   for (const [start, end] of [
     ['const handleCreateDuplicateAnyway = async () => {', 'const handleUpdateExistingReport = async () => {'],
     ['const handleUpdateExistingReport = async () => {', '// Separate-run duplicate creation'],
   ]) {
     const handler = action(start, end);
-    assert.match(handler, /duplicatePrimaryCompletedRef\.current && isTransientNetworkFailure\(error\)/);
-    assert.match(handler, /error\.response\?\.status === 429/);
-    assert.match(handler, /enqueueOfflineReports\(pendingSplitPayloadsRef\.current\)/);
+    assert.match(handler, /shouldQueuePendingMachineReports\(duplicatePrimaryCompletedRef\.current, error\)/);
+    assert.match(queueHelper, /error\.response\?\.status === 429/);
+    assert.match(handler, /queueRemainingMachineReports\(pendingSplitPayloadsRef\.current\)/);
     assert.match(handler, /finishDuplicateAction\(\);\s*return;/);
     assert.match(handler, /catch \(queueError: unknown\)/);
-    assert.match(handler, /if \(pendingCount\) enqueueOfflineReports\(pendingSplitPayloadsRef\.current\)/);
+    assert.match(handler, /if \(pendingCount\) queueRemainingMachineReports\(pendingSplitPayloadsRef\.current\)/);
   }
 });
 
@@ -42,5 +44,5 @@ test('offline queue only accepts payloads with stable client request ids', () =>
 test('form reset cannot discard confirmed but unsent split reports', () => {
   const handler = action('const handleReset = () => {', 'return (');
   assert.match(handler, /if \(duplicatePrimaryCompletedRef\.current && pendingSplitPayloadsRef\.current\.length\)/);
-  assert.ok(handler.indexOf('return;') < handler.indexOf('clearProcessDraft(process)'));
+  assert.ok(handler.indexOf('return;') < handler.indexOf('clearProcessDraftAsync(process)'));
 });
