@@ -5,6 +5,9 @@ const path = require('node:path');
 
 const CANONICAL_SCHEMA_RELATIVE_PATH = '../database/KTC_FULL_DATABASE_CANONICAL_20260817.sql';
 const CONTRACT_VERSION = 26;
+// Migration 060 retired this table, but the historical canonical SQL snapshot
+// remains immutable. Exclude retired tables while constructing the contract.
+const RETIRED_CANONICAL_TABLES = new Set(['product_aliases']);
 
 // The absolute path is resolved on demand, never at module scope. This module is
 // pulled into the Cloudflare Worker bundle through databaseSchemaService (which
@@ -123,6 +126,7 @@ function loadCanonicalSchema() {
   const sql = stripSqlComments(fs.readFileSync(schemaPath, 'utf8'));
   const tables = {};
   for (const { table: tableName, body } of findCreateTableBodies(sql)) {
+    if (RETIRED_CANONICAL_TABLES.has(tableName)) continue;
     const definitions = splitTopLevel(body);
     const columns = {};
     const indexes = {};
@@ -138,9 +142,6 @@ function loadCanonicalSchema() {
     }
     tables[tableName] = { columns, indexes };
   }
-  // Migration 060: product_aliases has been retired.
-// Keep the historical canonical SQL unchanged.
-delete tables.product_aliases;
   return Object.freeze({ tables, version: CONTRACT_VERSION, source: schemaPath });
 }
 
