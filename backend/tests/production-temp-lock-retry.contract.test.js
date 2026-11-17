@@ -18,7 +18,8 @@ const createSource = fs.readFileSync(
 
 test('production temp create serializes submissions and retries TiDB lock wait timeouts', () => {
   assert.match(queueSource, /submissionQueues\s*=\s*new Map/);
-  assert.match(queueSource, /async function runSerializedSubmission\(key, task\)/);\n  assert.match(serviceSource, /runSerializedSubmission\(/);
+  assert.match(queueSource, /async function runSerializedSubmission\(key, task\)/);
+  assert.match(serviceSource, /runSerializedSubmission\(/);
   assert.match(serviceSource, /recoverAfter1205/);
   // TiDB reports lock wait timeout by errno 1205; message text is not stable across drivers.
   assert.match(serviceSource, /Number\(error\?\.errno\)\s*===\s*1205/);
