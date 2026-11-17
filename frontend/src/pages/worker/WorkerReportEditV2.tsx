@@ -468,6 +468,20 @@ function WorkerReportEditV2() {
       {usesMultiMachineLines && <section className="worker-form-card worker-quality-section" aria-label="Tổng sản lượng OK NG của các máy"><h2 className="worker-card-title">Tổng sản lượng OK / NG</h2><div className="worker-quality-summary"><div className="worker-quality-card ok"><label>TT OK (tổng các máy)</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.okQuantity) || 0), 0)))} readOnly aria-label="Tổng OK các máy" /></div><div className="worker-quality-card ng"><label>TT NG (tổng các máy)</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.ngQuantity) || 0), 0)))} readOnly aria-label="Tổng NG các máy" /></div><div className="worker-quality-card total-output"><label>Tổng sản lượng</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0), 0)))} readOnly aria-label="Tổng sản lượng các máy" /></div></div><p className="worker-field-hint">Số liệu tổng hợp tự động từ từng máy; chỉnh sửa OK/NG tại từng máy.</p></section>}
       {!report.process_code || report.process_code !== "CVK" ? <ProcessQualitySection form={form} activeNgOptions={editNgOptions as any} selectedNg={selectedNg} showNg={showNg} setShowNg={setShowNg} usesMultiMachineLines={usesMultiMachineLines} operationMode={operationMode} formatIntegerDisplay={formatIntegerDisplay} onTtOkChange={onTtOkChange} onNumberBlur={onNumberBlur} onToggleNg={toggleNg} onNgValue={updateNg} onOtherNgName={(value) => setForm((prev) => ({ ...prev, otherNgName: value }))} /> : null}
       {!usesMultiMachineLines && <ProcessTimeDeductionSection processCode={String(report?.process_code || (Number(report?.process_id) === 4 ? "K1" : ""))} form={form} setForm={setForm} deductions={deductions} activeDeductionOptions={editDeductionOptions as any} selectedDeduction={selectedDeduction} showDeduction={showDeduction} setShowDeduction={setShowDeduction} onToggleDeduction={toggleDeduction} onUpdateDeduction={updateDeduction} onNormalizeDeduction={normalizeDeduction} onWarning={warning} onOtherDeductionName={(value) => setForm((prev) => ({ ...prev, otherDeductionName: value }))} />}
+      {!approvedMachineNoteOnly && <section className="worker-form-card">
+        <label htmlFor="edit-production-note" className="worker-card-title">Ghi chú (không bắt buộc)</label>
+        <textarea
+          id="edit-production-note"
+          name="note"
+          className="worker-text-input"
+          value={form.note}
+          onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
+          placeholder="Nhập ghi chú về quá trình sản xuất hoặc sự cố máy (nếu có)"
+          rows={3}
+          maxLength={2000}
+          disabled={saving || readOnly}
+        />
+      </section>}
       </fieldset>
       {!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : WORKER_EDIT_TIME_LIMIT_ENABLED ? `Còn ${timeText} để sửa báo cáo.` : "Có thể sửa báo cáo không giới hạn thời gian khi còn chờ xử lý."}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || (!managerRoute && WORKER_EDIT_TIME_LIMIT_ENABLED && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && WORKER_EDIT_TIME_LIMIT_ENABLED && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
     </main>
