@@ -138,6 +138,9 @@ function loadCanonicalSchema() {
     }
     tables[tableName] = { columns, indexes };
   }
+  // Migration 060: product_aliases has been retired.
+// Keep the historical canonical SQL unchanged.
+delete tables.product_aliases;
   return Object.freeze({ tables, version: CONTRACT_VERSION, source: schemaPath });
 }
 
