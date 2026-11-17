@@ -54,12 +54,12 @@ test('FE rejects fractional and negative quantities as backend does', () => {
 
 test('FE rejects missing and excessive actual machine runtime', () => {
   assert.match(validate({ hours: '0', minutes: '0' }), /thời gian thực tế/);
-  assert.match(validate({ hours: '13' }), /không quá 12 giờ/);
+  assert.match(validate({ hours: '13' }), /giờ phải không âm và phút phải từ 0 đến 59/);
 });
 
 test('FE rejects invalid minutes and negative line deductions', () => {
   assert.match(validate({ hours: '8', minutes: '60' }), /phút phải từ 0 đến 59/);
-  assert.match(validate({ hours: '8', minutes: '-1' }), /phút phải từ 0 đến 59/);
+  assert.match(validate({ hours: '8', minutes: '-1' }), /giờ và phút phải là số nguyên không âm/);
   assert.match(validate({ hours: '8', deductions: { adjustment: '-15' } }), /thời gian trừ phải không âm/);
 });
 
