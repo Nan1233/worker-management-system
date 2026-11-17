@@ -33,7 +33,7 @@ const RUNTIME_REQUIRED_COLUMNS = Object.freeze({
 if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof getDb().promise === 'function') {
   const cloudflareDb = getDb();
   const originalTestConnection = cloudflareDb.testConnection;
-  db.testConnection = async () => {
+  cloudflareDb.testConnection = async () => {
     const startedAt = Date.now();
     try {
       const [rows] = await cloudflareDb.promise().query('SELECT 1 AS ok');
