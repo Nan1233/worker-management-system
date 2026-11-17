@@ -208,9 +208,13 @@ test('SOURCE_CONTRACT: approved listing normalizes status and preserves orphan w
   assert.match(source, /LEFT JOIN workers/);
   assert.match(source, /LEFT JOIN users/);
   assert.match(source, /LEFT JOIN processes/);
-  assert.doesNotMatch(source, /(?<!LEFT\s)JOIN workers/i);
-  assert.doesNotMatch(source, /(?<!LEFT\s)JOIN users/i);
-  assert.doesNotMatch(source, /(?<!LEFT\s)JOIN processes/i);
+  // Only the count and page queries must preserve orphan worker/process rows.
+  // The metadata dropdown legitimately INNER JOINs processes to enumerate existing ones.
+  const listingSql = source.slice(source.indexOf('SELECT COUNT(*) AS total'), source.indexOf('// Populate the process dropdown'));
+  assert.ok(listingSql.includes('SELECT COUNT(*) AS total'), 'approved listing SQL must be present');
+  assert.doesNotMatch(listingSql, /(?<!LEFT\s)JOIN workers/i);
+  assert.doesNotMatch(listingSql, /(?<!LEFT\s)JOIN users/i);
+  assert.doesNotMatch(listingSql, /(?<!LEFT\s)JOIN processes/i);
 });
 
 test('BEHAVIORAL: approved pagination returns bounded page and deterministic order', async () => {
