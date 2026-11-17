@@ -17,12 +17,12 @@ test('phase 4 worker entry focuses validation and handles offline submission', (
   const focus = read('pages/worker/processValidationFocus.ts');
   assert.match(s, /focusProcessValidationTarget/);
   assert.match(focus, /selector = '#ttNg'/);
-  assert.match(s, /enqueueOfflineReport/);
+  assert.match(s, /queueRemainingMachineReports\(payloads\)/);
 });
 test('phase 4 manager detail ignores obsolete requests', () => {
   const s = read('pages/manager/Reports.tsx');
   assert.match(s, /detailRequestSeqRef/);
-  assert.match(s, /if \(isCurrent\(\)\) setDetail\(full \|\| report\)/);
+  assert.match(s, /if \(isCurrent\(\)\) \{[\s\S]*?Number\(full\.id\) === Number\(report\.id\)[\s\S]*?setDetail\(validDetail \? full : report\)/);
 });
 test('phase 4 desktop Excel handles auth, concurrent actions and feedback', () => {
   const s = read('pages/manager/ApprovedReportsDesktopActions.tsx');
