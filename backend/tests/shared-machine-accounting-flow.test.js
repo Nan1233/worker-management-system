@@ -66,27 +66,35 @@ test('approval hard-block accepts only matching approved event', async () => {
   }), (error) => error.code === 'MACHINE_EVENT_REQUIRED');
 });
 
-test('transactional worker-capacity check locks machine row before counting participants', async () => {
+test('transactional worker-capacity check does not impose an obsolete per-machine worker cap', async () => {
   const statements = [];
   const executor = callbackExecutor((sql) => {
     statements.push(sql.replace(/\s+/g, ' ').trim());
-    if (/FROM machines/.test(sql) && /FOR UPDATE/.test(sql)) {
-      return [{ id: 5, process_id: 1, machine_code: '5', is_automatic: 1, max_workers_per_machine: 4, output_basis: 'MACHINE' }];
-    }
-    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }, { worker_id: 2, machine_code: '5' }, { worker_id: 3, machine_code: '5' }];
-    return [];
+    throw new Error('capacity validation must not query participant counts');
   });
-  const fourth = await validateMachineWorkerCapacityLocked({ executor, processCode: 'GC', processId: 1, machineLines: [{ machine_code: '5' }], workerId: 4, workDate: '2026-08-12', shift: 'A' });
-  assert.equal(fourth.valid, true);
-  assert.match(statements[0], /ORDER BY id FOR UPDATE/);
 
-  const fifthExecutor = callbackExecutor((sql) => {
-    if (/FROM machines/.test(sql) && /FOR UPDATE/.test(sql)) return [{ id: 5, process_id: 1, machine_code: '5', is_automatic: 1, max_workers_per_machine: 4, output_basis: 'MACHINE' }];
-    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }, { worker_id: 2, machine_code: '5' }, { worker_id: 3, machine_code: '5' }, { worker_id: 4, machine_code: '5' }];
-    return [];
+  const common = {
+    executor,
+    processCode: 'GC',
+    processId: 1,
+    workerId: 5,
+    workDate: '2026-08-12',
+    shift: 'A',
+  };
+  const withinLimit = await validateMachineWorkerCapacityLocked({
+    ...common,
+    machineLines: [{ machine_code: '5' }],
   });
-  const fifth = await validateMachineWorkerCapacityLocked({ executor: fifthExecutor, processCode: 'GC', processId: 1, machineLines: [{ machine_code: '5' }], workerId: 5, workDate: '2026-08-12', shift: 'A' });
-  assert.equal(fifth.valid, false);
+  assert.deepEqual(withinLimit, { valid: true, errors: {} });
+  assert.deepEqual(statements, []);
+
+  const overWorkerMachineLimit = await validateMachineWorkerCapacityLocked({
+    ...common,
+    machineLines: ['1', '2', '3', '4', '5'].map((machine_code) => ({ machine_code })),
+  });
+  assert.equal(overWorkerMachineLimit.valid, false);
+  assert.match(overWorkerMachineLimit.errors.machine_lines, /tối đa 4 máy/);
+  assert.deepEqual(statements, []);
 });
 
 test('same worker repeated activity remains one distinct worker in capacity SQL', () => {
