@@ -384,6 +384,20 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
     await enforceDailyWorkerHours(data, db, machineLines);
     data._daily_hours_machine_lines = machineLines;
+    // Resolve process BEFORE deciding whether to split. The daily-hours guard can
+    // be disabled, and clients commonly send process_id without process_code.
+    // Resolving only later in the transaction silently saved all MAI lines under
+    // one parent. Reuse this lookup in the existing transaction preflight.
+    const authoritativeProcess = await query(db,
+        `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
+    const authoritativeCode = String(authoritativeProcess?.[0]?.process_code || "").trim().toUpperCase();
+    if (!authoritativeCode) {
+        const error = new Error("Không xác định được công đoạn báo cáo");
+        error.status = 422; error.code = "PROCESS_CODE_NOT_FOUND"; error.isPublic = true;
+        throw error;
+    }
+    data.process_code = authoritativeCode;
+    data._resolved_process_code = authoritativeCode;
     // MAI records each entered production run as its own pending report, even when
     // machine and product repeat. DO/CAN/EP retain their existing grouping rules;
     // GC retains its shared-machine accounting and per-line split behavior.
