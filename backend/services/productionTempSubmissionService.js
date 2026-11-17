@@ -384,11 +384,12 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
     await enforceDailyWorkerHours(data, db, machineLines);
     data._daily_hours_machine_lines = machineLines;
-    // MAI duplicate machine+product pairs are merged; different pairs remain
-    // independent reports. GC retains its existing per-line behavior.
-    const reportMachineLines = isMaiProcess(data)
-        ? groupMaiMachineProductLines(machineLines)
-        : machineLines;
+    // MAI records each entered production run as its own pending report, even when
+    // machine and product repeat. DO/CAN/EP retain their existing grouping rules;
+    // GC retains its shared-machine accounting and per-line split behavior.
+    const reportMachineLines = String(data.process_code || "").trim().toUpperCase() === "MAI"
+        ? machineLines
+        : isMaiProcess(data) ? groupMaiMachineProductLines(machineLines) : machineLines;
     const splitMachines = shouldSplitMachineReports(data, reportMachineLines);
     return runSerializedSubmission(submissionQueueKey(data, machineLines), async () => {
         // No second pre-transaction idempotency lookup here: sequential retries already returned above,
@@ -476,7 +477,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             }
             try {
                 if (splitMachines) {
-                    // Keep each machine/product pair as its own report, but batch all
+                    // Keep each production run as its own report (including repeated machine/product), but batch all
                     // parent INSERTs and ID resolution into two SQL statements.
                     const groupedChildren = reportMachineLines.map((line, index) => {
                         const childLines = line._source_machine_lines || [line];
@@ -501,9 +502,8 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                         const resolved = preResolvedChildren[index];
                         defectGroups.push({ tempReportId: tempId, items: resolved.defects });
                         deductionGroups.push({ tempReportId: tempId, items: resolved.deductions });
-                        // Persist one detail row for each grouped machine+product pair.
-                        // The grouped line already contains summed quantities/time and merged
-                        // NG/deduction details from every duplicate input row.
+                        // Persist the original line for each MAI run. Other supported
+                        // processes may still provide grouped machine/product rows.
                         machineLineGroups.push({ tempReportId: tempId, machineLines: [reportMachineLines[index]] });
                     }
                     await createModel.createDefectsBatch(defectGroups, parentConnection);
