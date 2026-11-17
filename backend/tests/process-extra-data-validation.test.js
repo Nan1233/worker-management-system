@@ -57,8 +57,10 @@ test("FE and BE agree on Mài and Đo multi-machine policy", () => {
     assert.match(fields, /do:\s*\[\s*\]/);
     assert.doesNotMatch(fields, /key:\s*"grinding_machine_no"/);
     const page = read("frontend/src/pages/worker/ProcessPage.tsx");
-    assert.match(page, /getCachedMachines\(2\)/);
-    assert.match(page, /Máy Mài liên quan không còn trong danh mục hoạt động/);
+    const masterData = read("frontend/src/pages/worker/useProcessMasterData.ts");
+    assert.match(page, /useProcessMasterData\(processInfo\.id, processCode\)/);
+    assert.match(masterData, /getCachedMachines\(resolvedProcessId\)/);
+    assert.match(masterData, /DO:\s*3/);
 });
 
 test("Create and edit endpoints both validate the DO related Mài machine", () => {
