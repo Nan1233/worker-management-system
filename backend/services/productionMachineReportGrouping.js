@@ -94,13 +94,22 @@ const splitMachineLinePayload = (data, lineOrLines, requestId, index, totalCount
         defects,
         deductions,
         client_request_id: childRequestId(requestId, lines, index),
-        logical_duplicate_key: buildLogicalDuplicateKey({
-            workerId: data.worker_id, processId: data.process_id, workDate: data.work_date,
-            shift: data.shift, operationMode: data.operation_mode ?? data.operationMode,
-            machineNo: line.machine_code || data.machine_no,
-            productName: productCodes.join(", ") || data.product_name,
-            machineLines: lines
-        }),
+        // Preserve separate MAI runs even when machine, product and shift repeat.
+        // The submission-level duplicate key and client_request_id still protect
+        // retries of the same full request; index identifies each child within it.
+        logical_duplicate_key: (() => {
+            const canonicalKey = buildLogicalDuplicateKey({
+                workerId: data.worker_id, processId: data.process_id, workDate: data.work_date,
+                shift: data.shift, operationMode: data.operation_mode ?? data.operationMode,
+                machineNo: line.machine_code || data.machine_no,
+                productName: productCodes.join(", ") || data.product_name,
+                machineLines: lines
+            });
+            return processCodeOf(data) === "MAI"
+                ? require("node:crypto").createHash("sha256")
+                    .update(`mai-run:${canonicalKey}:${index}`).digest("hex")
+                : canonicalKey;
+        })(),
         extra_data: { ...extra, ...groupMetadata }
     };
 };
