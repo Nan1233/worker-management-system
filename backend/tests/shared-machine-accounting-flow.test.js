@@ -151,6 +151,9 @@ test('GC process code is resolved from the database when the client sends only p
   assert.match(source, /const resolvedProcessCode = String\(processRows\?\.\[0\]\?\.process_code/);
   assert.match(source, /if \(resolvedProcessCode\) \{\s*data\.process_code = resolvedProcessCode;/);
   assert.match(source, /const reportMachineLines = String\(data\.process_code \|\| ""\)[\s\S]*=== "MAI"[\s\S]*\? machineLines[\s\S]*groupMaiMachineProductLines\(machineLines\)/);
+  assert.match(source, /const authoritativeProcess = await query\(db/);
+  assert.match(source, /data\.process_code = authoritativeCode;/);
+  assert.match(source, /data\._resolved_process_code = authoritativeCode;/);
   assert.match(source, /const splitMachines = shouldSplitMachineReports\(data, reportMachineLines\)/);
   assert.match(groupingSource, /const isMaiProcess = \(data\) => \["MAI", "DO", "CAN", "EP"\]\.includes\(processCodeOf\(data\)\)/);
   assert.match(groupingSource, /machine_group_request_id/);
