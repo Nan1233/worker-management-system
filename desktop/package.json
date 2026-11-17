@@ -56,7 +56,10 @@
     "dist:folder:bundled-fe": "node scripts/buildBundledFrontend.cjs && npm run preflight && npm run smoke:excel && electron-builder --win dir --x64 --config.asar=true --config.extraMetadata.ktcBundledFrontend=true --publish never",
     "dist:folder:bundled-fe:quick": "node scripts/buildBundledFrontend.cjs && electron-builder --win dir --x64 --config.asar=true --config.extraMetadata.ktcBundledFrontend=true --publish never",
     "test:packaging-sync": "node --test tests/packaging-sync.test.cjs",
-    "test:setup-auto-update": "node --test tests/setup-auto-update.test.cjs"
+    "test:setup-auto-update": "node --test tests/setup-auto-update.test.cjs",
+    "release:verify:windows": "node scripts/verifyWindowsRelease.cjs",
+    "dist:win:verified": "npm run release:signing-check && npm run dist:win && npm run release:verify:windows",
+    "test:release-signing": "node --test tests/release-signing.test.cjs"
   },
   "devDependencies": {
     "electron": "37.10.3",
@@ -92,7 +95,7 @@
       ],
       "icon": "assets/icon.ico",
       "signAndEditExecutable": true,
-      "signExecutable": false,
+      "signExecutable": true,
       "requestedExecutionLevel": "asInvoker"
     },
     "publish": [
@@ -109,7 +112,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "KTC Production Control",
       "deleteAppDataOnUninstall": false,
-      "artifactName": "KTC-Production-Control-Setup.exe"
+      "artifactName": "KTC-Production-Control-Setup.exe",
+      "perMachine": false
     },
     "portable": {
       "artifactName": "KTC-Production-Control.exe"
