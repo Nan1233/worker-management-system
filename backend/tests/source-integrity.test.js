@@ -158,11 +158,11 @@ test('monthly workbook uses database snapshots and report_id details', () => {
   );
   assert.match(
     engine,
-    /return Math\\.round\\(baseOutput \\* trainingMultiplier\\)/,
+    /return Math\.round\(baseOutput \* trainingMultiplier\)/,
     'SP quy đổi phải được làm tròn thành số nguyên'
-  assert.match(engine, /return enteredOutput === null \\? null : Math\\.round\\(enteredOutput\\)/);
-  assert.match(engine, /return ok === null \\|\\| countedNg === null \\? null : Math\\.round\\(ok \\+ countedNg\\)/);
   );
+  assert.match(engine, /return enteredOutput === null \? null : Math\.round\(enteredOutput\)/);
+  assert.match(engine, /return ok === null \|\| countedNg === null \? null : Math\.round\(ok \+ countedNg\)/);
   assert.match(source, /INTEGER:\s*'#,##0;-#,##0;0'/);
   assert.match(source, /DECIMAL:\s*'#,##0\.##;-#,##0\.##;0'/);
   assert.match(source, /RATE:\s*'#,##0\.##;-#,##0\.##;0'/);
