@@ -15,7 +15,7 @@ const workerContextPermissions = new Set<PermissionCode>(['WORKER_ENTRY','WORKER
 const roleAdditions: Record<string, PermissionCode[]> = {
   worker: ['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','STATISTICS_VIEW','PROFILE_VIEW'],
   lead: ['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_PENDING_EDIT','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','MASTER_EDIT' ,'AUDIT_VIEW'],
-  manager: ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','USER_CREATE','USER_EDIT','GOVERNANCE_VIEW'],
+  manager: ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','USER_CREATE','USER_EDIT','GOVERNANCE_VIEW','SYSTEM_HEALTH_VIEW'],
   admin_ops: ['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','USER_CREATE','USER_EDIT','MASTER_VIEW','STATISTICS_VIEW','NOTIFICATION_VIEW','AUDIT_VIEW','PROFILE_VIEW'],
   admin: all
 };
@@ -68,7 +68,7 @@ export async function loadMyPermissions(force=false): Promise<Set<PermissionCode
   if(inFlight?.userId===userId) return new Set(await inFlight.promise);
   const request = (async () => {
     try { const response=await api.get('/permissions/me'); const values=new Set<PermissionCode>((response.data?.data?.permissions || []) as PermissionCode[]); cache={userId,values,expiresAt:Date.now()+60_000}; return new Set(values); }
-    catch { return defaultPermissionsForRole(user.role); }
+    catch { return new Set<PermissionCode>(); }
   })();
   inFlight={userId,promise:request};
   try { return new Set(await request); } finally { if(inFlight?.promise===request) inFlight=null; }

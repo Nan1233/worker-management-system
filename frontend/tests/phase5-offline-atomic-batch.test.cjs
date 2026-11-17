@@ -9,7 +9,7 @@ const ts = require('typescript');
 
 // Run the real TypeScript queue module with fake browser storage and an
 // indefinitely pending API call. No network, credentials or test database.
-function makeQueue({ failWrite = false, initialRaw = null, createReport = () => new Promise(() => {}) } = {}) {
+function makeQueue({ failWrite = false, silentWrite = false, initialRaw = null, createReport = () => new Promise(() => {}) } = {}) {
   const source = fs.readFileSync(path.join(__dirname, '../src/services/offlineReportQueue.ts'), 'utf8');
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
@@ -23,6 +23,7 @@ function makeQueue({ failWrite = false, initialRaw = null, createReport = () => 
     getItem: (key) => values.get(key) ?? null,
     setItem(key, value) {
       if (failWrite) throw new Error('QuotaExceededError');
+      if (silentWrite) return;
       writes += 1;
       values.set(key, value);
     },
@@ -96,7 +97,7 @@ test('capacity overflow rejects entire split remainder rather than partially sav
 
 test('storage failure never reports a split batch as safely queued', () => {
   const { queue, state } = makeQueue({ failWrite: true });
-  assert.throws(() => queue.enqueueOfflineReports(payloads('x', 'y')), /Không còn đủ bộ nhớ/);
+  assert.throws(() => queue.enqueueOfflineReports(payloads('x', 'y')), /Không xác nhận được việc lưu/);
   assert.equal(state().items.length, 0);
   assert.equal(state().events, 0);
 });
@@ -160,4 +161,51 @@ test('automatic replay detects corruption introduced while awaiting the backend'
   await assert.rejects(flush, /Không thể ghi đè/);
   assert.equal(state().raw, corrupt);
   assert.equal(state().writes, 0);
+});
+
+test('same request ID with different payload is rejected without dropping either report', () => {
+  const { queue, state } = makeQueue();
+  queue.enqueueOfflineReports([{ ...payloads('same')[0], product_name: 'P1' }]);
+  const before = state().raw;
+  assert.throws(
+    () => queue.enqueueOfflineReports([{ ...payloads('same')[0], product_name: 'P2' }]),
+    /Mã gửi báo cáo đã được dùng/
+  );
+  assert.equal(state().raw, before);
+});
+
+test('different payloads inside one split batch cannot share a request ID', () => {
+  const { queue, state } = makeQueue();
+  assert.throws(
+    () => queue.enqueueOfflineReports([
+      { ...payloads('dup')[0], product_name: 'A' },
+      { ...payloads('dup')[0], product_name: 'B' }
+    ]),
+    /Mã gửi báo cáo đã được dùng/
+  );
+  assert.equal(state().items.length, 0);
+  assert.equal(state().writes, 0);
+});
+
+test('a silent localStorage write failure never reports queued data as saved', () => {
+  const { queue, state } = makeQueue({ silentWrite: true });
+  assert.throws(
+    () => queue.enqueueOfflineReports(payloads('remaining-2', 'remaining-3')),
+    /Không xác nhận được việc lưu/
+  );
+  assert.equal(state().items.length, 0);
+  assert.equal(state().events, 0);
+});
+
+test('network loss after first successful submission queues only unsent remainder with original request IDs', () => {
+  // The ProcessPage transport submits in order and stages payloads.slice(index)
+  // after a transient error. Exercise the real durable batch queue for that remainder.
+  const batch = payloads('first-accepted', 'second-unknown', 'third-unsent');
+  const { queue, state } = makeQueue();
+  queue.enqueueOfflineReports(batch.slice(1));
+  assert.deepEqual(
+    state().items.map((item) => item.payload.client_request_id),
+    ['second-unknown', 'third-unsent']
+  );
+  assert.equal(state().items.some((item) => item.payload.client_request_id === 'first-accepted'), false);
 });

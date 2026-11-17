@@ -2,6 +2,8 @@ import { getStoredUser } from "../../utils/authStorage";
 import { createEmptyMachineLine, getCurrentLocalDate } from "./processPageConfig";
 import type { DeductionState, FormState, MachineLineState, NgKey, DeductionKey, OperationMode, OperationType } from "./processPageConfig";
 
+export const PROCESS_DRAFT_SAVE_FAILED_EVENT = "ktc:process-draft-save-failed";
+
 export type ProcessDraft = {
   version: 1 | 2 | 3;
   savedAt: number;
@@ -59,6 +61,23 @@ const invalidateLegacyV2Draft = (process: string, workerId: number | null, worke
     localStorage.removeItem(legacyKeyForV2(process, workerId, workerCode));
     localStorage.removeItem(legacyClearMarkerKeyForV2(process, workerId, workerCode));
   } catch { /* storage unavailable */ }
+};
+
+// Browser storage is finite. Store only changed fields instead of copying the
+// full default machine-line schema into every draft. Restore merges defaults.
+const compactMachineLine = (line: MachineLineState): Partial<MachineLineState> => {
+  const defaults = createEmptyMachineLine();
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(line)) {
+    const defaultValue = (defaults as unknown as Record<string, unknown>)[key];
+    if (value === undefined) continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    if (value && typeof value === "object" && !Array.isArray(value) &&
+        Object.keys(value).length === 0) continue;
+    if (Object.is(value, defaultValue)) continue;
+    result[key] = value;
+  }
+  return result as Partial<MachineLineState>;
 };
 
 const DRAFT_CLEAR_SUPPRESS_MS = 1200;
@@ -297,7 +316,7 @@ export function saveProcessDraft(draft: ProcessDraft): void {
       version: 3,
       ownerWorkerId: workerId,
       ownerWorkerCode: workerCode,
-      machineLines: sourceLines.map((line) => ({ ...createEmptyMachineLine(), ...line })),
+      machineLines: sourceLines.map((line) => compactMachineLine(line) as MachineLineState),
       machineCount: Math.max(1, Number(draft.machineCount) || 1, sourceLines.length),
     };
 
@@ -310,8 +329,38 @@ export function saveProcessDraft(draft: ProcessDraft): void {
       };
     }
 
-    localStorage.setItem(keyFor(draft.process, workerId, workerCode), JSON.stringify(ownedDraft));
-  } catch { /* storage unavailable */ }
+    const storageKey = keyFor(draft.process, workerId, workerCode);
+    const previous = localStorage.getItem(storageKey);
+    if (previous !== null) {
+      // Never overwrite a possibly recoverable draft when its JSON is damaged.
+      const parsed = JSON.parse(previous) as ProcessDraft;
+      if (parsed?.version !== 3 || parsed.process !== draft.process ||
+          (parsed.ownerWorkerId != null && Number(parsed.ownerWorkerId) !== workerId) ||
+          (parsed.ownerWorkerCode && String(parsed.ownerWorkerCode).trim() !== workerCode)) {
+        throw new Error("Existing draft is invalid or has a different owner");
+      }
+    }
+    const serialized = JSON.stringify(ownedDraft);
+    localStorage.setItem(storageKey, serialized);
+    if (localStorage.getItem(storageKey) !== serialized) {
+      throw new Error("Draft write verification failed");
+    }
+  } catch (error) {
+    // Do not log the draft itself: it may contain worker and production data.
+    // Keep the previous draft intact and expose only the storage failure reason.
+    const failureName = error instanceof Error ? error.name : "UnknownError";
+    const failureMessage = error instanceof Error ? error.message : String(error);
+    try {
+      console.warn("[KTC draft] Autosave failed", {
+        reason: failureName,
+        message: failureMessage,
+        process: draft.process,
+      });
+    } catch { /* logging must never block the warning event */ }
+    // Autosave cannot throw inside a timer or pagehide. Notify the form once
+    // instead of claiming an unsaved draft will survive a reload.
+    try { window.dispatchEvent(new Event(PROCESS_DRAFT_SAVE_FAILED_EVENT)); } catch { /* unavailable */ }
+  }
 }
 
 export function clearProcessDraft(process: string): void {
@@ -335,4 +384,170 @@ export function hasMeaningfulProcessDraft(draft: ProcessDraft): boolean {
     draft.selectedDeduction?.length || draft.selectedNg?.length ||
     Object.values(draft.extraData || {}).some(Boolean)
   );
+}
+/** Durable async draft store. localStorage is read only for migration. */
+const DB_NAME = "ktc-process-drafts";
+const DB_STORE = "drafts";
+let databasePromise: Promise<IDBDatabase> | null = null;
+
+const openDraftDatabase = (): Promise<IDBDatabase> => {
+  if (typeof indexedDB === "undefined") return Promise.reject(new Error("IndexedDB unavailable"));
+  if (!databasePromise) {
+    databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onversionchange = () => { db.close(); databasePromise = null; };
+        resolve(db);
+      };
+      request.onerror = () => reject(request.error || new Error("IndexedDB open failed"));
+      request.onblocked = () => reject(new Error("IndexedDB upgrade blocked"));
+    }).catch((error) => { databasePromise = null; throw error; });
+  }
+  return databasePromise;
+};
+
+const draftRequest = async <T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> => {
+  const db = await openDraftDatabase();
+  return new Promise<T>((resolve, reject) => {
+    const transaction = db.transaction(DB_STORE, mode);
+    const request = action(transaction.objectStore(DB_STORE));
+    let result: T;
+    request.onsuccess = () => { result = request.result; };
+    transaction.oncomplete = () => resolve(result);
+    transaction.onerror = () => reject(transaction.error || new Error("IndexedDB transaction failed"));
+    transaction.onabort = () => reject(transaction.error || new Error("IndexedDB transaction aborted"));
+  });
+};
+
+const validDraftForOwner = (value: ProcessDraft | null, process: string, workerId: number | null, workerCode: string | null): value is ProcessDraft =>
+  Boolean(value && value.version === 3 && value.process === process &&
+    (value.ownerWorkerId == null || workerId == null || Number(value.ownerWorkerId) === workerId) &&
+    (!value.ownerWorkerCode || !workerCode || String(value.ownerWorkerCode).trim() === workerCode));
+
+const prepareOwnedDraft = (draft: ProcessDraft, workerId: number | null, workerCode: string | null): ProcessDraft => {
+  const lines = Array.isArray(draft.machineLines) ? draft.machineLines : [];
+  const owned = {
+    ...draft, version: 3 as const, ownerWorkerId: workerId, ownerWorkerCode: workerCode,
+    machineLines: lines.map(line => compactMachineLine(line) as MachineLineState),
+    machineCount: Math.max(1, Number(draft.machineCount) || 1, lines.length),
+  };
+  const first = owned.machineLines[0];
+  if (first) owned.form = {
+    ...owned.form,
+    machineNo: String(first.machineCode || owned.form.machineNo || ""),
+    productName: String(first.productCode || owned.form.productName || ""),
+  };
+  return owned;
+};
+
+// Keep IndexedDB operations ordered per worker/process. A completed submission
+// must not be followed by an older in-flight autosave.
+const draftWrites = new Map<string, Promise<void>>();
+const draftEpochs = new Map<string, number>();
+const clearedAtKey = (key: string) => `${key}:last-cleared-at`;
+const clearedAt = (key: string): number => {
+  try { return Number(localStorage.getItem(clearedAtKey(key)) || 0); } catch { return 0; }
+};
+const queueDraftWrite = (key: string, task: () => Promise<void>): Promise<void> => {
+  const previous = draftWrites.get(key) || Promise.resolve();
+  const next = previous.catch(() => undefined).then(task);
+  draftWrites.set(key, next);
+  void next.finally(() => { if (draftWrites.get(key) === next) draftWrites.delete(key); }).catch(() => undefined);
+  return next;
+};
+const notifyDraftSaveFailure = () => {
+  try { window.dispatchEvent(new Event(PROCESS_DRAFT_SAVE_FAILED_EVENT)); } catch { /* noop */ }
+};
+
+export async function loadProcessDraftAsync(process: string): Promise<ProcessDraft | null> {
+  const { workerId, workerCode } = getCurrentWorkerIdentity();
+  if (workerId == null && !workerCode) return null;
+  const key = keyFor(process, workerId, workerCode);
+  // Local backup is written synchronously, including during the debounce window.
+  let backup: ProcessDraft | null = null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw) as ProcessDraft;
+      if (validDraftForOwner(parsed, process, workerId, workerCode)) backup = parsed;
+    }
+  } catch { /* malformed backup must not hide a valid IndexedDB draft */ }
+  let stored: ProcessDraft | null = null;
+  try {
+    stored = (await draftRequest<ProcessDraft | undefined>("readonly", store => store.get(key))) || null;
+  } catch (error) {
+    console.warn("[KTC draft] IndexedDB restore failed", error instanceof Error ? error.name : "UnknownError");
+  }
+  const candidates = [backup, stored].filter((d): d is ProcessDraft =>
+    validDraftForOwner(d, process, workerId, workerCode) &&
+    hasMeaningfulProcessDraft(d) &&
+    Number(d.savedAt || 0) > clearedAt(key));
+  const draft = candidates.sort((a, b) => b.savedAt - a.savedAt)[0];
+  if (!draft) return null;
+  const normalized = normalizeDraftForResume(draft);
+  if (String(process).toLowerCase() === "do" || isDefaultSameDayShiftDraft(normalized)) return normalized;
+  if (!window.confirm(buildDraftResumeMessage(normalized))) {
+    await clearProcessDraftAsync(process);
+    return null;
+  }
+  return normalized;
+}
+
+export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> {
+  const { workerId, workerCode } = getCurrentWorkerIdentity();
+  if (workerId == null && !workerCode) return;
+  const key = keyFor(draft.process, workerId, workerCode);
+  if (isAutosaveSuppressed(draft.process, workerId, workerCode)) return;
+  const epoch = draftEpochs.get(key) || 0;
+  const owned = prepareOwnedDraft({ ...draft, savedAt: Date.now() }, workerId, workerCode);
+  // Either localStorage or IndexedDB is enough to restore this snapshot.
+  // A failure of only one store must not claim the draft was lost.
+  // Never overwrite another worker's saved backup.
+  let backupSaved = false;
+  try {
+    const raw = localStorage.getItem(key);
+    const existing = raw ? JSON.parse(raw) as ProcessDraft : null;
+    if (existing && !validDraftForOwner(existing, draft.process, workerId, workerCode)) {
+      throw new Error("Existing draft belongs to another worker or is invalid");
+    }
+    const serialized = JSON.stringify(owned);
+    localStorage.setItem(key, serialized);
+    backupSaved = localStorage.getItem(key) === serialized;
+    if (!backupSaved) throw new Error("Local draft write verification failed");
+  } catch (error) {
+    console.warn("[KTC draft] Backup save failed", error instanceof Error ? error.name : "UnknownError");
+  }
+  await queueDraftWrite(key, async () => {
+    if ((draftEpochs.get(key) || 0) !== epoch || owned.savedAt <= clearedAt(key)) return;
+    try {
+      await draftRequest("readwrite", store => store.put(owned, key));
+    } catch (error) {
+      console.warn("[KTC draft] IndexedDB save failed", error instanceof Error ? error.name : "UnknownError");
+      // Warn only if both independent storage mechanisms failed.
+      if (!backupSaved) notifyDraftSaveFailure();
+    }
+  });
+}
+
+export async function clearProcessDraftAsync(process: string): Promise<void> {
+  const { workerId, workerCode } = getCurrentWorkerIdentity();
+  if (workerId == null && !workerCode) return;
+  const key = keyFor(process, workerId, workerCode);
+  draftEpochs.set(key, (draftEpochs.get(key) || 0) + 1);
+  // Tombstone survives reload and prevents a failed delete from resurrecting
+  // an already-submitted report. It does not block genuinely newer drafts.
+  try { localStorage.setItem(clearedAtKey(key), String(Date.now())); } catch { /* noop */ }
+  clearProcessDraft(process);
+  await queueDraftWrite(key, async () => {
+    try {
+      await draftRequest("readwrite", store => store.delete(key));
+    } catch (error) {
+      console.warn("[KTC draft] IndexedDB clear failed", error instanceof Error ? error.name : "UnknownError");
+    }
+  });
 }

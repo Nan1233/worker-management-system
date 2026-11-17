@@ -1,7 +1,6 @@
 import {
     useCallback,
     useEffect,
-    useLayoutEffect,
     useMemo,
     useRef,
     useState
@@ -33,24 +32,18 @@ import type {
 import {
     resolveProductStandard
 } from "../../services/masterDataService";
-import type {
-    MachineOption,
-    ProductStandardOption
-} from "../../services/masterDataService";
+import type { ProductStandardOption } from "../../services/masterDataService";
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
-import type { ProcessDraft } from "./processDraftStorage";
 import {
-    clearProcessDraft,
-    hasMeaningfulProcessDraft,
-    loadProcessDraft,
-    saveProcessDraft,
+    clearProcessDraftAsync,
+    PROCESS_DRAFT_SAVE_FAILED_EVENT,
 } from "./processDraftStorage";
-import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
 import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
-import { enqueueOfflineReports, isTransientNetworkFailure } from "../../services/offlineReportQueue";
+import { isTransientNetworkFailure } from "../../services/offlineReportQueue";
+import { queueRemainingMachineReports, shouldQueuePendingMachineReports } from "./processMachineReportQueue";
 import { workerCanAccessProcess } from "../../utils/processAccess";
 import { getProcessFormSchema } from "./processFormSchemas";
 
@@ -72,7 +65,6 @@ import {
     initialDeduction,
     initialForm,
     processMap,
-    shiftLocalDate,
 } from "./processPageConfig";
 import { processExtraFields } from "./processExtraFields";
 import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";
@@ -81,7 +73,6 @@ import ProcessWorkerHeader from "./components/ProcessWorkerHeader";
 import ProcessQualitySection from "./components/ProcessQualitySection";
 import ProcessBasicInfoSection from "./components/ProcessBasicInfoSection";
 import ProcessSubmitActions from "./components/ProcessSubmitActions";
-import { filterProductsForSelection, toProductAutocompleteOptions } from "./productSuggestionRules";
 import {
     filterProductsForProcessScope,
     getInitialOperationMode,
@@ -100,10 +91,9 @@ import {
     aggregateMachineLines,
     getMachineNgTotal,
     getMaxMachineCount,
-    toggleMachineDefectLine,
-    updateMachineDefectLine,
 } from "./processMachineLines";
-import { validateMachineLines } from "./processPageValidation";
+import { validateMachineLines, validateSharedReportNumbers } from "./processPageValidation";
+import { focusProcessValidationTarget } from "./processValidationFocus";
 import {
     calculateDeductionTimeSummary,
     getProspectiveTotalWorkMinutes,
@@ -119,21 +109,32 @@ import {
 } from "./processQualityLogic";
 
 import {
-    resolveWorkDateForShiftChange,
     validateWorkerWorkDate,
 } from "./processWorkDateLogic";
 
 import {
+    applyProcessFormChange,
     clearZeroNumberField,
-    updateTotalTimeField,
 } from "./processInputLogic";
 import {
     toDuplicatePrompt,
 } from "./processDuplicateReportLogic";
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
+import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
-import { getCachedMachines } from "../../services/masterDataCache";
+import { useProcessProductOptions } from "./useProcessProductOptions";
+import { useMachineLineStandardLookup } from "./useMachineLineStandardLookup";
+import { useProcessDraftAutosave } from "./useProcessDraftAutosave";
+import { useProcessDraftRestore } from "./useProcessDraftRestore";
+import {
+    patchMachineLineItem,
+    resizeMachineLineItems,
+    toggleMachineLineDefect,
+    updateMachineLineDefectValue,
+} from "./processMachineLineState";
+import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
+import { filterProductsForSelection } from "./productSuggestionRules";
 
 import type {
     DeductionKey,
@@ -156,10 +157,20 @@ function ProcessPage() {
     const duplicateForceRequestIdRef = useRef<string | null>(null);
     const workerInfoRequestSeqRef = useRef(0);
     const masterDataRequestSeqRef = useRef(0);
-    const machineStandardRequestSeqRef = useRef<Record<number, number>>({});
     const isRestoringDraftRef = useRef(false);
     const draftSaveTimerRef = useRef<number | null>(null);
     const resetVersionRef = useRef(0);
+    const draftSaveWarningShownRef = useRef(false);
+    useEffect(() => {
+        const onDraftSaveFailed = () => {
+            if (draftSaveWarningShownRef.current) return;
+            draftSaveWarningShownRef.current = true;
+            showToast("Không thể lưu bản nháp trên thiết bị. Hãy giữ trang này mở và kiểm tra bộ nhớ trước khi rời trang.", "warning");
+        };
+        window.addEventListener(PROCESS_DRAFT_SAVE_FAILED_EVENT, onDraftSaveFailed);
+        return () => window.removeEventListener(PROCESS_DRAFT_SAVE_FAILED_EVENT, onDraftSaveFailed);
+    }, [showToast]);
+
 
     const navigate =
         useNavigate();
@@ -221,39 +232,6 @@ function ProcessPage() {
         loadingMasterData,
     } = useProcessMasterData(processInfo.id, processCode);
 
-    const [relatedMaiMachines, setRelatedMaiMachines] = useState<MachineOption[]>([]);
-    const [loadingRelatedMaiMachines, setLoadingRelatedMaiMachines] = useState(false);
-
-    useEffect(() => {
-        let active = true;
-        if (processCode !== "DO") {
-            setRelatedMaiMachines([]);
-            setLoadingRelatedMaiMachines(false);
-            return () => { active = false; };
-        }
-        setLoadingRelatedMaiMachines(true);
-        void getCachedMachines(2)
-            .then((machines) => {
-                if (!active) return;
-                setRelatedMaiMachines(machines.filter((machine) => String(machine.machine_code || "").trim()));
-            })
-            .catch(() => {
-                if (active) setRelatedMaiMachines([]);
-            })
-            .finally(() => {
-                if (active) setLoadingRelatedMaiMachines(false);
-            });
-        return () => { active = false; };
-    }, [processCode]);
-
-    const extraFieldOptions = useMemo(() => ({
-        grinding_machine_no: relatedMaiMachines.map((machine) => ({
-            value: machine.machine_code,
-            label: machine.machine_name
-                ? `${machine.machine_code} — ${machine.machine_name}`
-                : machine.machine_code,
-        })),
-    }), [relatedMaiMachines]);
 
     useEffect(() => {
         masterDataRequestSeqRef.current += 1;
@@ -266,7 +244,7 @@ const machineAutocompleteOptions =
 
             machineOptions.map(
                 (
-                    machine: MachineOption
+                    machine: (typeof machineOptions)[number]
                 ) => ({
 
                     value:
@@ -309,45 +287,19 @@ const machineAutocompleteOptions =
     const usesAnyMachine = usesMultiMachineLines || usesSingleMachine;
     const usesMachineLineAccounting = usesMultiMachineLines;
 
-    const productAutocompleteOptions = useMemo<AutocompleteOption[]>(() => {
-        // MAI: khi chưa chọn máy, hiển thị hợp nhất mã sản phẩm của TẤT CẢ máy
-        // trong công đoạn (danh sách product_standards của MAI). Khi đã chọn máy
-        // ở từng dòng, getMachineProductOptions sẽ lọc theo máy đó.
-        if (["MAI", "DO"].includes(processCode) && !String(form.machineNo || "").trim()) {
-            return toProductAutocompleteOptions(scopedProductOptions);
-        }
-        const effectiveMode: OperationMode = usesAnyMachine ? "MACHINE" : "MANUAL";
-        const filtered = filterProductsForSelection({
-            products: scopedProductOptions,
-            mode: effectiveMode,
-            machineCode: usesSingleMachine ? form.machineNo : undefined,
-            machineOptions,
-            useEncodedMachineSuffix: processCode === "GC",
-        });
-        return toProductAutocompleteOptions(filtered);
-    }, [scopedProductOptions, usesAnyMachine, usesSingleMachine, form.machineNo, machineOptions, processCode]);
-
-    const getMachineProductOptions = useCallback((machineCode: string): ProductStandardOption[] => {
-        // Mài cho phép nhập sản phẩm không cần gắn máy. Khi chưa chọn máy,
-        // hiển thị toàn bộ sản phẩm thuộc phạm vi công đoạn; khi đã chọn máy
-        // vẫn lọc theo mapping/định mức của máy như các công đoạn khác.
-        if (["MAI", "DO", "CAN"].includes(processCode) && !String(machineCode || "").trim()) {
-            return scopedProductOptions;
-        }
-        return filterProductsForSelection({
-            products: scopedProductOptions,
-            mode: "MACHINE",
-            machineCode,
-            machineOptions,
-            useEncodedMachineSuffix: processCode === "GC",
-        });
-    }, [scopedProductOptions, machineOptions, processCode]);
-
-    const getMachineProductOptionsForLine = useCallback((line: MachineLineState) =>
-        getMachineProductOptions(line.machineCode), [getMachineProductOptions]);
-
-    const getMachineProductAutocompleteOptions = useCallback((machineCode: string): AutocompleteOption[] =>
-        toProductAutocompleteOptions(getMachineProductOptionsForLine({ machineCode } as MachineLineState)), [getMachineProductOptionsForLine]);
+    const {
+        productAutocompleteOptions,
+        getMachineProductOptions,
+        getMachineProductOptionsForLine,
+        getMachineProductAutocompleteOptions,
+    } = useProcessProductOptions({
+        processCode,
+        products: scopedProductOptions,
+        machineOptions,
+        selectedMachine: form.machineNo,
+        usesAnyMachine,
+        usesSingleMachine,
+    });
     useEffect(() => {
         if (isRestoringDraftRef.current) return;
         if (!isCutLongProcess) return;
@@ -381,15 +333,8 @@ const machineAutocompleteOptions =
         }
     }, [usesSingleMachine]);
 
-    // Cán và Ép chỉ cho phép một máy trong mỗi báo cáo, kể cả khi khôi phục bản nháp cũ.
-    const isSingleMachineReport = false;
-    const maxMachineCount = isSingleMachineReport ? 1 : getMaxMachineCount(processCode, machineLines, machineOptions);
-
-    useEffect(() => {
-        if (!isSingleMachineReport) return;
-        setMachineCount((current) => current === 1 ? current : 1);
-        setMachineLines((current) => current.length <= 1 ? current : current.slice(0, 1));
-    }, [isSingleMachineReport]);
+    // Machine-count limits are enforced by the shared domain helper.
+    const maxMachineCount = getMaxMachineCount(processCode, machineLines, machineOptions);
 
     useEffect(() => {
         if (machineCount > maxMachineCount) {
@@ -401,80 +346,26 @@ const machineAutocompleteOptions =
     const resizeMachineLines = (count: number) => {
         const normalizedCount = Math.min(maxMachineCount, Math.max(1, count));
         setMachineCount(normalizedCount);
-        setMachineLines((current) =>
-            Array.from({ length: normalizedCount }, (_, index) => current[index] || createEmptyMachineLine())
-        );
+        setMachineLines((current) => resizeMachineLineItems(current, count, maxMachineCount));
     };
 
     const updateMachineLine = (index: number, patch: Partial<MachineLineState>) => {
-        setMachineLines((current) => current.map((line, lineIndex) =>
-            lineIndex === index ? { ...line, ...patch } : line
-        ));
+        setMachineLines((current) => patchMachineLineItem(current, index, patch));
     };
 
-    const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {
-        const normalizedMachine = machineCode.trim();
-        const normalizedProduct = productCode.trim();
-        const requestSeq = (machineStandardRequestSeqRef.current[index] || 0) + 1;
-        machineStandardRequestSeqRef.current[index] = requestSeq;
-        const isCurrentRequest = () => machineStandardRequestSeqRef.current[index] === requestSeq;
-        // Mài cho phép không chọn máy nhưng vẫn phải tra định mức theo mã sản phẩm.
-        // resolveProductStandard hỗ trợ machineCode rỗng và lấy định mức mặc định của sản phẩm.
-        if (!normalizedProduct || (!normalizedMachine && !["MAI", "DO", "CAN"].includes(processCode))) {
-            updateMachineLine(index, {
-                standardOutputPerHour: 0,
-                standardTimeSeconds: null,
-                standardSource: null,
-                standardLoading: false,
-                standardError: ""
-            });
-            return;
-        }
-
-        updateMachineLine(index, { standardLoading: true, standardError: "" });
-        try {
-            const resolved = await getCachedResolvedProductStandard(
-                processInfo.id,
-                normalizedMachine,
-                normalizedProduct,
-                () => resolveProductStandard(
-                    processInfo.id,
-                    normalizedMachine,
-                    normalizedProduct,
-                    form.workDate
-                )
-            );
-            if (!isCurrentRequest()) return;
-            const output = Number(resolved.resolved_output_per_hour || 0);
-            updateMachineLine(index, {
-                standardOutputPerHour: Number.isFinite(output) ? output : 0,
-                standardTimeSeconds: resolved.standard_time_seconds,
-                standardSource: resolved.standard_source,
-                standardLoading: false,
-                standardError: output > 0 ? "" : "Định mức bằng 0"
-            });
-        } catch (error) {
-            if (!isCurrentRequest()) return;
-            updateMachineLine(index, {
-                standardOutputPerHour: 0,
-                standardTimeSeconds: null,
-                standardSource: null,
-                standardLoading: false,
-                standardError: getApiError(error, "Không lấy được định mức").message
-            });
-        }
-    };
+    const { refreshMachineLineStandard } = useMachineLineStandardLookup({
+        processCode,
+        processId: processInfo.id,
+        workDate: form.workDate,
+        updateMachineLine,
+    });
 
     const toggleMachineDefect = (lineIndex: number, key: string) => {
-        setMachineLines((current) => current.map((line, index) =>
-            index === lineIndex ? toggleMachineDefectLine(line, key) : line
-        ));
+        setMachineLines((current) => toggleMachineLineDefect(current, lineIndex, key));
     };
 
     const updateMachineDefectValue = (lineIndex: number, key: string, value: string) => {
-        setMachineLines((current) => current.map((line, index) =>
-            index === lineIndex ? updateMachineDefectLine(line, key, value) : line
-        ));
+        setMachineLines((current) => updateMachineLineDefectValue(current, lineIndex, key, value));
     };
 
     useEffect(() => {
@@ -483,24 +374,7 @@ const machineAutocompleteOptions =
         const aggregate = aggregateMachineLines(machineLines, activeNgOptions);
 
         setSelectedNg(aggregate.selectedNg);
-        setForm((current) => {
-            const next: FormState = {
-                ...current,
-                productName: aggregate.firstProductCode,
-                standardOutput: machineLines.length
-                    ? String(aggregate.totalStandardOutput)
-                    : "0",
-                actualOutput: String(aggregate.totalOk + aggregate.totalNg),
-                ttOk: String(aggregate.totalOk),
-                ttNg: String(aggregate.totalNg)
-            };
-
-            activeNgOptions.forEach((item) => {
-                next[item.key] = String(aggregate.defects[item.key] || 0);
-            });
-
-            return next;
-        });
+        setForm((current) => applyMachineAggregateToForm(current, aggregate, machineLines.length, activeNgOptions));
     }, [usesMultiMachineLines, machineLines, activeNgOptions]);
 
     useEffect(() => {
@@ -602,6 +476,7 @@ const machineAutocompleteOptions =
         submitting,
         setSubmitting
     ] = useState(false);
+    const [submitValidationError, setSubmitValidationError] = useState("");
 
     const {
         duplicatePrompt,
@@ -611,7 +486,7 @@ const machineAutocompleteOptions =
     // The duplicate prompt is bound to the entire form snapshot that produced its payload.
     // Include machine lines, deductions and operation modes too; checking only parent totals
     // could allow a stale duplicate payload after a machine-line edit.
-    const getDuplicateFormSignature = useCallback(() => JSON.stringify({
+    const getDuplicateFormSignature = useCallback(() => createDuplicateFormSignature({
         processId: processInfo.id,
         process,
         form,
@@ -650,7 +525,13 @@ const machineAutocompleteOptions =
             window.clearTimeout(draftSaveTimerRef.current);
             draftSaveTimerRef.current = null;
         }
-        clearProcessDraft(process);
+        isRestoringDraftRef.current = true;
+                    resetVersionRef.current += 1;
+                    if (draftSaveTimerRef.current !== null) {
+                        window.clearTimeout(draftSaveTimerRef.current);
+                        draftSaveTimerRef.current = null;
+                    }
+                    void clearProcessDraftAsync(process);
         setDuplicatePrompt(null);
         pendingSplitPayloadsRef.current = [];
         duplicatePrimaryCompletedRef.current = false;
@@ -689,17 +570,16 @@ const machineAutocompleteOptions =
             const pendingCount = pendingSplitPayloadsRef.current.length;
             // Persist every remaining machine report BEFORE navigating away.
             // A browser reload must not discard the rest of this split submit.
-            if (pendingCount) enqueueOfflineReports(pendingSplitPayloadsRef.current);
+            if (pendingCount) queueRemainingMachineReports(pendingSplitPayloadsRef.current);
             showToast(pendingCount ? "Đã xác nhận báo cáo trùng. Các báo cáo máy còn lại đã lưu an toàn và đang đồng bộ." : "Đã tạo báo cáo trùng theo xác nhận.", pendingCount ? "warning" : "success");
             finishDuplicateAction();
         } catch (error: unknown) {
             // After the primary report succeeded, preserve the unsent split reports
             // across a page reload when connectivity becomes unreliable. Their
             // original client_request_id values make offline retries idempotent.
-            if (duplicatePrimaryCompletedRef.current && isTransientNetworkFailure(error)
-                && !(axios.isAxiosError(error) && error.response?.status === 429)) {
+            if (shouldQueuePendingMachineReports(duplicatePrimaryCompletedRef.current, error)) {
                 try {
-                    enqueueOfflineReports(pendingSplitPayloadsRef.current);
+                    queueRemainingMachineReports(pendingSplitPayloadsRef.current);
                     showToast("Báo cáo chính đã lưu. Các báo cáo còn lại đã được đưa vào hàng đợi và sẽ tự đồng bộ khi có mạng.", "warning");
                     finishDuplicateAction();
                     return;
@@ -731,14 +611,13 @@ const machineAutocompleteOptions =
             }
             const pendingCount = pendingSplitPayloadsRef.current.length;
             // Save the complete remainder atomically before clearing the form.
-            if (pendingCount) enqueueOfflineReports(pendingSplitPayloadsRef.current);
+            if (pendingCount) queueRemainingMachineReports(pendingSplitPayloadsRef.current);
             showToast(pendingCount ? "Đã cập nhật báo cáo chính. Các báo cáo máy còn lại đã lưu an toàn và đang đồng bộ." : "Đã cập nhật báo cáo hiện có.", pendingCount ? "warning" : "success");
             finishDuplicateAction();
         } catch (error: unknown) {
-            if (duplicatePrimaryCompletedRef.current && isTransientNetworkFailure(error)
-                && !(axios.isAxiosError(error) && error.response?.status === 429)) {
+            if (shouldQueuePendingMachineReports(duplicatePrimaryCompletedRef.current, error)) {
                 try {
-                    enqueueOfflineReports(pendingSplitPayloadsRef.current);
+                    queueRemainingMachineReports(pendingSplitPayloadsRef.current);
                     showToast("Báo cáo chính đã cập nhật. Các báo cáo còn lại đã lưu vào hàng đợi offline.", "warning");
                     finishDuplicateAction();
                     return;
@@ -757,103 +636,25 @@ const machineAutocompleteOptions =
     // Contract: reportType: duplicateResponse.data?.report_type === "approved" is the approved-state discriminator.
 
 
-useLayoutEffect(() => {
-        const draft = loadProcessDraft(process);
-        if (!draft) return;
-
-        // Restore the draft in a layout effect so the initialization effects
-        // below cannot reset the restored machine lines during the same mount.
-        isRestoringDraftRef.current = true;
-
-        setForm((current) => ({
-            ...current,
-            ...draft.form,
-            workerCode: current.workerCode,
-            workerName: current.workerName,
-            trainingPercent: current.trainingPercent,
-        }));
-        setDeductions(draft.deductions);
-        setSelectedDeduction(draft.selectedDeduction as DeductionKey[]);
-        setSelectedNg(draft.selectedNg as NgKey[]);
-        setMachineLines(
-            draft.machineLines.length
-                ? draft.machineLines
-                : [createEmptyMachineLine()]
-        );
-        setMachineCount(Math.max(1, draft.machineCount));
-        setOperationType(draft.operationType);
-        setIsCvkMode(Boolean(draft.isCvkMode || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(String(draft.form?.workType || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, ""))));
-        setCutExecutionMode(draft.cutExecutionMode === "NON_AUTO" ? "NON_AUTO" : "AUTO");
-        setOperationMode(draft.operationMode);
-        setExtraData(draft.extraData || {});
-
-        window.setTimeout(() => {
-            isRestoringDraftRef.current = false;
-        }, 0);
-    }, [process]);
-
-    // Persist DO immediately on page refresh/close, including edits made within
-    // the 700ms autosave debounce window.
-    const doDraftSnapshotRef = useRef<ProcessDraft | null>(null);
-    useEffect(() => {
-        doDraftSnapshotRef.current = {
-            version: 3, savedAt: Date.now(), process, form, deductions,
-            selectedDeduction, selectedNg, machineLines, machineCount,
-            operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
-        };
-    }, [
-        process, form, deductions, selectedDeduction, selectedNg, machineLines,
-        machineCount, operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
-    ]);
-    useEffect(() => {
-        if (processCode !== "DO") return;
-        const persistOnLeave = () => {
-            if (submitting || isRestoringDraftRef.current) return;
-            const draft = doDraftSnapshotRef.current;
-            if (draft && hasMeaningfulProcessDraft(draft)) saveProcessDraft(draft);
-        };
-        window.addEventListener("pagehide", persistOnLeave);
-        return () => window.removeEventListener("pagehide", persistOnLeave);
-    }, [processCode, submitting]);
-
-    useEffect(() => {
-        if (loadingWorker || loadingMasterData || submitting) return;
-
-        const resetVersion = resetVersionRef.current;
-        const snapshot = {
-            version: 1 as const,
-            savedAt: Date.now(),
-            process,
-            form,
-            deductions,
-            selectedDeduction,
-            selectedNg,
-            machineLines,
-            machineCount,
-            operationType,
-            operationMode,
-            isCvkMode,
-            cutExecutionMode,
-            extraData,
-        };
-
-        const timer = window.setTimeout(() => {
-            if (resetVersionRef.current !== resetVersion) return;
-            if (hasMeaningfulProcessDraft(snapshot)) {
-                saveProcessDraft(snapshot);
-            } else {
-                clearProcessDraft(process);
-            }
-            draftSaveTimerRef.current = null;
-        }, 700);
-        draftSaveTimerRef.current = timer;
-
-        return () => {
-            window.clearTimeout(timer);
-            if (draftSaveTimerRef.current === timer) draftSaveTimerRef.current = null;
-        };
-    }, [
+    useProcessDraftRestore({
         process,
+        isRestoringDraftRef,
+        setForm,
+        setDeductions,
+        setSelectedDeduction,
+        setSelectedNg,
+        setMachineLines,
+        setMachineCount,
+        setOperationType,
+        setIsCvkMode,
+        setCutExecutionMode,
+        setOperationMode,
+        setExtraData,
+    });
+
+    useProcessDraftAutosave({
+        process,
+        processCode,
         form,
         deductions,
         selectedDeduction,
@@ -868,7 +669,10 @@ useLayoutEffect(() => {
         loadingWorker,
         loadingMasterData,
         submitting,
-    ]);
+        isRestoringDraftRef,
+        draftSaveTimerRef,
+        resetVersionRef,
+    });
 
     const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
@@ -1035,88 +839,11 @@ useLayoutEffect(() => {
     // =====================================================
 
     const handleChange = (
-
-        event:
-            React.ChangeEvent<
-                HTMLInputElement
-                |
-                HTMLSelectElement
-                |
-                HTMLTextAreaElement
-            >
-
+        event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
     ) => {
-
-        const {
-            name,
-            value
-        } = event.target;
-
-
-        setForm((prev) => {
-
-            const next = {
-
-                ...prev,
-
-                [name]:
-                    value
-
-            } as FormState;
-
-
-            /*
-                Ca C làm qua đêm và thuộc ngày sản xuất hôm trước.
-                Khi chuyển sang ca C: lùi ngày 1 ngày.
-                Khi rời ca C: trả ngày về 1 ngày để tránh bị lệch khi chọn lại ca.
-            */
-
-            if (name === "shift") {
-                next.workDate = resolveWorkDateForShiftChange({
-                    currentWorkDate: prev.workDate,
-                    previousShift: prev.shift,
-                    nextShift: value,
-                    shiftDate: shiftLocalDate,
-                    clampDate: clampWorkerWorkDate,
-                });
-            }
-
-
-            /*
-                Khi thay đổi TT OK hoặc TT NG,
-                tự động tính tổng sản phẩm thực tế.
-            */
-
-            if (
-                name === "ttOk"
-                ||
-                name === "ttNg"
-            ) {
-
-                next.actualOutput = String(calculateActualOutput(next));
-
-            }
-
-
-            /*
-                Khi thay đổi tổng thời gian,
-                tự tính thời gian thực tế:
-
-                actualTime =
-                totalTime - deductionTime
-            */
-
-            if (name === "totalTime") {
-                return updateTotalTimeField(next, value);
-            }
-
-
-            return next;
-
-        });
-
+        const { name, value } = event.target;
+        setForm((prev) => applyProcessFormChange(prev, name, value, calculateActualOutput));
     };
-
 
     // =====================================================
     // CHỈ CHO PHÉP NHẬP SỐ THẬP PHÂN
@@ -1408,6 +1135,7 @@ const updateDeductionValue = (
     // =====================================================
 
     const validateForm = (): string => {
+        if (loadingMasterData) return "Danh mục sản phẩm, máy hoặc lỗi NG đang tải. Vui lòng chờ hoàn tất.";
         if (
             loadingWorker
         ) {
@@ -1438,12 +1166,24 @@ const updateDeductionValue = (
         if (workDateError) return workDateError;
 
 
-        if (
-            !form.shift
-        ) {
-
-            return "Vui lòng chọn ca làm việc";
-
+        if (!["A", "B", "C", "D"].includes(String(form.shift || "").trim().toUpperCase())) {
+            return "Ca làm việc phải thuộc A, B, C hoặc D";
+        }
+        const sharedError = validateSharedReportNumbers({
+            form,
+            deductions,
+            activeNgOptions,
+            selectedNg,
+            selectedDeduction,
+            usesMachineLineAccounting,
+            isCvkMode,
+        });
+        if (sharedError) return sharedError;
+        if (selectedNg.includes("__otherNg") && !String(form.otherNgName || "").trim()) return "Vui lòng nhập tên NG khác trước khi nhập số lượng";
+        if (selectedDeduction.includes("__otherDeduction") && !String(form.otherDeductionName || "").trim()) return "Vui lòng nhập lý do trừ giờ khác trước khi nhập số phút";
+        for (const [index, line] of machineLines.entries()) {
+            if (line.selectedDefects?.includes("__otherNg") && !String(line.otherNgName || "").trim()) return `Dòng máy ${index + 1}: vui lòng nhập tên NG khác`;
+            if (line.selectedDeductions?.includes("__otherDeduction") && !String(line.otherDeductionName || "").trim()) return `Dòng máy ${index + 1}: vui lòng nhập lý do trừ giờ khác`;
         }
 
 
@@ -1491,8 +1231,8 @@ const updateDeductionValue = (
 
 
         if (!usesMachineLineAccounting) {
-            if (parseFlexibleTime(form.actualTime) <= 0) {
-                return "Thời gian làm việc thực tế phải lớn hơn 0";
+            if (!Number.isFinite(parseFlexibleTime(form.actualTime)) || parseFlexibleTime(form.actualTime) <= 0) {
+                return "Thời gian làm việc thực tế phải là số hợp lệ lớn hơn 0";
             }
 
             if (Number(form.actualMinutes || 0) > 59) {
@@ -1501,11 +1241,14 @@ const updateDeductionValue = (
 
             const actualMinutes = Math.round(parseFlexibleTime(form.actualTime) * 60);
             const deductionMinutes = Math.round(parseFlexibleTime(form.deductionTime) * 60);
+            if (!Number.isFinite(deductionMinutes) || deductionMinutes < 0) {
+                return "Thời gian trừ không hợp lệ";
+            }
             if (actualMinutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) {
                 return "Thời gian thực tế + thời gian trừ không được vượt quá 12 giờ";
             }
-            if (parseFlexibleTime(form.totalTime) > 12) {
-                return "Tổng thời gian không được vượt quá 12 giờ";
+            if (!Number.isFinite(parseFlexibleTime(form.totalTime)) || parseFlexibleTime(form.totalTime) < 0 || parseFlexibleTime(form.totalTime) > 12) {
+                return "Tổng thời gian phải từ 0 đến 12 giờ";
             }
         }
 
@@ -1571,14 +1314,6 @@ const updateDeductionValue = (
             return `Vui lòng nhập ${missingExtraField.label}`;
         }
 
-        const relatedGrindingMachine = String(extraData.grinding_machine_no || "").trim();
-        if (processCode === "DO" && relatedGrindingMachine) {
-            if (loadingRelatedMaiMachines) return "Đang tải danh mục máy Mài, vui lòng chờ";
-            if (!relatedMaiMachines.some((machine) => machine.machine_code.trim().toUpperCase() === relatedGrindingMachine.toUpperCase())) {
-                return "Máy Mài liên quan không còn trong danh mục hoạt động. Vui lòng chọn lại";
-            }
-        }
-
         return "";
 
     };
@@ -1588,31 +1323,8 @@ const updateDeductionValue = (
     // GỬI BÁO CÁO
     // =====================================================
 
-    const focusValidationTarget = (message: string) => {
-        const normalized = message.toLowerCase();
-        let selector = "";
-
-        if (normalized.includes("ngày làm việc")) selector = "#workerWorkDate";
-        else if (normalized.includes("ca làm việc")) selector = 'input[name="shift"]';
-        else if (normalized.includes("sản phẩm")) selector = usesMultiMachineLines ? '#machineProduct-0' : '#productName';
-        else if (normalized.includes("máy")) selector = usesMultiMachineLines ? '#machineNo-0' : '#machineNo';
-        else if (normalized.includes("thời gian") || normalized.includes("số phút")) selector = '.worker-time-parts input';
-        else if (normalized.includes("tt ok") || normalized.includes("sản lượng")) selector = '#ttOk';
-        else if (/\\btt ng\\b|\\blỗi ng\\b|\\btổng ng\\b/i.test(normalized)) selector = '#ttNg';
-
-        // Match NG as a separate business abbreviation, not the letters inside
-        // "ngày", "ngừng" or "đang"; otherwise unrelated validation errors
-        // unexpectedly expand the quality panel on mobile.
-        if (/(?:^|[^a-z])(?:tt ng|lỗi ng|tổng ng|ng)(?:$|[^a-z])/i.test(normalized)) setShowNg(true);
-        if (normalized.includes("trừ")) setShowDeduction(true);
-
-        if (!selector) return;
-        window.setTimeout(() => {
-            const element = document.querySelector<HTMLElement>(selector);
-            element?.focus({ preventScroll: true });
-            element?.scrollIntoView({ behavior: "smooth", block: "center" });
-        }, 30);
-    };
+    const focusValidationTarget = (message: string) =>
+        focusProcessValidationTarget(message, usesMultiMachineLines, setShowNg, setShowDeduction);
 
     const handleSubmit =
         async () => {
@@ -1622,6 +1334,7 @@ const updateDeductionValue = (
             const validationMessage = validateForm();
 
             if (validationMessage) {
+                setSubmitValidationError(validationMessage);
                 showToast(validationMessage, "warning");
                 focusValidationTarget(validationMessage);
                 return;
@@ -1629,6 +1342,7 @@ const updateDeductionValue = (
 
 
             if (submitLockRef.current) return;
+            setSubmitValidationError("");
             submitLockRef.current = true;
             clientRequestIdRef.current ||= createClientRequestId();
 
@@ -1656,9 +1370,15 @@ const updateDeductionValue = (
                 });
 
                 if (!navigator.onLine) {
-                    enqueueOfflineReports(payloads);
+                    queueRemainingMachineReports(payloads);
                     showToast("Đang mất mạng. Các báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
-                    clearProcessDraft(process);
+                    isRestoringDraftRef.current = true;
+                    resetVersionRef.current += 1;
+                    if (draftSaveTimerRef.current !== null) {
+                        window.clearTimeout(draftSaveTimerRef.current);
+                        draftSaveTimerRef.current = null;
+                    }
+                    void clearProcessDraftAsync(process);
                     clientRequestIdRef.current = null;
                     window.setTimeout(() => navigate("/worker", { replace: true }), 900);
                     return;
@@ -1690,9 +1410,15 @@ const updateDeductionValue = (
                             }
                         }
                         if (isTransientNetworkFailure(error)) {
-                            enqueueOfflineReports(payloads.slice(index));
+                            queueRemainingMachineReports(payloads.slice(index));
                             showToast("Kết nối Internet bị gián đoạn. Các báo cáo còn lại đã được lưu trên thiết bị và sẽ tự gửi khi có mạng.", "warning");
-                            clearProcessDraft(process);
+                            isRestoringDraftRef.current = true;
+                    resetVersionRef.current += 1;
+                    if (draftSaveTimerRef.current !== null) {
+                        window.clearTimeout(draftSaveTimerRef.current);
+                        draftSaveTimerRef.current = null;
+                    }
+                    void clearProcessDraftAsync(process);
                             clientRequestIdRef.current = null;
                             window.setTimeout(() => navigate("/worker", { replace: true }), 900);
                             return;
@@ -1715,7 +1441,13 @@ const updateDeductionValue = (
 
                 pendingSplitPayloadsRef.current = [];
                 showToast("Lưu báo cáo thành công. Các báo cáo đã được gửi chờ duyệt.", "success");
-                clearProcessDraft(process);
+                isRestoringDraftRef.current = true;
+                    resetVersionRef.current += 1;
+                    if (draftSaveTimerRef.current !== null) {
+                        window.clearTimeout(draftSaveTimerRef.current);
+                        draftSaveTimerRef.current = null;
+                    }
+                    void clearProcessDraftAsync(process);
                 clientRequestIdRef.current = null;
                 window.setTimeout(() => navigate("/worker", { replace: true }), 900);
 
@@ -1752,6 +1484,7 @@ const updateDeductionValue = (
             showToast("Một phần báo cáo đã gửi thành công. Hãy gửi nốt phần còn lại trước khi làm mới biểu mẫu.", "warning");
             return;
         }
+        if (submitLockRef.current || submitting) return;
         const hasEnteredData = Boolean(
             form.productName.trim()
             || form.machineNo.trim()
@@ -1781,7 +1514,7 @@ const updateDeductionValue = (
             window.clearTimeout(draftSaveTimerRef.current);
             draftSaveTimerRef.current = null;
         }
-        clearProcessDraft(process);
+        void clearProcessDraftAsync(process);
 
         setForm((prev) => ({
 
@@ -1809,6 +1542,9 @@ const updateDeductionValue = (
         }));
 
 
+        setSubmitValidationError("");
+        clientRequestIdRef.current = null;
+        duplicateForceRequestIdRef.current = null;
         setDeductions(
             initialDeduction
         );
@@ -1901,12 +1637,10 @@ const updateDeductionValue = (
                     updateMachineDefectValue={updateMachineDefectValue}
                 />
 
-                {processCode !== "CAN" && <ProcessExtraFieldsSection
+                {processCode !== "CAN" && processCode !== "DO" && <ProcessExtraFieldsSection
                     fields={currentExtraFields}
                     extraData={extraData}
                     setExtraData={setExtraData}
-                    fieldOptions={extraFieldOptions}
-                    loadingFieldOptions={loadingRelatedMaiMachines}
                 />}
 
                 {!usesMachineLineAccounting && (
@@ -1922,6 +1656,7 @@ const updateDeductionValue = (
                         onToggleDeduction={handleToggleDeduction}
                         onUpdateDeduction={updateDeductionValue}
                         onNormalizeDeduction={normalizeDeductionValue}
+                        onOtherDeductionName={(value) => setForm((current) => ({ ...current, otherDeductionName: value }))}
                         onWarning={(message) => showToast(message, "warning")}
                     />
                 )}
@@ -1962,13 +1697,37 @@ const updateDeductionValue = (
                     onNumberBlur={handleNumberBlur}
                     onToggleNg={handleToggleNg}
                     onNgValue={handleNgValue}
+                    onOtherNgName={(value) => setForm((current) => ({ ...current, otherNgName: value }))}
                 />
                 )}
 
+                {processCode === "EP" && (
+                    <section className="worker-form-card">
+                        <label htmlFor="ep-production-note" className="worker-card-title">
+                            Ghi chú (không bắt buộc)
+                        </label>
+                        <textarea
+                            id="ep-production-note"
+                            value={form.note}
+                            onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
+                            placeholder="Nhập ghi chú về quá trình sản xuất hoặc sự cố máy (nếu có)"
+                            rows={3}
+                            maxLength={2000}
+                            style={{ width: "100%", boxSizing: "border-box", padding: "12px", borderRadius: "10px", border: "1px solid #cbd5e1", font: "inherit", resize: "vertical" }}
+                        />
+                    </section>
+                )}
+
+                {submitValidationError && <div className="worker-submit-validation-error" role="alert">
+                    <strong>Chưa thể nộp báo cáo</strong>
+                    <span>{submitValidationError}</span>
+                    <button type="button" onClick={() => setSubmitValidationError("")} aria-label="Đóng thông báo kiểm tra">×</button>
+                </div>}
                 <ProcessSubmitActions
                 duplicatePrompt={duplicatePrompt}
                 submitting={submitting}
                 loadingWorker={loadingWorker}
+                loadingMasterData={loadingMasterData}
                 onCancelDuplicate={() => {
                     if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
                         showToast("Một phần báo cáo đã gửi thành công. Vui lòng thử lại để gửi nốt các báo cáo còn lại trước khi thoát.", "warning");

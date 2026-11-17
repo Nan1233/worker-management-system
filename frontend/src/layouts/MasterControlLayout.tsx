@@ -42,6 +42,12 @@ export default function MasterControlLayout() {
     }, [attempt]);
 
     useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+    useEffect(()=>{
+      if(!mobileOpen)return;
+      const onKeyDown=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();setMobileOpen(false)}};
+      document.addEventListener("keydown",onKeyDown);
+      return()=>document.removeEventListener("keydown",onKeyDown);
+    },[mobileOpen]);
 
     const current = moduleForPath(location.pathname);
     const displayName = user?.full_name || user?.username || "Admin";
@@ -52,7 +58,7 @@ export default function MasterControlLayout() {
     };
 
     return <div className="mcc-shell">
-        <aside className={`mcc-sidebar${mobileOpen ? " open" : ""}`} aria-label="Master Control Center">
+        <aside id="mcc-mobile-sidebar" className={`mcc-sidebar${mobileOpen ? " open" : ""}`} aria-label="Master Control Center">
             <div className="mcc-brand">
                 <span className="mcc-brand-mark" aria-hidden="true"><CircleGauge size={18} /></span>
                 <span><strong>Master Control</strong><small>KTC Worker Management</small></span>
@@ -77,7 +83,7 @@ export default function MasterControlLayout() {
 
         <div className="mcc-main">
             <header className="mcc-topbar">
-                <button type="button" className="mcc-icon-btn mcc-only-mobile" aria-label="Mở menu" onClick={() => setMobileOpen(true)}><Menu size={18} /></button>
+                <button type="button" className="mcc-icon-btn mcc-only-mobile" aria-label="Mở menu" aria-expanded={mobileOpen} aria-controls="mcc-mobile-sidebar" onClick={() => setMobileOpen(true)}><Menu size={18} /></button>
                 <nav className="mcc-breadcrumb" aria-label="Breadcrumb">
                     <Link to="/admin">Admin</Link>
                     <ChevronRight size={14} aria-hidden="true" />

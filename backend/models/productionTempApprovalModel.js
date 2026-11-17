@@ -1,4 +1,9 @@
 const AuditService = require("../services/auditService");
+const {
+  buildApprovalSelection,
+  assertApprovalSelectionVisible,
+  assertApprovalSelectionVersions,
+} = require("./productionTempApprovalSelection");
 const { toDateKey } = require("../utils/dateKey");
 const { explicitGcWorkType } = require("../utils/gcMachineWorkType");
 const {
@@ -7,7 +12,6 @@ const {
   beginTransaction,
   commit,
   rollback,
-  normalizeIds,
 } = require("./productionTempModelShared");
 const {
   createStandardResolver,
@@ -29,18 +33,28 @@ const { storedStandardSource } = require('../utils/standardSourceCode');
 
 
 
-const qRows = async (executor, sql, params = []) => {
+const APPROVAL_SLOW_QUERY_MS = 750;
+
+function sqlForApprovalLog(sql) {
+  return String(sql).replace(/\s+/g, " ").slice(0, 260);
+}
+
+async function qRows(executor, sql, params = []) {
   const started = Date.now();
   try {
     const result = await query(executor, sql, params);
     const elapsed = Date.now() - started;
-    if (elapsed >= 750) console.warn(`[KTC][APPROVAL_QUERY] ms=${elapsed} sql=${String(sql).replace(/\s+/g, " ").slice(0, 260)}`);
+    if (elapsed >= APPROVAL_SLOW_QUERY_MS) {
+      console.warn(`[KTC][APPROVAL_QUERY] ms=${elapsed} sql=${sqlForApprovalLog(sql)}`);
+    }
     return result;
   } catch (error) {
-    console.error(`[KTC][APPROVAL_QUERY_ERROR] ms=${Date.now() - started} code=${error?.code || ""} sql=${String(sql).replace(/\s+/g, " ").slice(0, 260)} message=${String(error?.message || error).slice(0, 200)}`);
+    console.error(
+      `[KTC][APPROVAL_QUERY_ERROR] ms=${Date.now() - started} code=${error?.code || ""} sql=${sqlForApprovalLog(sql)} message=${String(error?.message || error).slice(0, 200)}`
+    );
     throw error;
   }
-};
+}
 
 // Preserve the database's defect order and attach only matching machine-line defects.
 // Keep this mapping pure so approval snapshots can be regression-tested without a DB.
@@ -497,77 +511,6 @@ function buildApprovedReportInsertValues(item, reviewerId) {
             item.cong_gay,item.xoay,item.khong_dut,item.bavia_hut,item.ppcm,item.loi_cao_su,item.ng_kich_thuoc,
             item.cat_lem,item.note,serializeExtraData(item.extra_data),"approved",item.review_note,reviewerId,
   ];
-}
-
-// Keep input normalization and duplicate-ID precedence identical to approval's original path.
-function buildApprovalSelection(targets) {
-  const normalizedTargets = Array.isArray(targets)
-    ? targets.map((item) => item !== null && typeof item === "object" ? item : { id: item, expected_updated_at: null })
-    : [];
-  const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
-  if (!reportIds.length || normalizedTargets.some((item) =>
-    (typeof item.id !== "number" && (typeof item.id !== "string" || !/^[0-9]+$/.test(item.id)))
-    || !Number.isSafeInteger(Number(item.id)) || Number(item.id) <= 0)) {
-    throw new Error("Danh sách báo cáo không hợp lệ");
-  }
-  const expectedById = new Map();
-  for (const item of normalizedTargets) {
-    const id = Number(item.id);
-    const supplied = item.expected_updated_at;
-    const expected = supplied == null || supplied === "" ? null : supplied;
-    // A supplied version must be a date/string, not a coerced number, boolean or array.
-    if (expected !== null && !(typeof expected === "string" || expected instanceof Date)) {
-      throw createTempReportVersionConflictError(id);
-    }
-    // Invalid timestamps must not silently disable the optimistic concurrency check (NaN !== NaN).
-    if (expected !== null && !Number.isFinite(new Date(expected).getTime())) {
-      throw createTempReportVersionConflictError(id);
-    }
-    // Missing duplicate timestamps cannot clear a guard; conflicting guards must fail closed.
-    const previous = expectedById.get(id);
-    if (previous && expected && new Date(previous).getTime() !== new Date(expected).getTime()) {
-      throw createTempReportVersionConflictError(id);
-    }
-    if (expected || !expectedById.has(id)) expectedById.set(id, expected);
-  }
-  return { reportIds, expectedById };
-}
-
-function createApprovalSelectionStaleError(reportIds, missingIds) {
-  const error = new Error(
-    "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
-  );
-  error.status = 409;
-  error.code = "APPROVAL_SELECTION_STALE";
-  error.isPublic = true;
-  error.details = { requested_ids: reportIds, missing_ids: missingIds };
-  return error;
-}
-
-function createTempReportVersionConflictError(reportId) {
-  const error = new Error(`Báo cáo #${reportId} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
-  error.status = 409;
-  error.code = "TEMP_REPORT_VERSION_CONFLICT";
-  error.isPublic = true;
-  return error;
-}
-
-function assertApprovalSelectionVisible(rows, reportIds) {
-  const visibleIds = new Set(rows.map((row) => Number(row.id)));
-  const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
-  if (rows.length !== reportIds.length || visibleIds.size !== rows.length || missingIds.length) {
-    throw createApprovalSelectionStaleError(reportIds, missingIds);
-  }
-}
-
-function assertApprovalSelectionVersions(rows, expectedById) {
-  for (const row of rows) {
-    const expected = expectedById.get(Number(row.id));
-    if (expected && (!Number.isFinite(new Date(row.updated_at).getTime())
-      || new Date(expected).getTime() !== new Date(row.updated_at).getTime())) {
-      throw createTempReportVersionConflictError(row.id);
-    }
-  }
 }
 
 // Keep rejection's optimistic version condition and positional SQL parameters paired.

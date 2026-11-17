@@ -12,29 +12,22 @@ const load = () => import(modulePath);
 const MIN = 60 * 1000;
 const at = (iso) => new Date(iso).getTime();
 
-test('pending report: window is 10 minutes from creation', async () => {
-  const { getWorkerEditWindow } = await load();
-  const report = { status: 'pending', created_at: '2026-10-07T10:00:00.000Z', updated_at: '2026-10-07T10:05:00.000Z' };
-  const open = getWorkerEditWindow(report, at('2026-10-07T10:09:59.000Z'));
-  assert.equal(open.editable, true);
-  assert.equal(open.fromRejection, false);
-  assert.equal(open.remainingMs, 1000);
-  const closed = getWorkerEditWindow(report, at('2026-10-07T10:10:00.000Z'));
-  assert.equal(closed.editable, false);
-  assert.equal(closed.reason, 'WINDOW_EXPIRED');
+test('pending report is editable after 10 minutes while the feature flag is off', async () => {
+  const { getWorkerEditWindow, WORKER_EDIT_TIME_LIMIT_ENABLED } = await load();
+  assert.equal(WORKER_EDIT_TIME_LIMIT_ENABLED, false);
+  const report = { status: 'pending', created_at: '2026-10-07T10:00:00.000Z' };
+  const result = getWorkerEditWindow(report, at('2026-10-08T10:00:00.000Z'));
+  assert.equal(result.editable, true);
+  assert.equal(result.remainingMs, Number.POSITIVE_INFINITY);
 });
 
-test('rejected report: window restarts from the rejection time, not from creation', async () => {
+test('rejected and obsolete need_fix reports are never editable', async () => {
   const { getWorkerEditWindow } = await load();
-  // created 3 hours before rejection: old rule (created_at + 10 min) would be long expired
-  const report = { status: 'rejected', created_at: '2026-10-07T07:00:00.000Z', updated_at: '2026-10-07T10:00:00.000Z' };
-  const justAfterRejection = getWorkerEditWindow(report, at('2026-10-07T10:01:00.000Z'));
-  assert.equal(justAfterRejection.editable, true);
-  assert.equal(justAfterRejection.fromRejection, true);
-  assert.equal(justAfterRejection.remainingMs, 9 * MIN);
-  const expired = getWorkerEditWindow(report, at('2026-10-07T10:10:01.000Z'));
-  assert.equal(expired.editable, false);
-  assert.equal(expired.reason, 'WINDOW_EXPIRED');
+  for (const status of ['rejected', 'need_fix']) {
+    const result = getWorkerEditWindow({ status }, Date.now());
+    assert.equal(result.editable, false);
+    assert.equal(result.reason, 'STATUS_NOT_EDITABLE');
+  }
 });
 
 test('approved and unknown statuses are never editable by the worker', async () => {
@@ -47,11 +40,12 @@ test('approved and unknown statuses are never editable by the worker', async () 
   }
 });
 
-test('missing or invalid timestamps never open the window', async () => {
+test('disabled time limit allows pending without timestamp but never other statuses', async () => {
   const { getWorkerEditWindow } = await load();
-  assert.equal(getWorkerEditWindow({ status: 'pending' }, Date.now()).reason, 'TIME_UNKNOWN');
-  assert.equal(getWorkerEditWindow({ status: 'rejected', created_at: '2026-10-07T10:00:00.000Z' }, Date.now()).reason, 'TIME_UNKNOWN');
-  assert.equal(getWorkerEditWindow({ status: 'pending', created_at: 'not a date' }, Date.now()).editable, false);
+  assert.equal(getWorkerEditWindow({ status: 'pending' }).editable, true);
+  assert.equal(getWorkerEditWindow({ status: 'need_fix', created_at: 'not a date' }).editable, false);
+  assert.equal(getWorkerEditWindow({ status: 'rejected' }).editable, false);
+  assert.equal(getWorkerEditWindow(null).editable, false);
 });
 
 test('DB timestamp strings without a zone are read as UTC (same as the backend parser)', async () => {

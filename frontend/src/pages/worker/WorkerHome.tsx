@@ -7,7 +7,7 @@ import { getCurrentWorker } from "../../services/workerService";
 import { getMyTempReports } from "../../services/productionService";
 import type { WorkerProfile } from "../../types/worker";
 import type { ProductionReport } from "../../types/production";
-import { calculateWorkerHomeTodayStats } from "./workerHomeStats";
+import { calculateWorkerHomeTodayStats, getWorkerReportNg } from "./workerHomeStats";
 import "./WorkerHome.css";
 
 const formatNumber = (value: unknown) => new Intl.NumberFormat("vi-VN").format(Number(value ?? 0));
@@ -18,26 +18,64 @@ const formatHours = (value: unknown) => {
   return hours.toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " giờ";
 };
 
-// GC/Cắt-Lồng can have legacy top-level time fields equal to 0 while the
-// machine-line data contains the real gross time and deductions.
-const getReportActualHours = (report: ProductionReport) => {
+// Legacy GC machine lines may carry the effective time when the report-level field is zero.
+type WorkerMachineLine = {
+  machine_time_hours?: number | string;
+  machineTimeHours?: number | string;
+  deduction_time_hours?: number | string;
+  deductionTimeHours?: number | string;
+  deductions_json?: string | WorkerDeduction[];
+  deductions?: WorkerDeduction[];
+};
+type WorkerDeduction = {
+  minutes?: number | string;
+  deduction_minutes?: number | string;
+  hours?: number | string;
+};
+
+const getMachineLines = (report: ProductionReport): WorkerMachineLine[] => {
+  const legacy = report as ProductionReport & {
+    machine_lines?: WorkerMachineLine[];
+    machineLines?: WorkerMachineLine[];
+  };
+  if (Array.isArray(legacy.machine_lines)) return legacy.machine_lines;
+  return Array.isArray(legacy.machineLines) ? legacy.machineLines : [];
+};
+
+const getDeductions = (line: WorkerMachineLine): WorkerDeduction[] => {
+  if (Array.isArray(line.deductions_json)) return line.deductions_json;
+  if (Array.isArray(line.deductions)) return line.deductions;
+  if (typeof line.deductions_json !== "string") return [];
+  try {
+    const parsed: unknown = JSON.parse(line.deductions_json);
+    return Array.isArray(parsed) ? parsed as WorkerDeduction[] : [];
+  } catch {
+    return [];
+  }
+};
+
+const getReportActualHours = (report: ProductionReport): number => {
   const actual = Number(report.actual_time ?? 0);
   if (Number.isFinite(actual) && actual > 0) return actual;
 
-  const lines = Array.isArray((report as any).machine_lines)
-    ? (report as any).machine_lines
-    : Array.isArray((report as any).machineLines) ? (report as any).machineLines : [];
+  const lines = getMachineLines(report);
   if (lines.length) {
-    const totals = lines.reduce((sum: { gross: number; deduction: number }, line: any) => {
+    const totals = lines.reduce((sum, line) => {
       const gross = Math.max(0, Number(line.machine_time_hours ?? line.machineTimeHours ?? 0) || 0);
       let deduction = Number(line.deduction_time_hours ?? line.deductionTimeHours);
       if (!Number.isFinite(deduction) || deduction < 0) {
-        const raw = Array.isArray(line.deductions_json) ? line.deductions_json
-          : Array.isArray(line.deductions) ? line.deductions
-          : (() => { try { return JSON.parse(line.deductions_json || "[]"); } catch { return []; } })();
-        deduction = raw.reduce((n: number, item: any) => n + Math.max(0, Number(item.minutes ?? item.deduction_minutes ?? (Number(item.hours) || 0) * 60) || 0) / 60, 0);
+        deduction = getDeductions(line).reduce(
+          (hours, item) => hours + Math.max(
+            0,
+            Number(item.minutes ?? item.deduction_minutes ?? (Number(item.hours) || 0) * 60) || 0,
+          ) / 60,
+          0,
+        );
       }
-      return { gross: sum.gross + gross, deduction: sum.deduction + Math.min(gross, Math.max(0, deduction)) };
+      return {
+        gross: sum.gross + gross,
+        deduction: sum.deduction + Math.min(gross, Math.max(0, deduction)),
+      };
     }, { gross: 0, deduction: 0 });
     if (totals.gross > 0) return Math.max(0, totals.gross - totals.deduction);
   }
@@ -45,6 +83,7 @@ const getReportActualHours = (report: ProductionReport) => {
   const total = Number(report.total_time ?? 0);
   return Number.isFinite(total) && total > 0 ? total : 0;
 };
+
 const formatDate = (value?: string) => {
   if (!value) return "--/--/----";
   const [year, month, day] = value.split("T")[0].split("-");
@@ -175,7 +214,7 @@ export default function WorkerHome() {
                 <button type="button" className="worker-home-report" key={report.id ?? `${report.work_date}-${report.machine_no}-${report.product_name}`} onClick={() => report.id && navigate(`/worker/history/${report.id}`)}>
                   <span className="worker-home-report-date"><strong>{formatDate(report.work_date).slice(0, 5)}</strong><small>{formatDate(report.work_date).slice(6)}</small></span>
                   <span className="worker-home-report-main"><strong>{report.process_name || report.process_code || "Sản xuất"}{report.machine_no ? ` - Máy ${report.machine_no}` : ""}</strong><small>{report.product_name || "Sản phẩm"} · {formatHours(reportTime)}</small></span>
-                  <span className="worker-home-report-output"><b>{formatNumber(report.tt_ok ?? 0)} OK</b><b>{formatNumber((report.defects || []).reduce((sum, defect) => sum + Number(defect.quantity ?? 0), 0))} NG</b></span>
+                  <span className="worker-home-report-output"><b>{formatNumber(report.tt_ok ?? 0)} OK</b><b>{formatNumber(getWorkerReportNg(report))} NG</b></span>
                   <span className={`worker-home-status ${status.className}`}>{status.label}</span>
                   <ChevronRight className="worker-home-report-arrow" size={18} />
                 </button>

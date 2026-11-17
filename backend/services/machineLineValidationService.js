@@ -49,6 +49,14 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
         // defect and exceed the Worker subrequest limit before the report was
         // persisted. Load the process master once and resolve everything from
         // memory afterwards.
+        // Register explicitly named "other" categories before loading the
+        // process-scoped masters so machine-line resolution cannot discard them.
+        await require("./customReportCategoryService").ensureCustomReportCategories({
+            processId,
+            defects: machineLines.flatMap((line) => Array.isArray(line?.defects) ? line.defects : []),
+            deductions: machineLines.flatMap((line) => Array.isArray(line?.deductions) ? line.deductions : []),
+            query,
+        });
         const rawDefectsByLine = machineLines.map((line) => {
             const defects = Array.isArray(line?.defects) ? line.defects : [];
             return defects

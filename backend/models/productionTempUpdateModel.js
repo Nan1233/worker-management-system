@@ -5,11 +5,13 @@ const { validateMachineLines } = require("../services/machineLineValidationServi
 const { query, getConnection, beginTransaction, beginReadCommittedTransaction, commit, rollback, editableFields } = require("./productionTempModelShared");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
-const { DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
+const { DAILY_HOURS_ENFORCEMENT_ENABLED, DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
-const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
+const { WORKER_EDIT_TIME_LIMIT_ENABLED, WORKER_EDIT_WINDOW_MS, WORKER_EDITABLE_STATUSES } = require("../utils/workerEditWindowPolicy");
 
 const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, incomingMachineLines = [], isParallelMachineProcess = false, isGc = false, excludeTempReportId = null }) => {
+    // Follow the same temporary cross-report daily-hours policy as create().
+    if (!DAILY_HOURS_ENFORCEMENT_ENABLED) return null;
     const worker = Number(workerId), date = String(workDate || "").slice(0, 10);
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     const existingHours = await queryCountedDailyHours((sql, params) => query(connection, sql, params), { workerId: worker, workDate: date, excludeTempReportId });
@@ -79,23 +81,39 @@ module.exports = {
             }
 
             if (isWorkerEdit) {
-                const windowStart = getWorkerEditWindowStart(current);
-                if (!Number.isFinite(windowStart.startMs)) {
-                    const error = new Error("Không xác định được thời điểm tạo báo cáo để kiểm tra thời gian sửa.");
-                    error.status = 422; error.code = "TEMP_REPORT_EDIT_TIME_INVALID"; error.isPublic = true;
+                const status = String(current.status || "").trim().toLowerCase();
+                if (!WORKER_EDITABLE_STATUSES.includes(status)) {
+                    const error = new Error("Trạng thái báo cáo không cho phép công nhân chỉnh sửa.");
+                    error.status = 422; error.code = "TEMP_REPORT_STATUS_NOT_EDITABLE"; error.isPublic = true;
                     throw error;
                 }
-                const remainingMs = windowStart.startMs + WORKER_EDIT_WINDOW_MS - Date.now();
-                if (remainingMs <= 0) {
-                    const error = new Error(windowStart.fromRejection
-                        ? "Báo cáo bị từ chối chỉ được sửa trong vòng 10 phút kể từ lúc bị từ chối."
-                        : "Báo cáo chỉ được sửa trong vòng 10 phút kể từ lúc tạo.");
-                    error.status = 422; error.code = "TEMP_REPORT_EDIT_WINDOW_EXPIRED"; error.isPublic = true;
-                    error.details = { created_at: current.created_at, window_started_at: windowStart.value, window_from: windowStart.fromRejection ? "rejection" : "creation", edit_window_ms: WORKER_EDIT_WINDOW_MS };
-                    throw error;
+                // Ownership is enforced in SELECT ... WHERE pr.worker_id = ? FOR UPDATE.
+                // Keep the edit-window algorithm for reactivation, but skip its
+                // restriction while the temporary policy flag is disabled.
+                if (WORKER_EDIT_TIME_LIMIT_ENABLED) {
+                    const windowStart = getWorkerEditWindowStart(current);
+                    if (!Number.isFinite(windowStart.startMs)) {
+                        const error = new Error("Không xác định được thời điểm tạo báo cáo để kiểm tra thời gian sửa.");
+                        error.status = 422; error.code = "TEMP_REPORT_EDIT_TIME_INVALID"; error.isPublic = true;
+                        throw error;
+                    }
+                    const remainingMs = windowStart.startMs + WORKER_EDIT_WINDOW_MS - Date.now();
+                    if (remainingMs <= 0) {
+                        const error = new Error(windowStart.fromRejection
+                            ? "Báo cáo bị từ chối chỉ được sửa trong vòng 10 phút kể từ lúc bị từ chối."
+                            : "Báo cáo chỉ được sửa trong vòng 10 phút kể từ lúc tạo.");
+                        error.status = 422; error.code = "TEMP_REPORT_EDIT_WINDOW_EXPIRED"; error.isPublic = true;
+                        error.details = { created_at: current.created_at, window_started_at: windowStart.value, window_from: windowStart.fromRejection ? "rejection" : "creation", edit_window_ms: WORKER_EDIT_WINDOW_MS };
+                        throw error;
+                    }
                 }
             }
 
+            if (isWorkerEdit && !options.expectedUpdatedAt) {
+                const error = new Error("Thiếu phiên bản báo cáo. Vui lòng tải lại báo cáo trước khi sửa.");
+                error.status = 409; error.code = "TEMP_REPORT_VERSION_REQUIRED"; error.isPublic = true;
+                throw error;
+            }
             if (options.expectedUpdatedAt && new Date(options.expectedUpdatedAt).getTime() !== new Date(current.updated_at).getTime()) {
                 const error = new Error("Báo cáo đã thay đổi sau khi bạn mở. Hãy tải lại dữ liệu trước khi sửa hoặc gửi lại.");
                 error.status = 409; error.code = "TEMP_REPORT_VERSION_CONFLICT"; throw error;
@@ -108,6 +126,10 @@ module.exports = {
             const hasMachineLines = Object.prototype.hasOwnProperty.call(data, "machine_lines");
             const deductions = Array.isArray(data.deductions) ? data.deductions : [];
             const defects = Array.isArray(data.defects) ? data.defects : [];
+            await require("../services/customReportCategoryService").ensureCustomReportCategories({
+                processId: Number(current.process_id), defects, deductions,
+                query: (sql, params) => query(connection, sql, params),
+            });
             // Resolve all deduction/defect masters in at most one query per table.
             // Per-item SELECTs multiplied TiDB HTTP subrequests and could exhaust
             // the Cloudflare Worker budget before the report version was written.

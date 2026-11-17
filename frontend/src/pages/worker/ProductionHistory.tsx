@@ -6,6 +6,25 @@ import type { ProductionReport } from "../../types/production";
 
 const ITEMS_PER_PAGE = 10;
 
+const NO_STANDARD_WORK_TYPES = new Set(["XUATNHAP", "KTCD", "KYCD", "TAIPP"]);
+const AUTO_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
+
+const isNoStandardWork = (report: ProductionReport): boolean => {
+    const raw = report.work_type || report.product_name || "";
+    const codes = raw.split(",").map(code => code.trim().toUpperCase().replace(/\\s+/g, "")).filter(Boolean);
+    return codes.length > 0 && codes.every(code => NO_STANDARD_WORK_TYPES.has(code));
+};
+
+const displayMachine = (machineNo?: string): string => {
+    if (!machineNo) return "---";
+    return machineNo.split(",").map(part => {
+        const trimmed = part.trim();
+        return AUTO_MACHINE_CODES.has(trimmed.toUpperCase()) ? `${trimmed}-AUTO` : trimmed;
+    }).join(", ");
+};
+
+
+
 const formatDate = (value?: string): string => {
     if (!value) return "---";
     const [year, month, day] = value.split("T")[0].split("-");
@@ -26,7 +45,7 @@ const normalizeText = (value?: string): string =>
 const getStatusInfo = (status?: string) => {
     switch (status) {
         case "approved": return { label: "Đã duyệt", className: "approved" };
-        case "need_fix": return { label: "Cần sửa", className: "need-fix" };
+        case "need_fix": return { label: "Trạng thái cũ", className: "need-fix" };
         case "rejected": return { label: "Từ chối", className: "rejected" };
         default: return { label: "Chờ duyệt", className: "pending" };
     }
@@ -119,116 +138,6 @@ function ProductionHistory() {
 
     return (
         <main className="history-page">
-            <style>{`
-                .history-mobile-fix { width:100%; }
-                @media (max-width:600px) {
-                    .history-page .history-shell { width:100% !important; max-width:none !important; }
-                    .history-page .history-header {
-                        justify-content:flex-start !important;
-                        align-items:flex-start !important;
-                        gap:10px !important;
-                        margin:0 0 12px !important;
-                        padding:0 !important;
-                    }
-                    .history-page .history-title-group {
-                        justify-content:flex-start !important;
-                        align-items:center !important;
-                        width:auto !important;
-                        margin:0 !important;
-                    }
-                    .history-page .history-title-group > div { text-align:left !important; }
-                    .history-page .history-title-group h1 {
-                        margin:0 !important;
-                        font-size:19px !important;
-                        line-height:1.2 !important;
-                        white-space:nowrap !important;
-                    }
-                    .history-page .history-title-group p { display:none !important; }
-                    .history-page .history-back-button {
-                        width:36px !important;
-                        height:36px !important;
-                        min-width:36px !important;
-                        padding:0 !important;
-                    }
-                    .history-page .history-count {
-                        margin-left:auto !important;
-                        align-self:center !important;
-                        padding:6px 9px !important;
-                        font-size:10px !important;
-                    }
-                    .history-page .history-count strong { font-size:12px !important; }
-                    .history-page .history-count span { font-size:9px !important; }
-                    .history-page .history-filter-card {
-                        padding:10px !important;
-                        margin-bottom:10px !important;
-                    }
-                    .history-page .history-search-box input,
-                    .history-page .history-filter-field input,
-                    .history-page .history-filter-field select {
-                        min-height:36px !important;
-                        height:36px !important;
-                        font-size:12px !important;
-                    }
-                    .history-page .history-filter-field > span { font-size:10px !important; }
-                    .history-page .history-clear-button { min-height:34px !important; }
-                    .history-page .report-card { padding:0 !important; background:transparent !important; border:0 !important; }
-                    .history-page .table-container {
-                        overflow:visible !important;
-                        border:0 !important;
-                        background:transparent !important;
-                        box-shadow:none !important;
-                    }
-                    .history-page .history-table,
-                    .history-page .history-table tbody { display:block !important; width:100% !important; }
-                    .history-page .history-table thead { display:none !important; }
-                    .history-page .history-table tbody tr {
-                        display:grid !important;
-                        grid-template-columns:34px minmax(0,1fr) auto !important;
-                        grid-template-areas:
-                            "index date status"
-                            "index shift product"
-                            "index machine ok"
-                            "index ng action" !important;
-                        gap:0 8px !important;
-                        align-items:center !important;
-                        width:100% !important;
-                        min-height:112px !important;
-                        margin:0 0 8px !important;
-                        padding:10px 10px !important;
-                        border:1px solid #dfe7f0 !important;
-                        border-radius:10px !important;
-                        background:#fff !important;
-                        box-shadow:0 1px 2px rgba(16,34,58,.04) !important;
-                    }
-                    .history-page .history-table tbody td {
-                        display:block !important;
-                        width:auto !important;
-                        min-width:0 !important;
-                        padding:3px 0 !important;
-                        border:0 !important;
-                        font-size:11px !important;
-                        line-height:1.25 !important;
-                        text-align:left !important;
-                        overflow:hidden !important;
-                        white-space:nowrap !important;
-                        text-overflow:ellipsis !important;
-                    }
-                    .history-page .history-table tbody td::before { display:none !important; }
-                    .history-page .history-table .column-index { grid-area:index; align-self:start; text-align:center !important; color:#58708b !important; font-weight:700 !important; padding-top:4px !important; }
-                    .history-page .history-table .date-cell { grid-area:date; font-weight:700 !important; color:#20334c !important; }
-                    .history-page .history-table .shift-cell { grid-area:shift; }
-                    .history-page .history-table .machine-cell { grid-area:machine; color:#536a82 !important; }
-                    .history-page .history-table .product-cell { grid-area:product; color:#536a82 !important; font-weight:600 !important; }
-                    .history-page .history-table .ok-column { grid-area:ok; color:#16845b !important; font-weight:700 !important; text-align:right !important; }
-                    .history-page .history-table .ng-column { grid-area:ng; color:#d0444f !important; font-weight:700 !important; text-align:right !important; }
-                    .history-page .history-table .status-cell { grid-area:status; text-align:right !important; overflow:visible !important; }
-                    .history-page .history-table .status-cell .history-status { font-size:9px !important; white-space:nowrap !important; }
-                    .history-page .history-table .action-column { grid-area:action; text-align:right !important; overflow:visible !important; }
-                    .history-page .history-table .detail-btn { min-height:28px !important; padding:0 9px !important; font-size:10px !important; }
-                    .history-page .shift-badge { font-size:9px !important; }
-                    .history-page .pagination { margin-top:8px !important; }
-                }
-            `}</style>
 
             <div className="history-shell history-mobile-fix">
                 <header className="history-header">
@@ -282,8 +191,7 @@ function ProductionHistory() {
                                 <option value="">Tất cả</option>
                                 <option value="pending">Chờ duyệt</option>
                                 <option value="approved">Đã duyệt</option>
-                                <option value="need_fix">Cần sửa</option>
-                                <option value="rejected">Từ chối</option>
+                                    <option value="rejected">Từ chối</option>
                             </select>
                         </label>
                         <button type="button" className="history-clear-button" onClick={clearFilters} disabled={!hasActiveFilter}>Xóa lọc</button>
@@ -324,14 +232,14 @@ function ProductionHistory() {
                                         const statusInfo = getStatusInfo(item.status);
                                         const rowNumber = (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
                                         return (
-                                            <tr key={item.id ?? `${item.work_date}-${index}`}>
+                                            <tr key={`${item.source || (item.status === "approved" ? "approved" : "temp")}:${item.id ?? `${item.work_date}-${index}`}`}>
                                                 <td data-label="STT" className="column-index">{rowNumber}</td>
                                                 <td data-label="Ngày" className="date-cell">{formatDate(item.work_date)}</td>
                                                 <td data-label="Ca" className="shift-cell"><span className="shift-badge">{item.shift || "---"}</span></td>
-                                                <td data-label="Máy" className="machine-cell" title={item.machine_no}>{item.machine_no || "---"}</td>
+                                                <td data-label="Máy" className="machine-cell" title={item.machine_no}>{displayMachine(item.machine_no)}</td>
                                                 <td data-label="Sản phẩm" className="product-cell" title={item.product_name}>{item.product_name || "---"}</td>
-                                                <td data-label="OK" className="numeric-column ok-column">OK {formatNumber(item.tt_ok)}</td>
-                                                <td data-label="NG" className="numeric-column ng-column">NG {formatNumber(item.tt_ng)}</td>
+                                                <td data-label="OK" className="numeric-column ok-column">{isNoStandardWork(item) ? "—" : `OK ${formatNumber(item.tt_ok)}`}</td>
+                                                <td data-label="NG" className="numeric-column ng-column">{isNoStandardWork(item) ? "—" : `NG ${formatNumber(item.tt_ng)}`}</td>
                                                 <td data-label="Trạng thái" className="status-cell"><span className={`history-status ${statusInfo.className}`}>{statusInfo.label}</span></td>
                                                 <td data-label="Chi tiết" className="action-column">
                                                     <button type="button" className="detail-btn" onClick={() => openDetail(item)}>Xem <span>›</span></button>

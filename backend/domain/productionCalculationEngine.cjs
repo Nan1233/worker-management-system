@@ -1,36 +1,15 @@
 'use strict';
 
-const DEFAULT_SETTINGS = Object.freeze({
-  apply_training_percent: 1,
-  output_formula: 'ENTERED_X_TRAINING',
-  output_per_hour_formula: 'ADJUSTED_OUTPUT_DIV_ACTUAL_TIME',
-  achievement_formula: 'OUTPUT_PER_HOUR_DIV_STANDARD',
-  ng_rate_formula: 'NG_DIV_OK_PLUS_NG',
-  actual_time_formula: 'DATABASE_SNAPSHOT'
-});
+const { calculateProductionNgRate } = require('./productionNgRate.cjs');
+const { calculateProductionRates } = require('./productionRates.cjs');
 
-function asNumber(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const number = Number(String(value).replace(/,/g, '').trim());
-  return Number.isFinite(number) ? number : null;
-}
-
-function asInteger(value) {
-  const number = asNumber(value);
-  return number === null ? null : Math.round(number);
-}
-
-function normalizeTrainingPercent(value, defaultPercent = 100) {
-  if (value === null || value === undefined) return defaultPercent;
-  if (typeof value === 'string' && value.trim() === '') return defaultPercent;
-  const number = asNumber(value);
-  if (number === null) return defaultPercent;
-  return Math.min(100, Math.max(0, number));
-}
-
-function trainingFactor(value, defaultPercent = 100) {
-  return normalizeTrainingPercent(value, defaultPercent) / 100;
-}
+const {
+  DEFAULT_SETTINGS,
+  asNumber,
+  asInteger,
+  normalizeTrainingPercent,
+  trainingFactor
+} = require('../../shared/productionMetricPrimitives.cjs');
 
 function defectQuantity(item) {
   return asInteger(item?.quantity) || 0;
@@ -74,16 +53,23 @@ function calculateActualTime(report = {}, settings = {}, workingTime = null, ded
 
 function calculateAdjustedOutput({ enteredOutput, ok, countedNg, factor, settings = {} }) {
   const resolved = resolveSettings(settings);
-  let output = null;
-  if (resolved.output_formula === 'ENTERED_OUTPUT') output = enteredOutput;
-  else if (resolved.output_formula === 'OK_PLUS_NG') {
-    output = ok !== null && countedNg !== null ? ok + countedNg : null;
-  } else if (resolved.output_formula === 'OK_X_TRAINING') {
-    output = ok === null || (resolved.apply_training_percent && factor === null) ? null : ok * (resolved.apply_training_percent ? factor : 1);
-  } else {
-    output = enteredOutput === null || (resolved.apply_training_percent && factor === null) ? null : enteredOutput * (resolved.apply_training_percent ? factor : 1);
+  const { output_formula: formula, apply_training_percent: applyTrainingPercent } = resolved;
+
+  if (formula === 'ENTERED_OUTPUT') {
+    return enteredOutput === null ? null : Math.round(enteredOutput);
   }
-  return output === null ? null : Math.round(output);
+
+  if (formula === 'OK_PLUS_NG') {
+    return ok === null || countedNg === null ? null : Math.round(ok + countedNg);
+  }
+
+  const baseOutput = formula === 'OK_X_TRAINING' ? ok : enteredOutput;
+  if (baseOutput === null || (applyTrainingPercent && factor === null)) {
+    return null;
+  }
+
+  const trainingMultiplier = applyTrainingPercent ? factor : 1;
+  return Math.round(baseOutput * trainingMultiplier);
 }
 
 function calculateProductionMetrics(report = {}, settings = {}) {
@@ -105,43 +91,33 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   const machinePerformance = report.machinePerformance || report.machine_performance || null;
   const hasMachinePerformance = Number(machinePerformance?.machine_count || 0) > 0;
 
-  let adjustedOutput = calculateAdjustedOutput({
+  const initialAdjustedOutput = calculateAdjustedOutput({
     enteredOutput,
     ok,
     countedNg: ng.countedNg,
     factor,
     settings: resolved
   });
-  let outputPerHour = null;
-  let achievement = null;
-  let plannedOutput = standard !== null && actualTime !== null && (!resolved.apply_training_percent || factor !== null)
-    ? standard * actualTime * (resolved.apply_training_percent ? factor : 1)
-    : null;
+  const { adjustedOutput, plannedOutput, outputPerHour, achievement } = calculateProductionRates({
+    adjustedOutput: initialAdjustedOutput,
+    enteredOutput,
+    actualTime,
+    standard,
+    factor,
+    applyTrainingPercent: resolved.apply_training_percent,
+    outputPerHourFormula: resolved.output_per_hour_formula,
+    achievementFormula: resolved.achievement_formula,
+    hasMachinePerformance,
+    machinePerformance,
+    asNumber
+  });
 
-  // Multi-machine reports already carry a validated aggregate snapshot from the backend.
-  // Preserve that physical machine result while exposing it through the same metrics contract.
-  if (hasMachinePerformance) {
-    adjustedOutput = asNumber(machinePerformance.counted_output);
-    plannedOutput = asNumber(machinePerformance.maximum_output);
-    outputPerHour = actualTime && adjustedOutput !== null ? adjustedOutput / actualTime : null;
-    achievement = plannedOutput ? adjustedOutput / plannedOutput : null;
-  } else {
-    const perHourNumerator = resolved.output_per_hour_formula === 'ENTERED_OUTPUT_DIV_ACTUAL_TIME'
-      ? enteredOutput
-      : adjustedOutput;
-    outputPerHour = actualTime && perHourNumerator !== null ? perHourNumerator / actualTime : null;
-    achievement = resolved.achievement_formula === 'OUTPUT_PER_HOUR_DIV_STANDARD' && outputPerHour !== null && standard
-      ? outputPerHour / standard
-      : null;
-  }
-
-  let ngRate = null;
-  if (resolved.ng_rate_formula === 'NG_DIV_ENTERED_OUTPUT') {
-    ngRate = enteredOutput ? ng.allNg / enteredOutput : null;
-  } else {
-    const denominator = ok !== null && ng.allNg !== null ? ok + ng.allNg : null;
-    ngRate = denominator ? ng.allNg / denominator : null;
-  }
+  const ngRate = calculateProductionNgRate({
+    formula: resolved.ng_rate_formula,
+    enteredOutput,
+    ok,
+    allNg: ng.allNg
+  });
 
   return {
     trainingPercent,

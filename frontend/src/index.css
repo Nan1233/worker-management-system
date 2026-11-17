@@ -31,3 +31,12 @@ input,select,textarea { font-size: 16px; }
   body { -webkit-user-select: none; user-select: none; }
   input,textarea,select,[contenteditable="true"] { -webkit-user-select: text; user-select: text; }
 }
+
+/* Shared responsive safety net without forcing tables into stacked rows. */
+@media(max-width:800px){
+ :is(.management-layout,.admin-layout,.worker-layout,.mcc-shell) :is(main,section,article){min-width:0}
+ :is(.management-layout,.admin-layout,.worker-layout,.mcc-shell) :is(table){font-variant-numeric:tabular-nums}
+}
+@media(prefers-reduced-motion:reduce){
+ :is(.management-layout,.admin-layout,.worker-layout,.mcc-shell) *, :is(.management-layout,.admin-layout,.worker-layout,.mcc-shell) *::before, :is(.management-layout,.admin-layout,.worker-layout,.mcc-shell) *::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}
+}

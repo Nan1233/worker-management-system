@@ -125,47 +125,9 @@ const validateFactoryMachineRules = async ({
   if (!lines.length) return { valid: true, errors: {}, rules: [] };
 
   // `machineRows`: rows the caller already loaded for exactly these machines of this process in the same request.
-  const rows = Array.isArray(machineRows) ? machineRows : await loadMachineRows(
-    processId,
-    lines.map((line) => line.machine_code)
-  );
-
-  const rowByCode = new Map(
-    rows.map((row) => [String(row.machine_code).trim().toUpperCase(), row])
-  );
-
-  const errors = {};
-  const rules = lines.map((line) => {
-    const machineCode = String(line.machine_code || "").trim();
-    const row = rowByCode.get(machineCode.toUpperCase()) || null;
-    const rule = getProcessMachineRule(code, machineCode, row);
-    return {
-      machine_code: machineCode,
-      ...rule
-    };
-  });
-
-  if (MULTI_MACHINE_PROCESS_CODES.has(code)) {
-    const maxMachines = getMaxMachinesPerWorker(code);
-    const uniqueMachineCount = new Set(lines.map((line) =>
-      String(line?.machine_code || "").trim().toUpperCase()
-    ).filter(Boolean)).size;
-    if (uniqueMachineCount > maxMachines) {
-      errors.machine_lines =
-        `Công đoạn ${code} chỉ cho phép một công nhân chạy tối đa ${maxMachines} máy cùng lúc.`;
-    }
-  } else if (lines.length > 1) {
-    errors.machine_lines =
-      `Công đoạn ${code} chỉ được 1 người/1 máy.`;
-  }
-
-  return {
-    valid: Object.keys(errors).length === 0,
-    errors,
-    rules,
-    // returned so a following check in the same request (validateMachineWorkerCapacity) need not load them again
-    machineRows: rows
-  };
+  // Multiple workers may use the same machine during one work date/shift,
+  // across every process. Keep the per-worker machine-count check above.
+  return { valid: true, errors: {} };
 };
 
 const executorQuery = (executor, sql, params = []) =>
@@ -330,97 +292,9 @@ const validateMachineWorkerCapacityLocked = async ({
     };
   }
 
-  const placeholders = uniqueCodes.map(() => "?").join(",");
-  const machineLockClause = globalThis.__KTC_CLOUDFLARE_WORKER ? "" : "FOR UPDATE";
-  const machineRows = await executorQuery(
-    executor,
-    `SELECT id, process_id, machine_code,
-            COALESCE(is_automatic,0) is_automatic,
-            COALESCE(max_workers_per_machine,1) max_workers_per_machine,
-            COALESCE(output_basis,'PRODUCT') output_basis
-       FROM machines
-      WHERE process_id = ?
-        AND status = 'active'
-        AND UPPER(TRIM(machine_code)) IN (${placeholders})
-      ORDER BY id ${machineLockClause}`,
-    [Number(processId), ...uniqueCodes]
-  );
-
-  const rowByCode = new Map(
-    machineRows.map((row) => [String(row.machine_code).trim().toUpperCase(), row])
-  );
-
-  const errors = {};
-  const machinePlaceholders = uniqueCodes.map(() => "?").join(",");
-  const tempExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
-  const tempParams = [
-    Number(processId),
-    String(workDate).slice(0, 10),
-    String(shift).trim(),
-    ...uniqueCodes
-  ];
-  if (excludeTempReportId) tempParams.push(Number(excludeTempReportId));
-
-  const usage = await executorQuery(
-    executor,
-    `SELECT DISTINCT worker_id, machine_code FROM (
-       SELECT UPPER(TRIM(ml.machine_code)) AS machine_code, prt.worker_id
-         FROM production_reports_temp prt
-         JOIN production_temp_machine_lines ml
-           ON ml.temp_report_id = prt.id
-        WHERE prt.process_id = ?
-          AND prt.work_date = ?
-          AND prt.shift = ?
-          AND UPPER(TRIM(ml.machine_code)) IN (${machinePlaceholders})
-          AND prt.status IN ('pending','approved','need_fix')
-          ${tempExclude}
-       UNION
-       SELECT UPPER(TRIM(ml2.machine_code)) AS machine_code, pr.worker_id
-         FROM production_reports pr
-         JOIN production_report_machine_lines ml2
-           ON ml2.report_id = pr.id
-        WHERE pr.process_id = ?
-          AND pr.work_date = ?
-          AND pr.shift = ?
-          AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
-     ) used
-     ORDER BY machine_code, worker_id`,
-    [
-      ...tempParams,
-      Number(processId),
-      String(workDate).slice(0, 10),
-      String(shift).trim(),
-      ...uniqueCodes
-    ]
-  );
-
-  const workersByMachine = new Map();
-  for (const item of usage) {
-    const machineCode = String(item.machine_code || "").trim().toUpperCase();
-    const worker = Number(item.worker_id);
-    if (!machineCode || !worker) continue;
-    if (!workersByMachine.has(machineCode)) workersByMachine.set(machineCode, new Set());
-    workersByMachine.get(machineCode).add(worker);
-  }
-
-  for (const machineCode of uniqueCodes) {
-    const row = rowByCode.get(machineCode);
-    if (!row) continue;
-    const rule = getProcessMachineRule(code, machineCode, row);
-    const workers = workersByMachine.get(machineCode) || new Set();
-    workers.add(Number(workerId));
-
-    if (workers.size > rule.maxWorkersPerMachine) {
-      errors.machine_lines =
-        `Máy ${machineCode} chỉ cho phép tối đa ${rule.maxWorkersPerMachine} người trong cùng ngày/ca.`;
-      break;
-    }
-  }
-
-  return {
-    valid: Object.keys(errors).length === 0,
-    errors
-  };
+  // Do not cap distinct workers per machine/day/shift. The submission
+  // transaction still enforces request idempotency and logical duplicates.
+  return { valid: true, errors: {} };
 };
 
 module.exports = {

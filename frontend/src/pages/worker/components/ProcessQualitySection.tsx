@@ -8,12 +8,12 @@ interface Props {
     form: FormState; activeNgOptions: NgOption[]; selectedNg: NgKey[]; showNg: boolean; setShowNg: Dispatch<SetStateAction<boolean>>;
     usesMultiMachineLines: boolean; operationMode: OperationMode; qualityLocked?: boolean; formatIntegerDisplay: (value: string) => string;
     onTtOkChange: (event: ChangeEvent<HTMLInputElement>) => void; onNumberBlur: (event: FocusEvent<HTMLInputElement>) => void;
-    onToggleNg: (key: NgKey, checked: boolean) => void; onNgValue: (key: NgKey, value: string) => void;
+    onToggleNg: (key: NgKey, checked: boolean) => void; onNgValue: (key: NgKey, value: string) => void; onOtherNgName: (value: string) => void;
 }
 const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase();
 const CVK_WORK_TYPES = new Set(["CVK", "XUATNHAP", "KTCD", "TAIPP"]);
 
-export default function ProcessQualitySection({ form, activeNgOptions, selectedNg, showNg, setShowNg, usesMultiMachineLines, operationMode, qualityLocked: qualityLockedProp, formatIntegerDisplay, onTtOkChange, onNumberBlur, onToggleNg, onNgValue }: Props) {
+export default function ProcessQualitySection({ form, activeNgOptions, selectedNg, showNg, setShowNg, usesMultiMachineLines, operationMode, qualityLocked: qualityLockedProp, formatIntegerDisplay, onTtOkChange, onNumberBlur, onToggleNg, onNgValue, onOtherNgName }: Props) {
     // Keep hook order stable when the process or execution mode changes in-place.
     const shouldHide = CVK_WORK_TYPES.has(String(form.workType ?? "").trim().toUpperCase())
         || isNoStandardLongWork(form.productName)
@@ -29,7 +29,7 @@ export default function ProcessQualitySection({ form, activeNgOptions, selectedN
     });
     const visibleNgOptions = hasCanonicalGcDefects ? activeNgOptions.filter((item) => {
         const code = normalizeCode(item.code);
-        return gcOperation === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG");
+        return item.key === "__otherNg" || (gcOperation === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG"));
     }) : activeNgOptions;
     useEffect(() => {
         if (shouldHide || qualityLocked || !hasCanonicalGcDefects) return;
@@ -39,6 +39,7 @@ export default function ProcessQualitySection({ form, activeNgOptions, selectedN
     if (shouldHide) return null;
     // XLBV workers need readable defect names; retain encoded labels for other processes.
     const getDisplayLabel = (item: NgOption) => {
+        if (item.key === "__otherNg") return "NG khác";
         const code = String(item.code || "").trim();
         const label = String(item.label || "").trim();
         return /^XLBV_NG_\d+$/i.test(code) ? `${code} — ${label || code}` : (code || label);
@@ -46,7 +47,7 @@ export default function ProcessQualitySection({ form, activeNgOptions, selectedN
     return <section className="worker-form-card worker-quality-section">
         <h2 className="worker-card-title"><span><AppIcon name="sheet" size={20} /></span> {operationMode === "MACHINE" ? "Lỗi NG của máy" : "Báo cáo Chất lượng"}</h2>
         {operationMode !== "MACHINE" && <div className="worker-quality-summary">
-            <div className="worker-quality-card ok"><label htmlFor="ttOk">{qualityLocked ? "OK của người (tổng các máy)" : "TT OK"}</label><input id="ttOk" name="ttOk" value={formatIntegerDisplay(form.ttOk)} onChange={qualityLocked ? undefined : onTtOkChange} onBlur={qualityLocked ? undefined : onNumberBlur} readOnly={qualityLocked} disabled={qualityLocked} inputMode="numeric" autoComplete="off" /></div>
+            <div className="worker-quality-card ok"><label htmlFor="ttOk">{qualityLocked ? "OK của người (tổng các máy)" : "TT OK"}</label><input id="ttOk" name="ttOk" value={formatIntegerDisplay(form.ttOk)} onChange={qualityLocked ? undefined : onTtOkChange} onBlur={qualityLocked ? undefined : onNumberBlur} readOnly={qualityLocked} inputMode="numeric" autoComplete="off" /></div>
             <div className="worker-quality-card ng"><label htmlFor="ttNg">{qualityLocked ? "NG của người (tổng các máy)" : "TT NG"}</label><input id="ttNg" name="ttNg" value={formatIntegerDisplay(form.ttNg)} readOnly disabled={qualityLocked} /></div>
             <div className="worker-quality-card total-output"><label htmlFor="totalOutput">{qualityLocked ? "Sản lượng người" : "Tổng sản lượng"}</label><input id="totalOutput" value={formatIntegerDisplay(String((Number(form.ttOk) || 0) + (Number(form.ttNg) || 0)))} readOnly disabled={qualityLocked} aria-label="Tổng sản lượng bằng TT OK cộng TT NG" /><small>{qualityLocked ? "Tổng sản lượng thực tế của tất cả máy người này chạy" : "OK + NG"}</small></div>
         </div>}
@@ -54,6 +55,6 @@ export default function ProcessQualitySection({ form, activeNgOptions, selectedN
             <button type="button" className="worker-dropdown-title" onClick={() => setShowNg((prev) => !prev)} aria-expanded={showNg} aria-controls="worker-ng-options"><span className="worker-dropdown-title-main"><span>{operationMode === "MACHINE" ? "Chi tiết lỗi NG của máy" : qualityLocked ? "Tổng lỗi NG từ các máy" : "Lỗi NG"}</span><small>{Number(form.ttNg || 0) > 0 ? `${selectedNg.length} loại · ${formatIntegerDisplay(form.ttNg)} NG` : "Không có NG"}</small></span><span aria-hidden="true">{showNg ? "▲" : "▼"}</span></button>
             {showNg && <div id="worker-ng-options" className="worker-dropdown-options">{visibleNgOptions.length === 0 ? <div className="worker-dropdown-empty" role="status">Chưa có loại lỗi NG được cấu hình cho công đoạn này.</div> : visibleNgOptions.map((item) => <label key={item.key} className="worker-dropdown-option"><input type="checkbox" className="worker-ng-checkbox" style={{ width: 16, height: 16, minWidth: 16, maxWidth: 16, minHeight: 16, maxHeight: 16, flex: "0 0 16px", boxSizing: "border-box", margin: 0, padding: 0 }} checked={selectedNg.includes(item.key)} onChange={(event) => { if (!qualityLocked) onToggleNg(item.key, event.target.checked); }} disabled={qualityLocked} /><span>{getDisplayLabel(item)}</span></label>)}</div>}
         </div>
-        {selectedNg.length > 0 && <div className="worker-dynamic-grid worker-ng-grid">{visibleNgOptions.filter((item) => selectedNg.includes(item.key)).map((item) => <div key={item.key} className="worker-field-block"><label className="worker-field-label" htmlFor={String(item.key)}>{getDisplayLabel(item)}</label><input id={item.key} className="worker-text-input" name={item.key} value={form[item.key]} onChange={(event) => { if (!qualityLocked) onNgValue(item.key, event.target.value); }} readOnly={qualityLocked} disabled={qualityLocked} inputMode="numeric" autoComplete="off" /></div>)}</div>}
+        {selectedNg.length > 0 && <div className="worker-dynamic-grid worker-ng-grid">{visibleNgOptions.filter((item) => selectedNg.includes(item.key)).map((item) => <div key={item.key} className="worker-field-block"><label className="worker-field-label" htmlFor={String(item.key)}>{getDisplayLabel(item)}</label>{item.key === "__otherNg" && <><label className="worker-field-label" htmlFor="other-ng-name">Tên lỗi NG khác *</label><input id="other-ng-name" className="worker-text-input" type="text" maxLength={100} value={form.otherNgName || ""} onChange={(event) => onOtherNgName(event.target.value)} placeholder="Nhập tên lỗi trước khi nhập số lượng" required={!qualityLocked} disabled={qualityLocked} /></>}<input id={item.key} className="worker-text-input" name={item.key} disabled={qualityLocked || (item.key === "__otherNg" && !String(form.otherNgName || "").trim())} value={form[item.key]} onChange={(event) => { if (!qualityLocked) onNgValue(item.key, event.target.value); }} readOnly={qualityLocked} disabled={qualityLocked} inputMode="numeric" autoComplete="off" /></div>)}</div>}
     </section>;
 }

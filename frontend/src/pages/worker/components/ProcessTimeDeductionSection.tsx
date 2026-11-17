@@ -17,9 +17,10 @@ interface Props {
     onUpdateDeduction: (key: DeductionKey, value: string) => void;
     onNormalizeDeduction: (key: DeductionKey) => void;
     onWarning: (message: string) => void;
+    onOtherDeductionName: (value: string) => void;
 }
 
-export default function ProcessTimeDeductionSection({ processCode = "", form, setForm, deductions, activeDeductionOptions, selectedDeduction, showDeduction, setShowDeduction, onToggleDeduction, onUpdateDeduction, onNormalizeDeduction, onWarning }: Props) {
+export default function ProcessTimeDeductionSection({ processCode = "", form, setForm, deductions, activeDeductionOptions, selectedDeduction, showDeduction, setShowDeduction, onToggleDeduction, onUpdateDeduction, onNormalizeDeduction, onWarning, onOtherDeductionName }: Props) {
     const displayCode = (item: DeductionOption) => String(item.label || "").trim();
     const formatHours = (value: string): string => {
         const number = Number(String(value ?? "").replace(",", "."));
@@ -102,8 +103,9 @@ export default function ProcessTimeDeductionSection({ processCode = "", form, se
                 {activeDeductionOptions.filter((item) => selectedDeduction.includes(item.key)).map((item) => (
                     <div key={item.key} className="worker-field-block">
                         <label className="worker-field-label" htmlFor={String(item.key)}>{displayCode(item)}</label>
+                        {item.key === "__otherDeduction" && <><label className="worker-field-label" htmlFor="other-deduction-name">Lý do trừ giờ khác *</label><input id="other-deduction-name" className="worker-text-input" type="text" maxLength={100} value={form.otherDeductionName || ""} onChange={(event) => onOtherDeductionName(event.target.value)} placeholder="Nhập lý do trước khi nhập số phút" required /></>}
                         <div className="worker-deduction-input-row">
-                            <input id={String(item.key)} className="worker-text-input worker-deduction-input" name={String(item.key)} value={deductions[item.key]} onChange={(event) => onUpdateDeduction(item.key, event.target.value)} onBlur={() => onNormalizeDeduction(item.key)} inputMode="decimal" placeholder="Phút" autoComplete="off" />
+                            <input id={String(item.key)} className="worker-text-input worker-deduction-input" name={String(item.key)} value={deductions[item.key]} disabled={item.key === "__otherDeduction" && !String(form.otherDeductionName || "").trim()} onChange={(event) => onUpdateDeduction(item.key, event.target.value)} onBlur={() => onNormalizeDeduction(item.key)} inputMode="decimal" placeholder="Phút" autoComplete="off" />
                             <span className="worker-time-unit" aria-hidden="true">phút</span>
                         </div>
                         {item.key === "chinhMay" && (

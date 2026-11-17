@@ -1,0 +1,211 @@
+/* ===== ProcessPage.actions-flow.css — consolidated without changing cascade order ===== */
+/* Worker report actions stay in document flow. They appear at the end of the form
+   and are not fixed/sticky to the viewport while the user scrolls. */
+.worker-action-group{
+  position:static!important;
+  inset:auto!important;
+  left:auto!important;
+  right:auto!important;
+  top:auto!important;
+  bottom:auto!important;
+  transform:none!important;
+  width:auto!important;
+  max-width:none!important;
+  margin:10px 0 2px!important;
+  z-index:80!important;
+}
+
+@media(max-width:760px){
+  .worker-action-group{margin:10px 0 2px!important;width:auto!important}
+}
+
+/* ===== ProcessPage.layout-fix.css — consolidated without changing cascade order ===== */
+/* KTC Worker - balanced layout for process and execution choices. */
+
+/* Operation type / execution mode are real controls: keep the original
+   bordered-button appearance, but make every option equal width. */
+.worker-mode-group .worker-choice-row {
+  display: grid;
+  width: 100%;
+  gap: 6px;
+}
+
+/* Two-option groups: Cắt/Lồng and Tự động/Không tự động. */
+.worker-mode-group:has(.worker-choice-row button:nth-child(2)):not(:has(.worker-choice-row button:nth-child(3))) .worker-choice-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.worker-mode-group:has(.worker-choice-row button:nth-child(2)):not(:has(.worker-choice-row button:nth-child(3))) .worker-choice-row button {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  font-size: 12px !important;
+  line-height: 1.25;
+}
+
+/* Three-option groups: Cắt/Lồng/Công việc khác. */
+.worker-mode-group:has(.worker-choice-row button:nth-child(3)) .worker-choice-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.worker-mode-group:has(.worker-choice-row button:nth-child(3)) .worker-choice-row button {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 5px 8px;
+  box-sizing: border-box;
+  font-size: 12px !important;
+  line-height: 1.25;
+}
+
+/* Keep the labels in the same visual scale as the Dashboard. */
+.worker-mode-group .worker-mode-label {
+  margin-bottom: 6px;
+  font-size: 11px !important;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+/* CVK: 3 gia công buttons stay on one full-width row; the 2 execution
+   buttons move to the next row underneath. */
+.worker-mode-panel:has(.worker-operation-type-row) {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+  gap: 12px;
+}
+
+.worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  gap: 12px;
+}
+
+.worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px !important;
+}
+
+.worker-mode-panel:has(.worker-operation-type-row) .worker-execution-mode-group {
+  width: 100%;
+}
+
+.worker-mode-panel:has(.worker-operation-type-row) .worker-execution-mode-group .worker-choice-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  gap: 12px;
+}
+
+/* IMPORTANT: CVK text is real button text from JSX.
+   Do not generate a second copy through ::after. */
+.worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::before,
+.worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::after {
+  content: none !important;
+  display: none !important;
+}
+
+@media (max-width: 500px) {
+  .worker-mode-group .worker-choice-row {
+    gap: 6px;
+  }
+
+  .worker-mode-group:has(.worker-choice-row button:nth-child(2)):not(:has(.worker-choice-row button:nth-child(3))) .worker-choice-row button,
+  .worker-mode-group:has(.worker-choice-row button:nth-child(3)) .worker-choice-row button {
+    min-height: 36px;
+    padding-inline: 5px;
+    font-size: 12px !important;
+  }
+
+  .worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row,
+  .worker-mode-panel:has(.worker-operation-type-row) .worker-execution-mode-group .worker-choice-row {
+    gap: 8px;
+  }
+
+  .worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::before,
+  .worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::after {
+    content: none !important;
+    display: none !important;
+  }
+}
+
+/* ===== ProcessPage.radio-clean.css — consolidated without changing cascade order ===== */
+/* Radio choices are controls, but their surrounding rectangular button frame is not needed. */
+.worker-form-page .worker-choice-row,
+.worker-form-page .worker-choice-row button {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+.worker-form-page .worker-choice-row button {
+  min-width: 0 !important;
+  min-height: 30px !important;
+  padding: 0 2px !important;
+  margin: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+.worker-form-page .worker-choice-row button.active,
+.worker-form-page .worker-choice-row button:hover,
+.worker-form-page .worker-choice-row button:focus,
+.worker-form-page .worker-choice-row button:active {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.worker-form-page .worker-choice-row button::before,
+.worker-form-page .worker-choice-row button::after {
+  box-shadow: none !important;
+}
+
+/* Operation type / execution mode are real segmented controls.
+   Keep their rectangular touch targets, unlike the A/B/C/D shift radios. */
+.worker-form-page .worker-mode-group .worker-choice-row {
+  display: flex;
+  gap: 6px;
+}
+
+.worker-form-page .worker-mode-group .worker-choice-row button {
+  min-width: 0 !important;
+  min-height: 36px !important;
+  flex: 1 1 0 !important;
+  padding: 6px 10px !important;
+  border: 1px solid #c9dced !important;
+  border-radius: 8px !important;
+  background: var(--ktc-surface, #fff) !important;
+  box-shadow: none !important;
+}
+
+.worker-form-page .worker-mode-group .worker-choice-row button.active {
+  border-color: #6ea9e6 !important;
+  background: #eef6ff !important;
+  color: #1768c8 !important;
+}
+
+.worker-form-page .worker-mode-group .worker-choice-row button:hover,
+.worker-form-page .worker-mode-group .worker-choice-row button:focus,
+.worker-form-page .worker-mode-group .worker-choice-row button:active {
+  border: 1px solid #6ea9e6 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Report date selector: smaller and closer to the surrounding typography. */
+.worker-form-page .worker-sticky-date-select {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+}
+
+@media (max-width: 500px) {
+  .worker-form-page .worker-sticky-date-select {
+    font-size: 11.5px !important;
+  }
+}

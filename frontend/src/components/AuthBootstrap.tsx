@@ -40,7 +40,11 @@ export default function AuthBootstrap({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
 
+    const authStartMs = performance.now();
+    const refreshOnly = !getAccessToken() && hasRefreshSessionHint() && !isLoginRoute();
+    console.info(`[KTC-STARTUP] AUTH_BOOTSTRAP_START refreshOnly=${refreshOnly}`);
     void initializeAuthSession().catch(() => undefined).finally(() => {
+      console.info(`[KTC-STARTUP] AUTH_BOOTSTRAP_FINISHED durationMs=${Math.round(performance.now() - authStartMs)} refreshOnly=${refreshOnly}`);
       if (active) {
         setAuthReady(true);
         window.dispatchEvent(new CustomEvent("ktc:auth-ready"));

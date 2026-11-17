@@ -356,3 +356,64 @@ test('logout revokes the supplied family and clears the HttpOnly cookie', async 
   assert.ok(state.revokedTokens.has('logout-token'));
   assert.ok(response.clearedCookies.some((cookie) => cookie.name === 'ktc_refresh_token'));
 });
+
+test('nonexistent worker and wrong manager password return the same public error', async () => {
+  resetState();
+  const unknown = makeResponse();
+  await controller.login(makeRequest({
+    body: { username: 'unknown-worker', access_type: 'worker' }
+  }), unknown);
+  state.passwordValid = false;
+  const wrongPassword = makeResponse();
+  await controller.login(makeRequest({
+    body: { username: 'manager-21', access_type: 'management', password: 'wrong' }
+  }), wrongPassword);
+
+  for (const response of [unknown, wrongPassword]) {
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.body.code, 'INVALID_CREDENTIALS');
+    assert.equal(response.body.message, 'Thông tin đăng nhập không hợp lệ');
+  }
+  assert.equal(state.calls.some((call) => call.op === 'create'), false);
+});
+
+test('wrong role and disabled worker do not reveal account details during login', async () => {
+  resetState();
+  const wrongRole = makeResponse();
+  await controller.login(makeRequest({
+    body: { username: 'manager-21', access_type: 'worker' }
+  }), wrongRole);
+  assert.equal(wrongRole.statusCode, 401);
+  assert.equal(wrongRole.body.code, 'INVALID_CREDENTIALS');
+
+  state.users = [{ ...worker, status: 'inactive' }];
+  const disabled = makeResponse();
+  await controller.login(makeRequest({
+    body: { username: 'W011', access_type: 'worker' }
+  }), disabled);
+  assert.equal(disabled.statusCode, 401);
+  assert.deepEqual(disabled.body, wrongRole.body);
+  assert.equal(state.calls.some((call) => call.op === 'create'), false);
+});
+
+test('ambiguous worker code returns a generic failure without candidate identities', async () => {
+  resetState();
+  state.users = [
+    worker,
+    { ...worker, id: 12, username: 'worker-12', worker_id: 102 }
+  ];
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const response = makeResponse();
+    await controller.login(makeRequest({
+      body: { username: 'W011', access_type: 'worker' }
+    }), response);
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.body.code, 'INVALID_CREDENTIALS');
+    assert.ok(!JSON.stringify(response.body).includes('worker-12'));
+    assert.equal(state.calls.some((call) => call.op === 'create'), false);
+  } finally {
+    console.error = originalError;
+  }
+});

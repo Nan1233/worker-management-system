@@ -8,7 +8,7 @@ export default function WorkerReportEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [allowed, setAllowed] = useState<boolean | null>(null);
-  const [message, setMessage] = useState("Đang kiểm tra thời gian chỉnh sửa...");
+  const [message, setMessage] = useState("Đang kiểm tra quyền chỉnh sửa...");
 
   useEffect(() => {
     let alive = true;
@@ -23,9 +23,7 @@ export default function WorkerReportEdit() {
         if (!editWindow.editable) {
           if (alive) {
             setAllowed(false);
-            setMessage(editWindow.fromRejection
-              ? "Đã hết 10 phút sửa báo cáo bị từ chối. Vui lòng liên hệ quản lý nếu cần sửa."
-              : "Báo cáo đã hết thời gian chỉnh sửa hoặc không còn ở trạng thái được phép sửa.");
+            setMessage("Báo cáo không còn ở trạng thái cho phép công nhân chỉnh sửa.");
           }
           return;
         }

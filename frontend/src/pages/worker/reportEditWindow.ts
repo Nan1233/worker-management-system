@@ -1,14 +1,13 @@
-// Worker self-edit window for temporary reports. Mirrors the backend rule
+// Worker self-edit policy for temporary reports. Mirrors backend/utils/workerEditWindowPolicy.js.
 // (backend/models/productionTempUpdateModel.js + middleware/notifyWorkerOnTempEdit.js):
-//   - pending / need_fix : 10 minutes from creation
-//   - rejected           : 10 minutes from the moment it was rejected
-//                          (lifecycle pending -> rejected -> edit -> pending)
-//   - approved / other   : not editable by the worker
+//   - pending: editable (time restriction currently disabled)
+//   - rejected, need_fix, approved and other statuses: view only
 // The backend remains the authority; this only decides what the UI offers.
 
+export const WORKER_EDIT_TIME_LIMIT_ENABLED = false;
 export const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
-const EDITABLE_STATUSES = new Set(["pending", "need_fix", "rejected"]);
+const EDITABLE_STATUSES = new Set(["pending"]);
 
 export type WorkerEditWindow = {
     editable: boolean;
@@ -30,10 +29,16 @@ export function getWorkerEditWindow(
     report: { status?: unknown; created_at?: unknown; updated_at?: unknown } | null | undefined,
     nowMs: number = Date.now()
 ): WorkerEditWindow {
-    const status = String(report?.status ?? "pending").trim().toLowerCase();
+    if (!report) {
+        return { editable: false, remainingMs: 0, fromRejection: false, reason: "TIME_UNKNOWN" };
+    }
+    const status = String(report.status ?? "").trim().toLowerCase();
     const fromRejection = status === "rejected";
     if (!EDITABLE_STATUSES.has(status)) {
         return { editable: false, remainingMs: 0, fromRejection, reason: "STATUS_NOT_EDITABLE" };
+    }
+    if (!WORKER_EDIT_TIME_LIMIT_ENABLED) {
+        return { editable: true, remainingMs: Number.POSITIVE_INFINITY, fromRejection, reason: "OK" };
     }
     const startMs = parseDbDateMs(fromRejection ? report?.updated_at : report?.created_at);
     if (!Number.isFinite(startMs)) {

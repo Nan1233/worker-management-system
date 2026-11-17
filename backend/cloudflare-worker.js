@@ -58,6 +58,14 @@ db.promise = () => {
 async function normalizeTempChildRows(defects, deductions, processId) {
   const normalizedDefects = Array.isArray(defects) ? defects.map((item) => ({ ...item })) : [];
   const normalizedDeductions = Array.isArray(deductions) ? deductions.map((item) => ({ ...item })) : [];
+  // Cloudflare's pre-submit master check runs before the regular create model.
+  // Register named "other" categories here so they are not falsely rejected.
+  await require("./services/customReportCategoryService").ensureCustomReportCategories({
+    processId,
+    defects: normalizedDefects,
+    deductions: normalizedDeductions,
+    query: queryMasterRows,
+  });
   const pid = Number(processId);
   const defectIds = [...new Set(normalizedDefects.map((item) => Number(item?.defect_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
   const defectNames = [...new Set(normalizedDefects.map((item) => String(item?.defect_name || "").trim()).filter(Boolean))];

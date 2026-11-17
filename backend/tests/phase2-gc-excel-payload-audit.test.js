@@ -102,3 +102,81 @@ test('shared-machine sample can be made mandatory before certifying an Excel mon
   assert.equal(result.passed, false);
   assert.ok(result.errors.includes('REQUIRED_SHARED_MACHINE_SAMPLE_MISSING'));
 });
+
+test('duplicate physical event IDs in a single report fail closed instead of silently overwriting', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, {
+      eventLines: [event, { ...event, machine_time_hours: 10 }],
+    }),
+  ]));
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.includes('GC_DUPLICATE_PHYSICAL_EVENT_ID_IN_REPORT'));
+});
+
+test('even identical duplicate physical event IDs are rejected as ambiguous export data', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, {
+      eventLines: [event, { ...event }],
+    }),
+  ]));
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.includes('GC_DUPLICATE_PHYSICAL_EVENT_ID_IN_REPORT'));
+});
+
+test('invalid physical event IDs are rejected rather than hidden by Map filtering', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, {
+      eventLines: [event, { ...event, id: 'invalid' }],
+    }),
+  ]));
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.includes('GC_INVALID_PHYSICAL_EVENT_ID'));
+});
+
+test('malformed nonempty machine event references fail instead of becoming unlinked lines', () => {
+  for (const badId of ['not-an-event', -1, 1.5, '9007199254740993']) {
+    const result = auditGcExportPayload(envelope([
+      row(1001, 'W001', 901, {
+        machineLines: [{ id: 10010, machine_event_id: badId, machine_time_hours: 8, deduction_time_hours: 0, deductions_json: '[]' }],
+        eventLines: [],
+        machineAccounting: { source: 'MACHINE_LINE', grossHours: 8, deductionHours: 0, netHours: 8 },
+      }),
+    ]));
+    assert.equal(result.passed, false, String(badId));
+    assert.ok(result.errors.includes('GC_INVALID_MACHINE_EVENT_REFERENCE'), String(badId));
+  }
+});
+
+test('legacy unlinked machine line is not rejected solely for a null event reference', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, {
+      machineLines: [{ id: 10010, machine_event_id: null, machine_time_hours: 8, deduction_time_hours: 0, deductions_json: '[]' }],
+      eventLines: [],
+      machineAccounting: { source: 'MACHINE_LINE', grossHours: 8, deductionHours: 0, netHours: 8 },
+    }),
+  ]));
+  assert.equal(result.passed, true, result.errors.join(', '));
+});
+
+test('linked event on a different production date is rejected', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, { work_date: '2026-10-31', shift: 'A' }),
+  ]));
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.includes('GC_EVENT_REPORT_DATE_MISMATCH'));
+});
+
+test('linked event on a different shift is rejected', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, { work_date: '2026-10-30', shift: 'B' }),
+  ]));
+  assert.equal(result.passed, false);
+  assert.ok(result.errors.includes('GC_EVENT_REPORT_SHIFT_MISMATCH'));
+});
+
+test('linked event with matching date and shift remains valid', () => {
+  const result = auditGcExportPayload(envelope([
+    row(1001, 'W001', 901, { work_date: '2026-10-30', shift: 'A' }),
+  ]));
+  assert.equal(result.passed, true, result.errors.join(', '));
+});

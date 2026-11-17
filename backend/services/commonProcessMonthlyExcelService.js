@@ -1,345 +1,135 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const { getMonthlyTarget } = require('./consolidatedExcelExportService');
-const { resolveTemplatePath, normalizeLabel } = require('./excelTemplateContractService');
+const { resolveTemplatePath } = require('./excelTemplateContractService');
+const { saveCommonProcessMonthlyWorkbook } = require('./commonProcessExcelPersistence');
+const { dateKey, prepareCommonProcessExcelReports } = require('./commonProcessExcelReportPreparation');
+const { expandGiaCongMachineLines } = require('./gcCommonProcessExcelRows');
+const { buildCommonProcessExcelRowValues } = require('./commonProcessExcelRowValues');
+const {
+  TEMPLATE_SHEETS,
+  safeSheetName,
+  groupReportsByProcessSheet,
+  getProcessDetailTypes
+} = require('./commonProcessExcelGrouping');
+const {
+  clearSheetData,
+  copyTemplateStyles,
+  setHeader,
+  writeDateRow,
+  prepareSheet
+} = require('./commonProcessExcelSheetFormatting');
+const { LAST_COLUMN } = require('./commonProcessExcelColumns');
 
-const TEMPLATE_SHEETS = ['CÁN', 'EP', 'XLBV', 'Cắt lồng', 'TT Mài', 'TT Đo', 'TT Kiểm 1', 'TT Kiểm 2'];
-const MAX_DEDUCTIONS = 15;
-const MAX_DEFECTS = 16;
-const LAST_COLUMN = 53;
-
-const PROCESS_ALIASES = [
-  ['can', 'CÁN'], ['ep', 'EP'], ['xlbv', 'XLBV'], ['cat long', 'Cắt lồng'],
-  ['mai', 'TT Mài'], ['do', 'TT Đo'], ['kiem 1', 'TT Kiểm 1'], ['kiem 2', 'TT Kiểm 2']
+const DATA_CELL_FORMATS = [
+  [6, '0%'],
+  [28, '0.00'],
+  [29, '0.00'],
+  [30, '0.00%'],
+  [31, 'dd/mm/yyyy'],
+  [32, '0.00'],
+  [35, '0%']
 ];
+const BOLD_DATA_COLUMNS = [30, 35];
 
-function alias(value) { return normalizeLabel(value); }
-function num(value) { const n = Number(value ?? 0); return Number.isFinite(n) ? n : 0; }
-function clone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
-function dateKey(value) {
-  if (!value) return '';
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 function displayDate(value) {
-  const key = dateKey(value); if (!key) return '';
-  const [y, m, d] = key.split('-'); return `NGÀY ${d}/${m}/${y}`;
-}
-function sheetForProcess(name) {
-  const label = alias(name);
-  const found = PROCESS_ALIASES.find(([key]) => label.includes(alias(key)));
-  return found ? found[1] : null;
-}
-function safeSheetName(name) {
-  const cleaned = String(name || 'BC công đoạn').replace(/[\\/*?:\[\]]/g, ' ').trim();
-  return cleaned.slice(0, 31) || 'BC công đoạn';
+  const key = dateKey(value);
+  if (!key) return '';
+  const [year, month, day] = key.split('-');
+  return `NGÀY ${day}/${month}/${year}`;
 }
 
-function parseArray(value) {
-  if (Array.isArray(value)) return value;
-  if (!value) return [];
-  try {
-    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-function resolveReportExportTimes(report) {
-  const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
-  const mode = String(report.operation_mode || '').trim().toUpperCase();
-  const hasMachine = lines.length > 0
-    || mode === 'MACHINE'
-    || (!mode && [report.machine_no, report.machine_code, report.machine]
-      .some((value) => String(value ?? '').trim() !== ''));
-  if (!hasMachine) {
-    return {
-      hasMachine: false,
-      totalHours: Math.max(0, num(report.total_time ?? report.actual_time)),
-      actualHours: Math.max(0, num(report.actual_time ?? report.total_time)),
-      deductionHours: Math.max(0, num(report.deduction_time)),
-      deductions: Array.isArray(report.deductions) ? report.deductions : []
-    };
-  }
-
-  if (report.machineAccounting && typeof report.machineAccounting === 'object') {
-    const totalHours = Math.max(0, num(report.machineAccounting.grossHours));
-    const deductionHours = Math.max(0, num(report.machineAccounting.deductionHours));
-    return {
-      hasMachine: true,
-      totalHours,
-      actualHours: Math.max(0, num(report.machineAccounting.netHours)),
-      deductionHours,
-      deductions: Array.isArray(report.machineAccounting.deductions) ? report.machineAccounting.deductions : []
-    };
-  }
-
-  let totalHours = 0;
-  let deductionHours = 0;
-  const seenEvents = new Set();
-  const deductions = [];
-  for (const [index, line] of lines.entries()) {
-    const eventId = Number(line.machine_event_id) || 0;
-    if (eventId && seenEvents.has(eventId)) continue;
-    if (eventId) seenEvents.add(eventId);
-    totalHours += Math.max(0, num(line.excel_machine_time_hours ?? line.machine_time_hours));
-
-    const details = parseArray(line.deductions_json ?? line.deductions);
-    const detailHours = details.reduce((sum, item) => sum + Math.max(0, num(item.hours)), 0);
-    deductionHours += Math.max(0, detailHours, num(line.deduction_time_hours), num(line.adjustment_minutes) / 60);
-    for (const item of details) {
-      const hours = Math.max(0, num(item.hours));
-      if (!hours) continue;
-      const id = Number(item.deduction_type_id ?? item.id) || 0;
-      const code = String(item.deduction_code ?? item.deduction_type_code ?? item.code ?? '').trim();
-      const name = String(item.deduction_name ?? item.name ?? '').trim();
-      const key = id ? 'ID:' + id : (code ? 'CODE:' + code.toUpperCase() : 'NAME:' + name.toUpperCase());
-      const existing = deductions.find((entry) => entry._key === key);
-      if (existing) existing.hours += hours;
-      else deductions.push({
-        _key: key,
-        ...(id ? { deduction_type_id: id } : {}),
-        deduction_code: code,
-        deduction_name: name,
-        hours
-      });
-    }
-  }
-  return {
-    hasMachine: true,
-    totalHours,
-    deductionHours,
-    actualHours: Math.max(0, totalHours - deductionHours),
-    deductions: deductions.map(({ _key, ...item }) => item)
-  };
-}
-
-function clearSheetData(sheet) {
-  // ExcelJS has no `sheet.mergedCells`: the old `[...(sheet.mergedCells || [])]` was always empty, so no
-  // template merge was ever removed and the first writeDateRow() -> mergeCells() on a merged template row
-  // threw "Cannot merge already merged cells" as soon as the (previously hung) clear loop finished.
-  // The merge registry is `sheet._merges` ({masterAddress: Range}); it is the same data ExcelJS serialises.
-  for (const merge of Object.values(sheet._merges || {})) { try { sheet.unMergeCells(merge.range); } catch (_) {} }
-  // Only visit cells that exist in the template. The previous nested loop used
-  // `c <= sheet.columnCount` as its condition: ExcelJS recomputes columnCount by scanning EVERY row on
-  // each access, and getRow()/getCell() materialise a cell at every (row, column) position, so a
-  // template whose used range is ~1M cells made the export O(n^2) and pinned the CPU at 100 % for
-  // minutes (POST /api/reports/export-excel never answered). Styles are kept; only values are cleared.
-  sheet.eachRow({ includeEmpty: true }, (row) => {
-    row.eachCell({ includeEmpty: true }, (cell) => { cell.value = null; });
-  });
-  if (Array.isArray(sheet.conditionalFormattings)) sheet.conditionalFormattings.length = 0;
-  const columnCount = sheet.columnCount; // read once: see above
-  for (let c = LAST_COLUMN + 1; c <= columnCount; c += 1) sheet.getColumn(c).hidden = true;
-}
-
-function captureRowStyles(sheet, rowNumber) {
-  const result = [];
-  const row = sheet.getRow(rowNumber);
-  for (let c = 1; c <= LAST_COLUMN; c += 1) {
-    const cell = row.getCell(c);
-    result.push({ style: clone(cell.style), font: clone(cell.font), fill: clone(cell.fill), border: clone(cell.border), alignment: clone(cell.alignment), protection: clone(cell.protection), numFmt: cell.numFmt });
-  }
-  return result;
-}
-function applyStyle(cell, source) {
-  if (!source) return;
-  if (source.style) cell.style = clone(source.style);
-  if (source.font) cell.font = clone(source.font);
-  if (source.fill) cell.fill = clone(source.fill);
-  if (source.border) cell.border = clone(source.border);
-  if (source.alignment) cell.alignment = clone(source.alignment);
-  if (source.protection) cell.protection = clone(source.protection);
-  if (source.numFmt) cell.numFmt = source.numFmt;
-}
-function copyTemplateStyles(sheet, sourceRow, targetRow, styles) {
-  const row = sheet.getRow(targetRow); row.height = sheet.getRow(sourceRow).height || 18;
-  for (let c = 1; c <= LAST_COLUMN; c += 1) applyStyle(row.getCell(c), styles[c - 1]);
-}
-function setHeader(sheet, rowNumber, styles, deductions, defects) {
-  copyTemplateStyles(sheet, 3, rowNumber, styles);
-  const headers = [
-    'STT', 'Mã CN', 'Họ tên', 'Số máy', 'Ca', '% học việc', 'Tổng thời gian', 'Thời gian thực tế', 'Số lần CM', 'Tổng TG trừ giờ', 'Thiếu sản lượng',
-    ...Array.from({ length: MAX_DEDUCTIONS }, (_, i) => deductions[i]?.name || ''),
-    'SP', 'Định mức', 'TT', '% định mức', 'Ngày', 'Định mức/h', 'OK', 'Tổng NG', '% NG',
-    ...Array.from({ length: MAX_DEFECTS }, (_, i) => defects[i]?.name || ''), 'OK', 'NG'
-  ];
-  headers.forEach((value, index) => {
-    const cell = sheet.getRow(rowNumber).getCell(index + 1);
-    cell.value = value; cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; cell.font = { ...(cell.font || {}), bold: true };
-  });
-  sheet.getRow(rowNumber).height = 44;
-}
-function writeDateRow(sheet, rowNumber, text, style) {
-  const row = sheet.getRow(rowNumber); row.height = 25;
-  for (let c = 1; c <= LAST_COLUMN; c += 1) applyStyle(row.getCell(c), style[c - 1]);
-  sheet.mergeCells(rowNumber, 1, rowNumber, LAST_COLUMN);
-  const cell = row.getCell(1); cell.value = text;
-  cell.font = { ...(cell.font || {}), bold: true, size: Math.max(11, Number(cell.font?.size || 10) + 1) };
-  cell.alignment = { horizontal: 'left', vertical: 'middle' };
-}
-function detailValue(items, id, name, key) {
-  const target = alias(name);
-  return (items || []).filter((item) => {
-    const itemId = Number(item?.[key === 'hours' ? 'deduction_type_id' : 'defect_type_id'] ?? item?.id);
-    const itemName = alias(item?.name || item?.deduction_name || item?.defect_name || item?.code || item?.deduction_code || item?.defect_code);
-    return (id && itemId === Number(id)) || (target && itemName && (itemName === target || itemName.includes(target) || target.includes(itemName)));
-  }).reduce((sum, item) => sum + num(item?.[key] ?? item?.quantity ?? item?.value), 0);
-}
 function writeReportRow(sheet, rowNumber, report, deductionTypes, defectTypes, dataStyles, index) {
   copyTemplateStyles(sheet, 6, rowNumber, dataStyles);
   const row = sheet.getRow(rowNumber);
-  const exportTimes = report.excelExportTimes || resolveReportExportTimes(report);
-  const totalTime = exportTimes.totalHours;
-  const actualTime = exportTimes.actualHours;
-  const deductionTime = exportTimes.deductionHours;
+  const values = buildCommonProcessExcelRowValues(report, deductionTypes, defectTypes, index);
 
-  // Business rule for Excel:
-  //   Định mức = Định mức SP/h × số giờ thực tế
-  //   % định mức = TT / Định mức × % học việc
-  // The training percentage is the immutable snapshot captured at report time.
-  const standardRate = num(report.standard_output);
-  const actual = num(report.actual_output || (num(report.tt_ok) + num(report.tt_ng)));
-  const trainingPercent = Math.min(100, Math.max(0, num(report.training_percent ?? report.training_percent_snapshot)));
-  const trainingFactor = trainingPercent / 100;
-  const standard = standardRate * actualTime;
-  const achievement = standard > 0 ? (actual / standard) * trainingFactor : 0;
-  const outputPerHour = actualTime > 0 ? actual / actualTime : 0;
-  const ok = num(report.tt_ok);
-  const ng = num(report.tt_ng);
-  const ngRate = actual > 0 ? ng / actual : 0;
-  const deductions = Array.isArray(exportTimes.deductions) ? exportTimes.deductions : [];
-  const defects = Array.isArray(report.defects) ? report.defects : [];
-
-  const isGiaCong = String(report.process_code || '').trim().toUpperCase() === 'GC';
-  const deductionValues = deductionTypes.slice(0, MAX_DEDUCTIONS).map((t) => detailValue(deductions, t.id, t.name, 'hours'));
-  const defectValues = defectTypes.slice(0, MAX_DEFECTS).map((t) => detailValue(defects, t.id, t.name, 'quantity'));
-  // The legacy monthly template reserves fixed-width detail blocks. Keep their
-  // positions stable for Gia công even when this month's active type list is short.
-  if (isGiaCong) {
-    while (deductionValues.length < MAX_DEDUCTIONS) deductionValues.push(null);
-    while (defectValues.length < MAX_DEFECTS) defectValues.push(null);
+  for (let column = 1; column <= LAST_COLUMN; column += 1) {
+    row.getCell(column).value = values[column - 1] ?? null;
   }
-  const values = [
-    index + 1, report.worker_code ?? '', report.full_name ?? report.worker_name ?? '', report.machine_no ?? '', report.shift ?? '',
-    trainingFactor, totalTime, actualTime,
-    detailValue(deductions, null, 'Chuyển mã', 'hours'), deductionTime, Math.max(0, standard - actual),
-    ...deductionValues,
-    report.product_name ?? '', standard, actual, achievement,
-    dateKey(report.work_date) ? new Date(`${dateKey(report.work_date)}T00:00:00`) : null,
-    standardRate, ok, ng, ngRate,
-    ...defectValues, ok, ng
-  ];
 
-  for (let c = 1; c <= LAST_COLUMN; c += 1) row.getCell(c).value = values[c - 1] ?? null;
-  row.getCell(6).numFmt = '0%';
-  row.getCell(28).numFmt = '0.00';
-  row.getCell(29).numFmt = '0.00';
-  row.getCell(30).numFmt = '0.00%';
-  row.getCell(31).numFmt = 'dd/mm/yyyy';
-  row.getCell(32).numFmt = '0.00';
-  row.getCell(35).numFmt = '0%';
-  row.getCell(30).font = { ...(row.getCell(30).font || {}), bold: true };
-  row.getCell(35).font = { ...(row.getCell(35).font || {}), bold: true };
-}
-function prepareSheet(sheet) {
-  const headerStyles = captureRowStyles(sheet, 3), dataStyles = captureRowStyles(sheet, Math.min(6, sheet.rowCount)), dateStyles = captureRowStyles(sheet, 1);
-  const widths = Array.from({ length: LAST_COLUMN }, (_, i) => sheet.getColumn(i + 1).width);
-  clearSheetData(sheet); widths.forEach((width, i) => { if (width != null) sheet.getColumn(i + 1).width = width; });
-  return { headerStyles, dataStyles, dateStyles };
+  for (const [column, format] of DATA_CELL_FORMATS) {
+    row.getCell(column).numFmt = format;
+  }
+  for (const column of BOLD_DATA_COLUMNS) {
+    const cell = row.getCell(column);
+    cell.font = { ...(cell.font || {}), bold: true };
+  }
 }
 
-function expandGiaCongMachineLines(reports) {
-  const expanded = [];
-  for (const report of reports || []) {
-    const isGiaCong = String(report.process_code || '').trim().toUpperCase() === 'GC'
-      || alias(report.process_name || '') === alias('Gia công');
-    const lines = Array.isArray(report.machineLines) ? report.machineLines.slice() : [];
-    if (!isGiaCong || !lines.length) {
-      // Historical reports without machineLines retain one row; never fabricate a machine.
-      expanded.push(report);
-      continue;
+function writeEmptySheet(sheet, sheetName, yearMonth, styles) {
+  const year = String(yearMonth).slice(0, 4);
+  const month = String(yearMonth).slice(5, 7);
+  writeDateRow(
+    sheet,
+    1,
+    `BÁO CÁO CÔNG ĐOẠN – ${sheetName} – THÁNG ${month}/${year}`,
+    styles.dateStyles
+  );
+  setHeader(sheet, 3, styles.headerStyles, [], []);
+}
+
+function writeDailyReports(sheet, reports, styles) {
+  const { processDeductions, processDefects } = getProcessDetailTypes(reports);
+  let rowNumber = 1;
+  let currentDate = null;
+
+  for (const report of reports) {
+    const reportDate = dateKey(report.work_date);
+    if (reportDate !== currentDate) {
+      if (currentDate !== null) rowNumber += 1; // Blank row between dates.
+      writeDateRow(sheet, rowNumber, displayDate(report.work_date), styles.dateStyles);
+      rowNumber += 1;
+      setHeader(sheet, rowNumber, styles.headerStyles, processDeductions, processDefects);
+      rowNumber += 1;
+      currentDate = reportDate;
     }
-    lines.sort((a, b) => num(a.sort_order) - num(b.sort_order) || num(a.id) - num(b.id));
-    for (const line of lines) {
-      const deductions = parseArray(line.deductions_json ?? line.deductions).map((item) => ({
-        deduction_type_id: Number(item?.deduction_type_id ?? item?.id) || undefined,
-        deduction_code: String(item?.deduction_code ?? item?.deduction_type_code ?? item?.code ?? '').trim(),
-        deduction_name: String(item?.deduction_name ?? item?.name ?? '').trim(),
-        hours: Math.max(0, num(item?.hours))
-      })).filter((item) => item.hours > 0);
-      const detailHours = deductions.reduce((sum, item) => sum + item.hours, 0);
-      const fallbackDeduction = Math.max(0, num(line.deduction_time_hours), num(line.adjustment_minutes) / 60);
-      const deductionHours = Math.max(detailHours, fallbackDeduction);
-      // This sheet expands worker-machine pairs: show worker participation
-      // time, not the shared physical event duration repeated on each worker.
-      const totalHours = Math.max(0, num(line.machine_time_hours));
-      const actualHours = Math.max(0, totalHours - deductionHours);
-      const ok = Math.max(0, num(line.ok_quantity));
-      const ng = Math.max(0, num(line.ng_quantity));
-      expanded.push({
-        ...report,
-        machine_no: String(line.machine_code ?? '').trim(),
-        product_name: String(line.product_code ?? '').trim(),
-        standard_output: Math.max(0, num(line.standard_output)),
-        tt_ok: ok,
-        tt_ng: ng,
-        actual_output: ok + ng,
-        defects: parseArray(line.defects ?? line.defects_json),
-        machineLines: [],
-        machineAccounting: null,
-        excelExportTimes: { hasMachine: true, totalHours, actualHours, deductionHours, deductions },
-        _gcMachineLineId: line.id ?? null
-      });
-    }
+
+    // Keep the existing index contract unchanged; row numbering is a separate business rule.
+    writeReportRow(sheet, rowNumber, report, processDeductions, processDefects, styles.dataStyles, rowNumber);
+    rowNumber += 1;
   }
-  return expanded;
+
+  sheet.views = [{ state: 'frozen', ySplit: 2 }];
+  sheet.pageSetup = {
+    ...(sheet.pageSetup || {}),
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0
+  };
+}
+
+function populateWorksheet(workbook, sheetName, reports, yearMonth) {
+  let sheet = workbook.getWorksheet(sheetName);
+  if (!sheet) sheet = workbook.addWorksheet(safeSheetName(sheetName));
+
+  const styles = prepareSheet(sheet);
+  if (reports.length === 0) {
+    writeEmptySheet(sheet, sheetName, yearMonth, styles);
+    return;
+  }
+  writeDailyReports(sheet, reports, styles);
 }
 
 async function buildCommonProcessMonthlyWorkbook(reports, yearMonth, options = {}) {
   const templatePath = await resolveTemplatePath();
-  const workbook = new ExcelJS.Workbook(); await workbook.xlsx.readFile(templatePath);
-  const reportList = expandGiaCongMachineLines(reports).sort((a, b) => dateKey(a.work_date).localeCompare(dateKey(b.work_date)) || String(a.worker_code || '').localeCompare(String(b.worker_code || ''), undefined, { numeric: true }) || Number(a.id) - Number(b.id) || num(a._gcMachineLineId) - num(b._gcMachineLineId));
-  for (const report of reportList) { if (!report.excelExportTimes) report.excelExportTimes = resolveReportExportTimes(report); }
-  const grouped = new Map();
-  for (const report of reportList) {
-    const sheetName = sheetForProcess(report.process_name) || safeSheetName(report.process_name || 'BC công đoạn');
-    if (!grouped.has(sheetName)) grouped.set(sheetName, []); grouped.get(sheetName).push(report);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(templatePath);
+
+  const reportList = prepareCommonProcessExcelReports(reports);
+  const grouped = groupReportsByProcessSheet(reportList);
+  const allSheetNames = new Set([...TEMPLATE_SHEETS, ...grouped.keys()]);
+
+  for (const name of allSheetNames) {
+    populateWorksheet(workbook, name, grouped.get(name) || [], yearMonth);
   }
-  const allSheetNames = new Set(TEMPLATE_SHEETS); for (const name of grouped.keys()) allSheetNames.add(name);
-  for (const name of [...allSheetNames]) {
-    let sheet = workbook.getWorksheet(name); if (!sheet) sheet = workbook.addWorksheet(safeSheetName(name));
-    const styles = prepareSheet(sheet), items = grouped.get(name) || [];
-    if (!items.length) {
-      writeDateRow(sheet, 1, `BÁO CÁO CÔNG ĐOẠN – ${name} – THÁNG ${String(yearMonth).slice(5, 7)}/${String(yearMonth).slice(0, 4)}`, styles.dateStyles);
-      setHeader(sheet, 3, styles.headerStyles, [], []); continue;
-    }
-    const processDeductions = [...new Map(items.flatMap((r) => r.excelExportTimes?.hasMachine ? r.excelExportTimes.deductions : (r.deductions || [])).map((x) => [Number(x.deduction_type_id || x.id), x])).values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id || a.deduction_type_id || 0) - Number(b.id || b.deduction_type_id || 0));
-    const processDefects = [...new Map(items.flatMap((r) => r.defects || []).map((x) => [Number(x.defect_type_id || x.id), x])).values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id || a.defect_type_id || 0) - Number(b.id || b.defect_type_id || 0));
-    let rowNumber = 1, currentDate = null;
-    for (const report of items) {
-      const day = dateKey(report.work_date);
-      if (day !== currentDate) {
-        if (currentDate !== null) rowNumber += 1;
-        writeDateRow(sheet, rowNumber, displayDate(report.work_date), styles.dateStyles); rowNumber += 1;
-        setHeader(sheet, rowNumber, styles.headerStyles, processDeductions, processDefects); rowNumber += 1; currentDate = day;
-      }
-      writeReportRow(sheet, rowNumber, report, processDeductions, processDefects, styles.dataStyles, rowNumber); rowNumber += 1;
-    }
-    sheet.views = [{ state: 'frozen', ySplit: 2 }];
-    sheet.pageSetup = { ...(sheet.pageSetup || {}), orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
-  }
+
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
-  const target = getMonthlyTarget(yearMonth, { stageFolder: 'BC công đoạn' }); await fs.mkdir(target.folder, { recursive: true });
-  const tempPath = `${target.filePath}.${process.pid}.${Date.now()}.tmp`; await workbook.xlsx.writeFile(tempPath); await fs.rename(tempPath, target.filePath);
-  await fs.writeFile(target.metadataPath, JSON.stringify({ version: 1, template: path.basename(templatePath), layout: 'common-process-daily-blocks', yearMonth, reportCount: reportList.length, updatedAt: new Date().toISOString() }), 'utf8');
-  return { archivePath: target.filePath, fileName: target.fileName, reportCount: reportList.length, templateFile: path.basename(templatePath), layout: 'common-process-daily-blocks' };
+  return saveCommonProcessMonthlyWorkbook(workbook, yearMonth, templatePath, reportList.length);
 }
 
-module.exports = { buildCommonProcessMonthlyWorkbook, __test: { clearSheetData, expandGiaCongMachineLines } };
+module.exports = {
+  buildCommonProcessMonthlyWorkbook,
+  __test: { clearSheetData, expandGiaCongMachineLines }
+};

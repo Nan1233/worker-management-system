@@ -3,13 +3,8 @@ import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 
 import App from "./App";
-import "./pages/worker/ProcessPage.compact.css";
-import "./pages/worker/ProcessPage.polished.css";
-import "./pages/worker/ProcessPage.ng-layout.css";
-import "./pages/worker/ProcessPage.time-layout.css";
-import "./pages/worker/ProcessPage.actions-flow.css";
-import "./pages/worker/ProcessPage.layout-fix.css";
-import "./pages/worker/ProcessPage.radio-clean.css";
+import "./pages/worker/ProcessPage.layout-legacy.css";
+import "./pages/worker/ProcessPage.form-controls.css";
 import "./pages/worker/ProcessPage.ui-redesign.css";
 import "./pages/worker/NonProductWorkPage.consistency.css";
 import "./pages/manager/ApprovedReportsPresentation.css";
@@ -71,7 +66,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </React.StrictMode>
 );
 
-if (!isNativeCapacitor && "serviceWorker" in navigator && import.meta.env.PROD && /^https?:$/.test(window.location.protocol)) {
+if (!isNativeCapacitor && import.meta.env.VITE_KTC_BUNDLED_FE !== "1" && "serviceWorker" in navigator && import.meta.env.PROD && /^https?:$/.test(window.location.protocol)) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((registration) => {
             registration.update().catch(() => undefined);
@@ -80,6 +75,26 @@ if (!isNativeCapacitor && "serviceWorker" in navigator && import.meta.env.PROD &
             console.warn("Không thể đăng ký PWA service worker:", error);
         });
     });
+}
+
+// Run diagnostics strictly AFTER the frontend load and initial paint.
+// Dynamic import keeps telemetry code and network requests outside the startup path.
+if ((window as Window & { ktcDesktop?: { isDesktop?: boolean } }).ktcDesktop?.isDesktop) {
+  const afterPaint = () => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        // Notify Electron after the first visible frames, before any telemetry I/O.
+        (window as Window & { ktcDesktop?: { markFrontendPaint?: () => void } }).ktcDesktop?.markFrontendPaint?.();
+        window.setTimeout(() => {
+          void import("./services/desktopStartupTelemetry")
+            .then(({ uploadDesktopStartupTelemetry }) => uploadDesktopStartupTelemetry())
+            .catch(() => undefined);
+        }, 1500);
+      });
+    });
+  };
+  if (document.readyState === "complete") afterPaint();
+  else window.addEventListener("load", afterPaint, { once: true });
 }
 
 console.info(`[KTC] frontendVersion=${FRONTEND_VERSION} commitSha=${FRONTEND_COMMIT_SHA}`);

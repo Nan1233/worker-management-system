@@ -80,7 +80,7 @@ const assignedValue = (stmt, field) => {
 };
 
 const machineLine = { machine_code: 'M05', product_code: 'P1', ok_quantity: 90, ng_quantity: 10, defects: [{ defect_code: 'X', defect_name: 'Vỡ', quantity: 10 }] };
-const ADMIN = { isAdmin: false, workerId: 7 };
+const ADMIN = { isAdmin: false, workerId: 7, expectedUpdatedAt: '2026-10-23T01:00:00.000Z' };
 
 test('machine report edit keeps the machine-line NG total when the parent defect list is empty', async () => {
   const { Model, calls } = build();
@@ -138,9 +138,38 @@ test('mid-failure rolls back and never commits', async () => {
   assert.equal(calls.some((c) => c.sql === 'ROLLBACK'), true);
 });
 
-test('worker cannot edit outside the 10 minute window', async () => {
-  const { Model, calls } = build({ current: { created_at: new Date(Date.now() - 11 * 60 * 1000).toISOString() } });
-  await assert.rejects(() => quiet(() => Model.updateReport(900001, { note: 'x' }, 70, null, ADMIN)), (e) => e.code === 'TEMP_REPORT_EDIT_WINDOW_EXPIRED');
+test('worker can edit an old pending report while the time limit is temporarily disabled', async () => {
+  const { Model, calls } = build({ current: { created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() } });
+  await quiet(() => Model.updateReport(900001, { note: 'x' }, 70, null, ADMIN));
+  assert.ok(updateSql(calls), 'expired pending report must remain editable under temporary policy');
+});
+
+test('worker cannot edit rejected or legacy need_fix reports', async () => {
+  for (const status of ['rejected', 'need_fix']) {
+    const { Model, calls } = build({ current: { status } });
+    await assert.rejects(
+      () => quiet(() => Model.updateReport(900001, { note: 'attempt' }, 70, null, ADMIN)),
+      (e) => e.code === 'TEMP_REPORT_STATUS_NOT_EDITABLE'
+    );
+    assert.equal(updateSql(calls), undefined, `must not write ${status} report`);
+  }
+});
+
+test('worker cannot edit a non-editable temp report status', async () => {
+  const { Model, calls } = build({ current: { status: 'deleted' } });
+  await assert.rejects(
+    () => quiet(() => Model.updateReport(900001, { note: 'x' }, 70, null, ADMIN)),
+    (e) => e.code === 'TEMP_REPORT_STATUS_NOT_EDITABLE'
+  );
+  assert.equal(updateSql(calls), undefined);
+});
+
+test('worker edit with no expected_updated_at fails closed before writing', async () => {
+  const { Model, calls } = build();
+  await assert.rejects(
+    () => quiet(() => Model.updateReport(900001, { note: 'x' }, 70, null, { isAdmin: false, workerId: 7 })),
+    (e) => e.status === 409 && e.code === 'TEMP_REPORT_VERSION_REQUIRED'
+  );
   assert.equal(updateSql(calls), undefined);
 });
 

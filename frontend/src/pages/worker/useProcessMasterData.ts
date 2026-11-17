@@ -16,6 +16,11 @@ import {
   CONNECTION_RESTORED_EVENT,
 } from "../../services/authRuntimeEvents";
 
+// Explicit worker-defined "other" choices; names are supplied on each report.
+export const OTHER_NG_KEY = "__otherNg";
+export const OTHER_DEDUCTION_KEY = "__otherDeduction";
+const OTHER_NG_OPTION: WorkerMasterOption = { key: OTHER_NG_KEY, code: "CUSTOM_OTHER_NG", label: "NG khác", id: 0 };
+const OTHER_DEDUCTION_OPTION: WorkerMasterOption = { key: OTHER_DEDUCTION_KEY, code: "CUSTOM_OTHER_DEDUCTION", label: "Trừ giờ khác", id: 0 };
 const ZERO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
 // Mài worker form uses only the approved time-deduction and NG categories.
@@ -326,26 +331,28 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const deductions = deductionResult.status === "fulfilled" ? { value: deductionResult.value } : null;
 
       if (defects) {
-        const normalized = normalizeDefectOptions(defects.value, resolvedProcessId);
+        const normalized = normalizeDefectOptions(defects.value, resolvedProcessId)
+          .filter((option) => !/^CUSTOM_NG_/i.test(String(option.code || "")));
         const maiFiltered = filterMaiMasterOptions(normalized, processCode, resolvedProcessId, MAI_ALLOWED_DEFECT_NAMES, "MAI_NG_");
         // K2 must use the canonical K2_NG_* catalogue only. Name-based filtering
         // is insufficient because the legacy KTC_DEF_K2_* rows share the same labels.
         const k2Filtered = Number(resolvedProcessId) === 5 || String(processCode || "").trim().toUpperCase() === "K2"
           ? maiFiltered.filter((option) => /^K2_NG_/i.test(String(option.code || "").trim()))
           : filterK2MasterOptions(maiFiltered, processCode, K2_ALLOWED_DEFECT_NAMES);
-        setActiveNgOptions(displayXlbvDefectNames(filterEncodedOptions(k2Filtered, processCode, "ng"), processCode));
+        setActiveNgOptions([...displayXlbvDefectNames(filterEncodedOptions(k2Filtered, processCode, "ng"), processCode)).filter((option) => !["NG KHÁC", "KHÁC"].includes(String(option.label || "").trim().toUpperCase())), OTHER_NG_OPTION]);
       } else {
         setActiveNgOptions([]);
       }
 
       if (deductions) {
-        setActiveDeductionOptions(
-          dedupeEncodedOrLegacyDeductions(
-            normalizeDeductionOptions(deductions.value, resolvedProcessId),
+        setActiveDeductionOptions([
+          ...dedupeEncodedOrLegacyDeductions(
+            normalizeDeductionOptions(deductions.value, resolvedProcessId)
+              .filter((option) => !/^CUSTOM_DED_/i.test(String(option.code || ""))),
             processCode,
-
-          ),
-        );
+          ).filter((option) => !["TRỪ GIỜ KHÁC", "KHÁC"].includes(String(option.label || "").trim().toUpperCase())),
+          OTHER_DEDUCTION_OPTION,
+        ]);
       } else {
         setActiveDeductionOptions([]);
       }

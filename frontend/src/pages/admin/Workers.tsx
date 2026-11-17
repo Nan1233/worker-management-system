@@ -60,28 +60,43 @@ export default function AdminWorkers() {
   const [transferBusy, setTransferBusy] = useState(false);
   const [transferMessage, setTransferMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const loadSeqRef = useRef(0);
+  const editSeqRef = useRef(0);
+  const [loadError, setLoadError] = useState("");
+  const [activityError, setActivityError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
+  const [transferError, setTransferError] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const actionBusy = saving || transferBusy || promotingId !== null || deactivatingId !== null || editLoading;
 
   const load = async () => {
-    setLoading(true);
+    const seq = ++loadSeqRef.current;
+    setLoading(true); setLoadError("");
     try {
       const [usersResponse, processResponse] = await Promise.all([api.get("/users"), api.get("/users/options/processes")]);
-      setPeople(usersResponse.data?.data || []);
-      const processOptions = (processResponse.data?.data || [])
+      if (seq !== loadSeqRef.current) return;
+      if (!Array.isArray(usersResponse.data?.data) || !Array.isArray(processResponse.data?.data)) throw new Error("Dữ liệu tài khoản hoặc công đoạn không hợp lệ.");
+      setPeople(usersResponse.data.data);
+      const processOptions = processResponse.data.data
         .map((process:Process) => ({ ...process, id: Number(process.id) }))
-        .filter((process:Process) => Number.isInteger(process.id) && process.id > 0);
+        .filter((process:Process) => Number.isSafeInteger(process.id) && process.id > 0);
       setProcesses(processOptions);
-    } catch { showToast("Không thể tải dữ liệu tài khoản", "error"); }
-    finally { setLoading(false); }
+    } catch(error:any) {
+      if(seq === loadSeqRef.current) setLoadError(error?.response?.data?.message || error?.message || "Không thể tải dữ liệu tài khoản");
+    } finally {
+      if(seq === loadSeqRef.current) setLoading(false);
+    }
   };
 
   const loadActivities = async () => {
-    setActivityLoading(true);
+    setActivityLoading(true); setActivityError("");
     try { setActivities(await getActivities({ limit: 100 })); }
-    catch { showToast("Không thể tải nhật ký hoạt động", "error"); }
+    catch (error:any) { setActivityError(error?.response?.data?.message || "Không thể tải nhật ký hoạt động"); }
     finally { setActivityLoading(false); }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); return () => { loadSeqRef.current += 1; editSeqRef.current += 1; }; }, []);
   useEffect(() => { if (tab === "activity") void loadActivities(); }, [tab]);
 
   const managers = useMemo(() => people.filter(p => p.role === "manager"), [people]);
@@ -108,11 +123,19 @@ export default function AdminWorkers() {
     return { ...process, id: processId, managers: managersForProcess, leads: leadsForProcess, managerCount: managersForProcess.filter(person => person.status === "active").length, leadCount: leadsForProcess.filter(person => person.status === "active").length };
   }), [processes, managers, leads]);
 
-  const create = (role:Role) => setModal({ ...emptyForm, role, position: role === "worker" ? "Công nhân" : role === "lead" ? "Tổ trưởng" : "Quản lý" });
+  const create = (role:Role) => {
+    if(actionBusy || loading) return;
+    editSeqRef.current += 1; setFormError("");
+    setModal({ ...emptyForm, role, position: role === "worker" ? "Công nhân" : role === "lead" ? "Tổ trưởng" : "Quản lý" });
+  };
 
   const edit = async (person:Person) => {
+    if(actionBusy || loading) return;
+    const seq = ++editSeqRef.current;
+    setEditLoading(true); setFormError("");
     try {
       const response = await api.get(`/users/${person.id}`);
+      if(seq !== editSeqRef.current) return;
       const detail = response.data?.data || person;
       const selected = resolveProcessIds(detail.process_ids, detail.process_names, processes);
       const fallbackSelected = selected.length ? selected : resolveProcessIds(person.process_ids, person.process_names, processes);
@@ -132,6 +155,7 @@ export default function AdminWorkers() {
         status: detail.status === "inactive" || person.status === "inactive" ? "inactive" : "active"
       });
     } catch {
+      if(seq !== editSeqRef.current) return;
       setModal({
         id: person.id,
         role: person.role,
@@ -146,15 +170,22 @@ export default function AdminWorkers() {
         process_ids: resolveProcessIds(person.process_ids, person.process_names, processes),
         status: person.status === "inactive" ? "inactive" : "active"
       });
-    }
+    } finally { if(seq === editSeqRef.current) setEditLoading(false); }
   };
 
   const save = async () => {
-    if (!modal) return;
-    if (!modal.process_ids.length) {
-      showToast("Phải chọn ít nhất một công đoạn", "error");
-      return;
+    if (!modal || actionBusy) return;
+    const fail = (message:string) => { setFormError(message); return; };
+    if(!modal.full_name.trim() || !modal.username.trim()) return fail("Vui lòng nhập họ tên và tên đăng nhập.");
+    if(!modal.id && modal.password.trim().length < 6) return fail("Tài khoản mới cần mật khẩu tối thiểu 6 ký tự.");
+    if(modal.password && modal.password.length < 6) return fail("Mật khẩu mới cần ít nhất 6 ký tự.");
+    if(!modal.process_ids.length || modal.process_ids.some(id=>!processes.some(p=>Number(p.id)===Number(id)))) return fail("Vui lòng chọn công đoạn hợp lệ.");
+    if(modal.role === "worker"){
+      if(!modal.worker_code.trim()) return fail("Vui lòng nhập mã công nhân.");
+      const percentage=Number(modal.training_percent);
+      if(!modal.training_percent.trim() || !Number.isFinite(percentage) || percentage<0 || percentage>100) return fail("% học việc phải từ 0 đến 100.");
     }
+    setFormError("");
     setSaving(true);
     try {
       const body:any = {
@@ -180,12 +211,14 @@ export default function AdminWorkers() {
       setModal(null);
       await load();
     } catch (error:any) {
-      showToast(error?.response?.data?.message || "Không thể lưu tài khoản", "error");
+      const message = error?.response?.data?.message || "Không thể lưu tài khoản";
+      setFormError(message);
+      showToast(message, "error");
     } finally { setSaving(false); }
   };
 
   const promoteWorkerToLead = async (person:Person) => {
-    if (!canEdit || person.role !== "worker" || promotingId !== null) return;
+    if (!canEdit || person.role !== "worker" || actionBusy) return;
     const processText = person.process_names || "công đoạn đã được phân công";
     const confirmed = window.confirm(`Nâng ${person.full_name || person.username} (${person.worker_code || person.username}) lên Tổ trưởng?\n\n• Giữ nguyên tài khoản và lịch sử dữ liệu\n• Chuyển công đoạn hiện tại sang phụ trách Tổ trưởng\n• Hệ thống tạo mật khẩu ngẫu nhiên, chỉ hiển thị một lần\n• Công đoạn: ${processText}\n\nTiếp tục?`);
     if (!confirmed) return;
@@ -196,7 +229,7 @@ export default function AdminWorkers() {
   };
 
   const promoteWorkerToManager = async (person:Person) => {
-    if (!isAdmin || !canEdit || person.role !== "worker" || promotingId !== null) return;
+    if (!isAdmin || !canEdit || person.role !== "worker" || actionBusy) return;
     const processText = person.process_names || "công đoạn đã được phân công";
     const confirmed = window.confirm(`Nâng ${person.full_name || person.username} (${person.worker_code || person.username}) lên Quản lý?\n\n• Giữ nguyên tài khoản và lịch sử báo cáo\n• Chuyển toàn bộ công đoạn hiện tại sang Quản lý\n• Hệ thống tạo mật khẩu ngẫu nhiên, chỉ hiển thị một lần\n• Mỗi công đoạn chỉ có tối đa 1 Quản lý\n• Công đoạn: ${processText}\n\nChỉ Admin mới thực hiện được thao tác này. Tiếp tục?`);
     if (!confirmed) return;
@@ -207,14 +240,17 @@ export default function AdminWorkers() {
   };
 
   const remove = async (person:Person) => {
-    if (!canEdit) return;
-    if (!window.confirm(`Vô hiệu hóa tài khoản ${person.full_name}? Lịch sử dữ liệu sẽ được giữ nguyên.`)) return;
+    if(!canEdit || actionBusy || person.status !== "active") return;
+    if(!window.confirm(`Vô hiệu hóa tài khoản ${person.full_name}? Lịch sử dữ liệu sẽ được giữ nguyên.`)) return;
+    setDeactivatingId(person.id);
     try { await api.put(`/users/${person.id}`, { status: "inactive" }); showToast("Đã vô hiệu hóa tài khoản", "success"); await load(); }
     catch (error:any) { showToast(error?.response?.data?.message || "Không thể cập nhật tài khoản", "error"); }
+    finally { setDeactivatingId(null); }
   };
 
   const exportExcel = async () => {
-    setTransferBusy(true); setTransferMessage("");
+    if(actionBusy) return;
+    setTransferBusy(true); setTransferError(false); setTransferMessage("");
     try {
       const response = await api.get("/users/export/excel", { responseType: "blob" });
       const blob = new Blob([response.data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -238,19 +274,19 @@ export default function AdminWorkers() {
       } else if (data?.message) {
         message = data.message;
       }
-      setTransferMessage(message);
+      setTransferError(true); setTransferMessage(message);
     }
     finally { setTransferBusy(false); }
   };
 
   const handleImport = async (file:File | null) => {
-    if (!file) return;
-    if (!/\.xlsx$/i.test(file.name)) { setTransferMessage("Chỉ hỗ trợ file Excel .xlsx."); return; }
-    setTransferBusy(true); setTransferMessage("");
+    if (!file || actionBusy) return;
+    if (!/\.xlsx$/i.test(file.name)) { setTransferError(true); setTransferMessage("Chỉ hỗ trợ file Excel .xlsx."); if(fileInputRef.current)fileInputRef.current.value=""; return; }
+    setTransferBusy(true); setTransferError(false); setTransferMessage("");
     try {
       const base64 = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || "")); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
       const response = await api.post("/users/import/excel", { file_base64: base64 }); setTransferMessage(response.data?.message || "Đã nhập Excel."); await load();
-    } catch (error:any) { setTransferMessage(error?.response?.data?.message || "Không thể nhập Excel."); }
+    } catch (error:any) { setTransferError(true); setTransferMessage(error?.response?.data?.message || "Không thể nhập Excel."); }
     finally { setTransferBusy(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
 
@@ -259,11 +295,12 @@ export default function AdminWorkers() {
       <div><div className="admin-eyebrow">QUẢN TRỊ TÀI KHOẢN</div><h1>Tài khoản & nhân sự</h1><p>Admin quản lý toàn bộ quản lý, tổ trưởng và công nhân; giới hạn nhân sự được áp dụng theo từng công đoạn.</p></div>
       <div className="admin-personnel-actions">{canCreate && <><button className="admin-btn primary" onClick={() => create("manager")}><Plus size={16}/> Tạo quản lý</button><button className="admin-btn secondary" onClick={() => create("lead")}><Plus size={16}/> Tạo tổ trưởng</button><button className="admin-btn secondary" onClick={() => create("worker")}><Plus size={16}/> Tạo công nhân</button></>}</div>
     </header>
-    <div className="admin-personnel-tabs">{[["overview","Tổng quan"],["manager","Quản lý"],["lead","Tổ trưởng"],["worker","Công nhân"],["activity","Nhật ký hoạt động"]].map(([key,label]) => <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key as Tab)}>{label}</button>)}</div>
-    <div className="admin-personnel-toolbar"><div className="admin-search"><Search size={17}/><input value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="Tìm tên, tài khoản, mã công nhân, công đoạn..."/></div><div className="admin-transfer"><button className="admin-btn secondary" disabled={transferBusy} onClick={() => void exportExcel()}><Download size={15}/> Xuất Excel</button><button className="admin-btn primary" disabled={transferBusy || !canCreate} onClick={() => fileInputRef.current?.click()}><Upload size={15}/> Nhập Excel</button><input ref={fileInputRef} type="file" accept=".xlsx" hidden onChange={event => void handleImport(event.target.files?.[0] || null)}/></div></div>
-    {transferMessage && <div className={`admin-transfer-message ${transferMessage.toLowerCase().includes("không") ? "error" : "success"}`}><FileSpreadsheet size={15}/>{transferMessage}</div>}
-    {loading ? <div className="admin-state">Đang tải dữ liệu tài khoản...</div> : tab === "overview" ? <Overview people={people} managers={managers} leads={leads} workers={workers} active={active} workerGroups={workerGroups} processCapacity={processCapacity} canEdit={canEdit} isAdmin={isAdmin} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} onPromoteManager={promoteWorkerToManager} promotingId={promotingId} onTab={setTab}/> : tab === "activity" ? <section className="admin-card"><CardTitle title="Nhật ký hoạt động tài khoản" sub="Theo dõi đăng nhập và đăng xuất của tài khoản nhân sự"/>{activityLoading ? <div className="admin-state compact">Đang tải nhật ký...</div> : <Activity rows={activities}/>}</section> : <section className="admin-card"><CardTitle title={`${roleText(tab)} (${filtered.length})`} sub={`Danh sách toàn bộ tài khoản ${roleText(tab).toLowerCase()} trong hệ thống`}/><AccountTable rows={filtered} canEdit={canEdit} isAdmin={isAdmin} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} onPromoteManager={promoteWorkerToManager} promotingId={promotingId}/></section>}
-    {modal && <Modal form={modal} setForm={setModal} processes={processes} processCapacity={processCapacity} saving={saving} onClose={() => setModal(null)} onSave={() => void save()}/>} 
+    <div className="admin-personnel-tabs" role="group" aria-label="Danh mục tài khoản">{[["overview","Tổng quan"],["manager","Quản lý"],["lead","Tổ trưởng"],["worker","Công nhân"],["activity","Nhật ký hoạt động"]].map(([key,label]) => <button key={key} className={tab === key ? "active" : ""} aria-pressed={tab === key} onClick={() => setTab(key as Tab)}>{label}</button>)}</div>
+    <div className="admin-personnel-toolbar"><button className="admin-btn secondary" type="button" disabled={loading||actionBusy} onClick={() => void load()}>Làm mới</button><div className="admin-search"><Search size={17}/><input aria-label="Tìm kiếm tài khoản" value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="Tìm tên, tài khoản, mã công nhân, công đoạn..."/></div><div className="admin-transfer"><button className="admin-btn secondary" disabled={transferBusy} onClick={() => void exportExcel()}><Download size={15}/> Xuất Excel</button><button className="admin-btn primary" disabled={transferBusy || !canCreate} onClick={() => fileInputRef.current?.click()}><Upload size={15}/> Nhập Excel</button><input ref={fileInputRef} type="file" accept=".xlsx" hidden onChange={event => void handleImport(event.target.files?.[0] || null)}/></div></div>
+    {transferMessage && <div role={transferError ? "alert" : "status"} className={`admin-transfer-message ${transferError ? "error" : "success"}`}><FileSpreadsheet size={15}/>{transferMessage}</div>}
+    {loading ? <div className="admin-state" role="status">Đang tải dữ liệu tài khoản...</div> : loadError ? <div className="admin-state" role="alert">{loadError} <button className="admin-btn secondary" type="button" onClick={() => void load()}>Thử tải lại</button></div> : tab === "overview" ? <Overview people={people} managers={managers} leads={leads} workers={workers} active={active} workerGroups={workerGroups} processCapacity={processCapacity} canEdit={canEdit} isAdmin={isAdmin} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} onPromoteManager={promoteWorkerToManager} promotingId={promotingId} onTab={setTab}/> : tab === "activity" ? <section className="admin-card"><CardTitle title="Nhật ký hoạt động tài khoản" sub="Theo dõi đăng nhập và đăng xuất của tài khoản nhân sự"/>{activityLoading ? <div className="admin-state compact" role="status">Đang tải nhật ký...</div> : activityError ? <div className="admin-state compact" role="alert">{activityError} <button className="admin-btn secondary" type="button" onClick={() => void loadActivities()}>Thử tải lại</button></div> : <Activity rows={activities}/>}</section> : <section className="admin-card"><CardTitle title={`${roleText(tab)} (${filtered.length})`} sub={`Danh sách toàn bộ tài khoản ${roleText(tab).toLowerCase()} trong hệ thống`}/><AccountTable rows={filtered} canEdit={canEdit} isAdmin={isAdmin} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} onPromoteManager={promoteWorkerToManager} promotingId={promotingId}/></section>}
+    {editLoading && <div className="admin-personnel-edit-status" role="status">Đang tải thông tin tài khoản...</div>}
+    {modal && <Modal form={modal} setForm={setModal} processes={processes} processCapacity={processCapacity} saving={saving} formError={formError} onClose={() => { if(!actionBusy){editSeqRef.current+=1;setModal(null);setFormError("");} }} onSave={() => void save()}/>} 
   </section>;
 }
 
@@ -286,7 +323,7 @@ function AccountTable({ rows, canEdit, isAdmin, onEdit, onDelete, onPromote, onP
 }
 function Activity({ rows }: { rows:ActivityItem[] }) { const filtered = rows.filter(row => ["LOGIN","LOGOUT"].includes(String(row.action || "").toUpperCase())); return <div className="admin-activity">{filtered.length ? filtered.map((row,index) => <div key={`${row.id || index}-${row.created_at}`}><span className={`activity-icon ${String(row.action).toUpperCase() === "LOGIN" ? "login" : "logout"}`}><History size={14}/></span><div><strong>{row.full_name || row.username || "Tài khoản"}</strong><p>{String(row.action).toUpperCase() === "LOGIN" ? "Đăng nhập hệ thống" : "Đăng xuất khỏi hệ thống"}</p></div><time>{row.created_at ? new Date(row.created_at).toLocaleString("vi-VN") : "—"}</time></div>) : <div className="admin-empty">Chưa có hoạt động đăng nhập/đăng xuất.</div>}</div>; }
 
-function Modal({ form, setForm, processes, processCapacity, saving, onClose, onSave }: { form:FormState; setForm:(f:FormState)=>void; processes:Process[]; processCapacity:ProcessCapacity[]; saving:boolean; onClose:()=>void; onSave:()=>void }) {
+function Modal({ form, setForm, processes, processCapacity, saving, formError, onClose, onSave }: { form:FormState; setForm:(f:FormState)=>void; processes:Process[]; processCapacity:ProcessCapacity[]; saving:boolean; formError:string; onClose:()=>void; onSave:()=>void }) {
   const isEditing = Boolean(form.id);
   const selectedIds = form.process_ids;
   const canAssignProcess = (process:Process) => {
@@ -299,5 +336,5 @@ function Modal({ form, setForm, processes, processCapacity, saving, onClose, onS
     return capacity.leadCount < 3;
   };
   const toggleProcess = (processId:number, checked:boolean) => setForm({ ...form, process_ids: checked ? [...new Set([...form.process_ids, Number(processId)])] : form.process_ids.filter(id => Number(id) !== Number(processId)) });
-  return <div className="admin-modal-backdrop"><div className="admin-modal"><div className="admin-modal-head"><div><span>QUẢN TRỊ TÀI KHOẢN</span><h2>{isEditing ? "Chỉnh sửa" : "Tạo"} {roleText(form.role)}</h2><p>{form.role === "manager" ? "Admin không giới hạn tổng số quản lý; mỗi công đoạn tối đa 1 quản lý." : form.role === "lead" ? "Admin không giới hạn tổng số tổ trưởng; mỗi công đoạn tối đa 3 tổ trưởng." : "Thông tin tài khoản được lưu trực tiếp vào hệ thống."}</p></div><button onClick={onClose}><X size={18}/></button></div><div className="admin-modal-grid"><label>Vai trò<select value={form.role} disabled={isEditing} onChange={event => { const role = event.target.value as Role; setForm({...form, role, position: role === "worker" ? "Công nhân" : role === "lead" ? "Tổ trưởng" : "Quản lý", process_ids:[]}); }}><option value="manager">Quản lý</option><option value="lead">Tổ trưởng</option><option value="worker">Công nhân</option></select></label><label>Trạng thái<select value={form.status} onChange={event => setForm({...form, status:event.target.value as "active"|"inactive"})}><option value="active">Đang hoạt động</option><option value="inactive">Ngừng hoạt động</option></select></label><label>Họ và tên<input value={form.full_name} onChange={event => setForm({...form, full_name:event.target.value})}/></label><label>Tên đăng nhập<input value={form.username} onChange={event => setForm({...form, username:event.target.value})}/></label><label>Mật khẩu{form.id && <small> (để trống nếu không đổi)</small>}<input type="password" value={form.password} onChange={event => setForm({...form, password:event.target.value})} placeholder="Tối thiểu 6 ký tự"/></label>{form.role === "worker" && <><label>Mã công nhân<input value={form.worker_code} onChange={event => setForm({...form, worker_code:event.target.value})}/></label><label>Số điện thoại<input value={form.phone} onChange={event => setForm({...form, phone:event.target.value})}/></label><label>% học việc<input type="number" min="0" max="100" value={form.training_percent} onChange={event => setForm({...form, training_percent:event.target.value})}/></label></>}<label>Bộ phận / đơn vị<input value={form.department} onChange={event => setForm({...form, department:event.target.value})}/></label><label>Chức danh<input value={form.position} onChange={event => setForm({...form, position:event.target.value})}/></label><div className="admin-process-select"><span>Công đoạn phụ trách</span><div>{processes.map(process => { const processId = Number(process.id); const capacity = processCapacity.find(item => Number(item.id) === processId); const selected = selectedIds.some(id => Number(id) === processId); const full = form.role === "manager" ? (capacity?.managerCount || 0) >= 1 : form.role === "lead" ? (capacity?.leadCount || 0) >= 3 : false; const disabled = !canAssignProcess(process); return <label key={processId} title={form.role === "manager" ? `Quản lý: ${capacity?.managerCount || 0}/1` : form.role === "lead" ? `Tổ trưởng: ${capacity?.leadCount || 0}/3` : "Không giới hạn"}><input type="checkbox" checked={selected} disabled={disabled} onChange={event => toggleProcess(processId, event.target.checked)}/><span>{process.process_name}{form.role !== "worker" && <small> ({form.role === "manager" ? `${capacity?.managerCount || 0}/1` : `${capacity?.leadCount || 0}/3`}{full && !selected ? " · đủ" : ""})</small>}</span></label>; })}</div></div></div><div className="admin-modal-actions"><button onClick={onClose}>Hủy</button><button className="admin-btn primary" disabled={saving} onClick={onSave}>{saving ? "Đang lưu..." : "Lưu tài khoản"}</button></div></div></div>;
+  return <div className="admin-modal-backdrop"><div className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-account-dialog-title"><div className="admin-modal-head"><div><span>QUẢN TRỊ TÀI KHOẢN</span><h2 id="admin-account-dialog-title">{isEditing ? "Chỉnh sửa" : "Tạo"} {roleText(form.role)}</h2><p>{form.role === "manager" ? "Admin không giới hạn tổng số quản lý; mỗi công đoạn tối đa 1 quản lý." : form.role === "lead" ? "Admin không giới hạn tổng số tổ trưởng; mỗi công đoạn tối đa 3 tổ trưởng." : "Thông tin tài khoản được lưu trực tiếp vào hệ thống."}</p></div><button type="button" aria-label="Đóng biểu mẫu" disabled={saving} onClick={onClose}><X size={18}/></button></div><div className="admin-modal-grid"><label>Vai trò<select value={form.role} disabled={isEditing} onChange={event => { const role = event.target.value as Role; setForm({...form, role, position: role === "worker" ? "Công nhân" : role === "lead" ? "Tổ trưởng" : "Quản lý", process_ids:[]}); }}><option value="manager">Quản lý</option><option value="lead">Tổ trưởng</option><option value="worker">Công nhân</option></select></label><label>Trạng thái<select value={form.status} onChange={event => setForm({...form, status:event.target.value as "active"|"inactive"})}><option value="active">Đang hoạt động</option><option value="inactive">Ngừng hoạt động</option></select></label><label>Họ và tên<input value={form.full_name} onChange={event => setForm({...form, full_name:event.target.value})}/></label><label>Tên đăng nhập<input value={form.username} onChange={event => setForm({...form, username:event.target.value})}/></label><label>Mật khẩu{form.id && <small> (để trống nếu không đổi)</small>}<input type="password" value={form.password} onChange={event => setForm({...form, password:event.target.value})} placeholder="Tối thiểu 6 ký tự"/></label>{form.role === "worker" && <><label>Mã công nhân<input value={form.worker_code} onChange={event => setForm({...form, worker_code:event.target.value})}/></label><label>Số điện thoại<input value={form.phone} onChange={event => setForm({...form, phone:event.target.value})}/></label><label>% học việc<input type="number" min="0" max="100" value={form.training_percent} onChange={event => setForm({...form, training_percent:event.target.value})}/></label></>}<label>Bộ phận / đơn vị<input value={form.department} onChange={event => setForm({...form, department:event.target.value})}/></label><label>Chức danh<input value={form.position} onChange={event => setForm({...form, position:event.target.value})}/></label><div className="admin-process-select"><span>Công đoạn phụ trách</span><div>{processes.map(process => { const processId = Number(process.id); const capacity = processCapacity.find(item => Number(item.id) === processId); const selected = selectedIds.some(id => Number(id) === processId); const full = form.role === "manager" ? (capacity?.managerCount || 0) >= 1 : form.role === "lead" ? (capacity?.leadCount || 0) >= 3 : false; const disabled = !canAssignProcess(process); return <label key={processId} title={form.role === "manager" ? `Quản lý: ${capacity?.managerCount || 0}/1` : form.role === "lead" ? `Tổ trưởng: ${capacity?.leadCount || 0}/3` : "Không giới hạn"}><input type="checkbox" checked={selected} disabled={disabled} onChange={event => toggleProcess(processId, event.target.checked)}/><span>{process.process_name}{form.role !== "worker" && <small> ({form.role === "manager" ? `${capacity?.managerCount || 0}/1` : `${capacity?.leadCount || 0}/3`}{full && !selected ? " · đủ" : ""})</small>}</span></label>; })}</div></div></div>{formError && <div className="admin-form-error" role="alert">{formError}</div>}<div className="admin-modal-actions"><button type="button" disabled={saving} onClick={onClose}>Hủy</button><button type="button" className="admin-btn primary" disabled={saving} onClick={onSave}>{saving ? "Đang lưu..." : "Lưu tài khoản"}</button></div></div></div>;
 }

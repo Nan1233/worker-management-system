@@ -71,14 +71,34 @@ function auditGcExportPayload(payload, { requireSharedEvent = false } = {}) {
       addError('GC_MISSING_LINKED_PHYSICAL_EVENT');
     }
 
-    const reportEvents = new Map((Array.isArray(report.eventLines) ? report.eventLines : [])
-      .map((item) => [Number(item?.id), item])
-      .filter(([id]) => Number.isSafeInteger(id) && id > 0));
+    // Reject duplicate physical-event IDs before creating the lookup map:
+    // a plain Map constructor would silently replace an earlier event row.
+    const reportEvents = new Map();
+    for (const event of (Array.isArray(report.eventLines) ? report.eventLines : [])) {
+      const eventId = Number(event?.id);
+      if (!Number.isSafeInteger(eventId) || eventId <= 0) {
+        addError('GC_INVALID_PHYSICAL_EVENT_ID');
+        continue;
+      }
+      if (reportEvents.has(eventId)) {
+        addError('GC_DUPLICATE_PHYSICAL_EVENT_ID_IN_REPORT');
+        continue;
+      }
+      reportEvents.set(eventId, event);
+    }
 
     const idsInReport = new Set();
     for (const line of lines) {
-      const eventId = Number(line?.machine_event_id);
-      if (!Number.isSafeInteger(eventId) || eventId <= 0) continue;
+      const rawEventId = line?.machine_event_id;
+      // Null/empty/zero means an intentionally unlinked legacy machine line.
+      // A malformed nonempty reference is different: it must not silently
+      // become an unlinked line and escape the physical-event audit.
+      if (rawEventId === null || rawEventId === undefined || rawEventId === '' || rawEventId === 0 || rawEventId === '0') continue;
+      const eventId = Number(rawEventId);
+      if (!Number.isSafeInteger(eventId) || eventId <= 0) {
+        addError('GC_INVALID_MACHINE_EVENT_REFERENCE');
+        continue;
+      }
       if (idsInReport.has(eventId)) continue;
       idsInReport.add(eventId);
 
@@ -86,6 +106,19 @@ function auditGcExportPayload(payload, { requireSharedEvent = false } = {}) {
       if (!event) {
         addError('GC_LINKED_EVENT_NOT_IN_EXPORT');
         continue;
+      }
+      // A linked physical event must belong to the same production day and
+      // shift as the worker report. Check only populated report fields so
+      // historical payloads without these fields remain auditable.
+      const reportDate = String(report.work_date || '').slice(0, 10);
+      const eventDate = String(event.work_date || '').slice(0, 10);
+      const reportShift = String(report.shift || '').trim().toUpperCase();
+      const eventShift = String(event.shift || '').trim().toUpperCase();
+      if (reportDate && (!eventDate || reportDate !== eventDate)) {
+        addError('GC_EVENT_REPORT_DATE_MISMATCH');
+      }
+      if (reportShift && (!eventShift || reportShift !== eventShift)) {
+        addError('GC_EVENT_REPORT_SHIFT_MISMATCH');
       }
       const hours = Number(event.machine_time_hours);
       if (!Number.isFinite(hours) || hours < 0) {

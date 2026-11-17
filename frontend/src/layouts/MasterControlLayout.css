@@ -170,3 +170,20 @@
   .mcc-spin { animation: none; }
   .mcc-sidebar { transition: none; }
 }
+
+/* Master Control: responsive search, data tables and modal recovery. */
+@media(max-width:860px){
+ .mcc-shell,.mcc-main,.mcc-content{min-width:0;max-width:100%}
+ .mcc-breadcrumb{min-width:0;overflow:hidden;text-overflow:ellipsis}
+ .mcc-table-wrap{max-width:100%;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+ .mcc-toolbar{gap:8px;padding:12px}
+ .mcc-toolbar .mcc-input,.mcc-toolbar .mcc-select{flex:1 1 180px;min-width:0;max-width:100%}
+ .mcc-modal-backdrop{padding:10px}
+ .mcc-modal{max-width:calc(100vw - 20px);max-height:calc(100dvh - 20px);overflow-y:auto;overscroll-behavior:contain}
+ .mcc-modal-actions{flex-wrap:wrap}
+ .mcc-modal-actions button{min-height:42px}
+ .mcc-input,.mcc-select,.mcc-modal textarea{font-size:16px}
+ .mcc-sidebar{height:100dvh;padding-bottom:env(safe-area-inset-bottom)}
+ .mcc-content{padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+}
+@media(max-width:420px){.mcc-toolbar .mcc-input,.mcc-toolbar .mcc-select{flex-basis:100%}.mcc-pagination{flex-wrap:wrap}.mcc-modal-actions button{flex:1 1 130px}}

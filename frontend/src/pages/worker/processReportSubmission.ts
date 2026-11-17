@@ -36,9 +36,11 @@ const resolveSubmittedProductCode = (
   machineCode: string,
   operationType: OperationType,
   products: ProductStandardOption[],
+  processCode: string,
 ): string => {
   const resolved = String(getFullProductCode(alias, products) || alias || "").trim();
-  if (operationType !== "CUT" || !GC_AUTOMATIC_MACHINES.has(normalizeCode(machineCode))) return resolved;
+  // AUTO suffix is a Gia công-only convention; Mài/Đo machine numbers are not GC automatic machines.
+  if (String(processCode || "").trim().toUpperCase() !== "GC" || operationType !== "CUT" || !GC_AUTOMATIC_MACHINES.has(normalizeCode(machineCode))) return resolved;
   if (!resolved) return resolved;
   const normalized = normalizeCode(resolved);
   if (normalized.endsWith("-AUTO")) return resolved;
@@ -78,24 +80,24 @@ export function buildProductionReportPayload(args: {
 
   const formDefects=args.activeNgOptions.map(o=>({ key:String(o.key||""), id:Number(o.id||o.defect_type_id||0)||undefined,
     code:String(o.code||o.defect_code||""), label:String(o.label||o.defect_name||"") })).filter(o=>o.key)
-    .map(o=>({ defect_type_id:o.id, defect_code:o.code, defect_name:o.label, quantity:num(args.form[o.key]) })).filter(x=>x.quantity>0);
+    .map(o=>({ defect_type_id:o.key === "__otherNg" ? undefined : o.id, defect_code:o.key === "__otherNg" ? "" : o.code, defect_name:o.key === "__otherNg" ? String(args.form.otherNgName || "").trim() : o.label, custom_other:o.key === "__otherNg", quantity:num(args.form[o.key]) })).filter(x=>x.quantity>0);
 
   for (const [field, code, name] of LEGACY_DEFECT_BINDINGS) {
     const quantity=num(args.form[String(field)]); if (quantity<=0) continue;
     const identity=normalizeDefectIdentity(code,name); const existing=formDefects.find(item=>normalizeDefectIdentity(item.defect_code,item.defect_name)===identity); if (existing) continue;
     const master=args.activeNgOptions.find(o=>normalizeDefectIdentity(String(o.code||o.defect_code||""),String(o.label||o.defect_name||""))===identity);
-    formDefects.push({ defect_type_id:Number(master?.id||master?.defect_type_id||0)||undefined, defect_code:String(master?.code||master?.defect_code||code), defect_name:String(master?.label||master?.defect_name||name), quantity });
+    formDefects.push({ defect_type_id:Number(master?.id||master?.defect_type_id||0)||undefined, defect_code:String(master?.code||master?.defect_code||code), defect_name:String(master?.label||master?.defect_name||name), custom_other:false, quantity });
   }
 
   const lines=args.machineLines.filter(l=>l.machineCode.trim()||l.productCode.trim()||(String(args.processCode || "").trim().toUpperCase() === "CAN" && String(l.materialCode || "").trim())).map(l=>{
     const defectKeys = new Set<string>([...(l.selectedDefects || []).map(String), ...Object.keys(l.defects || {}).filter((key) => num(l.defects[key]) > 0)]);
     const lineDefects = [...defectKeys].map((key) => {
       const option = args.activeNgOptions.find(o => String(o.key) === key || String(o.code || o.defect_code || "").trim().toUpperCase() === key.trim().toUpperCase() || String(o.id || o.defect_type_id || "") === key);
-      return defectForOption(option, num(l.defects[key]));
+      return key === "__otherNg" ? { defect_type_id: undefined, defect_code: "", defect_name: String(l.otherNgName || "").trim(), custom_other: true, quantity:num(l.defects[key]) } : defectForOption(option, num(l.defects[key]));
     }).filter(x=>x.quantity>0);
-    const lineDeductions = args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(l.deductions?.[String(o.key||"")])/60 })).filter(x=>x.hours>0);
+    const lineDeductions = args.activeDeductionOptions.map(o=>({ deduction_type_id:o.key === "__otherDeduction" ? undefined : Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:o.key === "__otherDeduction" ? "" : String(o.code||""), deduction_name:o.key === "__otherDeduction" ? String(l.otherDeductionName || "").trim() : String(o.label||o.deduction_name||o.key||""), custom_other:o.key === "__otherDeduction", hours:num(l.deductions?.[String(o.key||"")])/60 })).filter(x=>x.hours>0);
     const lineDeductionHours = lineDeductions.reduce((sum,item)=>sum+num(item.hours),0);
-    const fullProductCode = resolveSubmittedProductCode(l.productCode, l.machineCode, args.operationType, args.productOptions);
+    const fullProductCode = resolveSubmittedProductCode(l.productCode, l.machineCode, args.operationType, args.productOptions, args.processCode || "");
     // Worker chỉ nhập thời gian chạy thực tế (actual_time_hours); "Tổng thời gian"
     // (machine_time_hours, giữ nguyên ý nghĩa "gross" cho kế toán giờ máy phía sau)
     // luôn được tự tính = thực tế + trừ giờ, không nhận input tổng trực tiếp từ Worker.
@@ -127,11 +129,11 @@ export function buildProductionReportPayload(args: {
     // Defect detail must come from the same selected machine as its OK/NG totals.
     // Never borrow defects from lines[0], which may be a stale/different machine.
     const singleLineDefects = selectedMachineLine?.defects?.length ? selectedMachineLine.defects.map((item) => ({
-      defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
+      defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, custom_other:(item as { custom_other?: boolean }).custom_other === true, quantity:item.quantity
     })) : defects.map((item) => ({
-      defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
+      defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, custom_other:(item as { custom_other?: boolean }).custom_other === true, quantity:item.quantity
     }));
-    const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions);
+    const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions, args.processCode || "");
     // For machine reports, the selected machine line is the source of truth.
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, actual_time_hours:parseHours(args.form.actualTime), machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
@@ -142,7 +144,7 @@ export function buildProductionReportPayload(args: {
     });
   }
 
-  const deductions=args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(args.deductions[String(o.key||"")])/60 })).filter(x=>x.hours>0);
+  const deductions=args.activeDeductionOptions.map(o=>({ deduction_type_id:o.key === "__otherDeduction" ? undefined : Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:o.key === "__otherDeduction" ? "" : String(o.code||""), deduction_name:o.key === "__otherDeduction" ? String(args.form.otherDeductionName || "").trim() : String(o.label||o.deduction_name||o.key||""), custom_other:o.key === "__otherDeduction", hours:num(args.deductions[String(o.key||"")])/60 })).filter(x=>x.hours>0);
   const isMaiWithoutMachine = ["MAI", "DO", "CAN"].includes(String(args.processCode || args.extraData?.process_code || "").trim().toUpperCase())
     && lines.length > 0
     && lines.every((line) => !String(line.machine_code || "").trim());
@@ -208,7 +210,7 @@ export function buildProductionReportPayload(args: {
   const isCvk = isDedicatedCvkProcess;
   const effectiveProcessId = isCvk ? 30002 : args.processId;
   const submittedMachineNo = isCvk || isNonProductWorkWithinProcess || isMaiWithoutMachine ? null : (useMachineLinesPayload ? lines.map(l=>l.machine_code).join(", ") : args.form.machineNo);
-  const submittedProductName = isCvk || isNonProductWorkWithinProcess ? "" : (isMaiWithoutMachine ? maiNoMachineProducts : (useMachineLinesPayload ? [...new Set(lines.map(l=>l.product_code).filter(Boolean))].join(", ") : resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions)));
+  const submittedProductName = isCvk || isNonProductWorkWithinProcess ? "" : (isMaiWithoutMachine ? maiNoMachineProducts : (useMachineLinesPayload ? [...new Set(lines.map(l=>l.product_code).filter(Boolean))].join(", ") : resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions, args.processCode || "")));
   const submittedOperationMode = isCvk || isNonProductWorkWithinProcess || isMaiWithoutMachine ? "MANUAL" : (useMachineLinesPayload ? "MACHINE" : (args.usesAnyMachine&&!args.isCutLongProcess ? "MACHINE" : "MANUAL"));
 
   return {
@@ -239,6 +241,26 @@ export function buildProductionReportPayloads(args: Parameters<typeof buildProdu
   const isMai = processCode === "MAI";
   const isDo = processCode === "DO" || processCode === "CAN";
   const completedLines = args.machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim() || (processCode === "CAN" && String(line.materialCode || "").trim()));
+  if (processCode === "DO") {
+    // Each product run has its own related grinding machine. Persist it in the
+    // report's existing extra_data field so the association survives approval,
+    // editing, and export even when several products are entered together.
+    const requestId = String(args.clientRequestId || "").trim();
+    return completedLines.map((line, index) => buildProductionReportPayload({
+      ...args,
+      clientRequestId: requestId ? `${requestId}-D${index + 1}` : null,
+      extraData: {
+        ...args.extraData,
+        grinding_machine_no: String(line.grindingMachineNo || "").trim(),
+      },
+      machineLines: [line],
+      ...(line.machineCode.trim() ? {} : {
+        usesAnyMachine: false,
+        usesMultiMachineLines: false,
+        usesSingleMachine: false,
+      }),
+    }));
+  }
   if (processCode === "CAN") {
     const requestId = String(args.clientRequestId || "").trim();
     return completedLines.map((line, index) => buildProductionReportPayload({

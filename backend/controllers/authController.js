@@ -328,22 +328,17 @@ exports.login = async (req, res) => {
         const resolvedAccount = await resolveLoginAccount(username, accessType);
 
         if (resolvedAccount.ambiguous) {
+            // Keep detailed diagnostics server-side only. Public failures must
+            // not confirm whether an employee code belongs to any account.
             console.error("AUTH_ACCOUNT_AMBIGUOUS", {
-                login: username,
                 candidateCount: resolvedAccount.usernames.length
             });
-            return res.status(409).json({
-                success: false,
-                code: "ACCOUNT_AMBIGUOUS",
-                message: "Mã công nhân này đang có nhiều tài khoản. Vui lòng đăng nhập bằng tên đăng nhập cụ thể."
-            });
         }
-
-        if (!resolvedAccount.user) {
+        if (resolvedAccount.ambiguous || !resolvedAccount.user) {
             return res.status(401).json({
                 success: false,
-                code: "ACCOUNT_NOT_FOUND",
-                message: "Tên đăng nhập hoặc mã công nhân không tồn tại"
+                code: "INVALID_CREDENTIALS",
+                message: "Thông tin đăng nhập không hợp lệ"
             });
         }
 
@@ -354,11 +349,11 @@ exports.login = async (req, res) => {
             user.worker_status !== "active";
 
         if (userIsInactive || workerIsInactive) {
-            return res.status(403).json({
+            // Avoid revealing account status during unauthenticated login.
+            return res.status(401).json({
                 success: false,
-                code: userIsInactive ? "USER_INACTIVE" : "WORKER_INACTIVE",
-                message:
-                    "Tài khoản đã bị khóa. Vui lòng liên hệ quản lý"
+                code: "INVALID_CREDENTIALS",
+                message: "Thông tin đăng nhập không hợp lệ"
             });
         }
 
@@ -372,10 +367,10 @@ exports.login = async (req, res) => {
          */
         if (accessType === "worker") {
             if (user.role !== "worker") {
-                return res.status(403).json({
+                return res.status(401).json({
                     success: false,
-                    message:
-                        "Mã nhân viên này không thuộc tài khoản công nhân"
+                    code: "INVALID_CREDENTIALS",
+                    message: "Thông tin đăng nhập không hợp lệ"
                 });
             }
 
@@ -388,10 +383,10 @@ exports.login = async (req, res) => {
                     user.role
                 )
             ) {
-                return res.status(403).json({
+                return res.status(401).json({
                     success: false,
-                    message:
-                        "Mã nhân viên này không có quyền quản lý"
+                    code: "INVALID_CREDENTIALS",
+                    message: "Thông tin đăng nhập không hợp lệ"
                 });
             }
 
@@ -416,7 +411,8 @@ exports.login = async (req, res) => {
         if (!passwordIsValid) {
             return res.status(401).json({
                 success: false,
-                message: "Mật khẩu không đúng"
+                code: "INVALID_CREDENTIALS",
+                message: "Thông tin đăng nhập không hợp lệ"
             });
         }
 

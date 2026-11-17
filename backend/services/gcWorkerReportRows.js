@@ -1,5 +1,7 @@
 'use strict';
 
+const { parseExcelDetailArray } = require('./excelDetailArray');
+
 // Pure row model for the Gia công "Báo cáo công nhân" sheet (04_CAT_LONG layout).
 //
 // One Excel row per machine line; reports without machine lines (manual work)
@@ -14,18 +16,7 @@ const toNumber = (value) => {
 };
 const round2 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
 
-const parseArray = (value) => {
-  if (Array.isArray(value)) return value;
-  if (!value) return [];
-  try {
-    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-    if (Array.isArray(parsed)) return parsed;
-    if (parsed && Array.isArray(parsed.defects)) return parsed.defects;
-    return [];
-  } catch (_error) {
-    return [];
-  }
-};
+const parseArray = parseExcelDetailArray;
 
 const normalizeDeductions = (items) => parseArray(items)
   .map((item) => ({
@@ -127,7 +118,21 @@ function manualRow(report) {
   };
 }
 
-const lineOrder = (a, b) => toNumber(a.sort_order) - toNumber(b.sort_order) || toNumber(a.id) - toNumber(b.id);
+const lineOrder = (left, right) =>
+  toNumber(left.sort_order) - toNumber(right.sort_order)
+  || toNumber(left.id) - toNumber(right.id);
+
+function hasMachineReference(report) {
+  const mode = String(report.operation_mode || '').trim().toUpperCase();
+  return mode === 'MACHINE'
+    || (!mode && [report.machine_no, report.machine_code, report.machine]
+      .some((value) => String(value ?? '').trim() !== ''));
+}
+
+function hasUnallocatedReportDeductions(report) {
+  return normalizeDeductions(report.deductions).length > 0
+    || toNumber(report.deduction_time) > 0;
+}
 
 function missingMachineRow(report) {
   const row = manualRow(report);
@@ -146,25 +151,28 @@ function missingMachineRow(report) {
 /** All Excel rows of one approved GC report, in line order. */
 function buildGcWorkerRows(report) {
   const lines = (Array.isArray(report.machineLines) ? report.machineLines : []).slice().sort(lineOrder);
-  if (lines.length) {
-    const hasLineBreakdown = lines.some((line) => normalizeDeductions(line.deductions_json).length > 0);
-    const safeReportFallback = lines.length === 1 && !hasLineBreakdown
-      ? normalizeDeductions(report.deductions)
-      : [];
-    return lines.map((line, index) => {
-      const row = machineLineRow(report, line, safeReportFallback, lines.length === 1);
-      if (lines.length > 1 && !hasLineBreakdown && index === 0
-        && (normalizeDeductions(report.deductions).length || toNumber(report.deduction_time) > 0)) {
-        row.warnings.push('REPORT_DEDUCTIONS_NOT_ALLOCATED_TO_MULTIPLE_MACHINE_LINES');
-      }
-      return row;
-    });
+  if (lines.length === 0) {
+    return [hasMachineReference(report) ? missingMachineRow(report) : manualRow(report)];
   }
-  const mode = String(report.operation_mode || '').trim().toUpperCase();
-  const hasMachine = mode === 'MACHINE'
-    || (!mode && [report.machine_no, report.machine_code, report.machine]
-      .some((value) => String(value ?? '').trim() !== ''));
-  return [hasMachine ? missingMachineRow(report) : manualRow(report)];
+
+  const hasLineBreakdown = lines.some(
+    (line) => normalizeDeductions(line.deductions_json).length > 0
+  );
+  const singleMachineLine = lines.length === 1;
+  const safeReportFallback = singleMachineLine && !hasLineBreakdown
+    ? normalizeDeductions(report.deductions)
+    : [];
+  const warnAboutUnallocatedDeductions = !singleMachineLine
+    && !hasLineBreakdown
+    && hasUnallocatedReportDeductions(report);
+
+  return lines.map((line, index) => {
+    const row = machineLineRow(report, line, safeReportFallback, singleMachineLine);
+    if (index === 0 && warnAboutUnallocatedDeductions) {
+      row.warnings.push('REPORT_DEDUCTIONS_NOT_ALLOCATED_TO_MULTIPLE_MACHINE_LINES');
+    }
+    return row;
+  });
 }
 
 module.exports = { buildGcWorkerRows, parseArray, round2 };

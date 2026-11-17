@@ -118,8 +118,10 @@ test('Excel company payload carries physical events separately from worker repor
   assert.match(loader, /physicalMachineEvents/);
   assert.match(loader, /FROM machine_production_events e/);
   assert.match(backend, /processes: processData/);
-  assert.match(desktop, /_KTC_MACHINE_EVENTS/);
-  assert.match(desktop, /physical_counted_output/);
+  const physicalMetadata = fs.readFileSync(path.join(repo, 'desktop/electron/monthlyWorkbookPhysicalEvents.cjs'), 'utf8');
+  assert.match(desktop, /createPhysicalMachineMetadata/);
+  assert.match(physicalMetadata, /_KTC_MACHINE_EVENTS/);
+  assert.match(physicalMetadata, /physical_counted_output/);
 });
 
 test('shared-machine scanner is read-only and never creates events automatically', () => {
@@ -145,14 +147,18 @@ test('split GC reports re-check the 12-hour cap under the worker lock only once 
 
 test('GC process code is resolved from the database when the client sends only process_id', () => {
   const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
+  const groupingSource = fs.readFileSync(path.join(root, 'services/productionMachineReportGrouping.js'), 'utf8');
   assert.match(source, /const resolvedProcessCode = String\(processRows\?\.\[0\]\?\.process_code/);
   assert.match(source, /if \(resolvedProcessCode\) \{\s*data\.process_code = resolvedProcessCode;/);
-  assert.match(source, /const reportMachineLines = isMaiProcess\(data\)[\s\S]*groupMaiMachineProductLines\(machineLines\)[\s\S]*: machineLines/);
+  assert.match(source, /const reportMachineLines = String\(data\.process_code \|\| ""\)[\s\S]*=== "MAI"[\s\S]*\? machineLines[\s\S]*groupMaiMachineProductLines\(machineLines\)/);
+  assert.match(source, /const authoritativeProcess = await query\(db/);
+  assert.match(source, /data\.process_code = authoritativeCode;/);
+  assert.match(source, /data\._resolved_process_code = authoritativeCode;/);
   assert.match(source, /const splitMachines = shouldSplitMachineReports\(data, reportMachineLines\)/);
-  assert.match(source, /const isMaiProcess = \(data\) => \["MAI", "DO", "CAN", "EP"\]\.includes\(processCodeOf\(data\)\)/);
-  assert.match(source, /machine_group_request_id/);
-  assert.match(source, /line\.product_code/);
-  assert.match(source, /:line:/);
+  assert.match(groupingSource, /const isMaiProcess = \(data\) => \["MAI", "DO", "CAN", "EP"\]\.includes\(processCodeOf\(data\)\)/);
+  assert.match(groupingSource, /machine_group_request_id/);
+  assert.match(groupingSource, /line\.product_code/);
+  assert.match(groupingSource, /:line:/);
 });
 
 test('repository introduces no equal-split allocation in F05 production files', () => {
@@ -264,14 +270,15 @@ test('machine report with no machine lines is explicitly marked as missing', () 
 });
 
 
-test('Mài merges only identical machine/product runs and splits distinct products into separate reports', () => {
+test('Mài preserves repeated machine/product runs as separate reports', () => {
   const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
-  assert.match(source, /const shouldSplitMachineReports = \(data, machineLines\) =>[\s\S]*isGiaCongProcess\(data\) \|\| isMaiProcess\(data\)/);
-  assert.match(source, /const reportMachineLines = isMaiProcess\(data\)[\s\S]*groupMaiMachineProductLines\(machineLines\)[\s\S]*: machineLines/);
+  const groupingSource = fs.readFileSync(path.join(root, 'services/productionMachineReportGrouping.js'), 'utf8');
+  assert.match(groupingSource, /const shouldSplitMachineReports = \(data, machineLines\) =>[\s\S]*isGiaCongProcess\(data\) \|\| isMaiProcess\(data\)/);
+  assert.match(source, /const reportMachineLines = String\(data\.process_code \|\| ""\)[\s\S]*=== "MAI"[\s\S]*\? machineLines[\s\S]*groupMaiMachineProductLines\(machineLines\)/);
   assert.doesNotMatch(source, /DO_SINGLE_MACHINE_REQUIRED/);
-  assert.match(source, /line\.product_code/);
-  assert.match(source, /:line:/);
-  assert.match(source, /machine_group_request_id/);
+  assert.match(groupingSource, /line\.product_code/);
+  assert.match(groupingSource, /:line:/);
+  assert.match(groupingSource, /machine_group_request_id/);
   assert.match(source, /const splitMachines = shouldSplitMachineReports\(data, reportMachineLines\)/);
   assert.doesNotMatch(source, /splitGcLinePayload/);
 });
@@ -284,4 +291,14 @@ test('parallel-machine daily hours aggregate net hours by machine before taking 
     assert.match(code, /netHoursByMachine/);
     assert.match(code, /netHoursByMachine\.set\(machine, \(netHoursByMachine\.get\(machine\) \|\| 0\) \+ net\)/);
   }
+});
+
+test('MAI child identity uses run position to distinguish identical machine and product', () => {
+  const source = fs.readFileSync(path.join(root, 'services/productionMachineReportGrouping.js'), 'utf8');
+  const submission = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
+  assert.match(source, /processCodeOf\(data\) === "MAI"/);
+  assert.match(source, /mai-run:/);
+  assert.match(source, /\$\{index\}/);
+  assert.match(submission, /\? machineLines[\s\S]*groupMaiMachineProductLines\(machineLines\)/);
+  assert.match(submission, /machineLineGroups\.push\(\{ tempReportId: tempId, machineLines: \[reportMachineLines\[index\]\] \}\)/);
 });

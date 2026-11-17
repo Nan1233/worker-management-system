@@ -31,21 +31,27 @@ export function aggregateMachineLines(lines: MachineLineState[], activeNgOptions
 
 export const getMachineNgTotal = (line: MachineLineState): number => Number(line.ngQuantity) || 0;
 
-export function getMaxMachineCount(processCodeOrLines: string | MachineLineState[], linesOrMax?: MachineLineState[] | number, machineOptions?: unknown[]): number {
-  const processCode = Array.isArray(processCodeOrLines) ? "" : String(processCodeOrLines || "").trim().toUpperCase();
-  const lines = Array.isArray(processCodeOrLines) ? processCodeOrLines : (Array.isArray(linesOrMax) ? linesOrMax : []);
-  // Cán và Ép: một công nhân chỉ báo cáo một máy trong một lượt nhập.
-  // Khóa ở domain logic, không chỉ ẩn dropdown trong giao diện.
-  if (["EP", "CAN", "MAI", "DO"].includes(processCode)) return 10;
-  // MAI report lines are independent production reports, not a count of
-  // currently loaded machine-master rows. Workers must be able to prepare
-  // six (or more, up to ten) product/machine reports in one submission even
-  // when machine selection is optional or the machine list is still loading.
-  if (["MAI", "DO"].includes(processCode)) return 10;
+/** Current report-line limits; machine assignment rules are enforced separately.
+ * EP/CAN/DO retain ten existing UI lines pending a backend policy audit.
+ */
+export const FIXED_MACHINE_REPORT_LINE_LIMITS: Readonly<Record<string, number>> = Object.freeze({
+  EP: 10, CAN: 10, MAI: 10, DO: 10,
+});
+export const DEFAULT_MACHINE_REPORT_LINE_LIMIT = 4;
 
+export function getMaxMachineCount(
+  processCodeOrLines: string | MachineLineState[],
+  linesOrMax?: MachineLineState[] | number,
+  machineOptions?: unknown[],
+): number {
+  const processCode = Array.isArray(processCodeOrLines)
+    ? "" : String(processCodeOrLines || "").trim().toUpperCase();
+  const lines = Array.isArray(processCodeOrLines)
+    ? processCodeOrLines : (Array.isArray(linesOrMax) ? linesOrMax : []);
+  const fixedLimit = FIXED_MACHINE_REPORT_LINE_LIMITS[processCode];
+  if (fixedLimit !== undefined) return fixedLimit;
   const optionCount = Array.isArray(machineOptions) ? machineOptions.length : 0;
-  const requested = Math.max(lines.length, optionCount, 1);
-  return Math.min(4, requested);
+  return Math.min(DEFAULT_MACHINE_REPORT_LINE_LIMIT, Math.max(lines.length, optionCount, 1));
 }
 
 export function toggleMachineDefectLine(line: MachineLineState, key: string, checked?: boolean): MachineLineState {

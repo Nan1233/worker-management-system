@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { defaultPermissionsForRole, loadMyPermissions, type PermissionCode } from '../security/permissions';
-import { getStoredUser } from '../utils/authStorage';
+import { loadMyPermissions, type PermissionCode } from '../security/permissions';
 
 export function usePermissions(){
-  const user=getStoredUser();
-  const [permissions,setPermissions]=useState<Set<PermissionCode>>(()=>defaultPermissionsForRole(user?.role));
+  const [permissions,setPermissions]=useState<Set<PermissionCode>>(()=>new Set());
   const [loading,setLoading]=useState(true);
   const refresh=useCallback(async()=>{ setLoading(true); const next=await loadMyPermissions(true); setPermissions(next); setLoading(false); },[]);
   useEffect(()=>{ let mounted=true; loadMyPermissions().then(next=>{if(mounted){setPermissions(next);setLoading(false);}}); return()=>{mounted=false};},[]);

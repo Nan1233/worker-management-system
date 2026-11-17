@@ -7,6 +7,7 @@ interface Props {
     canUpdateExisting: boolean;
     submitting: boolean;
     loadingWorker: boolean;
+    loadingMasterData: boolean;
     onCancelDuplicate: () => void;
     onUpdateExisting: () => void;
     onCreateDuplicate: () => void;
@@ -117,7 +118,7 @@ const syncVisibleMachineLinesToDraft = (): void => {
     }
 };
 
-export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExisting, submitting, loadingWorker, onCancelDuplicate, onUpdateExisting, onCreateDuplicate, onReset, onSubmit }: Props) {
+export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExisting, submitting, loadingWorker, loadingMasterData, onCancelDuplicate, onUpdateExisting, onCreateDuplicate, onReset, onSubmit }: Props) {
     const handleContinueExisting = () => {
         if (submitting) return;
         syncVisibleMachineLinesToDraft();
@@ -151,14 +152,14 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
             </div>}
 
             <div className="worker-action-group" aria-busy={submitting}>
-                <div className="worker-action-copy">
-                    <strong>{submitting ? "Đang kiểm tra và lưu báo cáo" : "Sẵn sàng gửi báo cáo"}</strong>
-                    <span>{submitting ? "Vui lòng giữ màn hình này cho tới khi hoàn tất." : "Hệ thống sẽ kiểm tra dữ liệu trước khi gửi."}</span>
+                <div className="worker-action-copy" aria-live="polite">
+                    <strong>{submitting ? "Đang kiểm tra và lưu báo cáo" : loadingMasterData ? "Đang tải danh mục sản xuất" : "Sẵn sàng gửi báo cáo"}</strong>
+                    <span>{submitting ? "Vui lòng giữ màn hình này cho tới khi hoàn tất." : loadingMasterData ? "Vui lòng chờ tải xong danh mục máy, sản phẩm và lỗi NG." : "Hệ thống sẽ kiểm tra dữ liệu trước khi gửi."}</span>
                 </div>
                 <div className="worker-action-buttons">
                     <button type="button" className="worker-reset-button" onClick={onReset} disabled={submitting}>Làm mới</button>
-                    <button type="button" className="worker-floating-save" onClick={handleSubmitClick} disabled={loadingWorker || submitting}>
-                        {submitting ? "Đang lưu..." : "Nộp dữ liệu"}
+                    <button type="button" className="worker-floating-save" onClick={handleSubmitClick} disabled={loadingWorker || loadingMasterData || submitting}>
+                        {submitting ? "Đang lưu..." : loadingMasterData ? "Đang tải danh mục..." : "Nộp dữ liệu"}
                     </button>
                 </div>
             </div>

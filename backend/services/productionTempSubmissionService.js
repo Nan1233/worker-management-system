@@ -7,11 +7,21 @@ const { query, getConnection, beginTransaction, beginReadCommittedTransaction, c
 const { resolveInitialTrainingSnapshot } = require("./trainingSnapshotService");
 const { validateMachineWorkerCapacityLocked } = require("./factoryMachineRuleService");
 const { buildLogicalDuplicateKey } = require("./logicalDuplicateReportService");
+const {
+    isGiaCongProcess,
+    isMaiProcess,
+    shouldSplitMachineReports,
+    groupMaiMachineProductLines,
+    childRequestId,
+    splitMachineLinePayload,
+} = require("./productionMachineReportGrouping");
+
 const { verifyDuplicateConfirmation } = require("./duplicateConfirmationService");
 const { DAILY_HOURS_ENFORCEMENT_ENABLED, DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
 
-const submissionQueues = new Map();
+const { submissionQueueKey, runSerializedSubmission } = require('./productionSubmissionQueue');
+const { incomingDailyWorkHours } = require('./productionDailyHoursCalculation');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const rollbackOrThrow = async (connection, originalError) => {
@@ -43,29 +53,6 @@ const rollbackOrThrow = async (connection, originalError) => {
     return result;
 };
 
-const runSerialized = async (key, task) => {
-    const previous = submissionQueues.get(key) || Promise.resolve();
-    let release;
-    const current = new Promise((resolve) => { release = resolve; });
-    submissionQueues.set(key, current);
-    await previous;
-    try { return await task(); }
-    finally {
-        release();
-        if (submissionQueues.get(key) === current) submissionQueues.delete(key);
-    }
-};
-
-const queueKey = (data, machineLines = []) => {
-    const workerId = Number(data?.worker_id || data?.workerId || 0);
-    const client = String(data?.client_request_id || "").trim();
-    if (client) return `client:${workerId}:${client}`;
-    const logical = String(data?.logical_duplicate_key || "").trim();
-    if (logical) return `logical:${workerId}:${logical}`;
-    const machines = [...new Set((Array.isArray(machineLines) ? machineLines : [])
-        .map((x) => String(x?.machine_code || "").trim().toUpperCase()).filter(Boolean))].sort().join(",");
-    return `capacity:${workerId}:${Number(data?.process_id || 0)}:${String(data?.work_date || "").slice(0,10)}:${String(data?.shift || "").trim().toUpperCase()}:${machines}`;
-};
 
 const findExistingClientRequest = async (data, executor = db) => {
     const workerId = Number(data?.worker_id);
@@ -164,19 +151,7 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
         data._resolved_process_code = resolvedProcessCode;
     }
     const resolvedCode = resolvedProcessCode || String(data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
-    const isParallelMachineProcess = resolvedCode === "GC" || resolvedCode === "MAI";
-    const incoming = isParallelMachineProcess && machineLines.length
-        ? (() => {
-            const netHoursByMachine = new Map();
-            for (const line of machineLines) {
-                const machine = String(line?.machine_code || line?.machine_id || "").trim().toUpperCase() || "__UNKNOWN__";
-                const net = Math.max(0, (Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0)
-                    - (Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0));
-                netHoursByMachine.set(machine, (netHoursByMachine.get(machine) || 0) + net);
-            }
-            return Math.max(0, ...netHoursByMachine.values());
-        })()
-        : (Number(data?.actual_time) || 0);
+    const incoming = incomingDailyWorkHours(data, machineLines, resolvedCode);
     const existing = await queryCountedDailyHours((sql, params) => query(executor, sql, params), { workerId, workDate });
     const projected = existing + incoming;
     if (exceedsDailyHoursLimit(projected)) {
@@ -217,6 +192,11 @@ createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, 
 };
 
 const resolveMasterDetails = async (processId, defects, deductions, executor) => {
+    // Resolve worker-defined "other" names to real process-scoped type rows.
+    await require("./customReportCategoryService").ensureCustomReportCategories({
+        processId, defects, deductions,
+        query: (sql, params) => query(executor, sql, params)
+    });
     const defectItems = (Array.isArray(defects) ? defects : []).map((item) => ({
         id: Number(item?.defect_type_id || item?.id || 0) || null,
         code: String(item?.defect_code || item?.defect_type_code || item?.code || "").trim(),
@@ -379,107 +359,6 @@ const createAuditAfterChildrenBatch = async ({ tempIds, audit, data, requestIds,
     }
 };
 
-const processCodeOf = (data) => String(data?._resolved_process_code || data?.process_code || data?.extra_data?.process_code || "").trim().toUpperCase();
-const isGiaCongProcess = (data) => processCodeOf(data) === "GC";
-const isMaiProcess = (data) => ["MAI", "DO", "CAN", "EP"].includes(processCodeOf(data));
-const shouldSplitMachineReports = (data, machineLines) =>
-    Array.isArray(machineLines) && machineLines.length > 1 && (isGiaCongProcess(data) || isMaiProcess(data));
-
-const sumLineNumber = (lines, field) => lines.reduce((sum, line) => sum + (Number(line?.[field]) || 0), 0);
-
-// Mài: duplicate entries for the exact same physical machine + product are
-// one production report. Keep the source lines so splitMachineLinePayload can
-// preserve and batch all their NG/deduction details without losing quantities.
-const groupMaiMachineProductLines = (machineLines) => {
-    const groups = new Map();
-    const additiveFields = [
-        "machine_time_hours", "actual_time_hours", "deduction_time_hours",
-        "standard_output", "counted_output", "maximum_output", "earned_standard_hours",
-        "ok_quantity", "ng_quantity"
-    ];
-    for (const line of Array.isArray(machineLines) ? machineLines : []) {
-        const machine = String(line?.machine_code || "").trim().toUpperCase();
-        const product = String(line?.product_code || "").trim().toUpperCase();
-        // Do not silently combine incomplete rows; normal validation handles them.
-        if (!machine || !product) {
-            const uniqueKey = `__UNMATCHED__:${groups.size}`;
-            groups.set(uniqueKey, { ...line, _source_machine_lines: [line] });
-            continue;
-        }
-        const key = `${machine}::${product}`;
-        const existing = groups.get(key);
-        if (!existing) {
-            const grouped = { ...line, _source_machine_lines: [line] };
-            for (const field of additiveFields) grouped[field] = Number(line?.[field]) || 0;
-            groups.set(key, grouped);
-            continue;
-        }
-        existing._source_machine_lines.push(line);
-        for (const field of additiveFields) {
-            existing[field] = (Number(existing[field]) || 0) + (Number(line?.[field]) || 0);
-        }
-        existing.defects = [
-            ...(Array.isArray(existing.defects) ? existing.defects : []),
-            ...(Array.isArray(line?.defects) ? line.defects : [])
-        ];
-        existing.deductions = [
-            ...(Array.isArray(existing.deductions) ? existing.deductions : []),
-            ...(Array.isArray(line?.deductions) ? line.deductions : [])
-        ];
-    }
-    return [...groups.values()];
-};
-// Stable child request IDs are keyed by physical machine, not product line.
-const childRequestId = (groupRequestId, lines, index) => {
-    const line = Array.isArray(lines) ? (lines[0] || {}) : (lines || {});
-    // A report belongs to a product line, not to a physical machine. Include
-    // product identity and position so two products on the same machine never collide.
-    const identity = [
-        String(line.machine_code || "").trim().toUpperCase(),
-        String(line.product_code || "").trim().toUpperCase(),
-        String(index)
-    ].join("|");
-    const digest = require("node:crypto").createHash("sha256").update(identity).digest("hex").slice(0, 20);
-    return `${String(groupRequestId).slice(0, 80)}:line:${digest}`;
-};
-
-const splitMachineLinePayload = (data, lineOrLines, requestId, index, totalCount = 1) => {
-    const lines = Array.isArray(lineOrLines) ? lineOrLines : [lineOrLines];
-    const line = lines[0] || {};
-    const defects = lines.flatMap((item) => Array.isArray(item?.defects) ? item.defects : []);
-    const deductions = lines.flatMap((item) => Array.isArray(item?.deductions) ? item.deductions : []);
-    const extra = typeof data.extra_data === "string" ? (() => { try { return JSON.parse(data.extra_data); } catch { return {}; } })() : (data.extra_data || {});
-    const groupMetadata = isGiaCongProcess(data)
-        ? { gc_group_request_id: requestId, gc_group_machine_count: totalCount, gc_group_machine_index: index, gc_split_report: true }
-        : { machine_group_request_id: requestId, machine_group_machine_count: totalCount, machine_group_machine_index: index, machine_split_report: true };
-    const productCodes = [...new Set(lines.map((item) => String(item?.product_code || "").trim()).filter(Boolean))];
-    return {
-        ...data,
-        machine_no: line.machine_code || data.machine_no || null,
-        product_name: productCodes.join(", ") || data.product_name || null,
-        total_time: sumLineNumber(lines, "machine_time_hours"),
-        actual_time: 0,
-        deduction_time: sumLineNumber(lines, "deduction_time_hours"),
-        standard_output: sumLineNumber(lines, "standard_output"),
-        standard_version_id: lines.every((item) => String(item?.standard_version_id || "") === String(line?.standard_version_id || "")) ? (line.standard_version_id || null) : null,
-        machine_standard_id: lines.every((item) => String(item?.machine_standard_id || "") === String(line?.machine_standard_id || "")) ? (line.machine_standard_id || null) : null,
-        actual_output: sumLineNumber(lines, "counted_output"),
-        tt_ok: sumLineNumber(lines, "ok_quantity"),
-        tt_ng: sumLineNumber(lines, "ng_quantity"),
-        defects,
-        deductions,
-        client_request_id: childRequestId(requestId, lines, index),
-        logical_duplicate_key: buildLogicalDuplicateKey({
-            workerId: data.worker_id, processId: data.process_id, workDate: data.work_date,
-            shift: data.shift, operationMode: data.operation_mode ?? data.operationMode,
-            machineNo: line.machine_code || data.machine_no,
-            productName: productCodes.join(", ") || data.product_name,
-            machineLines: lines
-        }),
-        extra_data: { ...extra, ...groupMetadata }
-    };
-};
-
 const createCompleteReport = async (payload = {}, legacyDefects, legacyDeductions, legacyMachineLines, legacyAudit) => {
     const wrapped = payload && typeof payload === "object" && payload.data && typeof payload.data === "object";
     const raw = wrapped ? payload.data : payload;
@@ -505,13 +384,28 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
     await enforceDailyWorkerHours(data, db, machineLines);
     data._daily_hours_machine_lines = machineLines;
-    // MAI duplicate machine+product pairs are merged; different pairs remain
-    // independent reports. GC retains its existing per-line behavior.
-    const reportMachineLines = isMaiProcess(data)
-        ? groupMaiMachineProductLines(machineLines)
-        : machineLines;
+    // Resolve process BEFORE deciding whether to split. The daily-hours guard can
+    // be disabled, and clients commonly send process_id without process_code.
+    // Resolving only later in the transaction silently saved all MAI lines under
+    // one parent. Reuse this lookup in the existing transaction preflight.
+    const authoritativeProcess = await query(db,
+        `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
+    const authoritativeCode = String(authoritativeProcess?.[0]?.process_code || "").trim().toUpperCase();
+    if (!authoritativeCode) {
+        const error = new Error("Không xác định được công đoạn báo cáo");
+        error.status = 422; error.code = "PROCESS_CODE_NOT_FOUND"; error.isPublic = true;
+        throw error;
+    }
+    data.process_code = authoritativeCode;
+    data._resolved_process_code = authoritativeCode;
+    // MAI records each entered production run as its own pending report, even when
+    // machine and product repeat. DO/CAN/EP retain their existing grouping rules;
+    // GC retains its shared-machine accounting and per-line split behavior.
+    const reportMachineLines = String(data.process_code || "").trim().toUpperCase() === "MAI"
+        ? machineLines
+        : isMaiProcess(data) ? groupMaiMachineProductLines(machineLines) : machineLines;
     const splitMachines = shouldSplitMachineReports(data, reportMachineLines);
-    return runSerialized(queueKey(data, machineLines), async () => {
+    return runSerializedSubmission(submissionQueueKey(data, machineLines), async () => {
         // No second pre-transaction idempotency lookup here: sequential retries already returned above,
         // and a concurrent duplicate is resolved authoritatively inside the transaction under the
         // client_request_id lock (findExistingClientRequest(data, parentConnection)). Each statement is one
@@ -597,7 +491,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             }
             try {
                 if (splitMachines) {
-                    // Keep each machine/product pair as its own report, but batch all
+                    // Keep each production run as its own report (including repeated machine/product), but batch all
                     // parent INSERTs and ID resolution into two SQL statements.
                     const groupedChildren = reportMachineLines.map((line, index) => {
                         const childLines = line._source_machine_lines || [line];
@@ -622,9 +516,8 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                         const resolved = preResolvedChildren[index];
                         defectGroups.push({ tempReportId: tempId, items: resolved.defects });
                         deductionGroups.push({ tempReportId: tempId, items: resolved.deductions });
-                        // Persist one detail row for each grouped machine+product pair.
-                        // The grouped line already contains summed quantities/time and merged
-                        // NG/deduction details from every duplicate input row.
+                        // Persist the original line for each MAI run. Other supported
+                        // processes may still provide grouped machine/product rows.
                         machineLineGroups.push({ tempReportId: tempId, machineLines: [reportMachineLines[index]] });
                     }
                     await createModel.createDefectsBatch(defectGroups, parentConnection);

@@ -1,4 +1,6 @@
 import { resolveCutExecutionMode } from "./cutExecutionMode.js";
+import { getWorkerEditWindow, WORKER_EDIT_TIME_LIMIT_ENABLED, formatRemaining } from "./reportEditWindow";
+import { validateMachineLines } from "./processPageValidation";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById, updateReport, updateTempReport } from "../../services/productionService";
@@ -35,6 +37,7 @@ const parseDbDateMs = (value?: string | null) => {
   const parsed = new Date(normalized).getTime();
   return Number.isFinite(parsed) ? parsed : NaN;
 };
+const dataFromReportGrindingMachine = (report: any): string => s(report?.extra_data?.grinding_machine_no);
 const slug = (code?: string | null) => ({ GC: "cat-long", MAI: "mai", DO: "do", K1: "kiem-1", K2: "kiem-2", CAN: "can", EP: "ep", XLBV: "bavia", SX3: "sx3", CVK: "cvk" } as Record<string, string>)[s(code).trim().toUpperCase()] || "cat-long";
 
 function WorkerReportEditV2() {
@@ -80,13 +83,27 @@ function WorkerReportEditV2() {
   useEffect(() => setLoadingMasterData(masterLoading), [masterLoading]);
 
   const sourceDefects = useMemo(() => getWorkerDeclaredDefects<any>(report), [report]);
-  const sourceDeductions = useMemo(() => Array.isArray(report?.deductions) ? report.deductions : Array.isArray(report?.deduction_items) ? report.deduction_items : [], [report]);
+  const sourceDeductions = useMemo(() => {
+    const parent = Array.isArray(report?.deductions) ? report.deductions : Array.isArray(report?.deduction_items) ? report.deduction_items : [];
+    if (parent.length) return parent;
+    // Older machine reports may store the original deductions only on machine lines.
+    const lines = Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [];
+    if (lines.length !== 1) return parent;
+    const line = lines[0];
+    const raw = line?.deductions_json ?? line?.deductions;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === "string") {
+      try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed; } catch { /* invalid legacy JSON: fail closed on save */ }
+    }
+    return parent;
+  }, [report]);
   const sourceLines = useMemo(() => Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [], [report]);
 
   const editNgOptions = useMemo(() => {
     const result = [...activeNgOptions] as any[];
     const seen = new Set(result.map((x: any) => String(x.key || x.code || x.label).toUpperCase()));
     sourceDefects.forEach((d: any, index: number) => {
+      if (/^CUSTOM_NG_/i.test(s(d.defect_code))) return;
       const code = s(d.defect_code).trim();
       const label = s(d.defect_name || d.defect_label || code || `Lỗi ${index + 1}`).trim();
       const key = code ? `legacy_ng_${code.toUpperCase()}` : `legacy_ng_${label.toUpperCase().replace(/\W+/g, "_")}`;
@@ -102,6 +119,7 @@ function WorkerReportEditV2() {
     const result = [...activeDeductionOptions] as any[];
     const seen = new Set(result.map((x: any) => String(x.key || x.code || x.label).toUpperCase()));
     sourceDeductions.forEach((d: any, index: number) => {
+      if (/^CUSTOM_DED_/i.test(s(d.deduction_code))) return;
       const code = s(d.deduction_code).trim();
       const label = s(d.deduction_name || d.deduction_label || code || `Trừ giờ ${index + 1}`).trim();
       const key = code ? `legacy_deduction_${code.toUpperCase()}` : `legacy_deduction_${label.toUpperCase().replace(/\W+/g, "_")}`;
@@ -187,8 +205,9 @@ function WorkerReportEditV2() {
         setCutExecutionMode(resolveCutExecutionMode(loadedMachineCode));
         setOperationMode(data.operation_mode === "MACHINE" || (Array.isArray(data.machine_lines) ? data.machine_lines.length : Array.isArray(data.machineLines) ? data.machineLines.length : 0) > 0 ? "MACHINE" : "MANUAL");
         const loadedWorkType = s(data.extra_data?.work_type || data.work_type || "");
-        setWorkType(loadedWorkType || "XUATNHAP");
-        setForm((current) => ({ ...current, workType: loadedWorkType || "XUATNHAP" }));
+         const resolvedWorkType = String(data.process_code || "").trim().toUpperCase() === "CVK" ? (loadedWorkType || "XUATNHAP") : loadedWorkType;
+         setWorkType(resolvedWorkType);
+         setForm((current) => ({ ...current, workType: resolvedWorkType }));
         setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).filter(([key]) => key !== "adjustment_count" && key !== "work_type").map(([key, value]) => [key, value == null ? "" : String(value)])));
         setReport({ ...data, __edit_machine_lines: editMachineLines });
       } catch (e: any) {
@@ -204,22 +223,23 @@ function WorkerReportEditV2() {
       setRemaining(Number.POSITIVE_INFINITY);
       return;
     }
-    if (!report?.created_at) return;
-    // Rejected reports get a fresh 10-minute window counted from the rejection (updated_at).
-    const windowStart = s(report.status).trim().toLowerCase() === "rejected" ? report.updated_at : report.created_at;
-    const tick = () => { const created = parseDbDateMs(windowStart); setRemaining(Number.isFinite(created) ? Math.max(0, created + 600000 - Date.now()) : 0); };
-    tick(); const timer = window.setInterval(tick, 1000); return () => window.clearInterval(timer);
+    if (!report) return;
+    const tick = () => setRemaining(getWorkerEditWindow(report).remainingMs);
+    tick();
+    if (!WORKER_EDIT_TIME_LIMIT_ENABLED) return;
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
   }, [report?.created_at, report?.updated_at, report?.status, managerRoute]);
 
-  const findNgKey = (item: any) => editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
-  const findDeductionKey = (item: any) => editDeductionOptions.find((o: any) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
+  const findNgKey = (item: any) => /^CUSTOM_NG_/i.test(s(item.defect_code)) ? "__otherNg" : editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
+  const findDeductionKey = (item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)) ? "__otherDeduction" : editDeductionOptions.find((o: any) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
 
   useEffect(() => {
     if (!report) return;
     setForm((current) => {
       const next = { ...current };
       const selected: string[] = [];
-      sourceDefects.forEach((d: any) => { const key = findNgKey(d); if (key) { next[key] = s(d.quantity ?? 0); selected.push(key); } });
+      sourceDefects.forEach((d: any) => { const key = findNgKey(d); if (key) { next[key] = s(d.quantity ?? 0); if (key === "__otherNg") next.otherNgName = s(d.defect_name); selected.push(key); } });
       setSelectedNg(selected);
       return next;
     });
@@ -235,13 +255,17 @@ function WorkerReportEditV2() {
         : Array.isArray(line.deductions) ? line.deductions
         : (() => { try { return JSON.parse(line.deductions_json || "[]"); } catch { return []; } })();
       const lineDeductions: DeductionState = { ...initialDeduction };
+      const customNg = lineDefects.find((item: any) => /^CUSTOM_NG_/i.test(s(item.defect_code)));
+      const customDeduction = rawLineDeductions.find((item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)));
       const selectedLineDeductions: string[] = [];
       rawLineDeductions.forEach((d: any) => { const key = findDeductionKey(d); const minutes = d.minutes ?? d.deduction_minutes ?? n(d.hours) * 60; if (key) { (lineDeductions as any)[key] = String(Math.round(n(minutes))); selectedLineDeductions.push(key); } });
       const deductionTimeHours = n(line.deduction_time_hours);
       const actualTimeHours = Math.max(0, n(line.machine_time_hours) - deductionTimeHours);
       const time = hm(actualTimeHours);
-      return { ...createEmptyMachineLine(), machineCode: s(line.machine_code), productCode: s(line.product_code), hours: time.hours, minutes: time.minutes, deductions: lineDeductions, selectedDeductions: selectedLineDeductions, adjustmentMinutes: s(line.adjustment_minutes ?? ""), adjustmentCount: s(line.adjustment_count ?? ""), okQuantity: s(line.ok_quantity ?? ""), ngQuantity: s(line.ng_quantity ?? ""), standardOutputPerHour: n(line.standard_output), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null, selectedDefects, defects, machineEventId: line.machine_event_id ?? null } as any;
+      return { ...createEmptyMachineLine(), otherNgName: s(customNg?.defect_name), otherDeductionName: s(customDeduction?.deduction_name), machineCode: s(line.machine_code), productCode: s(line.product_code), grindingMachineNo: s(line.grinding_machine_no ?? dataFromReportGrindingMachine(report)), hours: time.hours, minutes: time.minutes, deductions: lineDeductions, selectedDeductions: selectedLineDeductions, adjustmentMinutes: s(line.adjustment_minutes ?? ""), adjustmentCount: s(line.adjustment_count ?? ""), okQuantity: s(line.ok_quantity ?? ""), ngQuantity: s(line.ng_quantity ?? ""), standardOutputPerHour: n(line.standard_output), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null, selectedDefects, defects, machineEventId: line.machine_event_id ?? null } as any;
     }));
+    const existingOtherDeduction = sourceDeductions.find((item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)));
+    if (existingOtherDeduction) setForm((current) => ({ ...current, otherDeductionName: s(existingOtherDeduction.deduction_name) }));
     setDeductions((current) => {
       const next: DeductionState = { ...current };
       const selected: string[] = [];
@@ -321,7 +345,8 @@ function WorkerReportEditV2() {
   const approvedMachineNoteOnly = isApprovedMachineReport(source, operationMode) && managerRoute;
   const save = async () => {
     if (!report || readOnly) return;
-    if (!managerRoute && remaining <= 0) { setError("Đã hết thời gian 10 phút để sửa báo cáo này."); return; }
+    if (!managerRoute && !getWorkerEditWindow(report).editable) { setError("Báo cáo không còn ở trạng thái được phép sửa."); return; }
+    if (!managerRoute && !report.updated_at) { setError("Thiếu phiên bản báo cáo. Vui lòng tải lại trước khi sửa."); return; }
     setError("");
     const incompleteMessage = detectIncompleteMachineData(report);
     if (incompleteMessage) { setError(incompleteMessage); return; }
@@ -343,13 +368,58 @@ function WorkerReportEditV2() {
     if (totalHours * 60 > MAX_TOTAL_WORK_MINUTES + 0.001) { setError("Tổng thời gian không được vượt quá 12 giờ."); return; }
     const normalizedLines = operationMode === "MACHINE" ? machineLines.filter((line) => line.machineCode.trim() || line.productCode.trim()) : [];
     if (operationMode === "MACHINE" && (!normalizedLines.length || normalizedLines.some((line) => !line.machineCode.trim() || !line.productCode.trim()))) { setError("Vui lòng nhập đủ mã máy và mã sản phẩm cho từng máy."); return; }
+    if (operationMode === "MACHINE" && normalizedLines.length) {
+      const validationError = validateMachineLines({
+        processCode: capabilities.processCode,
+        machineLines: normalizedLines,
+        maxMachines: maxMachineCount,
+        isMachineValid: (code) => editMachineOptions.some((item: any) => s(item.machine_code).trim().toUpperCase() === code.trim().toUpperCase()),
+        isProductValid: (machineCode, productCode) => getMachineProductOptions(machineCode).some((item: any) => s(item.product_code).trim().toUpperCase() === productCode.trim().toUpperCase()),
+      });
+      if (validationError) { setError(validationError); return; }
+    }
     payload = buildProductionReportPayload({
       clientRequestId: null, processId: report.process_id, form: { ...form, actualTime: `${form.actualHours}:${form.actualMinutes}`, deductionTime: form.deductionTime, totalTime: `${Math.floor(totalHours)}:${String(Math.round((totalHours % 1) * 60)).padStart(2, "0")}` },
-      extraData, operationType, isCutLongProcess: capabilities.isCutLongProcess, processCode: capabilities.processCode, isCvkMode, usesAnyMachine: operationMode === "MACHINE", usesMultiMachineLines, usesSingleMachine,
+      extraData: capabilities.processCode === "DO" ? { ...extraData, grinding_machine_no: String(normalizedLines[0]?.grindingMachineNo ?? extraData.grinding_machine_no ?? "").trim() } : extraData, operationType, isCutLongProcess: capabilities.isCutLongProcess, processCode: capabilities.processCode, isCvkMode, usesAnyMachine: operationMode === "MACHINE", usesMultiMachineLines, usesSingleMachine,
       machineLines: normalizedLines, machineOptions: editMachineOptions, productOptions: editProductOptions, activeNgOptions: editNgOptions, deductions, activeDeductionOptions: editDeductionOptions,
     });
     }
-    if (!approvedMachineNoteOnly) { payload.updated_at = report.updated_at; payload.expected_updated_at = report.updated_at; }
+    if (!approvedMachineNoteOnly) {
+      // Never silently erase historical deductions when the edit screen cannot
+      // reconstruct their detail rows (e.g. a failed master-data request).
+      const originalDeductionMinutes = Math.round(n(report.deduction_time) * 60);
+      const submittedDeductionMinutes = Math.round(n(payload.deduction_time) * 60);
+      let detailMinutes = (Array.isArray(payload.deductions) ? payload.deductions : [])
+        .reduce((sum: number, item: any) => sum + Math.round(n(item.hours) * 60), 0);
+      // Some historical reports retain valid deduction details in the API but
+      // the editor's master-data mapping may not serialize them back to payload.
+      // Preserve those exact persisted entries only when the deduction total
+      // has not changed. Never invent a deduction category or overwrite edits.
+      if (detailMinutes === 0 && submittedDeductionMinutes > 0 && sourceDeductions.length > 0) {
+        const originalDetails = sourceDeductions.map((item: any) => ({
+          deduction_type_id: Number(item.deduction_type_id) || undefined,
+          deduction_code: s(item.deduction_code || item.code),
+          deduction_name: s(item.deduction_name || item.name || item.label),
+          hours: n(item.hours ?? item.deduction_hours ?? item.duration_hours),
+        })).filter((item: any) => item.hours > 0);
+        const originalDetailMinutes = originalDetails.reduce((sum: number, item: any) => sum + Math.round(item.hours * 60), 0);
+        if (originalDetailMinutes > 0
+          && Math.abs(originalDetailMinutes - submittedDeductionMinutes) <= 1
+          && Math.abs(originalDetailMinutes - originalDeductionMinutes) <= 1) {
+          payload.deductions = originalDetails;
+          detailMinutes = originalDetailMinutes;
+        }
+      }
+      if (originalDeductionMinutes > 0 && sourceDeductions.length === 0 && detailMinutes === 0) {
+        setError("Không tải được chi tiết khấu trừ của báo cáo cũ. Dữ liệu 1 giờ 20 phút (hoặc thời gian trừ đã lưu) vẫn được giữ nguyên; vui lòng tải lại báo cáo hoặc liên hệ quản lý. Không thể lưu khi thiếu chi tiết.");
+        return;
+      }
+      if (Math.abs(submittedDeductionMinutes - detailMinutes) > 1) {
+        setError("Chi tiết khấu trừ chưa khớp tổng thời gian trừ. Vui lòng kiểm tra các mục khấu trừ trước khi lưu.");
+        return;
+      }
+      payload.updated_at = report.updated_at; payload.expected_updated_at = report.updated_at;
+    }
     const approvedEditAudit = { reason: source === "approved" ? changeReason.trim() : undefined };
     Object.assign(payload, approvedEditAudit);
     try {
@@ -364,7 +434,7 @@ function WorkerReportEditV2() {
         navigate(`/worker/history/${report.id}`, { replace: true });
       }
     } catch (e: any) {
-      if (e?.response?.data?.code === "REPORT_VERSION_CONFLICT" || (Number(e?.response?.status) === 409 && !e?.response?.data?.code)) {
+      if (["REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_REQUIRED"].includes(String(e?.response?.data?.code || "")) || (Number(e?.response?.status) === 409 && !e?.response?.data?.code)) {
         setError("Báo cáo đã được người khác cập nhật. Vui lòng tải lại dữ liệu trước khi lưu. Các thay đổi bạn đang nhập vẫn được giữ trên màn hình.")
         return;
       }
@@ -375,11 +445,10 @@ function WorkerReportEditV2() {
 
   if (loading) return <div className="detail-container"><div className="detail-state">Đang tải biểu mẫu...</div></div>;
   if (!report) return <div className="detail-container"><div className="detail-state error">{error || "Không tìm thấy báo cáo."}</div></div>;
-  const remainingSeconds = Number.isFinite(remaining) ? Math.ceil(remaining / 1000) : 0;
-  const timeText = managerRoute ? "Không giới hạn" : Number.isFinite(remaining) ? `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}` : "Không giới hạn";
+  const timeText = managerRoute || !WORKER_EDIT_TIME_LIMIT_ENABLED ? "Không giới hạn" : formatRemaining(remaining);
   const processTitle = readOnly ? `Chi tiết báo cáo · ${report.process_name || capabilities.processCode}` : `Sửa báo cáo · ${report.process_name || capabilities.processCode}`;
 
-  return <div className={`ktc-page ${managerRoute ? "manager-worker-report-form" : ""} ${readOnly ? "manager-worker-report-readonly" : ""}`}>
+  return <div className={`ktc-page worker-form-page ${managerRoute ? "manager-worker-report-form" : ""} ${readOnly ? "manager-worker-report-readonly" : ""}`}>
     <ProcessWorkerHeader processTitle={processTitle} workerName={form.workerName} workerCode={form.workerCode} trainingPercent={form.trainingPercent} workDate={form.workDate} dateOptions={getWorkerAllowedWorkDates()} onBack={() => navigate(-1)} onDateChange={(e) => updateForm("workDate", e.target.value)} />
     <main className="worker-form-container">
       {error && <div className="worker-form-card" style={{ color: "#b42318", marginBottom: 12 }}>{error}</div>}
@@ -396,10 +465,11 @@ function WorkerReportEditV2() {
       <fieldset disabled={approvedMachineNoteOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <ProcessBasicInfoSection processCode={String(report?.process_code || capabilities.processCode)} form={form} setForm={setForm} onFormChange={onFormChange} isCutLongProcess={capabilities.isCutLongProcess} isInspectionProcess={capabilities.isInspectionProcess} isCvkMode={isCvkMode} setIsCvkMode={setIsCvkMode} operationType={operationType} setOperationType={setOperationType} cutExecutionMode={cutExecutionMode} setCutExecutionMode={setCutExecutionMode} operationMode={operationMode} setOperationMode={setOperationMode} usesMultiMachineLines={usesMultiMachineLines} usesSingleMachine={usesSingleMachine} productAutocompleteOptions={toProductAutocompleteOptions(editProductOptions)} getMachineProductAutocompleteOptions={getMachineProductAutocompleteOptions} productOptions={editProductOptions as any} machineAutocompleteOptions={machineAutocompleteOptions} machineOptions={editMachineOptions} loadingMasterData={loadingMasterData} machineCount={machineCount} maxMachineCount={maxMachineCount} machineLines={machineLines} resizeMachineLines={resizeMachineLines} updateMachineLine={updateLine} refreshMachineLineStandard={refreshMachineLineStandard} getMachineNgTotal={getMachineNgTotal} activeNgOptions={editNgOptions as any} activeDeductionOptions={editDeductionOptions as any} toggleMachineDefect={toggleMachineDefect} updateMachineDefectValue={updateMachineDefectValue} />
       {report.process_code === "CVK" && <section className="worker-form-card"><h2 className="worker-card-title">Thông tin công việc</h2><div className="worker-basic-grid"><div className="worker-field-block"><label className="worker-field-label">Loại công việc</label><select className="worker-text-input" value={workType} onChange={(e) => { setWorkType(e.target.value); setForm((current) => ({ ...current, workType: e.target.value })); }}><option>Xuất nhập</option><option>Hỗ trợ</option><option>Kho</option><option>Vệ sinh</option><option>Công việc khác</option></select></div></div></section>}
-      {!report.process_code || report.process_code !== "CVK" ? <ProcessQualitySection form={form} activeNgOptions={editNgOptions as any} selectedNg={selectedNg} showNg={showNg} setShowNg={setShowNg} usesMultiMachineLines={usesMultiMachineLines} operationMode={operationMode} formatIntegerDisplay={formatIntegerDisplay} onTtOkChange={onTtOkChange} onNumberBlur={onNumberBlur} onToggleNg={toggleNg} onNgValue={updateNg} /> : null}
-      {!usesMultiMachineLines && <ProcessTimeDeductionSection processCode={String(report?.process_code || (Number(report?.process_id) === 4 ? "K1" : ""))} form={form} setForm={setForm} deductions={deductions} activeDeductionOptions={editDeductionOptions as any} selectedDeduction={selectedDeduction} showDeduction={showDeduction} setShowDeduction={setShowDeduction} onToggleDeduction={toggleDeduction} onUpdateDeduction={updateDeduction} onNormalizeDeduction={normalizeDeduction} onWarning={warning} />}
+      {usesMultiMachineLines && <section className="worker-form-card worker-quality-section" aria-label="Tổng sản lượng OK NG của các máy"><h2 className="worker-card-title">Tổng sản lượng OK / NG</h2><div className="worker-quality-summary"><div className="worker-quality-card ok"><label>TT OK (tổng các máy)</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.okQuantity) || 0), 0)))} readOnly aria-label="Tổng OK các máy" /></div><div className="worker-quality-card ng"><label>TT NG (tổng các máy)</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.ngQuantity) || 0), 0)))} readOnly aria-label="Tổng NG các máy" /></div><div className="worker-quality-card total-output"><label>Tổng sản lượng</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0), 0)))} readOnly aria-label="Tổng sản lượng các máy" /></div></div><p className="worker-field-hint">Số liệu tổng hợp tự động từ từng máy; chỉnh sửa OK/NG tại từng máy.</p></section>}
+      {!report.process_code || report.process_code !== "CVK" ? <ProcessQualitySection form={form} activeNgOptions={editNgOptions as any} selectedNg={selectedNg} showNg={showNg} setShowNg={setShowNg} usesMultiMachineLines={usesMultiMachineLines} operationMode={operationMode} formatIntegerDisplay={formatIntegerDisplay} onTtOkChange={onTtOkChange} onNumberBlur={onNumberBlur} onToggleNg={toggleNg} onNgValue={updateNg} onOtherNgName={(value) => setForm((prev) => ({ ...prev, otherNgName: value }))} /> : null}
+      {!usesMultiMachineLines && <ProcessTimeDeductionSection processCode={String(report?.process_code || (Number(report?.process_id) === 4 ? "K1" : ""))} form={form} setForm={setForm} deductions={deductions} activeDeductionOptions={editDeductionOptions as any} selectedDeduction={selectedDeduction} showDeduction={showDeduction} setShowDeduction={setShowDeduction} onToggleDeduction={toggleDeduction} onUpdateDeduction={updateDeduction} onNormalizeDeduction={normalizeDeduction} onWarning={warning} onOtherDeductionName={(value) => setForm((prev) => ({ ...prev, otherDeductionName: value }))} />}
       </fieldset>
-      {!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : `Còn ${timeText} để sửa báo cáo.`}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || (!managerRoute && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
+      {!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : WORKER_EDIT_TIME_LIMIT_ENABLED ? `Còn ${timeText} để sửa báo cáo.` : "Có thể sửa báo cáo không giới hạn thời gian khi còn chờ xử lý."}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || (!managerRoute && WORKER_EDIT_TIME_LIMIT_ENABLED && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && WORKER_EDIT_TIME_LIMIT_ENABLED && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
     </main>
   </div>;
 }

@@ -23,9 +23,7 @@ import "./pages/worker/ProductionHistory.css";
 import "./pages/worker/ProductionDetail.css";
 import "./pages/worker/WorkerVietnameseAccessibility.css";
 import "./pages/worker/ProcessCompactLayout.css";
-import "./pages/worker/ProcessTypographyFix.css";
 import "./pages/worker/ProductionHistoryCompact.css";
-import "./pages/worker/HistoryVerticalCompact.css";
 import "./pages/system/SystemCenter.css";
 import "./pages/system/ActivityLogMinimal.css";
 import "./styles/ManagerDashboardMinimal.css";
@@ -35,12 +33,15 @@ import "./components/system/NetworkStatusBanner.css";
 import "./components/system/OfflineReportSync.css";
 import "./components/system/app-error-boundary.css";
 
+// Existing role-scoped presentation layer. New designs belong in component styles,
+// not additional global override stylesheets.
+import "./styles/KtcIndustrialMinimal.css";
+// Keep the extracted history mobile rules last to preserve their previous inline precedence.
+import "./pages/worker/ProductionHistoryMobile.css";
+
 import DesktopExcelDbSyncNotifier from "./components/DesktopExcelDbSyncNotifier";
 import AppRouter from "./routes/AppRouter";
 import NetworkStatusBanner from "./components/system/NetworkStatusBanner";
-import { installProductionHistoryDisplayFix } from "./pages/worker/ProductionHistoryDisplayFix";
-
-installProductionHistoryDisplayFix();
 
 function App() {
     return <>

@@ -179,6 +179,12 @@ async function linkTempLines(executor, event, tempLineIds = []) {
       && isoDate(row.work_date)===isoDate(event.work_date)
       && String(row.shift||'').trim().toUpperCase()===String(event.shift||'').trim().toUpperCase();
     if (!same) throw eventError(422, 'MACHINE_EVENT_DIMENSION_MISMATCH', `Dòng máy #${row.id} không khớp công đoạn/máy/sản phẩm/ngày/ca của event`);
+    // A worker line is participation in ONE physical run. Never silently move it
+    // to another event (including during concurrent create/link retries).
+    const linkedId = Number(row.machine_event_id) || 0;
+    if (linkedId && linkedId !== Number(event.id)) {
+      throw eventError(409, 'MACHINE_LINE_ALREADY_LINKED', `Dòng máy #${row.id} đã liên kết production event #${linkedId}`);
+    }
   }
   await q(executor, `UPDATE production_temp_machine_lines SET machine_event_id=? WHERE id IN (${placeholders})`, [Number(event.id), ...ids]);
   await assertParticipantLimit(executor, event);
@@ -199,6 +205,27 @@ function calculateEventPhysical({ physicalOkQuantity, defects, machineTimeHours,
   };
 }
 
+// One physical snapshot per GC machine/product/date/shift. Lock the machine row
+// before looking for an existing event so concurrent requests on different
+// workers cannot each insert the same physical output. This is a locking read:
+// an earlier consistent-read snapshot must not hide a just-committed event.
+async function assertUniquePhysicalEvent(executor, { processId, machineId, productCode, workDate, shift, excludeEventId = 0 }) {
+  await q(executor, 'SELECT id FROM machines WHERE id=? FOR UPDATE', [Number(machineId)]);
+  const rows = await q(executor, `SELECT id FROM machine_production_events
+    WHERE process_id=? AND machine_id=? AND work_date=? AND shift=?
+      AND UPPER(TRIM(product_code))=UPPER(TRIM(?))
+      AND status IN ('pending','approved') AND id<>?
+    LIMIT 2 FOR UPDATE`, [
+    Number(processId), Number(machineId), isoDate(workDate), normalizeShift(shift),
+    String(productCode || '').trim(), Number(excludeEventId) || 0
+  ]);
+  if (rows.length) {
+    throw eventError(409, 'MACHINE_EVENT_ALREADY_EXISTS',
+      'Máy/sản phẩm/ngày/ca đã có production event; hãy sửa event hiện có thay vì ghi sản lượng lần nữa',
+      { event_ids: rows.map(row => Number(row.id)) });
+  }
+}
+
 async function createEvent({ actor, data, req = null }) {
   const connection = await getDb().promise().getConnection();
   try {
@@ -207,6 +234,7 @@ async function createEvent({ actor, data, req = null }) {
     const shift = normalizeShift(data.shift);
     const ctx = await loadEventContext(connection, { processId:data.process_id, machineId:data.machine_id, machineCode:data.machine_code, productCode:data.product_code, workDate });
     await assertActorProcessScope(connection, actor, ctx.process.id);
+    await assertUniquePhysicalEvent(connection, { processId: ctx.process.id, machineId: ctx.machine.id, productCode: ctx.resolved.productCode, workDate, shift });
     const defects = await authoritativeDefects(connection, ctx.process.id, data.defects);
     const calc = calculateEventPhysical({ physicalOkQuantity:data.physical_ok_quantity, defects, machineTimeHours:data.machine_time_hours, standardOutput:ctx.resolved.standardOutput });
     const [insert] = await connection.query(`INSERT INTO machine_production_events
@@ -236,20 +264,43 @@ async function createEvent({ actor, data, req = null }) {
   finally { connection.release(); }
 }
 
+function assertExpectedEventVersion(event, expectedUpdatedAt) {
+  if (expectedUpdatedAt === undefined || expectedUpdatedAt === null || String(expectedUpdatedAt).trim() === '') {
+    throw eventError(409, 'MACHINE_EVENT_VERSION_REQUIRED', 'Thiếu phiên bản event; hãy tải lại trước khi sửa');
+  }
+  // Compare timestamps at the precision actually supplied by the DB. A
+  // malformed or stale token must fail closed; never silently accept it.
+  const parse = (value) => {
+    if (value instanceof Date) return value.getTime();
+    const raw = String(value || '').trim();
+    if (!/^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:?\\d{2})?$/.test(raw)) return NaN;
+    const iso = raw.replace(' ', 'T');
+    return Date.parse(/(?:Z|[+-]\\d{2}:?\\d{2})$/.test(iso) ? iso : iso + 'Z');
+  };
+  const expected = parse(expectedUpdatedAt);
+  const current = parse(event.updated_at);
+  if (!Number.isFinite(expected) || !Number.isFinite(current) || expected !== current) {
+    throw eventError(409, 'MACHINE_EVENT_VERSION_CONFLICT', 'Event đã thay đổi; hãy tải lại dữ liệu trước khi sửa');
+  }
+}
+
 async function updateEvent({ id, actor, patch, req = null }) {
   const connection=await getDb().promise().getConnection();
   try {
     await connection.beginTransaction();
     const before = await loadEvent(connection, id, {lock:true});
     await assertActorProcessScope(connection, actor, before.process_id);
+    assertExpectedEventVersion(before, patch?.expected_updated_at);
     if (String(before.status).toLowerCase()==='approved' && ['process_id','machine_id','machine_code','product_code','work_date','shift'].some((k)=>Object.prototype.hasOwnProperty.call(patch||{},k))) {
       throw eventError(422,'APPROVED_EVENT_DIMENSIONS_IMMUTABLE','Không đổi công đoạn/máy/sản phẩm/ngày/ca của event đã duyệt');
     }
     const dimensionsChanged=['process_id','machine_id','machine_code','product_code','work_date','shift'].some((k)=>Object.prototype.hasOwnProperty.call(patch||{},k) && String(patch[k]??'')!==String(before[k]??''));
     const linked=await participantRows(connection,before.id);
     if(dimensionsChanged && linked.length) throw eventError(422,'EVENT_DIMENSION_CHANGE_WITH_PARTICIPANTS','Không đổi dimensions khi event đã có participant; hãy tạo event mới');
-    const resulting={...before,...(patch||{})};
+    const { expected_updated_at: _expectedVersion, ...safePatch } = patch || {};
+    const resulting={...before,...safePatch};
     const ctx=await loadEventContext(connection,{processId:resulting.process_id,machineId:resulting.machine_id,machineCode:resulting.machine_code,productCode:resulting.product_code,workDate:resulting.work_date});
+    if (dimensionsChanged) await assertUniquePhysicalEvent(connection, { processId: ctx.process.id, machineId: ctx.machine.id, productCode: ctx.resolved.productCode, workDate: resulting.work_date, shift: resulting.shift, excludeEventId: before.id });
     const defects=Object.prototype.hasOwnProperty.call(patch||{},'defects')
       ? await authoritativeDefects(connection,ctx.process.id,patch.defects)
       : await q(connection,`SELECT defect_type_id,defect_code,defect_name,quantity,responsible_worker_id FROM machine_production_event_defects WHERE machine_event_id=? ORDER BY id`,[before.id]);
@@ -281,13 +332,22 @@ async function linkParticipants({ id, actor, tempMachineLineIds, req = null }) {
 
 async function approveEvent({ id, actor, req = null }) {
   const connection=await getDb().promise().getConnection();
-  try{await connection.beginTransaction();const event=await loadEvent(connection,id,{lock:true});await assertActorProcessScope(connection,actor,event.process_id);const participantInfo=await assertParticipantLimit(connection,event);
+  try{await connection.beginTransaction();const event=await loadEvent(connection,id,{lock:true});await assertActorProcessScope(connection,actor,event.process_id);
+    // FOR UPDATE serializes approvals of the same physical event. A second
+    // approval must not write another transition or audit an additional run.
+    if (String(event.status || '').toLowerCase() !== 'pending') {
+      throw eventError(409, 'MACHINE_EVENT_ALREADY_REVIEWED', 'Production event đã được duyệt hoặc không còn chờ duyệt');
+    }
+    const participantInfo=await assertParticipantLimit(connection,event);
     if(!participantInfo.workerIds.length) throw eventError(422,'MACHINE_EVENT_PARTICIPANTS_REQUIRED','Event phải có ít nhất một worker participant trước khi duyệt');
     await assertEventDefectWorkers(connection,event.id);
     const defectRows=await q(connection,'SELECT quantity FROM machine_production_event_defects WHERE machine_event_id=?',[event.id]);
     const defectTotal=defectRows.reduce((s,r)=>s+Number(r.quantity||0),0);
     if(defectTotal!==Number(event.physical_ng_quantity||0)) throw eventError(422,'MACHINE_EVENT_DEFECT_TOTAL_MISMATCH','Tổng NG event không khớp chi tiết NG');
-    await connection.query(`UPDATE machine_production_events SET status='approved',updated_by=?,updated_at=NOW() WHERE id=?`,[Number(actor.id),event.id]);
+    const [transition] = await connection.query(`UPDATE machine_production_events SET status='approved',updated_by=?,updated_at=NOW() WHERE id=? AND status='pending'`,[Number(actor.id),event.id]);
+    if (Number(transition.affectedRows) !== 1) {
+      throw eventError(409, 'MACHINE_EVENT_ALREADY_REVIEWED', 'Production event đã được duyệt đồng thời');
+    }
     await getAuditService().logActivity({userId:actor.id,action:'MACHINE_EVENT_APPROVED',entityType:'machine_production_event',entityId:event.id,description:`Duyệt production event #${event.id}`,metadata:{participant_count:participantInfo.workerIds.length},req},connection);
     await connection.commit();return getEvent(event.id,actor);}catch(error){await connection.rollback().catch(()=>{});throw error;}finally{connection.release();}
 }
@@ -468,4 +528,4 @@ async function assertApprovedEventForTempLine(executor,{report,line,context=null
   return true;
 }
 
-module.exports={eventError,isSharedEventManaged,calculateEventPhysical,createEvent,updateEvent,linkParticipants,approveEvent,getEvent,listEvents,assertApprovedEventForTempLine,prepareApprovedEventContext,participantRows};
+module.exports={eventError,isSharedEventManaged,calculateEventPhysical,assertUniquePhysicalEvent,createEvent,updateEvent,linkParticipants,approveEvent,getEvent,listEvents,assertApprovedEventForTempLine,prepareApprovedEventContext,participantRows};

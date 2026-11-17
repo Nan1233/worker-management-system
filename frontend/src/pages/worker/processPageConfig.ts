@@ -19,6 +19,8 @@ export type FormState = {
     actualOutput: string;
     ttOk: string;
     ttNg: string;
+    otherNgName?: string;
+    otherDeductionName?: string;
     kqdDapLai: string;
     kqdTuot: string;
     voDoLong: string;
@@ -63,6 +65,9 @@ export type MachineLineState = {
     machineCode: string;
     productCode: string;
     materialCode: string;
+    grindingMachineNo: string;
+    otherNgName?: string;
+    otherDeductionName?: string;
     hours: string;
     minutes: string;
     adjustmentMinutes: string;
@@ -85,6 +90,9 @@ export const createEmptyMachineLine = (): MachineLineState => ({
     machineCode: "",
     productCode: "",
     materialCode: "",
+    grindingMachineNo: "",
+    otherNgName: "",
+    otherDeductionName: "",
     hours: "",
     minutes: "",
     adjustmentMinutes: "",
@@ -210,7 +218,7 @@ export const decimalHoursToText = (value: string): string => {
 export const initialForm: FormState = {
     workDate: getCurrentLocalDate(), shift: "A", workerCode: "", workerName: "", trainingPercent: "",
     machineNo: "", totalTime: "", actualTime: "", actualHours: "", actualMinutes: "", deductionTime: "",
-    productName: "", standardOutput: "", actualOutput: "", ttOk: "", ttNg: "", k1DeductionWork: "", kqdDapLai: "", kqdTuot: "",
+    productName: "", standardOutput: "", actualOutput: "", ttOk: "", ttNg: "", otherNgName: "", otherDeductionName: "", k1DeductionWork: "", kqdDapLai: "", kqdTuot: "",
     voDoLong: "", xuocDoLong: "", congGay: "", xoay: "", khongDut: "", baviaHut: "", ppcm: "", loiCaoSu: "",
     ngKichThuoc: "", catLem: "", note: "", executionMethod: "AUTO",
 };
