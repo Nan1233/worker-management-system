@@ -1701,13 +1701,13 @@ const updateDeductionValue = (
                 />
                 )}
 
-                {processCode === "EP" && (
+                {true && (
                     <section className="worker-form-card">
-                        <label htmlFor="ep-production-note" className="worker-card-title">
+                        <label htmlFor="process-production-note" className="worker-card-title">
                             Ghi chú (không bắt buộc)
                         </label>
                         <textarea
-                            id="ep-production-note"
+                            id="process-production-note"
                             value={form.note}
                             onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
                             placeholder="Nhập ghi chú về quá trình sản xuất hoặc sự cố máy (nếu có)"
