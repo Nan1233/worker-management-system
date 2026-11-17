@@ -10,8 +10,8 @@ test("KTC visual system has one canonical token source and Tailwind maps to it",
   const ref = read("src/reference-ui.css");
   const basic = read("src/basic.css");
 
-  assert.match(ref, /--ktc-bg:\s*#f4f7fb/);
-  assert.match(ref, /--ktc-text:\s*#162033/);
+  assert.match(ref, /--ktc-bg:\s*#f5f7fb/);
+  assert.match(ref, /--ktc-text:\s*#102a43/);
   assert.match(ref, /--ktc-primary:\s*#1769d2/);
   assert.match(basic, /--color-background:\s*var\(--ktc-bg\)/);
   assert.match(basic, /--color-foreground:\s*var\(--ktc-text\)/);
