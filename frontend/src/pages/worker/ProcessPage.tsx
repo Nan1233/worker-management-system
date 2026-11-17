@@ -1711,7 +1711,7 @@ const updateDeductionValue = (
                             onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
                             placeholder="Nhập ghi chú về quá trình sản xuất hoặc sự cố máy (nếu có)"
                             rows={3}
-                            maxLength={2000}
+                            maxLength={1000}
                             style={{ width: "100%", boxSizing: "border-box", padding: "12px", borderRadius: "10px", border: "1px solid #cbd5e1", font: "inherit", resize: "vertical" }}
                         />
                     </section>
