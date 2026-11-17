@@ -13,7 +13,7 @@ const body = (start, end) => {
 
 test('single approval reports server success before optional refresh', () => {
   const action = body('const approveDetail = async () => {', 'const openRejectDialog =');
-  const success = action.indexOf('window.alert("Đã duyệt báo cáo thành công.");');
+  const success = action.indexOf('setActionFeedback({ kind: "success", message: `Đã duyệt báo cáo');
   const refresh = action.indexOf('await load();');
   assert.ok(success >= 0 && refresh > success);
   assert.match(action, /if \(selectionScopeRef\.current === selectionScope\) await load\(\)/);
@@ -22,8 +22,8 @@ test('single approval reports server success before optional refresh', () => {
 
 test('bulk approval and rejection report results before optional refresh', () => {
   for (const [start, end, marker] of [
-    ['const rejectTargets = async () => {', 'const visibleIds =', 'window.alert(`Đã từ chối'],
-    ['const approveBulk = async () => {', 'const detailKpi =', 'window.alert(summary);'],
+    ['const rejectTargets = async () => {', 'const visibleIds =', 'setActionFeedback({'],
+    ['const approveBulk = async () => {', 'const detailKpi =', 'setActionFeedback({'],
   ]) {
     const action = body(start, end);
     const success = action.indexOf(marker);
