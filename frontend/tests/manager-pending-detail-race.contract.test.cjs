@@ -12,6 +12,6 @@ test('pending detail requests are invalidated on close and filter changes', () =
 });
 test('stale detail response cannot overwrite the current selection', () => {
   assert.match(source, /const requestSeq = \+\+detailRequestSeqRef\.current/);
-  assert.match(source, /if \(isCurrent\(\)\) setDetail\(full \|\| report\)/);
+  assert.match(source, /if \(isCurrent\(\)\) \{[\s\S]*?Number\(full\.id\) === Number\(report\.id\)[\s\S]*?setDetail\(validDetail \? full : report\)/);
   assert.match(source, /if \(isCurrent\(\)\) setDetailLoading\(false\)/);
 });
