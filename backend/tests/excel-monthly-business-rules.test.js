@@ -8,20 +8,22 @@ const legacyDesktop = fs.readFileSync(path.join(__dirname, '../../desktop/electr
 const legacyBackend = fs.readFileSync(path.join(__dirname, '../services/companyExcelExportService.js'), 'utf8');
 const smoke = fs.readFileSync(path.join(__dirname, '../../desktop/scripts/smokeExcel.cjs'), 'utf8');
 const engine = fs.readFileSync(path.join(__dirname, '../domain/productionCalculationEngine.cjs'), 'utf8');
+const primitives = fs.readFileSync(path.join(__dirname, '../../shared/productionMetricPrimitives.cjs'), 'utf8');
 
 test('monthly workbook preserves zero training and uses canonical calculation engine', () => {
   assert.match(monthly, /calculateProductionMetrics/);
   assert.match(monthly, /report\.calculationSnapshot\s*\|\|\s*calculateProductionMetrics/);
-  assert.match(engine, /Math\.min\(100, Math\.max\(0, number\)\)/);
+  assert.match(engine, /normalizeTrainingPercent/);
+  assert.match(primitives, /Math\.min\(100, Math\.max\(0, number\)\)/);
   assert.match(engine, /countedNg/);
-  assert.match(engine, /ok \+ ng\.allNg/);
+  assert.match(engine, /ok \+ ng\.countedNg/);
 });
 
 test('monthly workbook separates report and entry dates and sorts consistently', () => {
   assert.match(monthly, /date: asDate\(report\.work_date\)/);
   assert.match(monthly, /entryDate: asDateTime\(report\.created_at\)/);
-  assert.match(monthly, /reportTimeKey\(a\)\.localeCompare\(reportTimeKey\(b\)\)/);
-  assert.match(monthly, /machineDisplay\(a\)\.localeCompare/);
+  assert.match(monthly, /reportTimeKey\(left\)\.localeCompare\(reportTimeKey\(right\)\)/);
+  assert.match(monthly, /machineDisplay\(left\)\.localeCompare\(machineDisplay\(right\)/);
 });
 
 test('daily sequence, freeze and clear time labels are enforced', () => {
