@@ -3,17 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
-const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalSelection.js'), 'utf8');
+const { buildApprovalSelection: build, assertApprovalSelectionVisible: visible, assertApprovalSelectionVersions: versions } = require('../models/productionTempApprovalSelection');
 const approvalSource = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-const start = source.indexOf('function buildApprovalSelection(');
-const end = source.indexOf('module.exports = {', start);
-assert.ok(start >= 0 && end > start);
-const ctx = { normalizeIds: (ids) => [...new Set(ids.map(Number).filter((id) => Number.isInteger(id) && id > 0))] };
-vm.runInNewContext(source.slice(start, end), ctx);
-const build = vm.runInNewContext('buildApprovalSelection', ctx);
-const visible = vm.runInNewContext('assertApprovalSelectionVisible', ctx);
-const versions = vm.runInNewContext('assertApprovalSelectionVersions', ctx);
 
 test('normalization preserves primitive IDs and cannot erase duplicate version guard', () => {
   const timestamp = '2026-10-30T01:00:00Z';
