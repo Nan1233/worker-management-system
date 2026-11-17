@@ -63,8 +63,8 @@ test('ProcessSubmitActions no longer renders a second "Xác nhận nộp" confir
 
 test('submit button disables while submitting and shows an in-flight label', () => {
   const actions = read('src/pages/worker/components/ProcessSubmitActions.tsx');
-  assert.match(actions, /worker-floating-save[\s\S]{0,200}disabled=\{loadingWorker \|\| submitting\}/);
-  assert.match(actions, /submitting \? "Đang lưu\.\.\." : "Nộp dữ liệu"/);
+  assert.match(actions, /worker-floating-save[\s\S]{0,200}disabled=\{loadingWorker \|\| loadingMasterData \|\| submitting\}/);
+  assert.match(actions, /submitting \? "Đang lưu\.\.\." : loadingMasterData \? "Đang tải danh mục\.\.\." : "Nộp dữ liệu"/);
 });
 
 test('duplicate-report confirmation dialog (a separate business rule, not a generic submit confirmation) is preserved', () => {
