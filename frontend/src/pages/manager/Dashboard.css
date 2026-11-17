@@ -228,3 +228,58 @@
 .manager-dashboard-compact .dashboard-table-state{padding:24px;text-align:center;color:#8a9aae;font-size:11px}
 @media(max-width:1050px){.manager-dashboard-compact .dashboard-compact-main{grid-template-columns:1fr}.manager-dashboard-compact .dashboard-kpi-row-compact{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:600px){.manager-dashboard-compact{gap:9px}.manager-dashboard-compact .dashboard-welcome{padding:12px!important}.manager-dashboard-compact .dashboard-kpi-card{padding:10px;min-height:66px}.manager-dashboard-compact .dashboard-daily-panel,.manager-dashboard-compact .dashboard-focus-panel{padding:12px;min-height:0}.manager-dashboard-compact .dashboard-period-context select{min-width:115px}.manager-dashboard-compact .dashboard-daily-chart{gap:6px}.manager-dashboard-compact .dashboard-pending-compact{padding:12px!important}}
+
+/* Dashboard review: scoped responsive, refresh/error states and accessible chart. */
+.manager-dashboard-review .dashboard-period-context { flex-wrap: wrap; gap: 9px; }
+.manager-dashboard-review .dashboard-period-range { color: #617891; font-variant-numeric: tabular-nums; }
+.manager-dashboard-review .dashboard-period-context select { margin-left: auto; }
+.manager-dashboard-review .dashboard-refresh-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 34px; padding: 0 12px; border: 1px solid #c4d8ec;
+  border-radius: 7px; background: #f6faff; color: #245f9f;
+  font-size: 11px; font-weight: 650; cursor: pointer;
+}
+.manager-dashboard-review .dashboard-refresh-button:disabled { opacity: .6; cursor: not-allowed; }
+.manager-dashboard-review .dashboard-inline-error {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px; border: 1px solid #eeb9b9; border-radius: 9px;
+  background: #fff5f5; color: #a32929; font-size: 12px;
+}
+.manager-dashboard-review .dashboard-inline-error span { flex: 1 1 230px; }
+.manager-dashboard-review .dashboard-inline-error button,
+.manager-dashboard-review .dashboard-pending-error button {
+  min-height: 34px; padding: 6px 12px; border: 1px solid #cbb0b0;
+  border-radius: 7px; background: #fff; color: #9b2626; font-weight: 650; cursor: pointer;
+}
+.manager-dashboard-review .dashboard-pending-error {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; color: #9b2626; overflow-wrap: anywhere;
+}
+.manager-dashboard-review .dashboard-daily-column > .dashboard-chart-date {
+  position: absolute; bottom: -19px; left: 0; right: 0; text-align: center;
+  font-size: 9px; color: #71849a; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.manager-dashboard-review .dashboard-daily-summary { flex-wrap: wrap; gap: 8px 20px; }
+.manager-dashboard-review .dashboard-daily-column { min-width: 0; }
+.manager-dashboard-review .dashboard-daily-chart { min-width: 0; }
+.manager-dashboard-review .dashboard-table-caption {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.manager-dashboard-review .pending-table-wrap:focus-visible,
+.manager-dashboard-review button:focus-visible,
+.manager-dashboard-review select:focus-visible { outline: 2px solid #1769d2; outline-offset: 2px; }
+.manager-dashboard-review .dashboard-data-footnote { flex-wrap: wrap; line-height: 1.5; }
+@media (max-width: 800px) {
+  .manager-dashboard-review .dashboard-period-context select { flex: 1 1 130px; min-width: 0; }
+  .manager-dashboard-review .dashboard-refresh-button { min-height: 40px; }
+}
+@media (max-width: 480px) {
+  .manager-dashboard-review .dashboard-period-range { flex-basis: 100%; }
+  .manager-dashboard-review .dashboard-period-context select { margin-left: 0; }
+  .manager-dashboard-review .dashboard-pending-error button { width: 100%; }
+  .manager-dashboard-review .dashboard-daily-chart { gap: 4px; }
+  .manager-dashboard-review .dashboard-daily-column > strong { font-size: 8px; }
+  .manager-dashboard-review .dashboard-daily-column > .dashboard-chart-date { font-size: 8px; }
+}

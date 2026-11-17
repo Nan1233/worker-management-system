@@ -1,3 +1,51 @@
+/* === ApprovedReportsOrder.css (unchanged rules, original cascade order) === */
+/* KTC period controls — shared UI for Chờ duyệt / Đã duyệt. */
+.pending-reference-page .pending-quick-filters{
+  display:flex!important;
+  flex-wrap:nowrap!important;
+}
+
+/* Keep the React-rendered quick-filter labels visible. */
+.pending-reference-page .pending-quick-filters button{
+  order:initial!important;
+  font-size:13px!important;
+  white-space:nowrap!important;
+}
+.pending-reference-page .pending-quick-filters button:nth-of-type(1){order:1!important}
+.pending-reference-page .pending-quick-filters button:nth-of-type(2){order:2!important}
+.pending-reference-page .pending-quick-filters button:nth-of-type(3){order:3!important}
+.pending-reference-page .pending-quick-filters button:nth-of-type(4){order:4!important}
+.pending-reference-page .pending-quick-filters button::before,
+.pending-reference-page .pending-quick-filters button::after{
+  content:none!important;
+  display:none!important;
+}
+
+/* Keep the React-rendered KPI labels visible. */
+.pending-reference-page .pending-kpis .pending-kpi{
+  order:initial!important;
+}
+.pending-reference-page .pending-kpis .pending-kpi:nth-child(1){order:1!important}
+.pending-reference-page .pending-kpis .pending-kpi:nth-child(2){order:2!important}
+.pending-reference-page .pending-kpis .pending-kpi:nth-child(3){order:3!important}
+.pending-reference-page .pending-kpis .pending-kpi:nth-child(4){order:4!important}
+.pending-reference-page .pending-kpis .pending-kpi>span{
+  font-size:13px!important;
+}
+.pending-reference-page .pending-kpis .pending-kpi>span::before,
+.pending-reference-page .pending-kpis .pending-kpi>span::after,
+.pending-reference-page .pending-kpis .pending-kpi>strong::before,
+.pending-reference-page .pending-kpis .pending-kpi>strong::after,
+.pending-reference-page .pending-kpis .pending-kpi>small::before,
+.pending-reference-page .pending-kpis .pending-kpi>small::after{
+  content:none!important;
+  display:none!important;
+}
+
+/* Match the approved-report filter card: no separate refresh button. */
+.pending-reference-page .pending-refresh{display:none!important}
+
+/* === ApprovedReportsReference.css (unchanged rules, original cascade order) === */
 /* Đã duyệt — dùng cùng visual language với Chờ duyệt. */
 .pending-reference-page aside[style*="width:430px"]{
   width:min(430px,100%)!important;
@@ -64,3 +112,125 @@ table:has(tbody td[colspan="13"]) tbody td::before{content:"";display:inline-blo
 
 @media(max-width:1280px){.pending-reference-page aside[style*="width:430px"]{width:100%!important;flex-basis:auto!important}}
 @media(max-width:720px){.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="grid-template-columns"]{grid-template-columns:1fr!important}.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]{grid-template-columns:1fr 1fr!important}.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div:nth-child(2){border-right:0!important}.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div:nth-child(-n+2){border-bottom:1px solid #dfe7f1!important}}
+
+/* === ApprovedReportsPendingStyle.css (unchanged rules, original cascade order) === */
+/* Đã duyệt: đồng bộ vùng danh sách với layout Chờ duyệt, không đổi logic/dữ liệu. */
+/* Selector 13 cột là cấu trúc riêng của màn Đã duyệt hiện tại. */
+body:has(table thead th:nth-child(13)) table tbody td[colspan="13"] {
+  height: 150px !important;
+  min-height: 150px !important;
+  padding: 0 16px !important;
+  box-sizing: border-box !important;
+  background: #f7faff !important;
+  border: 1px dashed #c9d8e9 !important;
+  border-radius: 10px !important;
+  color: #8092ab !important;
+  font-size: 13px !important;
+  vertical-align: middle !important;
+}
+
+body:has(table thead th:nth-child(13)) table tbody td[colspan="13"]::before {
+  content: "";
+  display: block;
+  width: 7px;
+  height: 7px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: #9fc9f7;
+}
+
+body:has(table thead th:nth-child(13)) table tbody tr:has(td[colspan="13"]) {
+  height: 150px !important;
+}
+
+body:has(table thead th:nth-child(13)) table thead tr {
+  background: #f3f7fb !important;
+}
+
+body:has(table thead th:nth-child(13)) table thead th {
+  color: #315779 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  height: 44px !important;
+  box-sizing: border-box !important;
+}
+
+body:has(table thead th:nth-child(13)) table tbody tr:not(:has(td[colspan="13"])):hover {
+  background: #f4f8ff !important;
+}
+
+/* Footer/pagination giữ đúng nhịp của card Chờ duyệt. */
+body:has(table thead th:nth-child(13)) table + div {
+  min-height: 52px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 720px) {
+  body:has(table thead th:nth-child(13)) table tbody td[colspan="13"] {
+    height: 140px !important;
+    min-height: 140px !important;
+  }
+}
+
+/* === ApprovedReportsTabExact.css (unchanged rules, original cascade order) === */
+/* Đã duyệt: tab Danh sách báo cáo khớp trực tiếp với tab của Chờ duyệt. */
+.pending-reference-page div:has(> table:has(tbody td[colspan="13"])) > div:first-child{
+  position:relative!important;
+  height:50px!important;
+  min-height:50px!important;
+  display:flex!important;
+  align-items:center!important;
+  padding:0 14px!important;
+  box-sizing:border-box!important;
+  border-bottom:1px solid #e4ebf4!important;
+  background:var(--ktc-surface, #fff)!important;
+  color:#1769d2!important;
+  font-size:13px!important;
+  font-weight:700!important;
+  line-height:1!important;
+  letter-spacing:0!important;
+  font-family:inherit!important;
+}
+.pending-reference-page div:has(> table:has(tbody td[colspan="13"])) > div:first-child::after{
+  content:""!important;
+  position:absolute!important;
+  left:14px!important;
+  right:auto!important;
+  bottom:-1px!important;
+  width:165px!important;
+  height:2px!important;
+  background:#1769d2!important;
+  border-radius:2px 2px 0 0!important;
+}
+/* Trạng thái rỗng: vùng trắng sạch, không viền nét đứt. */
+.pending-reference-page table:has(tbody td[colspan="13"]){
+  width:100%!important;
+  min-width:100%!important;
+  border:0!important;
+  border-collapse:collapse!important;
+}
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody,
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody tr,
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody td{
+  border:0!important;
+  outline:0!important;
+  background:var(--ktc-surface, #fff)!important;
+}
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody tr{
+  height:180px!important;
+}
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody td{
+  height:180px!important;
+  padding:0 16px!important;
+  text-align:center!important;
+  vertical-align:middle!important;
+  color:#7185a4!important;
+  font-size:13px!important;
+}
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody td::before{
+  content:""!important;
+  display:block!important;
+  width:0!important;
+  height:0!important;
+  margin:0!important;
+}

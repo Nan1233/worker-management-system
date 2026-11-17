@@ -169,10 +169,31 @@ exports.getApprovedReports = async (req, res) => {
       params,
     );
 
+    // Populate the process dropdown from ALL approved reports the actor may
+    // view, not the 20 rows on the current page (nor the current date/shift).
+    // The scope clause is mandatory so managers cannot discover other teams.
+    let processes;
+    if (String(req.query?.include_meta ?? '1') !== '0') {
+      const [processRows] = await db.promise().query(
+        `SELECT DISTINCT p.id, p.process_code, p.process_name
+           FROM production_reports pr
+           JOIN processes p ON p.id=pr.process_id
+          WHERE LOWER(TRIM(COALESCE(pr.status,'')))='approved'
+            AND NOT EXISTS (
+              SELECT 1 FROM production_reports split_child
+               WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id'))=CAST(pr.id AS CHAR)
+            )${scoped.clause}
+          ORDER BY p.process_name, p.id`,
+        scoped.params,
+      );
+      processes = processRows || [];
+    }
+
     const total = Number(countRows[0]?.total || 0);
     return res.json({
       success: true,
       data: dataRows || [],
+      ...(processes !== undefined ? { processes } : {}),
       pagination: {
         page,
         page_size: pageSize,

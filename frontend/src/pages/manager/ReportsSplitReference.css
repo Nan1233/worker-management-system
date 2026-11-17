@@ -55,14 +55,6 @@
 .pending-reference-table tbody tr.pending-row-active td{background:#f2f7ff!important}
 .pending-reference-table .select-col{width:32px;text-align:center;padding:0 4px}
 .pending-reference-table .select-col input{width:14px;height:14px;accent-color:#1769d2}
-.pending-list-card .pending-reference-table th:nth-child(2),.pending-list-card .pending-reference-table td:nth-child(2){display:none}
-.pending-list-card .pending-reference-table th:nth-child(3),.pending-list-card .pending-reference-table td:nth-child(3){width:120px}
-.pending-list-card .pending-reference-table th:nth-child(4),.pending-list-card .pending-reference-table td:nth-child(4){width:105px}
-.pending-list-card .pending-reference-table th:nth-child(5),.pending-list-card .pending-reference-table td:nth-child(5){width:70px}
-.pending-list-card .pending-reference-table th:nth-child(6),.pending-list-card .pending-reference-table td:nth-child(6){width:100px}
-.pending-list-card .pending-reference-table th:nth-child(7),.pending-list-card .pending-reference-table td:nth-child(7){width:82px}
-.pending-list-card .pending-reference-table th:nth-child(8),.pending-list-card .pending-reference-table td:nth-child(8){width:92px}
-.pending-list-card .pending-reference-table th:nth-child(9),.pending-list-card .pending-reference-table td:nth-child(9){width:70px}
 .pending-table-footer{min-height:40px;padding:7px 10px;color:#7185a4;font-size:10px!important;display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #edf2f7}
 .pending-table-footer button{height:27px;min-width:29px;padding:0 8px;border:1px solid #dbe6f2;border-radius:7px;background:var(--ktc-surface, #fff);color:#627895;font-size:10px;cursor:pointer}
 .pending-table-footer button:disabled{opacity:.45;cursor:not-allowed}
@@ -117,9 +109,9 @@
    Its JSX keeps the quick-date row between the other controls, so target
    children directly instead of relying on label:nth-of-type selectors. */
 .pending-reference-page .pending-filter-card > .pending-search{grid-area:search!important}
-.pending-reference-page .pending-filter-card > label:nth-of-type(1){grid-area:date!important}
-.pending-reference-page .pending-filter-card > label:nth-of-type(2){grid-area:process!important}
-.pending-reference-page .pending-filter-card > label:nth-of-type(3){grid-area:shift!important}
+/* Removed conflicting nth-of-type placement: the search input is itself a label. */
+/* Removed conflicting nth-of-type placement: the search input is itself a label. */
+/* Removed conflicting nth-of-type placement: the search input is itself a label. */
 .pending-reference-page .pending-filter-card > .pending-quick-filters{grid-area:quick!important}
 .pending-reference-page .pending-filter-card[style]{grid-template-columns:minmax(260px,2fr) minmax(145px,1fr) minmax(145px,1fr) minmax(135px,.9fr)!important;grid-template-areas:"search date process shift" "quick quick quick quick"!important;gap:8px 10px!important;align-items:end!important;padding:11px 12px!important}
 
@@ -135,23 +127,9 @@
 .pending-reference-page .pending-filter-card > .pending-shift-filter{grid-area:shift!important}
 .pending-reference-page .pending-filter-card > .pending-quick-filters{grid-area:quick!important}
 .pending-reference-page .pending-filter-card[style]{grid-template-columns:minmax(220px,1.8fr) minmax(145px,1fr) minmax(170px,1fr) minmax(140px,.9fr)!important;grid-template-areas:"search date process shift" "quick quick quick quick"!important}
-.pending-reference-page .pending-reference-table{min-width:1240px!important;table-layout:fixed}
+.pending-reference-page .pending-reference-table{min-width:1050px;table-layout:auto}
 .pending-reference-page .pending-reference-table th.select-col,.pending-reference-page .pending-reference-table td.select-col{width:38px!important;min-width:38px!important;max-width:38px!important;text-align:center!important;padding:0 5px!important}
 .pending-reference-page .pending-reference-table .select-col input{display:inline-block;width:16px;height:16px;margin:0;accent-color:#1769d2;cursor:pointer;vertical-align:middle}
-.pending-reference-page .pending-reference-table th:nth-child(2),.pending-reference-page .pending-reference-table td:nth-child(2){width:54px!important}
-.pending-reference-page .pending-reference-table th:nth-child(3),.pending-reference-page .pending-reference-table td:nth-child(3){width:160px!important}
-.pending-reference-page .pending-reference-table th:nth-child(4),.pending-reference-page .pending-reference-table td:nth-child(4){width:165px!important}
-.pending-reference-page .pending-reference-table th:nth-child(5),.pending-reference-page .pending-reference-table td:nth-child(5){width:135px!important}
-.pending-reference-page .pending-reference-table th:nth-child(6),.pending-reference-page .pending-reference-table td:nth-child(6){width:58px!important}
-.pending-reference-page .pending-reference-table th:nth-child(7),.pending-reference-page .pending-reference-table td:nth-child(7){width:105px!important}
-.pending-reference-page .pending-reference-table th:nth-child(8),.pending-reference-page .pending-reference-table td:nth-child(8){width:95px!important}
-.pending-reference-page .pending-reference-table th:nth-child(9),.pending-reference-page .pending-reference-table td:nth-child(9){width:70px!important}
-.pending-reference-page .pending-reference-table th:nth-child(10),.pending-reference-page .pending-reference-table td:nth-child(10){width:85px!important}
-.pending-reference-page .pending-reference-table th:nth-child(11),.pending-reference-page .pending-reference-table td:nth-child(11){width:75px!important}
-.pending-reference-page .pending-reference-table th:nth-child(12),.pending-reference-page .pending-reference-table td:nth-child(12){width:105px!important}
-.pending-reference-page .pending-reference-table th:nth-child(13),.pending-reference-page .pending-reference-table td:nth-child(13){width:75px!important}
-.pending-reference-page .pending-reference-table th:nth-child(14),.pending-reference-page .pending-reference-table td:nth-child(14){width:75px!important}
-.pending-reference-page .pending-reference-table th:nth-child(15),.pending-reference-page .pending-reference-table td:nth-child(15){width:100px!important}
 .pending-reference-page .pending-bulk-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:9px 14px;border-bottom:1px solid #e5edf6;background:#fbfdff}
 .pending-reference-page .pending-bulk-toolbar button{min-height:34px;padding:0 13px;border-radius:8px;font-size:11px;font-weight:600;white-space:nowrap}
 .pending-reference-page .pending-bulk-toolbar button:disabled{opacity:.65}
@@ -215,4 +193,191 @@
 @media(max-width:620px){
  .pending-reference-page .pending-filter-card[style]{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"search" "date" "process" "shift" "quick"!important}
  .pending-reference-page .pending-quick-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* Pending filters: use named classes, never positional labels. Old positional
+   selectors overlapped the date/process fields and made labels unreadable. */
+.pending-reference-page .pending-filter-card > label.pending-search{grid-area:search!important}
+.pending-reference-page .pending-filter-card > label.pending-date-filter{grid-area:date!important}
+.pending-reference-page .pending-filter-card > label.pending-process-filter{grid-area:process!important}
+.pending-reference-page .pending-filter-card > label.pending-shift-filter{grid-area:shift!important}
+.pending-reference-page .pending-filter-card > label{min-width:0!important;overflow:visible}
+.pending-reference-page .pending-filter-card > label > span{min-height:16px;z-index:auto!important}
+.pending-reference-page .pending-filter-card input,.pending-reference-page .pending-filter-card select{min-width:0!important;width:100%!important;max-width:100%!important}
+@media(max-width:1360px){
+ .pending-reference-page .pending-filter-card[style]{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  grid-template-areas:"search search" "date process" "shift shift" "quick quick"!important;
+ }
+}
+@media(max-width:620px){
+ .pending-reference-page .pending-filter-card[style]{
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-areas:"search" "date" "process" "shift" "quick"!important;
+ }
+}
+
+/* Chờ duyệt: responsive layout is scoped to this screen only; the shared
+   report stylesheet also serves the approved-report workspace. */
+.pending-review-screen .pending-filter-card {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+  grid-template-areas: "search date process shift" "quick quick quick quick";
+  gap: 10px 12px;
+  align-items: end;
+  padding: 14px;
+  min-width: 0;
+}
+.pending-review-screen .pending-bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  min-height: 64px;
+  background: #f8fbff;
+  border-bottom: 1px solid #e2eaf3;
+}
+.pending-review-screen .pending-bulk-buttons { min-width: 0; }
+.pending-review-screen .pending-table-wrap {
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+.pending-review-screen .pending-table-wrap:focus-visible {
+  outline: 2px solid #1769d2;
+  outline-offset: -2px;
+}
+.pending-review-screen .pending-table-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.pending-review-screen .pending-reject-dialog {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.pending-review-screen .pending-filter-card input:focus-visible,
+.pending-review-screen .pending-filter-card select:focus-visible,
+.pending-review-screen button:focus-visible {
+  outline: 2px solid #1769d2;
+  outline-offset: 2px;
+}
+@media (max-width: 1360px) {
+  .pending-review-screen .pending-filter-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas: "search search" "date process" "shift shift" "quick quick";
+  }
+}
+@media (max-width: 620px) {
+  .pending-review-screen .pending-page-title { align-items: flex-start; }
+  .pending-review-screen .pending-filter-card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "search" "date" "process" "shift" "quick";
+    padding: 12px;
+  }
+  .pending-review-screen .pending-quick-filters { min-width: 0; }
+  .pending-review-screen .pending-bulk-toolbar { align-items: stretch; padding: 12px; }
+  .pending-review-screen .pending-bulk-summary { min-width: 0 !important; width: 100%; }
+  .pending-review-screen .pending-bulk-buttons {
+    width: 100%;
+    margin-left: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px !important;
+  }
+  .pending-review-screen .pending-bulk-buttons > button {
+    min-width: 0;
+    width: 100%;
+    padding: 0 8px !important;
+    white-space: normal !important;
+    line-height: 1.2;
+  }
+  .pending-review-screen .pending-table-footer { flex-wrap: wrap; }
+  .pending-review-screen .pending-reject-dialog { padding: 16px !important; }
+  .pending-review-screen .pending-reject-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .pending-review-screen .pending-reject-actions > button {
+    min-width: 0;
+    min-height: 42px;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Pending review screen: toolbar, feedback and action progress. */
+.pending-review-screen .pending-review-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+  color: #516c88;
+  font-size: 12px;
+}
+.pending-review-screen .pending-review-toolbar > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.pending-review-screen .pending-review-toolbar button,
+.pending-review-screen .pending-clear-selection {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid #cddfec;
+  border-radius: 8px;
+  background: #fff;
+  color: #24547d;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.pending-review-screen .pending-review-toolbar button:disabled { opacity: .55; cursor: not-allowed; }
+.pending-review-screen .pending-review-feedback {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid #bdd8ed;
+  border-radius: 9px;
+  background: #f2f8ff;
+  color: #194b75;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.pending-review-screen .pending-review-feedback.success { border-color: #9bdec3; background: #f1fbf6; color: #176548; }
+.pending-review-screen .pending-review-feedback.warning { border-color: #edd09a; background: #fff9ec; color: #845c18; }
+.pending-review-screen .pending-review-feedback.error { border-color: #eeb5b5; background: #fff5f5; color: #9b2626; }
+.pending-review-screen .pending-review-feedback button {
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+.pending-review-screen .pending-review-progress { padding: 10px 14px; font-size: 12px; color: #315a91; background: #f2f8ff; }
+.pending-review-screen .pending-review-progress progress { display: block; width: 100%; height: 8px; margin-top: 6px; accent-color: #1769d2; }
+.pending-review-screen .pending-clear-selection { margin-left: auto; white-space: nowrap; }
+.pending-review-screen .pending-reference-table tr:focus-visible > td {
+  outline: 2px solid #1769d2;
+  outline-offset: -2px;
+}
+.pending-review-screen .pending-filter-card input:disabled,
+.pending-review-screen .pending-filter-card select:disabled { background: #f3f6fa; opacity: .75; }
+@media (max-width: 620px) {
+  .pending-review-screen .pending-review-toolbar > div { width: 100%; }
+  .pending-review-screen .pending-review-toolbar button { flex: 1 1 auto; }
+  .pending-review-screen .pending-clear-selection { margin-left: 0; }
+  .pending-review-screen .pending-bulk-buttons { margin-left: 0 !important; }
+  .pending-review-screen .pending-filter-card input,
+  .pending-review-screen .pending-filter-card select { font-size: 16px !important; }
 }

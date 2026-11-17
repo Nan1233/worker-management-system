@@ -70,6 +70,13 @@ function installPendingTableFix(navigate: (to: string) => void) {
       body.ktc-report-workspace-fix .management-content { padding-top:24px!important; }
       body.ktc-report-workspace-fix .pending-reference-page { max-width:none!important; margin-top:0!important; }
       body.ktc-report-workspace-fix .pending-reference-table { min-width:1450px!important; table-layout:fixed!important; }
+      /* An empty list must not create a 1450px horizontal scrollbar. */
+      body.ktc-report-workspace-fix .pending-table-wrap.pending-table-empty { overflow-x:hidden!important; }
+      body.ktc-report-workspace-fix .pending-table-wrap.pending-table-empty .pending-reference-table { min-width:0!important; width:100%!important; table-layout:auto!important; }
+      body.ktc-report-workspace-fix .pending-table-wrap.pending-table-empty .pending-reference-table thead { display:none!important; }
+      body.ktc-report-workspace-fix .pending-table-wrap.pending-table-empty .pending-reference-table td.management-empty,
+      body.ktc-report-workspace-fix .pending-table-wrap.pending-table-empty .pending-reference-table td.management-error { width:100%!important; }
+
       body.ktc-report-workspace-fix .pending-reference-table th, body.ktc-report-workspace-fix .pending-reference-table td { height:42px!important; padding:0 9px!important; font-size:11px!important; }
       body.ktc-report-workspace-fix .pending-full-metric { text-align:center!important; font-weight:600!important; }
       body.ktc-report-workspace-fix .pending-full-productivity { background:#ffd6e7!important; color:#9b123f!important; border:1px solid #ff9fbe!important; font-weight:800!important; }
