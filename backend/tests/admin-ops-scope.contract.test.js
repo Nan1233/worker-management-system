@@ -123,8 +123,8 @@ test('admin_ops can view version history only through process-scoped access chec
 
 test('permission fallback uses valid role workspace routes', () => {
   const route = read('../frontend/src/routes/PermissionRoute.tsx');
-  assert.match(route, /\['MASTER_VIEW','master\/machines'\]/);
-  assert.match(route, /\['NOTIFICATION_VIEW','notifications'\]/);
+  assert.match(route, /\['MASTER_VIEW',\s*'master\/machines'\]/);
+  assert.match(route, /\['NOTIFICATION_VIEW',\s*'notifications'\]/);
 });
 
 test('admin_ops report action history is enabled with process-scope enforcement', () => {
