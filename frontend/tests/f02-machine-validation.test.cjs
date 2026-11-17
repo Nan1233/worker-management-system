@@ -11,10 +11,25 @@ const source = fs.readFileSync(path.join(__dirname, '../src/pages/worker/process
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
 }).outputText;
+// The validator imports processMachineLines at runtime. Compile that local
+// dependency as well instead of executing CommonJS output without require.
+const machineLinesSource = fs.readFileSync(path.join(__dirname, '../src/pages/worker/processMachineLines.ts'), 'utf8');
+const machineLinesCompiled = ts.transpileModule(machineLinesSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+}).outputText;
+const machineLinesModule = { exports: {} };
+vm.runInNewContext(machineLinesCompiled, {
+  module: machineLinesModule, exports: machineLinesModule.exports, Number, Object, Math, String,
+}, { filename: 'processMachineLines.js' });
+
 const mod = { exports: {} };
-vm.runInNewContext(compiled, { module: mod, exports: mod.exports, Number, Object, Math, String }, {
-  filename: 'processPageValidation.js'
-});
+vm.runInNewContext(compiled, {
+  module: mod, exports: mod.exports, Number, Object, Math, String,
+  require: (specifier) => {
+    if (specifier === './processMachineLines') return machineLinesModule.exports;
+    throw new Error(`Unexpected dependency in machine validator test: ${specifier}`);
+  },
+}, { filename: 'processPageValidation.js' });
 const { validateMachineLines } = mod.exports;
 const line = (changes = {}) => ({
   machineCode: 'C01', productCode: 'P01', hours: '8', minutes: '0',
