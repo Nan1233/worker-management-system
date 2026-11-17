@@ -32,7 +32,7 @@ test('worker 429 preserves form and is not put into the offline mutation queue',
   const catchIndex = page.indexOf('} catch (error: any) {');
   const rateIndex = page.indexOf('=== 429', catchIndex);
   const transientIndex = page.indexOf('isTransientNetworkFailure(error)', catchIndex);
-  const enqueueIndex = page.indexOf('enqueueOfflineReports(payloads.slice(index))', catchIndex);
+  const enqueueIndex = page.indexOf('queueRemainingMachineReports(payloads.slice(index))', catchIndex);
   assert.ok(rateIndex > catchIndex && rateIndex < transientIndex, '429 must be handled before transient/offline classification');
   assert.ok(enqueueIndex > transientIndex, 'offline queue must remain only on transient path');
   assert.match(page.slice(rateIndex, transientIndex), /showToast\([\s\S]*"warning"\)/);
@@ -67,7 +67,7 @@ test('manager approve and reject mutations share a synchronous action lock', () 
 
 test('approved conflict keeps draft state and reports an actionable 409 message', () => {
   const edit = read('src/pages/worker/WorkerReportEditV2.tsx');
-  const conflict = edit.indexOf('e?.response?.data?.code === "REPORT_VERSION_CONFLICT"');
+  const conflict = edit.indexOf('["REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_REQUIRED"].includes');
   assert.ok(conflict >= 0);
   const window = edit.slice(conflict, conflict + 500);
   assert.match(window, /Các thay đổi bạn đang nhập vẫn được giữ trên màn hình/);
