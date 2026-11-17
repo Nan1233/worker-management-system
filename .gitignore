@@ -76,3 +76,14 @@ frontend/android/capacitor-cordova-android-plugins/build/
 # Local test output
 /test-result.txt
 /dump.txt
+
+# KTC local development: private database exports and temporary templates
+/backups/
+/backend/templates_backup/
+
+# Desktop release verification output and pre-refactor snapshots
+/desktop/release-*/
+*.before-style-fix
+
+# Local-only Excel conversion scratch files
+/desktop/worker-management-system/
