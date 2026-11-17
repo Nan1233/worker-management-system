@@ -1,0 +1,80 @@
+name: Repair MAI pending reports (2026-11-15)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run reads only; apply modifies exactly two verified pending reports"
+        type: choice
+        options:
+          - dry-run
+          - apply
+        default: dry-run
+        required: true
+      confirmation:
+        description: 'For apply, type: REPAIR-2520008-2610012'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repair-mai-pending-20261115
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ktc-db-maintenance
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+    steps:
+      - name: Validate confirmation
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ "$MODE" = "apply" ] && [ "$CONFIRMATION" != "REPAIR-2520008-2610012" ]; then
+            echo "::error::Apply requires exact confirmation REPAIR-2520008-2610012"
+            exit 1
+          fi
+      - name: Checkout test branch (script source)
+        uses: actions/checkout@v4
+        with:
+          ref: test
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify script syntax
+        run: node --check scripts/repair_mai_grouped_pending_20261115.cjs
+      - name: Check DB configuration
+        run: |
+          for name in DB_HOST DB_USER DB_PASSWORD DB_NAME; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing GitHub Actions secret $name"
+              exit 1
+            fi
+          done
+      - name: Run guarded repair
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          if [ "$MODE" = "apply" ]; then
+            node scripts/repair_mai_grouped_pending_20261115.cjs --apply
+          else
+            node scripts/repair_mai_grouped_pending_20261115.cjs
+          fi
