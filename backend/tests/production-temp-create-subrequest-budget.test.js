@@ -8,9 +8,19 @@ const Module = require('node:module');
 function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false, processCode = 'EP', enableDailyHours = false }) {
   const log = [];
   let nextId = 1000;
-  const answer = (rawSql, inTransaction = false) => {
+  const groupedReportIds = new Map();
+  const answer = (rawSql, inTransaction = false, params = []) => {
     const sql = String(rawSql).replace(/\s+/g, ' ');
     if (/LAST_INSERT_ID/i.test(sql)) return [{ insertId: nextId }];
+    if (/KTC_BATCH_ID_LOOKUP/.test(sql)) {
+      // createMany inserts 23 bound columns per report; client_request_id is column 22.
+      for (let i = 21; i < params.length; i += 23) groupedReportIds.set(String(params[i]), ++nextId);
+      return { insertId: 0, affectedRows: groupedReportIds.size };
+    }
+    if (/SELECT id, client_request_id FROM production_reports_temp/i.test(sql) && /client_request_id IN/i.test(sql)) {
+      return params.slice(1).filter((id) => groupedReportIds.has(String(id)))
+        .map((id) => ({ id: groupedReportIds.get(String(id)), client_request_id: String(id) }));
+    }
     if (/SUM\((?:group_hours|counted_hours)\)/i.test(sql)) return [{ counted_hours: inTransaction ? dailyHours : 0 }];
     if (/training_percent FROM workers/i.test(sql)) return [{ training_percent: 100 }];
     if (/FROM processes/i.test(sql)) return [{ process_code: processCode }];
@@ -23,13 +33,13 @@ function setup({ supportsBeginIsolation, dailyHours = 0, existingRequest = false
   const record = (sql) => log.push(String(sql).replace(/\s+/g, ' ').trim());
   const conn = {
     supportsBeginIsolation,
-    query(sql, params, cb) { if (typeof params === 'function') cb = params; record(sql); const r = answer(sql, true); setImmediate(() => cb(null, r, [])); },
+    query(sql, params, cb) { if (typeof params === 'function') cb = params; record(sql); const r = answer(sql, true, params); setImmediate(() => cb(null, r, [])); },
     beginTransaction(a, b) { const cb = typeof a === 'function' ? a : b; record(`BEGIN${a && typeof a === 'object' ? ` ${a.isolation}` : ''}`); setImmediate(() => cb(null)); },
     commit(cb) { record('COMMIT'); setImmediate(() => cb(null)); },
     rollback(cb) { record('ROLLBACK'); setImmediate(() => cb(null)); },
     release() {},
   };
-  const fakeDb = { getConnection(cb) { setImmediate(() => cb(null, conn)); }, query(sql, p, cb) { record(sql); (typeof p === 'function' ? p : cb)(null, answer(sql), []); } };
+  const fakeDb = { getConnection(cb) { setImmediate(() => cb(null, conn)); }, query(sql, p, cb) { record(sql); (typeof p === 'function' ? p : cb)(null, answer(sql, false, p), []); } };
   const target = require.resolve('../models/productionTempCreateModel');
   // These modules capture config/db at require time, so each scenario needs a fresh copy.
   for (const name of ['../models/productionTempCreateModel', '../services/productionTempSubmissionService', '../models/productionTempModelShared', '../services/factoryMachineRuleService', '../services/trainingSnapshotService', '../services/auditService']) {
