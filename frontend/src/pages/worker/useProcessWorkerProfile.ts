@@ -40,6 +40,9 @@ export function useProcessWorkerProfile(
                 }
 
                 const profile = await getCurrentWorker();
+                // A response for a previous process must not redirect or alter
+                // the form after navigation to another process.
+                if (!isCurrent()) return;
                 const schema = getProcessFormSchema(process);
                 if (!workerCanAccessProcess(profile, schema.processId, schema.processCode)) {
                     showToast("Bạn chưa được phân công công đoạn này.", "error");
