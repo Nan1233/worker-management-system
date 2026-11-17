@@ -9,5 +9,5 @@ test('single approval only refreshes its original filter and page', () => {
   assert.match(action, /const selectionScope = selectionScopeRef\.current/);
   assert.match(action, /if \(selectionScopeRef\.current === selectionScope\) await load\(\)/);
   assert.match(action, /if \(detailRequestSeqRef\.current === requestSeq\) closeDetail\(\)/);
-  assert.match(action, /window\.alert\("Đã duyệt báo cáo thành công\."\)/);
+  assert.match(action, /setActionFeedback\(\{ kind: "success", message: `Đã duyệt báo cáo #\$\{approvedId\} thành công\.` \}\)/);
 });
