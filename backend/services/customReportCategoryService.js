@@ -14,7 +14,7 @@ function customCode(prefix, processId, name) {
 
 function customName(item, field) {
   const name = String(item?.[field] || "").trim().normalize("NFC");
-  if (!name || name.length > MAX_NAME_LENGTH || /[\\x00-\\x1F\\x7F]/.test(name)) {
+  if (!name || name.length > MAX_NAME_LENGTH || /[\x00-\x1F\x7F]/.test(name)) {
     const error = new Error("Phải nhập tên NG khác / lý do trừ giờ khác hợp lệ trước khi nhập số liệu");
     error.status = 422;
     error.code = "CUSTOM_CATEGORY_NAME_REQUIRED";
