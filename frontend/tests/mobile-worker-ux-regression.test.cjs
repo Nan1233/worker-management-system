@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const read = (file) => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
 
-test("mobile worker nav contains four primary destinations and no logout item", () => {
+test("mobile worker navigation has its current destinations and no logout item", () => {
   const s = read("src/layouts/WorkerLayout.tsx");
   assert.match(s, /const navigationItems: Item\[\] = \[/);
   assert.match(s, /Sản xuất[\s\S]*Lịch sử[\s\S]*Thông báo[\s\S]*Cá nhân/);
