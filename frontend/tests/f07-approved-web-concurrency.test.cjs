@@ -23,15 +23,16 @@ test('F07 FE 02 approved update request sends expected_updated_at from immutable
 
 test('F07 FE 03 conflict maps to specific reload/review UX and preserves local form', () => {
   const source = read('src/pages/worker/WorkerReportEditV2.tsx');
-  assert.match(source, /code === "REPORT_VERSION_CONFLICT"/);
+  assert.match(source, /\["REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_REQUIRED"\]\.includes/);
   assert.match(source, /Báo cáo đã được người khác cập nhật\. Vui lòng tải lại dữ liệu trước khi lưu/);
   assert.match(source, /Các thay đổi bạn đang nhập vẫn được giữ trên màn hình/);
 });
 
 test('F07 FE 04 conflict path does not auto-resubmit stale edit', () => {
   const source = read('src/pages/worker/WorkerReportEditV2.tsx');
-  const conflict = source.indexOf('code === "REPORT_VERSION_CONFLICT"');
-  const tail = source.slice(conflict, source.indexOf('const apiErrors', conflict));
+  const conflict = source.indexOf('["REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_REQUIRED"].includes');
+  assert.ok(conflict >= 0, "conflict guard exists");
+  const tail = source.slice(conflict, source.indexOf('setError(e?.response?.data?.message', conflict));
   assert.doesNotMatch(tail, /updateReport\(/);
   assert.match(tail, /return;/);
 });
