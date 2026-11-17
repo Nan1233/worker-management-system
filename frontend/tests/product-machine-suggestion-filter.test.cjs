@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '..');
 const rules = fs.readFileSync(path.join(root, 'src/pages/worker/productSuggestionRules.ts'), 'utf8');
 const domain = fs.readFileSync(path.join(root, 'src/pages/worker/processPageDomain.ts'), 'utf8');
 const page = fs.readFileSync(path.join(root, 'src/pages/worker/ProcessPage.tsx'), 'utf8');
+const lookup = fs.readFileSync(path.join(root, 'src/pages/worker/useProcessProductOptions.ts'), 'utf8');
 const basic = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessBasicInfoSection.tsx'), 'utf8');
 
 
@@ -19,11 +20,11 @@ test('product suggestions are scoped by operation mode and selected machine', ()
   assert.ok(rules.includes('Number(machine?.is_automatic || 0) === 1'));
   assert.ok(page.includes('filterProductsForSelection'));
   assert.ok(page.includes('getMachineProductOptions(line.machineCode)'));
-  assert.ok(page.includes('useEncodedMachineSuffix: processCode === "GC"'));
-  assert.ok(page.includes('if (["MAI", "DO"].includes(processCode) && !String(form.machineNo || "").trim())'));
-  assert.ok(page.includes('return toProductAutocompleteOptions(scopedProductOptions);'));
-  assert.ok(page.includes('if (["MAI", "DO", "CAN"].includes(processCode) && !String(machineCode || "").trim())'));
-  assert.ok(page.includes('return scopedProductOptions;'));
+  assert.ok(lookup.includes('useEncodedMachineSuffix: processCode === "GC"'));
+  assert.ok(lookup.includes('if (["MAI", "DO"].includes(processCode) && !String(selectedMachine || "").trim())'));
+  assert.ok(lookup.includes('return toProductAutocompleteOptions(products);'));
+  assert.ok(lookup.includes('if (["MAI", "DO", "CAN"].includes(processCode) && !String(machineCode || "").trim())'));
+  assert.ok(lookup.includes('return products;'));
   assert.ok(basic.includes('isMaiStyleProcess ? getMachineProductAutocompleteOptions("") : []'));
 });
 
