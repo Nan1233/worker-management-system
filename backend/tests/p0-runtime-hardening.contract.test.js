@@ -11,7 +11,7 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 test('P0 approval batches acquire target IDs in deterministic order', () => {
   const normalization = read('models/productionTempIdNormalization.js');
   const shared = read('models/productionTempModelShared.js');
-  assert.match(normalization, /\.sort\(\(a, b\) => a - b\)/);
+  assert.match(normalization, /\.sort\(\((?:left|a), (?:right|b)\) => (?:left|a) - (?:right|b)\)/);
   assert.match(shared, /require\("\.\/productionTempIdNormalization"\)/);
 });
 
