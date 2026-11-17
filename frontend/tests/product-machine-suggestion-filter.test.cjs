@@ -19,7 +19,7 @@ test('product suggestions are scoped by operation mode and selected machine', ()
   assert.ok(rules.includes('const selectedMachine = normalizeMachineKey(machineCode)'));
   assert.ok(rules.includes('Number(machine?.is_automatic || 0) === 1'));
   assert.ok(page.includes('filterProductsForSelection'));
-  assert.ok(page.includes('getMachineProductOptions(line.machineCode)'));
+  assert.ok(lookup.includes('getMachineProductOptions(line.machineCode)'));
   assert.ok(lookup.includes('useEncodedMachineSuffix: processCode === "GC"'));
   assert.ok(lookup.includes('if (["MAI", "DO"].includes(processCode) && !String(selectedMachine || "").trim())'));
   assert.ok(lookup.includes('return toProductAutocompleteOptions(products);'));
