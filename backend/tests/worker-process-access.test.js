@@ -10,7 +10,8 @@ test("current worker uses full authentication and returns structured active proc
   const routes = read("routes/workerRoutes.js");
   const controller = read("controllers/workerController.js");
   assert.match(routes, /"\/me"[\s\S]*verifyToken[\s\S]*getCurrentWorker/);
-  assert.match(controller, /loadCurrentWorkerProfile\(loginUserId\)/);
+  assert.match(controller, /loadOwnProfileOnce\(loginUserId\)/);
+  assert.match(controller, /loadCurrentWorkerProfile\(userId\)/);
   const service = read("services/currentWorkerProfileService.js");
   assert.match(service, /processes,/);
   assert.match(service, /p\.status = 'active'/);
