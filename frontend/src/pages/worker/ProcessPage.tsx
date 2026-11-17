@@ -8,8 +8,6 @@ import {
 
 import axios from "axios";
 
-import { clearAuthSession, getStoredUser } from "../../utils/authStorage";
-
 import {
     useNavigate,
     useParams
@@ -21,14 +19,7 @@ import {
     updateTempReport,
 } from "../../services/productionService";
 
-import {
-    getCurrentWorker
-} from "../../services/workerService";
 
-
-import type {
-    WorkerProfile
-} from "../../types/worker";
 import {
     resolveProductStandard
 } from "../../services/masterDataService";
@@ -44,8 +35,6 @@ import { createClientRequestId } from "../../utils/workerSubmitGuard";
 import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
 import { isTransientNetworkFailure } from "../../services/offlineReportQueue";
 import { queueRemainingMachineReports, shouldQueuePendingMachineReports } from "./processMachineReportQueue";
-import { workerCanAccessProcess } from "../../utils/processAccess";
-import { getProcessFormSchema } from "./processFormSchemas";
 
 import type {
     AutocompleteOption
@@ -123,6 +112,7 @@ import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
+import { useProcessWorkerProfile } from "./useProcessWorkerProfile";
 import { useProcessProductOptions } from "./useProcessProductOptions";
 import { useMachineLineStandardLookup } from "./useMachineLineStandardLookup";
 import { useProcessDraftAutosave } from "./useProcessDraftAutosave";
@@ -155,7 +145,6 @@ function ProcessPage() {
     const duplicatePrimaryCompletedRef = useRef(false);
     // Reuse the same idempotency key if the server accepted a forced duplicate but its response was lost.
     const duplicateForceRequestIdRef = useRef<string | null>(null);
-    const workerInfoRequestSeqRef = useRef(0);
     const masterDataRequestSeqRef = useRef(0);
     const isRestoringDraftRef = useRef(false);
     const draftSaveTimerRef = useRef<number | null>(null);
@@ -194,28 +183,8 @@ function ProcessPage() {
 
 
 
-    // =================================================
-    // HỒ SƠ CÔNG NHÂN
-    // =================================================
-
-    const [
-        worker,
-        setWorker
-    ] = useState<WorkerProfile | null>(
-        null
-    );
-
-
-    // =================================================
-    // DỮ LIỆU FORM
-    // =================================================
-
-    const [
-        form,
-        setForm
-    ] = useState<FormState>(
-        initialForm
-    );
+    const [form, setForm] = useState<FormState>(initialForm);
+    const { worker, loadingWorker } = useProcessWorkerProfile(process, setForm);
 
     const processCapabilities = useMemo(() => getProcessCapabilities(process), [process]);
     const {
@@ -459,16 +428,6 @@ const machineAutocompleteOptions =
     // =================================================
 
     // =================================================
-    // TRẠNG THÁI TẢI WORKER
-    // =================================================
-
-    const [
-        loadingWorker,
-        setLoadingWorker
-    ] = useState(true);
-
-
-    // =================================================
     // TRẠNG THÁI GỬI FORM
     // =================================================
 
@@ -688,153 +647,6 @@ const machineAutocompleteOptions =
     }, []);
 
     // =====================================================
-    // LẤY THÔNG TIN WORKER THEO USER ID
-    // =====================================================
-
-    useEffect(() => {
-        const requestSeq = ++workerInfoRequestSeqRef.current;
-        const isCurrentRequest = () => workerInfoRequestSeqRef.current === requestSeq;
-
-        const loadWorkerInfo =
-            async () => {
-
-                try {
-
-                    setLoadingWorker(
-                        true
-                    );
-
-
-                    const savedUser = getStoredUser();
-
-                    if (!savedUser) {
-                        clearAuthSession({ bumpEpoch: false });
-                        navigate("/login", { replace: true });
-                        return;
-                    }
-
-
-                    const workerData =
-                        await getCurrentWorker();
-
-                    const schema = getProcessFormSchema(process);
-                    if (!workerCanAccessProcess(workerData, schema.processId, schema.processCode)) {
-                        showToast("Bạn chưa được phân công công đoạn này.", "error");
-                        navigate("/worker/process", { replace: true });
-                        return;
-                    }
-
-                    if (!isCurrentRequest()) return;
-
-                    setWorker(
-                        workerData
-                    );
-
-
-                    setForm(
-                        (prev) => ({
-
-                            ...prev,
-
-                            workerCode:
-                                workerData.worker_code
-                                ||
-                                "",
-
-                            workerName:
-                                workerData.full_name
-                                ||
-                                "",
-
-                            trainingPercent:
-    workerData.training_percent !== null
-    &&
-    workerData.training_percent !== undefined
-
-        ? String(
-            workerData.training_percent
-        )
-
-        : ""
-
-                        })
-                    );
-
-                }
-                catch (error: unknown) {
-                    if (!isCurrentRequest()) return;
-
-                    console.error(
-                        "LOAD WORKER ERROR:",
-                        error
-                    );
-
-
-                    if (
-                        axios.isAxiosError(
-                            error
-                        )
-                        &&
-                        error.response?.status
-                        ===
-                        401
-                    ) {
-
-                        clearAuthSession({ bumpEpoch: false });
-
-
-                        navigate(
-                            "/login",
-                            {
-                                replace: true
-                            }
-                        );
-
-
-                        return;
-
-                    }
-
-
-                    const message =
-
-                        axios.isAxiosError(
-                            error
-                        )
-
-                            ? error.response
-                                ?.data
-                                ?.message
-
-                                ||
-
-                                "Không lấy được thông tin nhân viên"
-
-                            : error instanceof Error
-
-                                ? error.message
-
-                                : "Không lấy được thông tin nhân viên";
-
-
-                    showToast(
-                        message
-                    );
-
-                }
-                finally {
-                    if (isCurrentRequest()) {
-                        setLoadingWorker(false);
-                    }
-                }
-
-            };
-
-
-        void loadWorkerInfo();
-
-    }, [navigate, process, showToast]);
-        // =====================================================
     // INPUT THÔNG THƯỜNG
     // =====================================================
 
