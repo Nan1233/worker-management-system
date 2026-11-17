@@ -9,6 +9,13 @@ function loadController(queries) {
   const original = Module._load;
   const stub = (exports) => exports;
   Module._load = function (request, parent, ...rest) {
+    if (/productionCvkLookupModel$/.test(request)) {
+      const { findExistingCvkReport } = original.call(this, request, parent, ...rest);
+      return { findExistingCvkReport: (input) => findExistingCvkReport(input, async (sql, params) => {
+        queries.push({ sql, params });
+        return [[]];
+      }) };
+    }
     if (/config\/db$/.test(request)) {
       return { promise: () => ({ query: async (sql, params) => { queries.push({ sql, params }); return [[]]; } }) };
     }
