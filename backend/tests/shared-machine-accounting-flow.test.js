@@ -287,10 +287,18 @@ test('parallel-machine daily hours aggregate net hours by machine before taking 
   const source = fs.readFileSync(path.join(root, 'services/productionTempSubmissionService.js'), 'utf8');
   const createModel = fs.readFileSync(path.join(root, 'models/productionTempCreateModel.js'), 'utf8');
   const updateModel = fs.readFileSync(path.join(root, 'models/productionTempUpdateModel.js'), 'utf8');
-  for (const code of [source, createModel, updateModel]) {
+  const calculation = require('../services/productionDailyHoursCalculation');
+  assert.match(source, /incomingDailyWorkHours/);
+  for (const code of [createModel, updateModel]) {
     assert.match(code, /netHoursByMachine/);
     assert.match(code, /netHoursByMachine\.set\(machine, \(netHoursByMachine\.get\(machine\) \|\| 0\) \+ net\)/);
   }
+  assert.equal(calculation.incomingDailyWorkHours({}, [
+    { machine_code: 'M1', machine_time_hours: 3, deduction_time_hours: 1 },
+    { machine_code: 'M1', machine_time_hours: 2, deduction_time_hours: 0.5 },
+    { machine_code: 'M2', machine_time_hours: 6, deduction_time_hours: 1 },
+  ], 'MAI'), 5);
+  assert.equal(calculation.incomingDailyWorkHours({ actual_time: 7 }, [], 'MAI'), 7);
 });
 
 test('MAI child identity uses run position to distinguish identical machine and product', () => {
