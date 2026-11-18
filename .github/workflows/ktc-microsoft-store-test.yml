@@ -42,6 +42,11 @@ jobs:
           if (-not (Test-Path 'frontend/dist/index.html')) { throw 'Bundled TEST frontend missing' }
       - name: Check Excel export
         run: npm run smoke:excel
+      - name: Generate branded Windows Store tile icons
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python scripts/createStoreTiles.py
       - name: Build Windows Store APPX (TEST)
         run: npx electron-builder --config electron-builder.store-test.json --win appx --x64 --publish never
       - name: Upload Store package
