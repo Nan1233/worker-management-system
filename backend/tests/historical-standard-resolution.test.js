@@ -29,6 +29,7 @@ function createFixtureQuery({ overlap = false, missing = false, machine = false,
           && Number(row.process_id) === Number(params[1])
           && String(row.product_code) === String(params[2]));
       }
+      if (text.includes('limit 1') && params.length === 2) return productVersions.slice(0, 1);
       const date = String(params[2]);
       return productVersions.filter((row) => row.effective_from <= date && (!row.effective_to || row.effective_to >= date));
     }
@@ -110,6 +111,14 @@ test('missing historical product standard fails closed', async () => {
   await assert.rejects(
     () => resolver.resolveStandard({ processId: 1, productCode: 'P1', workDate: '2026-08-10' }),
     (error) => error.code === 'HISTORICAL_STANDARD_NOT_FOUND' && error.status === 422
+  );
+});
+
+test('a gap in historical versions must not fall back to the mutable current product standard', async () => {
+  const resolver = createStandardResolver({ query: createFixtureQuery() });
+  await assert.rejects(
+    () => resolver.resolveProduct({ processId: 1, productCode: 'P1', workDate: '2025-12-31' }),
+    (error) => error.code === 'HISTORICAL_STANDARD_NOT_FOUND'
   );
 });
 
