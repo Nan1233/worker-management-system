@@ -109,7 +109,7 @@ module.exports = {
                 }
             }
 
-            if (isWorkerEdit && !options.expectedUpdatedAt) {
+            if (!options.expectedUpdatedAt) {
                 const error = new Error("Thiếu phiên bản báo cáo. Vui lòng tải lại báo cáo trước khi sửa.");
                 error.status = 409; error.code = "TEMP_REPORT_VERSION_REQUIRED"; error.isPublic = true;
                 throw error;
