@@ -86,8 +86,8 @@ jobs:
     timeout-minutes: 20
     env:
       NODE_ENV: test
-      KTC_EXPORT_ROOT: "${{ runner.temp }}/ktc-excel-phase2"
-      KTC_GIA_CONG_SAMPLE_ROOT: "${{ runner.temp }}/ktc-excel-phase2-gc"
+      KTC_EXPORT_ROOT: /tmp/ktc-phase2-excel
+      KTC_GIA_CONG_SAMPLE_ROOT: /tmp/ktc-phase2-excel-gc
     defaults:
       run:
         working-directory: desktop
