@@ -40,7 +40,7 @@
   color: #e1ecf8;
 }
 [data-theme="dark"] .permission-page .permission-table-wrap th,
-[data-theme="dark"] .permission-page .module-row td,
+[data-theme="dark"] .permission-page tr[class~="module-row"] td,
 [data-theme="dark"] .permission-page .permission-user-grid label.is-disabled {
   background: #293d50 !important;
   color: #d5e3f2;

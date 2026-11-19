@@ -17,7 +17,7 @@ test('Admin permission page keeps narrow screen scroll inside matrix and allows 
 });
 
 test('Admin permission page dark theme retains readable alerts, controls, group headings', () => {
-  for (const suffix of ['.permission-feedback.success', '.permission-feedback.error', '.permission-feedback.working', '.permission-card', '.permission-refresh', '.module-row td']) {
+  for (const suffix of ['.permission-feedback.success', '.permission-feedback.error', '.permission-feedback.working', '.permission-card', '.permission-refresh', 'tr[class~="module-row"] td']) {
     assert.ok(css.includes('[data-theme="dark"] .permission-page ' + suffix), 'dark CSS missing '+suffix);
   }
   assert.doesNotMatch(css, /body\s*\{\s*background/);
