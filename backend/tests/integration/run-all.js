@@ -14,7 +14,10 @@ let failed = 0;
 
 for (const file of files) {
   console.log(`\n=== ${file}`);
-  const result = spawnSync(process.execPath, ['--test', path.join(dir, file)], { stdio: 'inherit', env: process.env });
+  // Daily-hours enforcement is intentionally disabled in KTC production.
+  // Activate it only for its dedicated isolated TiDB race test.
+  const env = { ...process.env, KTC_IT_ENFORCE_DAILY_HOURS: file === 'daily-hours.http.test.js' ? '1' : '0' };
+  const result = spawnSync(process.execPath, ['--test', path.join(dir, file)], { stdio: 'inherit', env });
   if (result.status !== 0) failed += 1;
 }
 
