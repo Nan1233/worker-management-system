@@ -102,7 +102,7 @@ test('split export round-trips all 11 actual XLSX buffers in a disposable folder
       assert.equal(String(metadata.version), String(EXCEL_CONTRACT_VERSION));
       assert.equal(metadata.yearMonth, MONTH);
       assert.equal(metadata.processCode, code);
-      assert.equal(metadata.sheetName, PROCESS_SHEETS[code].sheet);
+      assert.equal(metadata.sheetName, WORKBOOK1_FORMS[code]?.sheet || PROCESS_SHEETS[code].sheet);
       assert.ok(Array.isArray(metadata.columns));
       assert.equal(Number(sync.getCell('A3').value), payload.processes[code].reports[0].id);
       assert.equal(String(sync.getCell('B3').value), '2026-11-10T10:00:00.000Z');
@@ -155,5 +155,82 @@ test('generic CVK workbook is readable as a managed Excel sync source without co
     assert.equal(String(edited.expected_updated_at), '2026-11-10T10:00:00.000Z');
   } finally {
     await fs.rm(directory,{recursive:true,force:true});
+  }
+});
+
+test('all six approved Workbook1 paper sheets import a cell edit by hidden report identity without adding a visible ID column', async (t) => {
+  for (const [index, [code, form]] of Object.entries(WORKBOOK1_FORMS).entries()) {
+    await t.test(code, async () => {
+      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ktc-paper-sync-'));
+      try {
+        const { buildProcessWorkbookLocal } = require('../electron/monthlyWorkbookLocal.cjs');
+        const report = fixture(code, 50 + index);
+        const output = await buildProcessWorkbookLocal({
+          date: DATE, processCode: code,
+          payload: {
+            yearMonth: MONTH, dataSource: 'tidb.production_reports.approved',
+            processes: { [code]: { reports: [report], deductionTypes: [], defectTypes: [] } },
+          },
+        });
+        const filepath = path.join(directory, 'paper.xlsx');
+        await fs.writeFile(filepath, output.buffer, { flag: 'wx' });
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.readFile(filepath);
+        const sync = workbook.getWorksheet('_KTC_SYNC');
+        const metadata = JSON.parse(String(sync.getCell('A1').value));
+        assert.equal(metadata.sheetName, form.sheet);
+        assert.equal(metadata.rowIdentityMode, 'KTC_SYNC_ROW_V1');
+        assert.equal(Number(sync.getCell('E3').value), form.first);
+        assert.equal(String(sync.getCell('F3').value), report.worker_code);
+        assert.ok(!metadata.columns.some(column => column.key === 'id'), code + ' paper sheet must remain unchanged');
+        const sheet = workbook.getWorksheet(form.sheet);
+        const actualTimeColumn = metadata.columns.find(column => column.key === 'actualTime');
+        assert.ok(actualTimeColumn, 'editable actualTime column missing for ' + code);
+        const unchanged = await readExcelChanges(filepath);
+        assert.equal(unchanged.managed, true);
+        assert.equal(unchanged.changes.filter(change => change.id === report.id).length, 0,
+          code + ' unedited export must not send an update');
+
+        sheet.getCell(form.first, actualTimeColumn.index).value = 6.5;
+        await workbook.xlsx.writeFile(filepath);
+        const changed = await readExcelChanges(filepath);
+        const updates = changed.changes.filter(change => change.id === report.id);
+        assert.equal(updates.length, 1, code + ' should yield exactly one report update');
+        assert.equal(updates[0].patch.actual_time, 6.5);
+        assert.equal(updates[0].expected_updated_at, report.updated_at);
+        assert.ok(!Object.hasOwn(updates[0].patch, 'tt_ok') || code !== 'EP',
+          'do not clear OK when paper form has no mapped OK column');
+      } finally {
+        await fs.rm(directory, {recursive: true, force: true});
+      }
+    });
+  }
+});
+
+test('paper row reorder or accidental worker-code overwrite fails closed rather than editing another approved report', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ktc-paper-identity-'));
+  try {
+    const { buildProcessWorkbookLocal } = require('../electron/monthlyWorkbookLocal.cjs');
+    const report = fixture('MAI', 70);
+    const output = await buildProcessWorkbookLocal({
+      date: DATE, processCode: 'MAI',
+      payload: {
+        yearMonth: MONTH, dataSource: 'tidb.production_reports.approved',
+        processes: {MAI: {reports:[report], deductionTypes: [], defectTypes: []}},
+      },
+    });
+    const filepath = path.join(directory, 'paper.xlsx');
+    await fs.writeFile(filepath, output.buffer, {flag:'wx'});
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(filepath);
+    const config = JSON.parse(String(wb.getWorksheet('_KTC_SYNC').getCell('A1').value));
+    const workerCodeColumn = config.columns.find(c => c.key === 'workerCode');
+    assert.ok(workerCodeColumn);
+    wb.getWorksheet(config.sheetName).getCell(config.firstDataRow, workerCodeColumn.index).value = 'DIFFERENT-EMPLOYEE';
+    await wb.xlsx.writeFile(filepath);
+    await assert.rejects(() => readExcelChanges(filepath),
+      error => error?.code === 'EXCEL_SYNC_ROW_IDENTITY_MISMATCH');
+  } finally {
+    await fs.rm(directory, {recursive:true,force:true});
   }
 });
