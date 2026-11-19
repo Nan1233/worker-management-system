@@ -1179,6 +1179,20 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
     if (column.key.startsWith('defect:')) entry.typeId = typeIdFromSyncKey(column.key.slice('defect:'.length));
     return entry;
   });
+  // The six approved Workbook1 paper forms have no visible ID column.
+  // Store an exact row-to-report mapping in veryHidden metadata, preserving
+  // the user-approved sheet widths, column count, headers and printed layout.
+  const paperForm = WORKBOOK1_FORMS[code] || null;
+  const reportRows = new Map();
+  if (paperForm) {
+    let nextRow = paperForm.first - 1;
+    let lastDate = null;
+    for (const report of sortReports(processData?.reports || [])) {
+      const day = dateKey(report.work_date);
+      if (day !== lastDate) { nextRow += 1; lastDate = day; }
+      reportRows.set(Number(report.id), ++nextRow);
+    }
+  }
   const sheet = workbook.addWorksheet('_KTC_SYNC');
   sheet.state = 'veryHidden';
   sheet.getCell('A1').value = JSON.stringify({
@@ -1188,15 +1202,26 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
     generatedAt: new Date().toISOString(),
     yearMonth,
     gcHelperSheet: code === 'GC' ? GC_HELPER_SHEET : null,
+    rowIdentityMode: paperForm ? 'KTC_SYNC_ROW_V1' : null,
+    firstDataRow: paperForm ? paperForm.first : null,
     columns: editable
   });
-  sheet.addRow(['report_id', 'expected_updated_at', 'operation_mode', 'original_json']);
+  sheet.addRow(['report_id', 'expected_updated_at', 'operation_mode', 'original_json', 'source_row', 'worker_code', 'work_date', 'row_stt']);
   for (const report of processData?.reports || []) {
     sheet.addRow([
       Number(report.id),
       report.updated_at || report.created_at || null,
       asText(report.operation_mode).toUpperCase(),
-      JSON.stringify(syncOriginalPatch(report))
+      JSON.stringify(syncOriginalPatch(report)),
+      paperForm ? reportRows.get(Number(report.id)) ?? null : null,
+      paperForm ? asText(report.worker_code) : null,
+      paperForm ? dateKey(report.work_date) : null,
+      paperForm ? (() => {
+        const day = dateKey(report.work_date);
+        const ordered = sortReports(processData?.reports || []);
+        return ordered.filter(item => dateKey(item.work_date) === day &&
+          reportRows.get(Number(item.id)) <= reportRows.get(Number(report.id))).length;
+      })() : null
     ]);
   }
 }
