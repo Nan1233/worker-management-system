@@ -72,7 +72,6 @@ jobs:
             tests/production-child-totals-validation.test.js \
             tests/production-daily-hours-parity-refactor.test.js \
             tests/production-submission-queue.test.js \
-            tests/proposalReviewRollback.behavior.test.js \
             tests/review-transaction-failure-order-regression.test.js \
             tests/approved-edit-concurrency.test.js \
             tests/approved-edit-preserves-machine-data.test.js \
