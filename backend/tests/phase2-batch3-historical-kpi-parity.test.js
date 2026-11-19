@@ -95,3 +95,78 @@ test('an absent linked physical event cannot be replaced with participants’ ho
   assert.equal(result.grossHours, 0);
   assert.equal(result.netHours, 0);
 });
+
+test('historical KPI remains unchanged after current standard, profile and machine metadata are edited', () => {
+  const baseline = {
+    ...approved,
+    standard_output: '19.875000',
+    standard_version_id: 118,
+    training_percent_snapshot: '62.25',
+    machine_standard_id: 44,
+  };
+  const mutatedCurrentMaster = {
+    ...baseline,
+    current_standard_output: '99999.000000',
+    current_standard_version_id: 999,
+    current_training_percent: 100,
+    training_percent: 1,
+    machine_standard_id_current: 777,
+  };
+  for (const calculate of [backend.calculateProductionMetrics, desktop.calculateProductionMetrics]) {
+    const before = calculate(baseline);
+    const after = calculate(mutatedCurrentMaster);
+    for (const key of ['trainingPercent', 'trainingFactor', 'standard', 'actualTime', 'adjustedOutput', 'plannedOutput', 'outputPerHour', 'achievement', 'ngRate']) {
+      assert.equal(after[key], before[key], key);
+    }
+    assert.equal(before.standard, 19.875);
+    assert.equal(before.trainingPercent, 62.25);
+  }
+});
+
+test('shared physical event time and deductions are counted once across two workers', () => {
+  const report = {
+    operation_mode: 'MACHINE',
+    deduction_time: 5, // worker credits must never override machine deduction
+    deductions: [{ hours: 5 }],
+    machineLines: [
+      { id: 1, machine_event_id: 911, machine_time_hours: 8, deduction_time_hours: 0.5, deductions_json: '[{"hours":0.5}]' },
+      { id: 2, machine_event_id: 911, machine_time_hours: 8, deduction_time_hours: 0.5, deductions_json: '[{"hours":0.5}]' },
+    ],
+  };
+  const result = buildGiaCongMachineAccounting(report, new Map([[911, { id: 911, machine_time_hours: 8 }]]));
+  assert.equal(result.source, 'MACHINE_EVENT');
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.deductionHours, 0.5);
+  assert.equal(result.netHours, 7.5);
+});
+
+test('two different physical events count independently even if a participant line is duplicated', () => {
+  const report = {
+    operation_mode: 'MACHINE',
+    machineLines: [
+      { id: 1, machine_event_id: 911, machine_time_hours: 8, deduction_time_hours: 0.5 },
+      { id: 2, machine_event_id: 912, machine_time_hours: 6, deduction_time_hours: 1 },
+      { id: 3, machine_event_id: 911, machine_time_hours: 8, deduction_time_hours: 0.5 },
+    ],
+  };
+  const events = new Map([[911, { id: 911, machine_time_hours: 8 }], [912, { id: 912, machine_time_hours: 6 }]]);
+  const result = buildGiaCongMachineAccounting(report, events);
+  assert.equal(result.source, 'MACHINE_EVENT');
+  assert.equal(result.grossHours, 14);
+  assert.equal(result.deductionHours, 1.5);
+  assert.equal(result.netHours, 12.5);
+});
+
+test('mixed present and missing physical events is explicitly partial and never substitutes worker hours', () => {
+  const report = {
+    operation_mode: 'MACHINE',
+    machineLines: [
+      { id: 1, machine_event_id: 911, machine_time_hours: 8, deduction_time_hours: 0 },
+      { id: 2, machine_event_id: 999, machine_time_hours: 99, deduction_time_hours: 0 },
+    ],
+  };
+  const result = buildGiaCongMachineAccounting(report, new Map([[911, { id: 911, machine_time_hours: 8 }]]));
+  assert.equal(result.source, 'MACHINE_EVENT_PARTIAL');
+  assert.equal(result.grossHours, 8);
+  assert.equal(result.netHours, 8);
+});
