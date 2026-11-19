@@ -67,7 +67,7 @@ export interface MachineProductionEventUpdate{physical_ok_quantity?:number;machi
 export const createMachineProductionEvent=async(data:MachineProductionEventInput):Promise<MachineProductionEvent>=>{const res=await api.post("/machine-production-events",data);return res.data?.data??res.data;};
 export const getMachineProductionEvent=async(eventId:number):Promise<MachineProductionEvent>=>{const res=await api.get(`/machine-production-events/${eventId}`);return res.data?.data??res.data;};
 export const updateMachineProductionEvent=async(eventId:number,patch:MachineProductionEventUpdate):Promise<MachineProductionEvent>=>{const res=await api.put(`/machine-production-events/${eventId}`,patch);return res.data?.data??res.data;};
-export const linkMachineEventParticipants=async(eventId:number,participantIds:number[])=> (await api.post(`/machine-production-events/${eventId}/participants`,{participant_ids:participantIds})).data;
+export const linkMachineEventParticipants=async(eventId:number,tempMachineLineIds:number[])=> (await api.post(`/machine-production-events/${eventId}/link-participants`,{temp_machine_line_ids:tempMachineLineIds})).data;
 export const approveMachineProductionEvent=async(eventId:number)=>(await api.post(`/machine-production-events/${eventId}/approve`)).data;
 export interface ReportActionLog{id:number;report_type:"temp"|"approved";report_id:number;action:string;note?:string|null;username?:string|null;full_name?:string|null;role?:string|null;created_at:string;}
 export const getTempReportActionLogs=async(id:number):Promise<ReportActionLog[]>=>{const res=await api.get(`/production-temp/${id}/logs`);return res.data?.data||[];};
