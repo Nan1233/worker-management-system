@@ -26,7 +26,6 @@ const pct=(v:number)=>Number(v||0).toLocaleString("vi-VN",{minimumFractionDigits
 const totalOf=(r:{ok:number;ng:number})=>Number(r.ok||0)+Number(r.ng||0);
 const rateOf=(r:{ok:number;ng:number})=>{const t=totalOf(r);return t?Number(r.ok||0)/t*100:0;};
 const dateLabel=(v:string)=>{const parts=String(v).slice(0,10).split("-");return parts.length===3?parts[2]+"/"+parts[1]+"/"+parts[0]:v;};
-const excel=(html:string,name:string)=>{const documentHtml="<html><head><meta charset=\"utf-8\"></head><body>"+html+"</body></html>";const blob=new Blob([documentHtml],{type:"application/vnd.ms-excel;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);};
 
 
 export default function Statistics(){
