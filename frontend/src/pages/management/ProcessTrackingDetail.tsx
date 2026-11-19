@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, Download, RefreshCw, Search, Activity, Factory, Users, Package, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../services/api";
@@ -30,10 +30,13 @@ export default function ProcessTrackingDetail(){
  const [summary,setSummary]=useState<Summary|null>(null);const [loading,setLoading]=useState(true);const [error,setError]=useState("");
  const [tab,setTab]=useState<Tab>("machine");const [search,setSearch]=useState("");
  const [sort,setSort]=useState("name");const [page,setPage]=useState(1);
- const load=async()=>{setLoading(true);setError("");try{const response=await api.get("/dashboard/summary",{params:{from:applied.from,to:applied.to,process_id:processId}});const data=response.data?.data as Summary;if(!data?.processes?.some(x=>String(x.id)===String(processId)))throw new Error("Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.");setSummary(data);}catch(e:unknown){setError(e instanceof Error?e.message:"Không thể tải dữ liệu công đoạn.");setSummary(null);}finally{setLoading(false);}};
- useEffect(()=>{void load();},[processId,applied.from,applied.to]);
+ const load=useCallback(async()=>{setLoading(true);setError("");try{const response=await api.get("/dashboard/summary",{params:{from:applied.from,to:applied.to,process_id:processId}});const data=response.data?.data as Summary;if(!data?.processes?.some(x=>String(x.id)===String(processId)))throw new Error("Công đoạn không tồn tại hoặc nằm ngoài phạm vi được phân công.");setSummary(data);}catch(e:unknown){setError(e instanceof Error?e.message:"Không thể tải dữ liệu công đoạn.");setSummary(null);}finally{setLoading(false);}},[processId,applied.from,applied.to]);
+ useEffect(()=>{void load();},[load]);
  const process=summary?.processes.find(x=>String(x.id)===String(processId));
- const machines=summary?.machine_summary||[],products=summary?.product_summary||[],workers=summary?.worker_summary||[],daily=summary?.daily_summary||[];
+ const machines=useMemo(()=>summary?.machine_summary||[],[summary]);
+ const products=useMemo(()=>summary?.product_summary||[],[summary]);
+ const workers=useMemo(()=>summary?.worker_summary||[],[summary]);
+ const daily=summary?.daily_summary||[];
  const totalOk=Number(summary?.total_ok||0),totalNg=Number(summary?.total_ng||0),total=totalOk+totalNg;
  const planned=Number(summary?.plan_summary?.find(x=>String(x.process_id)===String(processId))?.planned_quantity||0);
  const rows=useMemo(()=>{const items=(tab==="machine"?machines:tab==="product"?products:workers).filter(x=>{const label=tab==="machine"?(x as Machine).machine_code:tab==="product"?(x as Product).product_code:(x as Worker).worker_code+" "+(x as Worker).full_name;return label.toLocaleLowerCase("vi").includes(search.toLocaleLowerCase("vi"));});return items.sort((a,b)=>{const ar=tab==="machine"?a as Machine:tab==="product"?a as Product:a as Worker;const br=tab==="machine"?b as Machine:tab==="product"?b as Product:b as Worker;const aa=tab==="machine"?(ar as Machine).counted_output:tab==="product"?(ar as Product).quantity:(ar as Worker).actual_output;const bb=tab==="machine"?(br as Machine).counted_output:tab==="product"?(br as Product).quantity:(br as Worker).actual_output;const ap=tab==="machine"?(ar as Machine).maximum_output:tab==="product"?(ar as Product).planned_quantity:(ar as Worker).planned_output;const bp=tab==="machine"?(br as Machine).maximum_output:tab==="product"?(br as Product).planned_quantity:(br as Worker).planned_output;if(sort==="rate")return (rate(bb,bp)??-1)-(rate(aa,ap)??-1);if(sort==="actual")return bb-aa;const an=tab==="machine"?(ar as Machine).machine_code:tab==="product"?(ar as Product).product_code:(ar as Worker).worker_code;const bn=tab==="machine"?(br as Machine).machine_code:tab==="product"?(br as Product).product_code:(br as Worker).worker_code;return String(an).localeCompare(String(bn),"vi",{numeric:true});});},[tab,machines,products,workers,search,sort]);
