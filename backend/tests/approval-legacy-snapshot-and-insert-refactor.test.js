@@ -57,22 +57,23 @@ test('legacy snapshot retains numeric defaults, date fallback and explicit nulls
   assert.equal(report.machine_standard_id, null);
 });
 
-test('approved insert preserves 37 positional values and special defaults', () => {
+test('approved insert preserves 38 positional values and special defaults', () => {
   const item = { id: 11, worker_id: 2, process_id: 1, work_date: '2026-10-30',
     entry_date: '', shift: 'B', operation_type: 0, operation_mode: '',
     machine_no: 'M1', product_name: 'P1', standard_version_id: 0,
     machine_standard_id: null, training_percent_snapshot: 0,
     extra_data: { flag: true }, review_note: 'ok' };
   const values = Array.from(insert(item, 19));
-  assert.equal(values.length, 37);
+  assert.equal(values.length, 38);
   assert.deepEqual(values.slice(0, 10), [11, 2, 1, '2026-10-30', '2026-10-30', 'B', 0, '', 'M1', 'P1']);
   assert.equal(values[14], null);
   assert.equal(values[15], null);
   assert.equal(values[16], 0);
-  assert.equal(values[33], '{"flag":true}');
-  assert.equal(values[34], 'approved');
-  assert.equal(values[35], 'ok');
-  assert.equal(values[36], 19);
+  assert.equal(values[17], null);
+  assert.equal(values[34], '{"flag":true}');
+  assert.equal(values[35], 'approved');
+  assert.equal(values[36], 'ok');
+  assert.equal(values[37], 19);
 });
 
 test('approval uses extracted payload and INSERT without changing SQL', () => {

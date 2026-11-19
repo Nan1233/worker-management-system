@@ -506,7 +506,7 @@ function buildApprovedReportInsertValues(item, reviewerId) {
             item.id,item.worker_id,item.process_id,item.work_date,item.entry_date || item.work_date,item.shift,
             item.operation_type ?? null,item.operation_mode ?? null,item.machine_no,item.product_name,
             item.total_time,item.actual_time,item.deduction_time,item.standard_output,item.standard_version_id || null,
-            item.machine_standard_id || null,item.training_percent_snapshot ?? null,
+            item.machine_standard_id || null,item.training_percent_snapshot ?? null,item.exclude_kqd_from_tt_snapshot ?? null,
             item.actual_output,item.tt_ok,item.tt_ng,item.kqd_dap_lai,item.kqd_tuot,item.vo_do_long,item.xuoc_do_long,
             item.cong_gay,item.xoay,item.khong_dut,item.bavia_hut,item.ppcm,item.loi_cao_su,item.ng_kich_thuoc,
             item.cat_lem,item.note,serializeExtraData(item.extra_data),"approved",item.review_note,reviewerId,
@@ -858,10 +858,10 @@ function buildApprovedParentInsertQuery(item, reviewerId) {
     sql: `INSERT INTO production_reports
            (source_temp_id,worker_id,process_id,work_date,entry_date,shift,operation_type,operation_mode,machine_no,
             product_name,total_time,actual_time,deduction_time,standard_output,standard_version_id,machine_standard_id,
-            training_percent_snapshot,actual_output,tt_ok,tt_ng,kqd_dap_lai,kqd_tuot,
+            training_percent_snapshot,exclude_kqd_from_tt_snapshot,actual_output,tt_ok,tt_ng,kqd_dap_lai,kqd_tuot,
             vo_do_long,xuoc_do_long,cong_gay,xoay,khong_dut,bavia_hut,ppcm,loi_cao_su,ng_kich_thuoc,cat_lem,note,
             extra_data,status,review_note,reviewed_by,approved_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
     params: buildApprovedReportInsertValues(item, reviewerId),
   };
 }
