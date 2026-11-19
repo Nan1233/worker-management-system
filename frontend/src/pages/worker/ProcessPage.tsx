@@ -20,16 +20,12 @@ import {
 } from "../../services/productionService";
 
 
-import {
-    resolveProductStandard
-} from "../../services/masterDataService";
 import type { ProductStandardOption } from "../../services/masterDataService";
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
 import {
     clearProcessDraftAsync,
-    PROCESS_DRAFT_SAVE_FAILED_EVENT,
 } from "./processDraftStorage";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
 import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
@@ -115,6 +111,8 @@ import { useProcessMasterData } from "./useProcessMasterData";
 import { useProcessWorkerProfile } from "./useProcessWorkerProfile";
 import { useProcessProductOptions } from "./useProcessProductOptions";
 import { useMachineLineStandardLookup } from "./useMachineLineStandardLookup";
+import { useProcessSingleStandardLookup } from "./useProcessSingleStandardLookup";
+import { useProcessDraftSaveWarning } from "./useProcessDraftSaveWarning";
 import { useProcessDraftAutosave } from "./useProcessDraftAutosave";
 import { useProcessDraftRestore } from "./useProcessDraftRestore";
 import {
@@ -149,16 +147,7 @@ function ProcessPage() {
     const isRestoringDraftRef = useRef(false);
     const draftSaveTimerRef = useRef<number | null>(null);
     const resetVersionRef = useRef(0);
-    const draftSaveWarningShownRef = useRef(false);
-    useEffect(() => {
-        const onDraftSaveFailed = () => {
-            if (draftSaveWarningShownRef.current) return;
-            draftSaveWarningShownRef.current = true;
-            showToast("Không thể lưu bản nháp trên thiết bị. Hãy giữ trang này mở và kiểm tra bộ nhớ trước khi rời trang.", "warning");
-        };
-        window.addEventListener(PROCESS_DRAFT_SAVE_FAILED_EVENT, onDraftSaveFailed);
-        return () => window.removeEventListener(PROCESS_DRAFT_SAVE_FAILED_EVENT, onDraftSaveFailed);
-    }, [showToast]);
+    useProcessDraftSaveWarning(showToast);
 
 
     const navigate =
@@ -345,27 +334,7 @@ const machineAutocompleteOptions =
         setForm((current) => applyMachineAggregateToForm(current, aggregate, machineLines.length, activeNgOptions));
     }, [usesMultiMachineLines, machineLines, activeNgOptions]);
 
-    useEffect(() => {
-        let active = true;
-        if (!form.productName.trim() || !form.workDate) {
-            return () => { active = false; };
-        }
-        void resolveProductStandard(
-            processInfo.id,
-            form.machineNo.trim(),
-            form.productName.trim(),
-            form.workDate
-        ).then((resolved) => {
-            if (!active) return;
-            const resolvedOutput = Number(resolved.resolved_output_per_hour || 0);
-            if (resolvedOutput > 0) {
-                setForm((current) => ({ ...current, standardOutput: String(resolvedOutput) }));
-            }
-        }).catch(() => {
-            // Standard lookup failure keeps the manually entered standard; KQD is always ordinary NG.
-        });
-        return () => { active = false; };
-    }, [processInfo.id, form.machineNo, form.productName, form.workDate]);
+    useProcessSingleStandardLookup(processInfo.id, form, setForm);
 
     // KQD is an ordinary NG defect: actual output is always TT OK + every NG.
     const calculateActualOutput = (values: FormState): number =>
