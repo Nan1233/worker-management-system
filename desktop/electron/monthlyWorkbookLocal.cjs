@@ -1184,13 +1184,17 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
   // the user-approved sheet widths, column count, headers and printed layout.
   const paperForm = WORKBOOK1_FORMS[code] || null;
   const reportRows = new Map();
+  const reportOrdinals = new Map();
   if (paperForm) {
     let nextRow = paperForm.first - 2;
     let lastDate = null;
+    let dayStt = 0;
     for (const report of sortReports(processData?.reports || [])) {
       const day = dateKey(report.work_date);
-      if (day !== lastDate) { nextRow += 1; lastDate = day; }
-      reportRows.set(Number(report.id), ++nextRow);
+      if (day !== lastDate) { nextRow += 1; lastDate = day; dayStt = 0; }
+      const id = Number(report.id);
+      reportRows.set(id, ++nextRow);
+      reportOrdinals.set(id, ++dayStt);
     }
   }
   const sheet = workbook.addWorksheet('_KTC_SYNC');
@@ -1216,12 +1220,7 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
       paperForm ? reportRows.get(Number(report.id)) ?? null : null,
       paperForm ? asText(report.worker_code) : null,
       paperForm ? dateKey(report.work_date) : null,
-      paperForm ? (() => {
-        const day = dateKey(report.work_date);
-        const ordered = sortReports(processData?.reports || []);
-        return ordered.filter(item => dateKey(item.work_date) === day &&
-          reportRows.get(Number(item.id)) <= reportRows.get(Number(report.id))).length;
-      })() : null
+      paperForm ? reportOrdinals.get(Number(report.id)) ?? null : null
     ]);
   }
 }
