@@ -127,6 +127,13 @@ function parseMeta(workbook) {
   for (let row = 3; row <= metaSheet.rowCount; row += 1) {
     const id = Number(metaSheet.getCell(row, 1).value);
     if (!Number.isInteger(id) || id <= 0) continue;
+    // Duplicate IDs in hidden lineage can silently overwrite an earlier
+    // snapshot and route edits to the wrong approved report. Fail closed.
+    if (reports.has(id)) {
+      const error = new Error('Sheet _KTC_SYNC chứa ID báo cáo trùng. Hãy xuất lại Excel từ DB.');
+      error.code = 'EXCEL_SYNC_DUPLICATE_META_ID';
+      throw error;
+    }
     let original = {};
     try { original = JSON.parse(String(metaSheet.getCell(row, 4).value || '{}')); } catch {}
     reports.set(id, {
