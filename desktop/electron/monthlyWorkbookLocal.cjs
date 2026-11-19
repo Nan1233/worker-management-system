@@ -1,4 +1,5 @@
 const ExcelJS = require('exceljs');
+const { PROCESS_FILE_PREFIXES, processWorkbookFileName, summaryWorkbookFileName } = require('./monthlyWorkbookNaming.cjs');
 const { createPhysicalMachineMetadata } = require('./monthlyWorkbookPhysicalEvents.cjs');
 const { FORMS: ORIGINAL_KTC_FORMS, WORKBOOK1_FORMS, renderOriginalProcessTemplate } = require('./originalProcessExcelTemplate.cjs');
 const { calculateProductionMetrics, DEFAULT_SETTINGS, trainingFactor, calculateNg } = require('./productionCalculationEngine.cjs');
@@ -16,42 +17,6 @@ const PROCESS_SHEETS = Object.freeze({
   SX3: { sheet: 'SẢN XUẤT 3', title: 'SẢN XUẤT 3', deductionGroup: 'LỖI MÁY / THỜI GIAN TRỪ', defectGroup: 'NG PART' },
   CVK: { sheet: 'CÔNG VIỆC KHÁC', title: 'CÔNG VIỆC KHÁC (CVK)', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' }
 });
-
-
-// Tên file cố định để thư mục tháng luôn sắp xếp đúng thứ tự công đoạn.
-// Không dùng dấu tiếng Việt trong tên file để tránh lỗi đường dẫn ở Excel/Windows cũ.
-const PROCESS_FILE_PREFIXES = Object.freeze({
-  CAN: '01_CAN',
-  EP: '02_EP',
-  XLBV: '03_XU_LY_BAVIA',
-  GC: '04_CAT_LONG',
-  MAI: '05_MAI',
-  DO: '06_DO',
-  K1: '07_KIEM_1',
-  K2: '08_KIEM_2',
-  SX3: '09_SAN_XUAT_3',
-  CVK: '10_CONG_VIEC_KHAC'
-});
-
-function monthlyFileSuffix(date, payload) {
-  const yearMonth = String(payload?.yearMonth || date || '').slice(0, 7);
-  const [year, month] = yearMonth.split('-');
-  if (!/^\d{4}$/.test(year || '') || !/^\d{2}$/.test(month || '')) {
-    throw new Error(`Tháng xuất Excel không hợp lệ: ${yearMonth}`);
-  }
-  return `${month}-${year}`;
-}
-
-function processWorkbookFileName(processCode, date, payload) {
-  const prefix = PROCESS_FILE_PREFIXES[processCode];
-  if (!prefix) throw new Error(`Công đoạn không hỗ trợ xuất file riêng: ${processCode}`);
-  return `${prefix}_${monthlyFileSuffix(date, payload)}.xlsx`;
-}
-
-function summaryWorkbookFileName(date, payload) {
-  return `00_TONG_HOP_SAN_XUAT_${monthlyFileSuffix(date, payload)}.xlsx`;
-}
-
 
 
 // Danh mục cố định đọc từ desktop/assets/templates/file-mau.xlsx.
