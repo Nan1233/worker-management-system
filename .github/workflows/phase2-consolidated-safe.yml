@@ -13,6 +13,7 @@ on:
       - frontend/src/security/permissions.ts
       - frontend/src/pages/admin/Permissions.css
       - frontend/tests/admin-permission-responsive.contract.test.cjs
+      - backend/tests/phase2-batch3-historical-kpi-parity.test.js
       - frontend/src/pages/manager/**
       - frontend/tests/manager-approved-native-navigation.contract.test.cjs
       - frontend/tests/manager-pending-native-table.contract.test.cjs
@@ -57,7 +58,25 @@ jobs:
             tests/proposalReviewRollback.behavior.test.js \
             tests/production-child-totals-validation.test.js \
             tests/production-daily-hours-parity-refactor.test.js \
-            tests/production-submission-queue.test.js
+            tests/production-submission-queue.test.js \
+            tests/proposalReviewRollback.behavior.test.js \
+            tests/review-transaction-failure-order-regression.test.js \
+            tests/approved-edit-concurrency.test.js \
+            tests/logical-duplicate-transaction.test.js \
+            tests/production-submission-lock.contract.test.js \
+            tests/non-product-work-idempotency.contract.test.js \
+            tests/historical-standard-resolution.test.js \
+            tests/historical-standard-overlap-guard.test.js \
+            tests/standard-ambiguity-fail-closed.test.js \
+            tests/approved-version-snapshot-determinism-regression.test.js \
+            tests/rollback-snapshot-v2.test.js \
+            tests/gc-physical-machine-hours.test.js \
+            tests/gc-machine-time-accounting.test.js \
+            tests/shared-machine-accounting-flow.test.js \
+            tests/shared-production-metric-primitives.test.js \
+            tests/pending-kpi-machine-lines.test.js \
+            tests/approved-machine-copy-real-mapping-integration.test.js \
+            tests/phase2-batch3-historical-kpi-parity.test.js
 
   frontend:
     name: Frontend focused regression, lint, typecheck and build
