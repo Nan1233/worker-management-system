@@ -1182,11 +1182,12 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
   // The six approved Workbook1 paper forms have no visible ID column.
   // Store an exact row-to-report mapping in veryHidden metadata, preserving
   // the user-approved sheet widths, column count, headers and printed layout.
-  const paperForm = WORKBOOK1_FORMS[code] || null;
+  const paperForm = WORKBOOK1_FORMS[code] || ORIGINAL_KTC_FORMS[code] || null;
+  const sourceFirstDataRow = paperForm ? paperForm.first + (WORKBOOK1_FORMS[code] ? 0 : 1) : null;
   const reportRows = new Map();
   const reportOrdinals = new Map();
   if (paperForm) {
-    let nextRow = paperForm.first - 2;
+    let nextRow = sourceFirstDataRow - 2;
     let lastDate = null;
     let dayStt = 0;
     for (const report of sortReports(processData?.reports || [])) {
@@ -1202,12 +1203,12 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
   sheet.getCell('A1').value = JSON.stringify({
     version: EXCEL_SYNC_CONTRACT_VERSION,
     processCode: code,
-    sheetName: processConfig.sheet,
+    sheetName: templateMapping && paperForm ? paperForm.sheet : processConfig.sheet,
     generatedAt: new Date().toISOString(),
     yearMonth,
     gcHelperSheet: code === 'GC' ? GC_HELPER_SHEET : null,
     rowIdentityMode: paperForm ? 'KTC_SYNC_ROW_V1' : null,
-    firstDataRow: paperForm ? paperForm.first : null,
+    firstDataRow: sourceFirstDataRow,
     columns: editable
   });
   sheet.addRow(['report_id', 'expected_updated_at', 'operation_mode', 'original_json', 'source_row', 'worker_code', 'work_date', 'row_stt']);
