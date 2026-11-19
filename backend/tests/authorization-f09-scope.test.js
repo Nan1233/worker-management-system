@@ -201,11 +201,20 @@ test('pending approve/reject and edit require functional permission plus process
   assert.match(ctrl, /WORKER_OWNERSHIP_FORBIDDEN/);
 });
 
-test('approval model still enforces manager_processes at transaction boundary', () => {
+test('transactional approval scope SQL requires manager_processes and limits editable statuses', () => {
+  // SQL lives in the pure query-builder module after the approval-model split.
   const approval = read('models/productionTempApprovalModel.js');
-  assert.match(approval, /manager_processes mp ON mp\.process_id=temp\.process_id/);
-  assert.match(approval, /mp\.manager_id = \?/);
-  assert.match(approval, /status IN \('pending','need_fix'\)/);
+  assert.match(approval, /buildApprovalScopeQuery/);
+  const { buildApprovalScopeQuery } = require('../models/productionTempApprovalQueries');
+  const scoped = buildApprovalScopeQuery([71, 72], 9, false);
+  assert.match(scoped.sql, /JOIN manager_processes mp ON mp\.process_id\s*=\s*temp\.process_id/);
+  assert.match(scoped.sql, /mp\.manager_id\s*=\s*\?/);
+  assert.match(scoped.sql, /temp\.status IN \('pending','need_fix'\)/);
+  assert.match(scoped.sql, /FOR UPDATE/);
+  assert.deepEqual(scoped.params, [71, 72, 9]);
+  const admin = buildApprovalScopeQuery([71], 9, true);
+  assert.doesNotMatch(admin.sql, /manager_processes/);
+  assert.deepEqual(admin.params, [71]);
 });
 
 test('formula read filters products/processes/scopes by current process scope', () => {
