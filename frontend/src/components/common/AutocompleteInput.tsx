@@ -63,7 +63,11 @@ function AutocompleteInput({
 
     useEffect(() => {
         if (!id.startsWith("machineNo")) return;
-        const refresh = () => setMachineOperationType(readMachineOperationType());
+        const refresh = () => setMachineOperationType(id.startsWith("machineNo")
+            ? Array.from(document.querySelectorAll(".worker-mode-panel .worker-mode-group:first-child .worker-choice-row button"))
+                .find((button) => button.classList.contains("active"))
+                ?.textContent?.trim().toUpperCase() || ""
+            : "");
         refresh();
         const observer = new MutationObserver(refresh);
         observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] });
