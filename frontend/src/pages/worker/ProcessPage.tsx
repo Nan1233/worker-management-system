@@ -290,7 +290,6 @@ const machineAutocompleteOptions =
     const {
         productAutocompleteOptions,
         getMachineProductOptions,
-        getMachineProductOptionsForLine,
         getMachineProductAutocompleteOptions,
     } = useProcessProductOptions({
         processCode,
