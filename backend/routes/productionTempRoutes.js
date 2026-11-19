@@ -229,7 +229,14 @@ const denyAdminOpsPendingEdit = (req,res,next) => String(req.user?.role||"").toL
   ? res.status(403).json({success:false,code:"ROLE_SCOPE_FORBIDDEN",message:"Admin vận hành không được sửa báo cáo đang chờ duyệt"})
   : next();
 
-router.put("/:id",authMiddleware,checkRole("admin","admin_ops","manager","lead","worker"),denyAdminOpsPendingEdit,validate({id:{in:"params",required:true,type:"positiveInt"}}),permission("REPORT_PENDING_EDIT","REPORT_APPROVE","WORKER_ENTRY"),notifyWorkerOnTempEdit,controller.updateTempReport);
+// Leads must submit report-edit proposals for pending rows; they may approve
+// reports in scope and edit approved reports through their separate endpoints.
+// This guard does not run on the internal transaction-owned proposal review.
+const denyLeadPendingDirectEdit = (req,res,next) => String(req.user?.role||"").toLowerCase() === "lead"
+  ? res.status(403).json({success:false,code:"LEAD_PENDING_EDIT_REQUIRES_PROPOSAL",message:"Tổ trưởng phải đề xuất chỉnh sửa báo cáo chờ duyệt"})
+  : next();
+
+router.put("/:id",authMiddleware,checkRole("admin","admin_ops","manager","lead","worker"),denyAdminOpsPendingEdit,denyLeadPendingDirectEdit,validate({id:{in:"params",required:true,type:"positiveInt"}}),permission("REPORT_PENDING_EDIT","REPORT_APPROVE","WORKER_ENTRY"),notifyWorkerOnTempEdit,controller.updateTempReport);
 
 router.delete("/:id",authMiddleware,checkRole("admin","manager","lead"),permission("REPORT_DELETE"),async(req,res)=>{try{const reportId=Number(req.params.id);if(!Number.isInteger(reportId)||reportId<=0)return res.status(400).json({success:false,message:"ID báo cáo không hợp lệ"});const reason=String(req.body?.reason||"").trim();if(!reason)return res.status(400).json({success:false,message:"Vui lòng nhập lý do xóa báo cáo"});const result=await ProductionTemp.deleteTempReport(reportId,Number(req.user.id),req.user.role==="admin",reason,requestMeta(req));invalidateManagerReportLists();return res.json({success:true,message:"Đã xóa báo cáo",data:result});}catch(error){console.error("DELETE TEMP REPORT ERROR:",error);return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa báo cáo"});}});
 
