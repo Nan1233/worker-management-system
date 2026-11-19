@@ -1185,7 +1185,7 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
   const paperForm = WORKBOOK1_FORMS[code] || null;
   const reportRows = new Map();
   if (paperForm) {
-    let nextRow = paperForm.first - 1;
+    let nextRow = paperForm.first - 2;
     let lastDate = null;
     for (const report of sortReports(processData?.reports || [])) {
       const day = dateKey(report.work_date);
