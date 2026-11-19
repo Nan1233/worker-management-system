@@ -26,9 +26,11 @@ test('approved manager rows navigate by stable report ID without DOM index/refet
   assert.equal(desktop.match(/<ApprovedReports onOpenReport=\{onOpenReport\} \/>/g)?.length, 3);
 });
 
-test('pending workspace behavior is retained until checkbox/DOM refactor is tested', () => {
+test('pending workspace navigates by report ID without DOM interception', () => {
   const workspace = read('src/pages/manager/ManagerReportWorkspaceFix.tsx');
-  assert.match(workspace, /installPendingTableFix/);
-  assert.match(workspace, /ktc:manager-pending-page-data/);
-  assert.match(workspace, /pending-reference-table/);
+  const reports = read('src/pages/manager/Reports.tsx');
+  assert.match(workspace, /<Reports onOpenPendingReport=\{openReport\} \/>/);
+  assert.match(workspace, /report\/review\?source=pending&date=/);
+  assert.match(reports, /checked=\{selectedIds\.includes\(Number\(r\.id\)\)\}/);
+  assert.doesNotMatch(workspace, /installPendingTableFix|MutationObserver|ktc:manager-pending-page-data/);
 });

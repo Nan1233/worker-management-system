@@ -10,15 +10,6 @@ import "./ReportsSplitReference.css";
 import "./ReportTableSimplified.css";
 import "./ReportsDetailCompact.css";
 
-const reportCodes = (r: ProductionReport, kind: "machine" | "product"): string => {
-    const lines = Array.isArray(r.machine_lines) ? r.machine_lines : [];
-    const values = lines.map(line => kind === "machine" ? line.machine_code : line.product_code)
-        .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
-    if (kind === "machine" && r.machine_no?.trim()) values.push(r.machine_no.trim());
-    if (kind === "product" && r.product_name?.trim()) values.push(r.product_name.trim());
-    return [...new Set(values)].join(", ") || "—";
-};
-
 // Preserve the manager report-code display, including duplicate disambiguation.
 function pendingReportCode(report: ProductionReport, index = 0, duplicate = false) {
     const data = report as ProductionReport & Record<string, unknown>;

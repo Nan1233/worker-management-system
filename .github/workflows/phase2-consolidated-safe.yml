@@ -10,6 +10,9 @@ on:
     paths:
       - .github/workflows/phase2-consolidated-safe.yml
       - frontend/tests/permission-cache-invalidation-race.test.cjs
+      - frontend/src/pages/manager/**
+      - frontend/tests/manager-approved-native-navigation.contract.test.cjs
+      - frontend/tests/manager-pending-native-table.contract.test.cjs
   workflow_dispatch:
 
 permissions:
@@ -75,6 +78,7 @@ jobs:
           node --test \
             tests/machine-event-participant-api.contract.test.cjs \
             tests/manager-approved-native-navigation.contract.test.cjs \
+            tests/manager-pending-native-table.contract.test.cjs \
             tests/f02-process-form-extracted-hooks.test.cjs \
             tests/permission-cache-invalidation-race.test.cjs
       - run: npm run typecheck
