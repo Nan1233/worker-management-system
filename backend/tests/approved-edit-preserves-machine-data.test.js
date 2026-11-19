@@ -42,7 +42,7 @@ function build({ mode = 'MACHINE', processId = 60001, actualTime = 8, machineNo 
   return { svc, sqls };
 }
 const quiet = async (fn) => { const o = [console.log, console.warn, console.error]; console.log = console.warn = console.error = () => {}; try { return await fn(); } finally { [console.log, console.warn, console.error] = o; } };
-const run = (svc, patch) => quiet(() => svc.updateApprovedReport({ reportId: 5001, patch, reason: 'sửa', userId: 70, actor: { id: 70, role: 'manager' }, expectedUpdatedAt: '2026-10-23 01:00:00' }));
+const run = (svc, patch, expectedUpdatedAt = '2026-10-23 01:00:00') => quiet(() => svc.updateApprovedReport({ reportId: 5001, patch, reason: 'sửa', userId: 70, actor: { id: 70, role: 'manager' }, expectedUpdatedAt }));
 
 test('note-only edit of an approved machine report never writes machine lines or machine defects', async () => {
   const { svc, sqls } = build({ machineNo: 'M1', productName: 'P1' });
@@ -97,4 +97,28 @@ test('CONTRACT manual approved report: defects sent as [] is an explicit clear (
   await run(svc, { defects: [] });
   assert.ok(sqls.some((s) => /^DELETE FROM production_report_defects/.test(s)));
   assert.equal(sqls.some((s) => /^INSERT INTO production_report_defects/.test(s)), false);
+});
+
+test('stale approved edit fails with 409, rolls back and never writes any approved or machine rows', async () => {
+  const { svc, sqls } = build({ mode: 'MANUAL', machineNo: 'M1', productName: 'P1' });
+  await assert.rejects(
+    () => run(svc, { note: 'stale editor must not overwrite' }, '2026-10-22 01:00:00'),
+    error => error.code === 'REPORT_VERSION_CONFLICT' && error.status === 409
+  );
+  assert.ok(sqls.some(sql => /SELECT \* FROM production_reports WHERE id=\? FOR UPDATE/.test(sql)), 'lock current report');
+  assert.ok(sqls.includes('ROLLBACK'), 'transaction rolled back');
+  assert.ok(!sqls.includes('COMMIT'), 'stale edit never commits');
+  assert.ok(!sqls.some(sql => /^(UPDATE|INSERT|DELETE)/.test(sql)), 'stale edit has zero SQL writes');
+});
+
+test('current approved edit still commits and preserves machine data after a separate stale rejection', async () => {
+  const { svc, sqls } = build({ mode: 'MACHINE', machineNo: 'M1', productName: 'P1' });
+  await assert.rejects(
+    () => run(svc, { note: 'stale' }, '2026-10-22 01:00:00'),
+    error => error.code === 'REPORT_VERSION_CONFLICT'
+  );
+  const result = await run(svc, { note: 'valid editor' });
+  assert.ok(result.version);
+  assert.ok(sqls.includes('COMMIT'));
+  assert.equal(sqls.some(sql => /^(UPDATE|INSERT|DELETE) production_report_machine_(lines|defects)/.test(sql)), false);
 });
