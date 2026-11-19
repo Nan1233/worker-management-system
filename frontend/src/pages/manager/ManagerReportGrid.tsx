@@ -66,7 +66,8 @@ export default function ManagerReportGrid(){
  },[process,from,to,search,page,showToast]);
  useEffect(()=>{const requestSequence=requestSeqRef;void load();return()=>{requestSequence.current+=1}},[load]);
  useEffect(()=>{void getAllWorkers().then(list=>setWorkerDirectory(Object.fromEntries(list.map(w=>[String(w.worker_code||"").trim(),{worker_id:Number(w.worker_id),full_name:String(w.full_name||"")}]).filter(([code])=>Boolean(code))))).catch(()=>{})},[]);
- useEffect(()=>{setPage(1);if(!dirty){setEditing(null);setSelectedId(null);setDrafts({});}setProcessId(process.processId)},[process,from,to,search,dirty]);
+ const previousFilterRef=useRef<string|null>(null);
+ useEffect(()=>{const key=JSON.stringify([process.processId,from,to,search]);if(previousFilterRef.current===key)return;previousFilterRef.current=key;setPage(1);if(!dirty){setEditing(null);setSelectedId(null);setDrafts({});}setProcessId(process.processId)},[process,from,to,search,dirty]);
  useEffect(()=>{const before=(e:BeforeUnloadEvent)=>{if(!dirty)return;e.preventDefault();e.returnValue=""};addEventListener("beforeunload",before);return()=>removeEventListener("beforeunload",before)},[dirty]);
  useEffect(()=>{let alive=true;if(!processId){setDeductions([]);setDefects([]);return}Promise.all([getCachedDefects(processId),getCachedDeductions(processId)]).then(([a,b])=>{if(!alive)return;setDefects(normalizeDefectOptions(a,processId));setDeductions(normalizeDeductionOptions(b,processId))}).catch(()=>{if(alive){setDefects([]);setDeductions([])}});return()=>{alive=false}},[processId]);
  const row=(r:ProductionReport)=>drafts[Number(r.id)]||r,workerName=(r:ProductionReport)=>{const x=row(r),code=String((x as any).worker_code||"").trim();return workerDirectory[code]?.full_name||String((x as any).full_name||(x as any).worker_name||"").trim()||"—"},
