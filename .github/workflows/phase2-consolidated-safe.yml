@@ -9,6 +9,7 @@ on:
       - refactor/ktc-local-cleanup
     paths:
       - .github/workflows/phase2-consolidated-safe.yml
+      - frontend/tests/permission-cache-invalidation-race.test.cjs
   workflow_dispatch:
 
 permissions:
