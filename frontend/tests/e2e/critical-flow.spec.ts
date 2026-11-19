@@ -5,12 +5,13 @@ import { ACCOUNTS, API, apiToken, hashPath, loginManagement, loginWorker, phoneC
 // (backend/tests/integration/e2e-server.js). Nothing is mocked and no step is
 // skipped for missing credentials: the accounts are seeded by the e2e server.
 //
-//   pending -> REJECTED -> worker edits the SAME report -> pending -> APPROVED
+//   worker submits -> manager rejects -> worker sees reason but cannot edit rejected
+//   -> another synthetic pending report -> manager approves it (current business policy)
 //
 // Excel: workbooks are produced by the Desktop app only, so on the web the
 // export page must say so (and link to the Desktop download).
 
-const state: { reportId: number; managerToken: string; workerToken: string } = { reportId: 0, managerToken: '', workerToken: '' };
+const state: { reportId: number; approvableId: number; managerToken: string; workerToken: string } = { reportId: 0, approvableId: 0, managerToken: '', workerToken: '' };
 
 async function openFirstPendingReport(page: Page) {
   await page.goto(route('/manager/reports'));
@@ -42,11 +43,9 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     await page.locator('.worker-time-part input').nth(0).fill('7');
     await page.locator('#ttOk').fill('100');
 
-    await page.getByRole('button', { name: 'Nộp dữ liệu' }).click();
-    // The form asks for confirmation and shows the hours that will be counted.
-    await expect(page.getByText('Tổng thời gian hôm nay sau khi nộp')).toBeVisible();
+    // Current form intentionally submits with one click, no second generic confirmation.
     const created = page.waitForResponse((r) => new URL(r.url()).pathname.replace(/\/$/, '') === '/api/production-temp' && r.request().method() === 'POST');
-    await page.getByRole('button', { name: 'Xác nhận nộp' }).click();
+    await page.getByRole('button', { name: 'Nộp dữ liệu' }).click();
     const response = await created;
     expect(response.status()).toBe(201);
     state.reportId = (await response.json()).id;
@@ -75,39 +74,46 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     await context.close();
   });
 
-  test('worker sees the reason, edits the SAME report and resubmits it', async ({ browser, request }) => {
+  test('worker sees rejection, and current policy refuses any edit to the rejected report', async ({ browser, request }) => {
     const context = await phoneContext(browser);
     const page = await context.newPage();
     await loginWorker(page);
-
-    // The notification explains what happened…
     await page.goto(route('/worker/notifications'));
     await expect(page.getByText('Báo cáo đã bị từ chối')).toBeVisible();
     await expect(page.getByText(/Nhập sai số lượng OK/)).toBeVisible();
-    await expect(page.getByText(/Báo cáo ngày \d{4}-\d{2}-\d{2}/)).toBeVisible();
 
-    // …and the report detail offers the way back in.
     await page.goto(route(`/worker/history/${state.reportId}?source=temp`));
     const callout = page.getByTestId('worker-edit-callout');
     await expect(callout).toContainText('Báo cáo đã bị từ chối');
-    await expect(callout).toContainText('Nhập sai số lượng OK');
-    await callout.getByRole('button', { name: 'Sửa và gửi lại' }).click();
-    await expect.poll(() => hashPath(page)).toBe(`/worker/history/${state.reportId}/edit`);
-
-    await page.locator('#ttOk').fill('90');
-    const saved = page.waitForResponse((r) => r.url().endsWith(`/api/production-temp/${state.reportId}`) && r.request().method() === 'PUT');
-    await page.getByRole('button', { name: 'Lưu thay đổi' }).click();
-    expect((await saved).status()).toBe(200);
-
     const detail = await request.get(`${API}/api/production-temp/${state.reportId}`, { headers: { Authorization: `Bearer ${state.workerToken}` } });
-    const report = (await detail.json()).data;
-    expect(report.status).toBe('pending');
-    expect(Number(report.tt_ok)).toBe(90);
-    expect(report.review_note ?? null).toBeNull();
+    expect(detail.status()).toBe(200);
+    const snapshot = (await detail.json()).data;
+    const denied = await request.put(`${API}/api/production-temp/${state.reportId}`, {
+      headers: { Authorization: `Bearer ${state.workerToken}` },
+      data: { tt_ok: 90, actual_output: 90, expected_updated_at: snapshot.updated_at }
+    });
+    expect(denied.status()).toBe(422);
+    expect((await denied.json()).code).toBe('WORKER_REPORT_STATUS_NOT_EDITABLE');
     await context.close();
+
+    // Use a separate, real API-created pending report for the approved-flow smoke:
+    // rejected reports cannot be resubmitted under the current customer policy.
+    const date = new Date(Date.now() + 7 * 3600_000 - 13 * 86400_000).toISOString().slice(0,10);
+    const created = await request.post(`${API}/api/production-temp`, {
+      headers: { Authorization: `Bearer ${state.workerToken}` },
+      data: {
+        process_id: 6, work_date: date, shift: 'D', operation_mode: 'MANUAL',
+        product_name: '0603', total_time: 2, actual_time: 2, deduction_time: 0,
+        standard_output: 80, tt_ok: 90, tt_ng: 0, actual_output: 90,
+        defects: [], deductions: [], client_request_id: `e2e-approval-${Date.now()}`
+      }
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    state.approvableId = (await created.json()).id;
+    expect(state.approvableId).toBeGreaterThan(0);
   });
 
-  test('manager approves the corrected report; Excel page explains the Desktop requirement', async ({ browser, request }) => {
+  test('manager approves a separate pending report; Excel page explains Desktop requirement', async ({ browser, request }) => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
@@ -119,7 +125,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     if (await confirm.count()) await confirm.first().click();
     expect((await approved).status()).toBe(200);
 
-    const detail = await request.get(`${API}/api/production-temp/${state.reportId}`, { headers: { Authorization: `Bearer ${state.managerToken}` } });
+    const detail = await request.get(`${API}/api/production-temp/${state.approvableId}`, { headers: { Authorization: `Bearer ${state.managerToken}` } });
     expect((await detail.json()).data.status).toBe('approved');
 
     await page.goto(route('/manager/approved'));
