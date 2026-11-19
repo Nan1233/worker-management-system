@@ -5,7 +5,7 @@ import { getAccessToken } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 import DesktopExcelNotice from "../../components/system/DesktopExcelNotice";
 
-export default function ApprovedReportsDesktopActions() {
+export default function ApprovedReportsDesktopActions({ onOpenReport }: { onOpenReport?: (reportId: number) => void } = {}) {
     const { can } = usePermissions();
     const canExport = can("REPORT_EXPORT");
     const [busy, setBusy] = useState(false);
@@ -76,9 +76,9 @@ export default function ApprovedReportsDesktopActions() {
         }
     };
 
-    if (!canExport) return <ApprovedReports />;
+    if (!canExport) return <ApprovedReports onOpenReport={onOpenReport} />;
     // In a browser there is no Excel button at all: say why and where to get the Desktop app.
-    if (!window.ktcDesktop?.isDesktop) return <><DesktopExcelNotice compact /><ApprovedReports /></>;
+    if (!window.ktcDesktop?.isDesktop) return <><DesktopExcelNotice compact /><ApprovedReports onOpenReport={onOpenReport} /></>;
 
     return (
         <>
@@ -113,7 +113,7 @@ export default function ApprovedReportsDesktopActions() {
                 {exportMessage && <span role="status" aria-live="polite" style={{ fontSize: 12 }}>{exportMessage}</span>}
                 {syncMessage && <span role="status" aria-live="polite" style={{ fontSize: 12, color: syncSuccess ? "#166534" : "#b42323" }}>{syncMessage}</span>}
                 </div></div>
-            <ApprovedReports />
+            <ApprovedReports onOpenReport={onOpenReport} />
         </>
     );
 }
