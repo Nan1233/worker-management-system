@@ -3,7 +3,10 @@
 // (1 h 40 min = 1.6667), so three such reports add up to 5.0001 h and a strict `> 12` check on a day that is
 // exactly 12 h (3 x 1h40 + 7h) rejected a legal day. Compare in whole minutes instead.
 // Tạm tắt kiểm tra tổng giờ làm/ngày. Đổi thành true để bật lại khi cần.
-const DAILY_HOURS_ENFORCEMENT_ENABLED = false;
+// Production policy remains off. An isolated test-only override verifies the
+// dormant transactional limiter on disposable TiDB without changing KTC behavior.
+const DAILY_HOURS_ENFORCEMENT_ENABLED =
+    process.env.NODE_ENV === 'test' && process.env.KTC_IT_ENFORCE_DAILY_HOURS === '1';
 const DAILY_HOURS_LIMIT = 12;
 const exceedsDailyHoursLimit = (projectedHours, limitHours = DAILY_HOURS_LIMIT) => {
     const projected = Number(projectedHours);
