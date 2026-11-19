@@ -13,6 +13,7 @@ const db = require("../config/db");
 const AuditService = require("../services/auditService");
 const ProductionTemp = require("../models/productionTempModel");
 const atomicApprovalModel = require("../models/productionTempApprovalModel");
+const { normalizeProposalReadRow } = require("../services/reportEditProposalReadNormalization");
 const { getConnection, beginReadCommittedTransaction, query: transactionQuery, commit: commitTransaction, rollback: rollbackTransaction } = require("../models/productionTempModelShared");
 
 const { TtlCache } = require("../utils/cache");
@@ -26,9 +27,7 @@ function invalidateManagerReportLists() {
 const proposalDetail = async (id) => {
     const [rows] = await db.promise().query(`SELECT p.*, u.full_name AS proposer_name, u.username AS proposer_username FROM report_edit_proposals p LEFT JOIN users u ON u.id = p.proposer_user_id WHERE p.id = ? LIMIT 1`, [id]);
     if (!rows?.[0]) return null;
-    const row = rows[0];
-    if (typeof row.proposed_data === "string") { try { row.proposed_data = JSON.parse(row.proposed_data); } catch { row.proposed_data = {}; } }
-    return row;
+    return normalizeProposalReadRow(rows[0]);
 };
 const assertProposalAccess = async (req, reportId) => req.user?.role === "admin" ? true : ProductionTemp.canManageReport(Number(reportId), req.user.id, false);
 
@@ -62,8 +61,7 @@ router.get("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lea
         const [rows] = await db.promise().query(`SELECT p.*, u.full_name AS proposer_name, u.username AS proposer_username, prt.work_date, prt.shift, prt.process_id, prt.machine_no, prt.product_name, w.worker_code, wu.full_name AS worker_name FROM report_edit_proposals p LEFT JOIN users u ON u.id = p.proposer_user_id LEFT JOIN production_reports_temp prt ON prt.id = p.report_id LEFT JOIN workers w ON w.id = prt.worker_id LEFT JOIN users wu ON wu.id = w.user_id ORDER BY p.updated_at DESC, p.id DESC LIMIT 300`);
         const accessible = [];
         for (const row of rows || []) if (await assertProposalAccess(req, row.report_id)) {
-            if (typeof row.proposed_data === "string") { try { row.proposed_data = JSON.parse(row.proposed_data); } catch { row.proposed_data = {}; } }
-            accessible.push(row);
+            accessible.push(normalizeProposalReadRow(row));
         }
         return res.json({success:true, data:accessible});
     } catch (error) { console.error("GET EDIT PROPOSALS ERROR:", error); return res.status(error.status || 500).json({success:false,message:error.message || "Không thể tải đề xuất sửa"}); }
