@@ -79,7 +79,22 @@ async function buildSheet() {
 
 const { LAYOUTS } = require('../../config/excelLayouts');
 const FIXED = LAYOUTS.GIA_CONG_04.fixed;
-const numberAt = (row, column) => Number(row.getCell(column).value?.result ?? row.getCell(column).value ?? 0);
+const numberAt = (row, column) => {
+  const value = row.getCell(column).value;
+  if (value && typeof value === 'object' && typeof value.formula === 'string') {
+    // ExcelJS does not evaluate formulas. Some XLSX readers omit the cached
+    // value for SUM(...) = 0; assert the real formula and verify its inputs.
+    if (value.result !== null && value.result !== undefined) return Number(value.result);
+    if (column === FIXED.deductionTotal) {
+      const [from, to] = LAYOUTS.GIA_CONG_04.deductions;
+      const letter = (n) => { let s=''; while(n>0){ n--; s=String.fromCharCode(65+n%26)+s; n=Math.floor(n/26); } return s; };
+      assert.equal(value.formula, `SUM(${letter(from)}${row.number}:${letter(to)}${row.number})`);
+      return Array.from({ length: to - from + 1 }, (_, i) => Number(row.getCell(from + i).value || 0)).reduce((a,b) => a+b, 0);
+    }
+    throw Error('No cached formula result for column ' + column);
+  }
+  return Number(value ?? 0);
+};
 
 test('GC workbook: one date block carrying the business work date, one row per worker line', opts, async () => {
   const { result, sheet } = await buildSheet();
