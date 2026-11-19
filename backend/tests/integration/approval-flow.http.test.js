@@ -112,7 +112,7 @@ test('bulk approve with expected_updated_at detects a report edited after the li
   const staleStamp = detail.body.data.updated_at;
   // worker edits inside the 10-minute window after the manager loaded the list
   await new Promise((resolve) => setTimeout(resolve, 1100));
-  const edit = await h.request('PUT', `/api/production-temp/${id}`, { token: s.t1, body: { ...body, tt_ok: 80, actual_output: 80 } });
+  const edit = await h.request('PUT', `/api/production-temp/${id}`, { token: s.t1, body: { ...body, tt_ok: 80, actual_output: 80, expected_updated_at: staleStamp } });
   assert.equal(edit.status, 200, JSON.stringify(edit.body));
   // The web app sends both ids and targets.
   const res = await h.request('POST', '/api/production-temp/approve-selected', { token: s.mgr, body: { ids: [id], targets: [{ id, expected_updated_at: staleStamp }] } });
@@ -164,7 +164,7 @@ test('approved edit uses optimistic concurrency: a stale expected_updated_at is 
   assert.equal((await approve([id])).status, 200);
   const approved = await approvedRow(id);
   const stale = '2020-01-01T00:00:00.000Z';
-  const res = await h.request('PUT', `/api/production/${approved.id}`, { token: s.mgr, body: { ...body, tt_ok: 60, actual_output: 60, expected_updated_at: stale } });
+  const res = await h.request('PUT', `/api/production/${approved.id}`, { token: s.mgr, body: { ...body, tt_ok: 60, actual_output: 60, reason: 'Kiểm tra xung đột', expected_updated_at: stale } });
   assert.equal(res.status, 409, JSON.stringify(res.body));
   assert.equal(Number((await approvedRow(id)).tt_ok), 100, 'value unchanged');
 });
@@ -183,7 +183,7 @@ test('approved report detail carries process_code (the edit form picks its layou
 test('lead: may edit approved reports in scope, may not edit pending reports, not outside scope', opts, async () => {
   const { id, body } = await pendingReport();
   // pending edit by lead: only the lead\'s own proposals are editable
-  const pendingEdit = await h.request('PUT', `/api/production-temp/${id}`, { token: s.lead, body: { ...body, tt_ok: 50 } });
+  const pendingEdit = await h.request('PUT', `/api/production-temp/${id}`, { token: s.lead, body: { ...body, tt_ok: 50, actual_output: 50 } });
   assert.equal(pendingEdit.status, 403, JSON.stringify(pendingEdit.body));
 
   assert.equal((await approve([id], s.lead)).status, 200, 'lead can approve inside scope');
