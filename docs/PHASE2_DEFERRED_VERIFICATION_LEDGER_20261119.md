@@ -53,6 +53,8 @@ Changed:
 - `frontend/tests/manager-approved-native-navigation.contract.test.cjs` (remove obsolete DOM-hack expectation)
 - `.github/workflows/phase2-consolidated-safe.yml` (include new Manager test and scoped trigger)
 
+**Final CI evidence (newest code-bearing SHA):** run [44504790741](https://github.com/Nan1233/worker-management-system/actions/runs/44504790741), source commit `7ea510032d8e7428e422b39d47cb4dc65d25a830`: **4/4 jobs SUCCESS**, Backend 43/43, Frontend 16/16, Desktop 21/21 (**80/80 focused Node tests**), frontend typecheck/lint/build PASS. Source changes after this run were documentation-only and did not alter application/test code.
+
 **Passing CI evidence before last snapshot assertion:** run [44504330287](https://github.com/Nan1233/worker-management-system/actions/runs/44504330287), commit `efaa118e1344b14d435cfd060d7d46b904f1550f`: Backend 43/43, Frontend 16/16 including new Manager contract test, Desktop 21/21, typecheck/lint/build PASS, 4/4 jobs success (**80/80 selected Node tests**). Further changes to prioritize immutable training snapshot and add an assertion require the follow-up CI run on the final code SHA.
 
 **D-04 PARTIAL:** source stable-ID navigation and React row handlers are CI-verified; click/keyboard filtering/page changes in a real browser, manager/admin_ops route authorization and visual checks remain to be exercised.
