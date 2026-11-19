@@ -74,8 +74,16 @@ async function buildDatabase() {
       await connection.query(fs.readFileSync(path.join(BACKEND_DIR, 'migrations', file), 'utf8'));
     }
 
-    // Schema gaps that used to be patched here (product_standards.encoding_code, production_reports.updated_by,
-    // standard_source width) are now closed by migration 060, so these tests exercise the repository's own SQL.
+    // The repository intentionally archived migrations 026-059 from runtime.
+    // The old canonical snapshot predates migration 028's proposal table, which
+    // real approval/proposal routes still require. Recreate ONLY in this
+    // disposable test database from the original historical migration DDL.
+    await connection.query(fs.readFileSync(path.join(
+      BACKEND_DIR, 'tests', 'fixtures', 'isolated-report-edit-proposals.sql'
+    ), 'utf8'));
+
+    // All fixture DDL is confined to the throw-away ktc_it_* database.
+    // Never copy or execute this bootstrapping step on production or shared TEST.
 
     // Keep master data (processes, machines, products, deduction/defect types);
     // drop every person, session and report so each test starts deterministic.
