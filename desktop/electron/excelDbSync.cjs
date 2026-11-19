@@ -178,13 +178,22 @@ function mergeEditableDetails(current, columns, prefix, originalItems, idField, 
   const preserved = normalizeDetailList(originalItems, idField, valueField, integer)
     .filter((item) => !editableIds.has(item[idField]));
 
-  // For represented columns, Excel is authoritative: zero/blank removes that represented detail.
+  // Invalid cells must not silently become zero and erase approved NG/deductions.
+  // Only a truly blank cell or numeric zero explicitly clears a mapped detail.
   const edited = editableColumns
-    .map((col) => ({
-      [idField]: Number(col.typeId),
-      [valueField]: integer ? asInteger(current[col.key]) : asNumber(current[col.key])
-    }))
-    .filter((item) => item[valueField] > 0);
+    .map((col) => {
+      const raw = current[col.key];
+      if (raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) return null;
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value < 0 || (integer && !Number.isSafeInteger(value))) {
+        const error = new Error('Giá trị NG / trừ giờ trong Excel không hợp lệ. Hãy nhập số không âm đúng định dạng.');
+        error.code = 'EXCEL_SYNC_INVALID_DETAIL_VALUE';
+        error.details = { column: col.key, value: String(raw) };
+        throw error;
+      }
+      return { [idField]: Number(col.typeId), [valueField]: value };
+    })
+    .filter((item) => item && item[valueField] > 0);
 
   return [...preserved, ...edited].sort((a, b) => a[idField] - b[idField]);
 }
