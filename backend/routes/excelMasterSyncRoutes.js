@@ -9,6 +9,6 @@ const router = express.Router();
 router.use(verifyToken, checkRole('admin', 'manager'), permission('EXCEL_MASTER_SYNC'));
 router.post('/preview', expensiveUserLimiter, controller.preview);
 router.post('/apply', expensiveUserLimiter, controller.apply);
-router.get('/batches', controller.listBatches);
-router.get('/batches/:id/logs', controller.getBatchLogs);
+router.get('/batches', expensiveUserLimiter, controller.listBatches);
+router.get('/batches/:id/logs', expensiveUserLimiter, controller.getBatchLogs);
 module.exports = router;

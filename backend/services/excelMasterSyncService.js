@@ -1,5 +1,67 @@
 const { hasPermission } = require('./permissionService');
 const db = require('../config/db');
+
+const MAX_DEACTIVATE_PERCENT = 10;
+
+function assertSyncActor(actor) {
+  const actorId = Number(actor?.id);
+  const role = String(actor?.role || '').trim().toLowerCase();
+
+  if (!actor || !Number.isInteger(actorId) || actorId <= 0) {
+    throw Object.assign(new Error('Yêu cầu xác thực'), {
+      statusCode: 401,
+      code: 'AUTH_REQUIRED'
+    });
+  }
+
+  if (!['admin', 'manager'].includes(role)) {
+    throw Object.assign(new Error('Không có quyền truy cập chức năng này'), {
+      statusCode: 403,
+      code: 'ROLE_DENIED'
+    });
+  }
+}
+function assertSyncOptionsAllowed(options = {}, actor = null) {
+  if (!options || typeof options !== 'object' || Array.isArray(options)) {
+    throw Object.assign(new Error('Thông tin đồng bộ không hợp lệ'), {
+      statusCode: 400,
+      code: 'MASTER_SYNC_OPTION_INVALID'
+    });
+  }
+
+  const role = String(actor?.role || '').trim().toLowerCase();
+  const isAdmin = role === 'admin';
+
+  for (const field of ['allowDeactivate', 'force']) {
+    if (options[field] !== undefined &&
+        typeof options[field] !== 'boolean') {
+      throw Object.assign(new Error(`Giá trị ${field} không hợp lệ`), {
+        statusCode: 400,
+        code: 'MASTER_SYNC_OPTION_INVALID'
+      });
+    }
+  }
+
+  if (options.allowDeactivate === true && !isAdmin) {
+    throw Object.assign(
+      new Error('Chỉ admin được phép ngừng kích hoạt dữ liệu master'),
+      {
+        statusCode: 403,
+        code: 'MASTER_DEACTIVATE_ADMIN_REQUIRED'
+      }
+    );
+  }
+
+  if (options.force === true && !isAdmin) {
+    throw Object.assign(
+      new Error('Chỉ admin được phép xác nhận vượt ngưỡng đồng bộ'),
+      {
+        statusCode: 403,
+        code: 'MASTER_FORCE_ADMIN_REQUIRED'
+      }
+    );
+  }
+}
 const { assertProcessesScope } = require('./processAuthorizationService');
 const {
   ENTITY_CONFIGS,
@@ -62,12 +124,15 @@ function summarize(changes, invalid) {
   return result;
 }
 
-async function preview({ entityType, rows, allowDeactivate = false }, actor = null) {
-  if (actor && !(await hasPermission(actor, 'EXCEL_MASTER_SYNC'))) throw Object.assign(new Error('Bạn không có quyền đồng bộ dữ liệu chuẩn từ Excel'), { statusCode:403, code:'PERMISSION_DENIED', isPublic:true });
+async function preview(options = {}, actor = null) {
+  assertSyncActor(actor);
+  assertSyncOptionsAllowed(options, actor);
+  const { entityType, rows, allowDeactivate = false } = options;
+  if (!(await hasPermission(actor, 'EXCEL_MASTER_SYNC'))) throw Object.assign(new Error('Bạn không có quyền đồng bộ dữ liệu chuẩn từ Excel'), { statusCode:403, code:'PERMISSION_DENIED', isPublic:true });
   const config = ENTITY_CONFIGS[entityType];
   if (!config) throw Object.assign(new Error('Loại dữ liệu đồng bộ không hợp lệ'), { statusCode: 400 });
   const processIds = collectWorkbookProcessIds(rows);
-  if (actor) await assertProcessesScope(actor, processIds, { action: 'EXCEL_MASTER_SYNC_PREVIEW' });
+  await assertProcessesScope(actor, processIds, { action: 'EXCEL_MASTER_SYNC_PREVIEW' });
   const validated = validateRows(config, rows);
   const connection = await db.promise().getConnection();
   try {
@@ -102,7 +167,9 @@ async function logChange(connection, batchId, entityType, change, sheetName) {
 }
 
 async function apply(payload, actor) {
-  if (actor && !(await hasPermission(actor, 'EXCEL_MASTER_SYNC'))) throw Object.assign(new Error('Bạn không có quyền đồng bộ dữ liệu chuẩn từ Excel'), { statusCode:403, code:'PERMISSION_DENIED', isPublic:true });
+  assertSyncActor(actor);
+  assertSyncOptionsAllowed(payload, actor);
+  if (!(await hasPermission(actor, 'EXCEL_MASTER_SYNC'))) throw Object.assign(new Error('Bạn không có quyền đồng bộ dữ liệu chuẩn từ Excel'), { statusCode:403, code:'PERMISSION_DENIED', isPublic:true });
   const result = await preview(payload, actor);
   if (result.invalid.length && payload.rejectOnInvalid !== false) {
     throw Object.assign(new Error(`Có ${result.invalid.length} dòng không hợp lệ; chưa ghi dữ liệu`), {
@@ -113,8 +180,8 @@ async function apply(payload, actor) {
   }
   const activeCount = result.changes.filter((item) => item.action !== 'DEACTIVATE').length;
   const deactivationCount = result.summary.deactivate;
-  const threshold = Number(payload.maxDeactivatePercent ?? 10);
-  if (activeCount > 0 && deactivationCount / activeCount * 100 > threshold && payload.force !== true) {
+  const threshold = MAX_DEACTIVATE_PERCENT;
+  if (deactivationCount > 0 && (activeCount === 0 || deactivationCount / activeCount * 100 > threshold) && payload.force !== true) {
     throw Object.assign(new Error(`Số bản ghi ngừng hoạt động vượt ${threshold}%; cần force=true sau khi kiểm tra`), { statusCode: 409, details: result });
   }
 
@@ -158,34 +225,192 @@ async function apply(payload, actor) {
   }
 }
 
+
 async function listBatches(limit = 50, actor = null) {
-  const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
-  if (String(actor?.role || '').toLowerCase() === 'admin') {
-    const [rows] = await db.promise().query(`SELECT * FROM excel_sync_batches ORDER BY id DESC LIMIT ${safeLimit}`);
+  assertSyncActor(actor);
+
+  if (!(await hasPermission(actor, 'EXCEL_MASTER_SYNC'))) {
+    throw Object.assign(
+      new Error('Kh?ng c? quy?n xem l?ch s? ??ng b? Excel'),
+      { statusCode: 403, code: 'PERMISSION_DENIED', isPublic: true }
+    );
+  }
+
+  const requested = Number(limit);
+  const safeLimit = Number.isFinite(requested)
+    ? Math.min(200, Math.max(1, Math.trunc(requested)))
+    : 50;
+
+  if (String(actor.role).toLowerCase() === 'admin') {
+    const [rows] = await db.promise().query(
+      'SELECT * FROM excel_sync_batches ORDER BY id DESC LIMIT ?',
+      [safeLimit]
+    );
     return rows;
   }
-  const actorId = Number(actor?.id);
-  if (!Number.isInteger(actorId) || actorId <= 0) return [];
-  const [rows] = await db.promise().query(`SELECT * FROM excel_sync_batches WHERE performed_by=? ORDER BY id DESC LIMIT ${safeLimit}`, [actorId]);
-  return rows;
+
+  const visible = [];
+  const pageSize = Math.max(50, safeLimit);
+  let cursor = null;
+
+  while (visible.length < safeLimit) {
+    const sql = cursor === null
+      ? 'SELECT * FROM excel_sync_batches WHERE performed_by=? ORDER BY id DESC LIMIT ?'
+      : 'SELECT * FROM excel_sync_batches WHERE performed_by=? AND id<? ORDER BY id DESC LIMIT ?';
+
+    const params = cursor === null
+      ? [Number(actor.id), pageSize]
+      : [Number(actor.id), cursor, pageSize];
+
+    const [batches] = await db.promise().query(sql, params);
+
+    if (!batches.length) break;
+
+    const ids = batches.map(batch => Number(batch.id));
+
+    if (ids.some(id => !Number.isSafeInteger(id) || id <= 0)) {
+      throw new Error('Invalid Excel sync batch ID');
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+
+    const [allLogs] = await db.promise().query(
+      'SELECT * FROM excel_sync_logs WHERE batch_id IN (' +
+        placeholders + ') ORDER BY batch_id, id',
+      ids
+    );
+
+    const logsByBatch = new Map(ids.map(id => [id, []]));
+
+    for (const log of allLogs) {
+      const batchId = Number(log.batch_id);
+
+      if (logsByBatch.has(batchId)) {
+        logsByBatch.get(batchId).push(log);
+      }
+    }
+
+    for (const batch of batches) {
+      try {
+        const processIds = processIdsFromSyncLogRows(
+          logsByBatch.get(Number(batch.id))
+        );
+
+        await assertProcessesScope(actor, processIds, {
+          action: 'EXCEL_MASTER_SYNC_HISTORY'
+        });
+      } catch (error) {
+        if ([
+          'PROCESS_SCOPE_FORBIDDEN',
+          'MASTER_SYNC_HISTORY_PROCESS_UNKNOWN',
+          'MASTER_SYNC_HISTORY_INVALID'
+        ].includes(error.code)) {
+          continue;
+        }
+
+        throw error;
+      }
+
+      visible.push(batch);
+
+      if (visible.length >= safeLimit) break;
+    }
+
+    if (visible.length >= safeLimit || batches.length < pageSize) break;
+
+    const nextCursor = Number(batches[batches.length - 1].id);
+
+    if (!Number.isSafeInteger(nextCursor) || nextCursor <= 0 ||
+        (cursor !== null && nextCursor >= cursor)) {
+      throw new Error('Invalid Excel sync history pagination cursor');
+    }
+
+    cursor = nextCursor;
+  }
+
+  return visible;
 }
 
 function processIdsFromSyncLogRows(rows) {
-  const ids = new Set();
-  for (const row of rows || []) {
-    for (const raw of [row?.old_data, row?.new_data]) {
-      if (!raw) continue;
-      try {
-        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        const id = Number(parsed?.process_id);
-        if (Number.isInteger(id) && id > 0) ids.add(id);
-      } catch (_) {}
-    }
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw Object.assign(
+      new Error('Không xác định được công đoạn của lịch sử đồng bộ'),
+      {
+        statusCode: 409,
+        code: 'MASTER_SYNC_HISTORY_PROCESS_UNKNOWN'
+      }
+    );
   }
+
+  const ids = new Set();
+
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') {
+      throw Object.assign(
+        new Error('Dữ liệu lịch sử đồng bộ không hợp lệ'),
+        { statusCode: 409, code: 'MASTER_SYNC_HISTORY_INVALID' }
+      );
+    }
+
+    const rowIds = new Set();
+
+    for (const raw of [row.old_data, row.new_data]) {
+      if (raw === null || raw === undefined || raw === '') continue;
+
+      let parsed;
+
+      try {
+        parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } catch (_) {
+        throw Object.assign(
+          new Error('Không thể xác minh dữ liệu lịch sử đồng bộ'),
+          { statusCode: 409, code: 'MASTER_SYNC_HISTORY_INVALID' }
+        );
+      }
+
+      if (parsed === null || typeof parsed !== 'object' ||
+          Array.isArray(parsed)) {
+        throw Object.assign(
+          new Error('Cấu trúc dữ liệu lịch sử không hợp lệ'),
+          { statusCode: 409, code: 'MASTER_SYNC_HISTORY_INVALID' }
+        );
+      }
+
+      if (Object.prototype.hasOwnProperty.call(parsed, 'process_id')) {
+        const id = Number(parsed.process_id);
+
+        if (!Number.isInteger(id) || id <= 0) {
+          throw Object.assign(
+            new Error('Process ID trong lịch sử không hợp lệ'),
+            { statusCode: 409, code: 'MASTER_SYNC_HISTORY_INVALID' }
+          );
+        }
+
+        rowIds.add(id);
+      }
+    }
+
+    if (rowIds.size === 0) {
+      throw Object.assign(
+        new Error('Lịch sử thiếu process_id, từ chối truy cập'),
+        { statusCode: 409, code: 'MASTER_SYNC_HISTORY_PROCESS_UNKNOWN' }
+      );
+    }
+
+    for (const id of rowIds) ids.add(id);
+  }
+
   return [...ids];
 }
-
 async function getBatchLogs(batchId, actor = null) {
+  assertSyncActor(actor);
+  if (!(await hasPermission(actor, 'EXCEL_MASTER_SYNC'))) {
+    throw Object.assign(new Error('Không có quyền xem lịch sử đồng bộ Excel'), {
+      statusCode: 403,
+      code: 'PERMISSION_DENIED',
+      isPublic: true
+    });
+  }
   const id = Number(batchId);
   if (!Number.isInteger(id) || id <= 0) return [];
   if (String(actor?.role || '').toLowerCase() !== 'admin') {
@@ -197,7 +422,7 @@ async function getBatchLogs(batchId, actor = null) {
     }
   }
   const [rows] = await db.promise().query('SELECT * FROM excel_sync_logs WHERE batch_id = ? ORDER BY id', [id]);
-  if (actor && String(actor?.role || '').toLowerCase() !== 'admin') {
+  if (String(actor?.role || '').toLowerCase() !== 'admin') {
     await assertProcessesScope(actor, processIdsFromSyncLogRows(rows), { action: 'EXCEL_MASTER_SYNC_HISTORY' });
   }
   return rows;
