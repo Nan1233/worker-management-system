@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getApprovedReports } from "../../services/productionService";
 import Reports from "./Reports";
 import ApprovedReportsDesktopActions from "./ApprovedReportsDesktopActions";
 
@@ -221,60 +220,7 @@ export function ManagerReportsWorkspaceFix() {
 
 export function ManagerApprovedReportsWorkspaceFix() {
   const navigate = useNavigate();
-  useEffect(() => installApprovedNavigationFix(navigate), [navigate]);
-  return <ApprovedReportsDesktopActions />;
+  // Report ID comes from the React row, not from a DOM index or a second API query.
+  return <ApprovedReportsDesktopActions onOpenReport={(id) => navigate(`${window.location.pathname.startsWith("/admin-ops") ? "/admin-ops" : "/manager"}/report/${id}`)} />;
 }
 
-function installApprovedNavigationFix(navigate: (to: string) => void) {
-  const basePath = window.location.pathname.startsWith("/admin-ops") ? "/admin-ops" : "/manager";
-  let disposed = false;
-  let timer: number | undefined;
-  let busy = false;
-  const dateFromText = (v: string) => {
-    const m = v.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
-  };
-  const readPage = () => Number(document.querySelector<HTMLButtonElement>(".pending-pagination button.active")?.textContent || 1) || 1;
-  const handle = async (event: MouseEvent) => {
-    if (disposed || busy || window.location.pathname !== `${basePath}/approved`) return;
-    const target = event.target as Element | null;
-    if (!target || target.closest("input,select,textarea,button,a")) return;
-    const row = target.closest<HTMLTableRowElement>(".pending-reference-table tbody tr");
-    if (!row) return;
-    const cells = Array.from(row.cells);
-    const dateCell = cells.find(cell => /\d{2}\/\d{2}\/\d{4}/.test(cell.textContent || ""));
-    const date = dateFromText(dateCell?.textContent || "");
-    if (!date) return;
-    const page = readPage();
-    const rows = Array.from(row.parentElement?.querySelectorAll<HTMLTableRowElement>("tr") || []);
-    const index = rows.indexOf(row);
-    if (index < 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    busy = true;
-    try {
-      const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(".pending-filter-card input"));
-      const selects = Array.from(document.querySelectorAll<HTMLSelectElement>(".pending-filter-card select"));
-      const selectedDate = inputs.find(x => x.type === "date")?.value || date;
-      const search = inputs.find(x => x.type !== "date")?.value?.trim() || "";
-      const processName = selects.find(x => x.previousElementSibling?.textContent?.trim() === "Công đoạn")?.value || selects[1]?.value || "";
-      const shift = selects.find(x => x.previousElementSibling?.textContent?.trim() === "Ca làm việc")?.value || selects[0]?.value || "";
-      const active = document.querySelector<HTMLButtonElement>(".pending-quick-filters button.active")?.textContent?.trim() || "Hôm nay";
-      const type = active === "Tuần này" ? "week" : active === "Tháng này" ? "month" : active === "Năm này" ? "year" : "day";
-      const range = rangeFor(selectedDate, type);
-      const result = await getApprovedReports({ dateFrom: range.dateFrom, dateTo: range.dateTo, processName: processName || undefined, shift: shift || undefined, search: search || undefined, page, pageSize: 8 });
-      const item = result.data?.[index];
-      if (!item?.id) return;
-      navigate(`${basePath}/report/${Number(item.id)}`);
-    } finally {
-      busy = false;
-    }
-  };
-  document.addEventListener("click", handle, true);
-  const observer = new MutationObserver(() => {
-    window.clearTimeout(timer);
-    timer = window.setTimeout(() => {}, 40);
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-  return () => { disposed = true; observer.disconnect(); document.removeEventListener("click", handle, true); window.clearTimeout(timer); };
-}
