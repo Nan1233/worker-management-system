@@ -21,8 +21,12 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-15 | Part 7 | Validate end-to-end physical machine output counted once and snapshot historical KPIs unchanged after refactor | Isolated fixture parity across backend + desktop; approved snapshot check, no shared DB | OPEN |
 | D-16 | Part 8 | Execute permission cache stale-response race tests, TS typecheck, permissions and Master Control regression on pinned checkout | `cd frontend && node --test tests/permission-cache-invalidation-race.test.cjs && npm run typecheck`; independently verify backend 403 on unauthorized roles with isolated fixtures | OPEN |
 | D-17 | Part 8 | Permission matrix CSS/visual responsive checks, dark theme and admin user/role override interactions | CSS contract test plus browser visual and role matrix interaction evidence at desktop/mobile widths | OPEN |
+| D-18 | Part 9 | Run new Desktop workbook naming parity test with pinned checkout; inspect packaging inclusion | `cd desktop && node --test tests/monthly-workbook-naming-parity.test.cjs` and desktop check/packaging tests PASS | OPEN |
+| D-19 | Part 9 | Execute synthetic XLSX workbook parity for ten process sheets, formulas, styles, _KTC_SYNC, sync/import and template round-trip | Compare generated workbook outputs before/after on isolated fixture, checksum key cells, no production files/NAS writes | OPEN |
 
 ## Already verified by source inspection — avoid unnecessary repetition
+
+- Part 9 extracted monthly workbook naming logic byte-for-byte into a dependency-free helper and preserved renderer exports. Added filename and sync contract tests. After GitHub re-fetch, 10/10 static checks passed; **Node/ExcelJS smoke not run**.
 
 - Part 8 invalidates in-flight permission requests with generation fencing and clears `inFlight` on cache invalidation; limits `.module-row td` selectors to `.permission-page`. Added 6 focused Node tests. After GitHub re-fetch, 12/12 static checks passed; **Node/browser tests not run**.
 
