@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getStoredUser } from "../../utils/authStorage";
 import { useToast } from "../../components/feedback/toastContext";
@@ -105,7 +105,7 @@ export default function ReportEditProposals() {
   const [creating, setCreating] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       setItems(await getReportEditProposals());
@@ -114,9 +114,9 @@ export default function ReportEditProposals() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
   const selectItem = async (item: ReportEditProposal) => {
     try {
