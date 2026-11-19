@@ -96,3 +96,16 @@ These files were previously reported as locally modified and have not been valid
 **PART 1: NOT YET COMPLETE — safety inventory complete, executable baseline blocked by missing isolated checkout/network.**
 
 To close Part 1: produce a checkable checkout HEAD; run source check, frontend lint/typecheck/build, reviewed pure tests and desktop synthetic smoke under isolated paths; record successful commands and any failures, without touching shared TEST/production databases. Only then start Part 2/10.
+
+
+## 7. Transition decision (2026-11-19)
+
+The user requested proceeding quickly to Part 2 while baseline execution is unavailable in this environment.
+
+- Isolated `git ls-remote` attempt failed because `github.com` could not be resolved from the execution container.
+- The GitHub source connector can read/write individual files but does not provide a local dependency-enabled checkout or an Actions workflow dispatch tool.
+- **Part 1 safety inventory is complete. The baseline execution gate remains OPEN (not PASS).**
+- Proceed to **Part 2 source-only, minimal, reversible changes** under an explicit exception. No merge, release, production deployment, DB writes or unsupported PASS claims.
+- Restore this baseline gate before any production readiness decision.
+
+This is a transition waiver for starting review/refactor, **not** a waiver of regression requirements before release.
