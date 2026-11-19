@@ -29,13 +29,17 @@ const dateLabel=(v:string)=>{const parts=String(v).slice(0,10).split("-");return
 
 
 export default function Statistics(){
- const toast=useToast();
+ const {showToast}=useToast();
  const [from,setFrom]=useState(monthStart()),[to,setTo]=useState(today());
  const [draftFrom,setDraftFrom]=useState(monthStart()),[draftTo,setDraftTo]=useState(today());
  const [period,setPeriod]=useState("custom"),[process,setProcess]=useState(""),[draftProcess,setDraftProcess]=useState("");
  const [tab,setTab]=useState<TabKey>("day"),[summary,setSummary]=useState<Summary>(EMPTY),[loading,setLoading]=useState(true),[page,setPage]=useState(1),[processOptions,setProcessOptions]=useState<Summary["processes"]>([]);
- const load=async()=>{setLoading(true);try{const r=await api.get("/dashboard/summary",{params:{from,to,...(process?{process_id:process}:{})}});setSummary({...EMPTY,...(r.data?.data||{})});if(!process)setProcessOptions(r.data?.data?.processes||[]);}catch(e:any){toast.showToast(e?.response?.data?.message||"Không thể tải thống kê","error");setSummary(EMPTY);}finally{setLoading(false);}};
- useEffect(()=>{void load();},[from,to,process]);
+ useEffect(()=>{
+  let active=true;
+  const load=async()=>{setLoading(true);try{const r=await api.get("/dashboard/summary",{params:{from,to,...(process?{process_id:process}:{})}});if(!active)return;setSummary({...EMPTY,...(r.data?.data||{})});if(!process)setProcessOptions(r.data?.data?.processes||[]);}catch(e:any){if(!active)return;showToast(e?.response?.data?.message||"Không thể tải thống kê","error");setSummary(EMPTY);}finally{if(active)setLoading(false);}};
+  void load();
+  return()=>{active=false};
+ },[from,to,process,showToast]);
  const processRows=summary.process_summary;
  const shiftRows=summary.shift_summary;
  const dayRows=useMemo(()=>summary.daily_summary.filter(r=>r.ok+r.ng>0).slice().reverse(),[summary.daily_summary]);
@@ -43,7 +47,7 @@ export default function Statistics(){
 
  const totals={ok:summary.total_ok,ng:summary.total_ng,reports:summary.approved_count};
  const total=totals.ok+totals.ng;
- const apply=()=>{if(!draftFrom||!draftTo||draftFrom>draftTo){toast.showToast("Khoảng thời gian không hợp lệ","error");return;}setFrom(draftFrom);setTo(draftTo);setProcess(draftProcess);setPage(1)};
+ const apply=()=>{if(!draftFrom||!draftTo||draftFrom>draftTo){showToast("Khoảng thời gian không hợp lệ","error");return;}setFrom(draftFrom);setTo(draftTo);setProcess(draftProcess);setPage(1)};
  const quick=(value:string)=>{setPeriod(value);if(value==="custom")return;const d=new Date(),a=new Date(d),b=new Date(d);if(value==="7")a.setDate(d.getDate()-6);else if(value==="month")a.setDate(1);else if(value==="lastmonth"){a.setMonth(d.getMonth()-1,1);b.setDate(0);}const f=a.getFullYear()+"-"+pad(a.getMonth()+1)+"-"+pad(a.getDate()),t=b.getFullYear()+"-"+pad(b.getMonth()+1)+"-"+pad(b.getDate());setDraftFrom(f);setDraftTo(t);setFrom(f);setTo(t);setPage(1)};
  const exportCurrent=()=>{const rows:Record<string,unknown>[]=tab==="day"?dayRows:tab==="process"?processRows:tab==="shift"?shiftRows:tab==="machine"?summary.machine_summary:tab==="product"?summary.product_summary:summary.worker_summary;const columns=rows.length?Object.keys(rows[0]):[];const safe=(v:unknown)=>{const value=String(v??"");return /^[=+@\\-\\t\\r]/.test(value)?"'"+value:value;};const csv=[columns.map(safe).join(","),...rows.map(r=>columns.map(c=>'"'+safe(r[c]).replace(/"/g,'""')+'"').join(","))].join("\\r\\n");const blob=new Blob(["\\uFEFF"+csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="KTC_ThongKe_"+tab+"_"+from+"_"+to+".csv";a.click();URL.revokeObjectURL(url);};
  const rowsPerPage=7,pageCount=Math.max(1,Math.ceil(dayRows.length/rowsPerPage)),pagedDays=dayRows.slice((page-1)*rowsPerPage,page*rowsPerPage);
