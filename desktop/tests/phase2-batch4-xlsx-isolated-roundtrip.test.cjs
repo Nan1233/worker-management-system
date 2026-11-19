@@ -309,3 +309,30 @@ test('two dates in Workbook1 use distinct hidden source rows and never mix repor
     await fs.rm(dir,{recursive:true,force:true});
   }
 });
+
+test('duplicate report ID in veryHidden _KTC_SYNC fails closed before import', async () => {
+  const { buildProcessWorkbookLocal } = require('../electron/monthlyWorkbookLocal.cjs');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ktc-phase4-duplicate-meta-'));
+  try {
+    const report = fixture('DO', 119);
+    const output = await buildProcessWorkbookLocal({
+      date: DATE, processCode: 'DO',
+      payload: { yearMonth: MONTH, dataSource: 'tidb.production_reports.approved',
+        processes: { DO: { reports: [report], deductionTypes: [], defectTypes: [] } } }
+    });
+    const file = path.join(dir, 'duplicate-hidden-id.xlsx');
+    await fs.writeFile(file, output.buffer, { flag: 'wx' });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const sync = wb.getWorksheet('_KTC_SYNC');
+    assert.ok(sync, 'source lineage exists');
+    for (let column = 1; column <= 8; column++) {
+      sync.getCell(4, column).value = sync.getCell(3, column).value;
+    }
+    await wb.xlsx.writeFile(file);
+    await assert.rejects(() => readExcelChanges(file),
+      error => error?.code === 'EXCEL_SYNC_DUPLICATE_META_ID');
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
