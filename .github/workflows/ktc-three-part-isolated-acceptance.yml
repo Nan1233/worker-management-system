@@ -6,6 +6,8 @@ on:
     paths:
       - .github/workflows/ktc-three-part-isolated-acceptance.yml
       - backend/scripts/waitForIsolatedTidb.cjs
+      - backend/routes/productionTempRoutes.js
+      - backend/utils/dailyHoursLimit.js
       - backend/tests/integration/**
       - backend/tests/fixtures/isolated-*.sql
       - frontend/tests/e2e/**
