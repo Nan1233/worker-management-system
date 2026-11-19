@@ -18,6 +18,10 @@ on:
       - backend/tests/approved-machine-copy-real-mapping-integration.test.js
       - backend/tests/shared-machine-accounting-flow.test.js
       - desktop/tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs
+      - desktop/tests/release-signing.test.cjs
+      - desktop/tests/setup-auto-update.test.cjs
+      - desktop/tests/portable-upgrade-safety.test.cjs
+      - desktop/tests/deployment-profile.test.cjs
       - desktop/tests/workbook1-process-export.test.cjs
       - desktop/electron/excelDbSync.cjs
       - desktop/electron/monthlyWorkbookLocal.cjs
@@ -220,6 +224,13 @@ jobs:
       - name: Run real XLSX roundtrip and Windows source packaging contracts
         run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/packaging-sync.test.cjs tests/monthly-workbook-naming-parity.test.cjs
       - run: node scripts/checkPackagedSharedContract.cjs
+      - name: Windows release configuration, signing policy and update safety contracts
+        run: node --test tests/release-signing.test.cjs tests/setup-auto-update.test.cjs tests/portable-upgrade-safety.test.cjs tests/deployment-profile.test.cjs
+      - name: Windows release verification script syntax
+        run: |
+          node --check scripts/checkWindowsSigning.cjs
+          node --check scripts/verifyWindowsRelease.cjs
+          node --check scripts/deviceSmoke.cjs
 
   summary:
     name: Consolidated focused source gate
