@@ -222,7 +222,7 @@ function WorkerReportEditV2() {
     if (!WORKER_EDIT_TIME_LIMIT_ENABLED) return;
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [report?.created_at, report?.updated_at, report?.status, managerRoute]);
+  }, [report, managerRoute]);
 
   const findNgKey = (item: any) => /^CUSTOM_NG_/i.test(s(item.defect_code)) ? "__otherNg" : editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
   const findDeductionKey = (item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)) ? "__otherDeduction" : editDeductionOptions.find((o: any) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
