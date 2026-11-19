@@ -19,7 +19,8 @@ async function openFirstPendingReport(page: Page) {
   const row = page.locator('main table tbody tr').filter({ hasText: ACCOUNTS.worker.code }).first();
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.click();
-  await expect(page.getByRole('button', { name: 'Từ chối' })).toBeEnabled({ timeout: 20_000 });
+  // ManagerReportWorkspace routes row clicks to ReportReviewDetail, not the old inline panel.
+  await expect(page.locator('button.review-btn.reject')).toBeEnabled({ timeout: 20_000 });
 }
 
 test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
@@ -60,13 +61,12 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
     await openFirstPendingReport(page);
 
-    await page.getByRole('button', { name: 'Từ chối báo cáo' }).click();
-    // Real UI requires selecting a reason; textarea exists only for "Khác".
-    await page.locator('#pending-reject-reason').selectOption({ label: 'Khác' });
-    await page.getByRole('textbox', { name: 'Lý do từ chối cụ thể' }).fill('Nhập sai số lượng OK');
-    page.once('dialog', dialog => void dialog.accept()); // native batch confirmation
+    // The native review-detail page uses its own reason/details modal, not the list bulk dialog.
+    await page.locator('button.review-btn.reject').click();
+    await expect(page.locator('.review-modal')).toBeVisible();
+    await page.locator('.review-modal textarea').fill('Nhập sai số lượng OK');
     const rejected = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/production-temp/reject-selected');
-    await page.getByRole('button', { name: /Xác nhận từ chối 1 báo cáo/ }).click();
+    await page.locator('.review-modal button.reject').click();
     expect((await rejected).status()).toBe(200);
 
     const detail = await request.get(`${API}/api/production-temp/${state.reportId}`, { headers: { Authorization: `Bearer ${state.managerToken}` } });
@@ -123,10 +123,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     await openFirstPendingReport(page);
 
     const approved = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/production-temp/approve-selected');
-    page.on('dialog', dialog => void dialog.accept());
-    await page.getByRole('button', { name: 'Duyệt báo cáo' }).click();
-    const confirm = page.getByRole('button', { name: /Xác nhận|Đồng ý/ });
-    if (await confirm.count()) await confirm.first().click();
+    await page.locator('button.review-btn.approve').click();
     expect((await approved).status()).toBe(200);
 
     const detail = await request.get(`${API}/api/production-temp/${state.approvableId}`, { headers: { Authorization: `Bearer ${state.managerToken}` } });
