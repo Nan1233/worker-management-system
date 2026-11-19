@@ -26,7 +26,7 @@ function harness() {
     module, exports,
     __ktcPermissionMockError: (error) => mockErrors.push(String(error?.stack || error)),
     require(specifier) {
-      if (specifier === '../services/api') return { default: {
+      if (specifier === '../services/api') return { __esModule: true, default: {
         get: (endpoint) => {
           assert.equal(endpoint, '/permissions/me');
           return new Promise((resolve, reject) => requests.push({ resolve, reject }));
