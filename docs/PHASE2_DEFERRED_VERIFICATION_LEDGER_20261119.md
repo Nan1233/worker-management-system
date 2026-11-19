@@ -11,8 +11,12 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-05 | Part 3 | Manager pending table wrapper still manually rebuilds DOM/moves checkboxes, uses global click capture/MutationObserver | Refactor to React-owned rendering and verify selection, bulk approve/reject, stable visual layout | OPEN |
 | D-06 | Part 3 | Manager approved navigation contract Node test | `node --test frontend/tests/manager-approved-native-navigation.contract.test.cjs` pass | OPEN |
 | D-07 | Cross-phase | Full permissions/transaction/shared-machine/Excel and end-to-end release gates | Consolidated run on isolated test DB and synthetic Excel, separately approved | OPEN |
+| D-08 | Part 4 | Worker form hook simulation test and frontend typecheck | `node --test frontend/tests/f02-process-form-extracted-hooks.test.cjs` and typecheck PASS with pinned commit | OPEN |
+| D-09 | Part 4 | Worker submit/draft/offline/browser regression after extraction | Isolated browser integration test verifying unchanged payload, draft save warnings and standard lookup behavior | OPEN |
 
 ## Already verified by source inspection — avoid unnecessary repetition
+
+- Part 4 moved single-product standard lookup and one-time draft-save warning into hooks without changing submission payload builder. 13/13 static checks after re-fetch; **not Node PASS**.
 
 - Part 2 fixed helper endpoint to `/:id/link-participants` with `temp_machine_line_ids`, unchanged backend `REPORT_APPROVE` permission. 8/8 static source checks at code time; **not Node pass**.
 - Part 3 changed approved manager/admin_ops navigation to use React row's report ID directly, eliminated DOM index/refetch/observer from approved route. 8/8 independent static source checks at code time; **not Node/UI pass**.
