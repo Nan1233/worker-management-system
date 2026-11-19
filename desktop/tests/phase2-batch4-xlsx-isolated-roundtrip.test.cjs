@@ -189,7 +189,7 @@ test('all six approved Workbook1 paper sheets import a cell edit by hidden repor
         const unchanged = await readExcelChanges(filepath);
         assert.equal(unchanged.managed, true);
         assert.equal(unchanged.changes.filter(change => change.id === report.id).length, 0,
-          code + ' unedited export must not send an update');
+          code + ' unedited export must not send an update: ' + JSON.stringify(unchanged.changes));
 
         sheet.getCell(form.first, actualTimeColumn.index).value = 6.5;
         await workbook.xlsx.writeFile(filepath);
