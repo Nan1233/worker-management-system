@@ -7,8 +7,8 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-01 | Part 1 | Isolated repository checkout and exact SHA baseline; frontend lint/typecheck/build; backend check | Recorded command output and exit codes on a clean isolated checkout | PASS |
 | D-02 | Part 1 | Safe isolated unit suites and Desktop synthetic Excel smoke; no shared TEST/production DB | Test runner logs, fixture isolation, no DB writes | PARTIAL |
 | D-03 | Part 2 | Machine-event participant API Node contract test and TypeScript check, currently static-only | `node --test frontend/tests/machine-event-participant-api.contract.test.cjs`, typecheck pass | PASS |
-| D-04 | Part 3 | Manager approved-row navigation React/UI regression (click, keyboard, filtering, pagination, admin_ops path) | Browser/component test evidence on isolated checkout | OPEN |
-| D-05 | Part 3 | Manager pending table wrapper still manually rebuilds DOM/moves checkboxes, uses global click capture/MutationObserver | Refactor to React-owned rendering and verify selection, bulk approve/reject, stable visual layout | OPEN |
+| D-04 | Part 3 | Manager approved-row navigation React/UI regression (click, keyboard, filtering, pagination, admin_ops path) | Browser/component test evidence on isolated checkout | PARTIAL |
+| D-05 | Part 3 | Manager pending table wrapper still manually rebuilds DOM/moves checkboxes, uses global click capture/MutationObserver | Refactor to React-owned rendering and verify selection, bulk approve/reject, stable visual layout | PARTIAL |
 | D-06 | Part 3 | Manager approved navigation contract Node test | `node --test frontend/tests/manager-approved-native-navigation.contract.test.cjs` pass | PASS |
 | D-07 | Cross-phase | Full permissions/transaction/shared-machine/Excel and end-to-end release gates | Consolidated run on isolated test DB and synthetic Excel, separately approved | OPEN |
 | D-08 | Part 4 | Worker form hook simulation test and frontend typecheck | `node --test frontend/tests/f02-process-form-extracted-hooks.test.cjs` and typecheck PASS with pinned commit | PASS |
@@ -40,6 +40,28 @@ GitHub Actions **run [44502489098](https://github.com/Nan1233/worker-management-
 **Potential external automation:** GitHub check-runs showed a failed Cloudflare `Workers Builds: ktc-be-test` check on earlier commits. GitHub pushes may automatically trigger Cloudflare builds outside this workflow. This run did not intentionally deploy, and it does not prove all external deployment workflows were disabled. Verify those settings before further branch pushes.
 
 **Unresolved release blockers:** D-05 PendingReports DOM/checkbox refactor not done; D-04/D-09/D-17 browser role/UI; D-02/D-15/D-19 full XLSX template roundtrip/sync; D-07 overall release review; D-11/D-13/D-14/D-16/D-18 partial integrated/packaging checks. No isolated DB E2E or Windows physical-device UAT has been performed.
+
+## Deferred batch 1/5 — Manager Pending and Approved (2026-11-19)
+
+**Source refactor done; actual browser acceptance still open.** Manager and Admin Ops Pending reports now render the 14-column table entirely in React; the legacy mutation observer, global capture-phase click interception, checkbox relocation, custom-page-data event and inlined global styles were removed. Each row carries its real report ID and routes to `/report/review` using its report identity. Original React selection state, select-visible, bulk approve/reject, pagination, filters and fallback inline detail for Admin are preserved. Training snapshot percent is prioritized for historical reports.
+
+Changed:
+- `frontend/src/pages/manager/Reports.tsx`
+- `frontend/src/pages/manager/ManagerReportWorkspaceFix.tsx`
+- `frontend/src/pages/manager/ManagerReportWorkspace.css` (new scoped stylesheet)
+- `frontend/tests/manager-pending-native-table.contract.test.cjs` (new contract assertions)
+- `frontend/tests/manager-approved-native-navigation.contract.test.cjs` (remove obsolete DOM-hack expectation)
+- `.github/workflows/phase2-consolidated-safe.yml` (include new Manager test and scoped trigger)
+
+**Passing CI evidence before last snapshot assertion:** run [44504330287](https://github.com/Nan1233/worker-management-system/actions/runs/44504330287), commit `efaa118e1344b14d435cfd060d7d46b904f1550f`: Backend 43/43, Frontend 16/16 including new Manager contract test, Desktop 21/21, typecheck/lint/build PASS, 4/4 jobs success (**80/80 selected Node tests**). Further changes to prioritize immutable training snapshot and add an assertion require the follow-up CI run on the final code SHA.
+
+**D-04 PARTIAL:** source stable-ID navigation and React row handlers are CI-verified; click/keyboard filtering/page changes in a real browser, manager/admin_ops route authorization and visual checks remain to be exercised.
+
+**D-05 PARTIAL:** DOM hack removed in source, checkbox and bulk review selection are contract-checked; runtime browser tests with mocked/isolated backend, full selection/approve/reject and responsive layout still open.
+
+**Deployment safety:** Cloudflare Workers Builds triggers for `ktc-fe-test` and `ktc-be-test` were inspected read-only; both list `branch_includes: ["test"]`, not this refactor branch. No Cloudflare deploy command, merge, database access, or production file write was used.
+
+All other D entries retain their prior states. Next batch should start from D-09/D-16/D-17 and not re-run unrelated already-PASS suites unless impacted by new code.
 
 ## Part 10 execution evidence (2026-11-19)
 
