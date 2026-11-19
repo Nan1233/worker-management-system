@@ -72,11 +72,12 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const summarySequence = useRef(0);
   const pendingSequence = useRef(0);
-  const selectedRange = useMemo(() => rangeFor(period), [period, retryKey]);
+  const selectedRange = useMemo(() => rangeFor(period), [period]);
   const from = selectedRange.from, to = selectedRange.to;
 
   useEffect(() => {
-    const seq = ++summarySequence.current;
+    const summaryCounter = summarySequence;
+    const seq = ++summaryCounter.current;
     const controller = new AbortController();
     let finished = false;
     setSummaryLoading(true);
@@ -105,14 +106,15 @@ export default function Dashboard() {
       if (!controller.signal.aborted && seq === summarySequence.current) setSummaryLoading(false);
     });
     return () => {
-      ++summarySequence.current;
+      ++summaryCounter.current;
       window.clearTimeout(timeout);
       controller.abort();
     };
   }, [from, to, retryKey]);
 
   useEffect(() => {
-    const seq = ++pendingSequence.current;
+    const pendingCounter = pendingSequence;
+    const seq = ++pendingCounter.current;
     const controller = new AbortController();
     setPendingLoading(true);
     setPendingError(null);
@@ -134,7 +136,7 @@ export default function Dashboard() {
       if (!controller.signal.aborted && seq === pendingSequence.current) setPendingLoading(false);
     });
     return () => {
-      ++pendingSequence.current;
+      ++pendingCounter.current;
       controller.abort();
     };
   }, [from, to, retryKey, pendingRetryKey]);
