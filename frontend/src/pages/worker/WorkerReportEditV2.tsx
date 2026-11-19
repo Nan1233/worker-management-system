@@ -224,11 +224,15 @@ function WorkerReportEditV2() {
     return () => window.clearInterval(timer);
   }, [report, managerRoute]);
 
-  const findNgKey = (item: any) => /^CUSTOM_NG_/i.test(s(item.defect_code)) ? "__otherNg" : editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
-  const findDeductionKey = (item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)) ? "__otherDeduction" : editDeductionOptions.find((o: any) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
+  const hydratedReportRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!report) return;
+    // Hydrate each loaded report once, after its master options are ready.
+    // Later option refreshes must never overwrite unsaved edits.
+    if (!report || loading || loadingMasterData || hydratedReportRef.current === report) return;
+    hydratedReportRef.current = report;
+    const findNgKey = (item: any) => /^CUSTOM_NG_/i.test(s(item.defect_code)) ? "__otherNg" : editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
+    const findDeductionKey = (item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)) ? "__otherDeduction" : editDeductionOptions.find((o: any) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
     setForm((current) => {
       const next = { ...current };
       const selected: string[] = [];
@@ -266,32 +270,11 @@ function WorkerReportEditV2() {
       setSelectedDeduction(selected);
       return next;
     });
-  }, [report, sourceDefects, sourceDeductions, sourceLines, editNgOptions, editDeductionOptions]);
+  }, [report, loading, loadingMasterData, sourceDefects, sourceDeductions, sourceLines, editNgOptions, editDeductionOptions]);
 
-  const resolveEditLineStandards = async () => {
-    const workDate = s(form.workDate).slice(0, 10);
-    if (!workDate || !processId) return;
-    const resolvedLines = await Promise.all(machineLines.map(async (line) => {
-      if (!line.machineCode || !line.productCode) return line;
-      try {
-        const resolved: any = await resolveProductStandard(processId, line.machineCode, line.productCode, workDate);
-        if (!resolved) return line;
-        return {
-          ...line,
-          standardOutputPerHour: n(resolved.resolved_output_per_hour ?? resolved.default_standard_output ?? line.standardOutputPerHour),
-          standardTimeSeconds: resolved.standard_time_seconds ?? line.standardTimeSeconds,
-          standardSource: resolved.standard_source ?? line.standardSource,
-        };
-      } catch { return line; }
-    }));
-    setMachineLines(resolvedLines);
-  };
-
-  useEffect(() => {
-    if (!loading && !loadingMasterData && machineLines.some((line) => line.machineCode && line.productCode)) {
-      void resolveEditLineStandards();
-    }
-  }, [loading, loadingMasterData, form.workDate, processId]);
+  // Preserve the persisted per-line standard snapshot on initial edit load.
+  // Standard lookup is triggered by explicit machine/product changes in the form,
+  // never by master-data loading or an unrelated re-render.
 
   const updateForm = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
   const onFormChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => updateForm(event.target.name || event.target.id, event.target.value);
