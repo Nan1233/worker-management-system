@@ -130,6 +130,29 @@ test('generic CVK workbook is readable as a managed Excel sync source without co
     const result=await readExcelChanges(filepath);
     assert.equal(result.managed,true);
     assert.ok(Array.isArray(result.changes));
+
+    // A real Excel edit must generate a precise, concurrency-token-bound
+    // patch without calling any backend API or mutating the original fixture.
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filepath);
+    const meta = JSON.parse(String(workbook.getWorksheet('_KTC_SYNC').getCell('A1').value));
+    const idCol = meta.columns.find(item => item.key === 'id');
+    const okCol = meta.columns.find(item => item.key === 'ok');
+    assert.ok(idCol && okCol, 'generic CVK must have sync ID and OK columns');
+    const sheet = workbook.getWorksheet(meta.sheetName);
+    let targetRow = null;
+    for (let row = 6; row <= sheet.rowCount; row += 1) {
+      if (Number(sheet.getCell(row, idCol.index).value) === 24011) { targetRow = row; break; }
+    }
+    assert.ok(targetRow, 'synthetic report row is still associated with its database ID');
+    sheet.getCell(targetRow, okCol.index).value = 91;
+    await workbook.xlsx.writeFile(filepath);
+    const changed = await readExcelChanges(filepath);
+    assert.equal(changed.managed, true);
+    const edited = changed.changes.find(change => change.id === 24011);
+    assert.ok(edited, 'modified Excel row must become an update proposal');
+    assert.equal(edited.patch.tt_ok, 91);
+    assert.equal(String(edited.expected_updated_at), '2026-11-10T10:00:00.000Z');
   } finally {
     await fs.rm(directory,{recursive:true,force:true});
   }
