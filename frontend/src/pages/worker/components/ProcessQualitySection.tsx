@@ -26,7 +26,7 @@ export default function ProcessQualitySection({ form, activeNgOptions, selectedN
         const activeOperationButton = document.querySelector<HTMLElement>(".worker-mode-panel .worker-mode-group:first-child .worker-choice-row button.active");
         const nextOperation = activeOperationButton?.textContent?.trim() === "Lồng" ? "LONG" : "CUT";
         setGcOperation((current) => current === nextOperation ? current : nextOperation);
-    });
+    }, [shouldHide, hasCanonicalGcDefects]);
     const visibleNgOptions = hasCanonicalGcDefects ? activeNgOptions.filter((item) => {
         const code = normalizeCode(item.code);
         return item.key === "__otherNg" || (gcOperation === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG"));
