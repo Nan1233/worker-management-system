@@ -65,6 +65,16 @@ Changed:
 
 All other D entries retain their prior states. Next batch should start from D-09/D-16/D-17 and not re-run unrelated already-PASS suites unless impacted by new code.
 
+## Phase 3 consolidated attempt — 2026-11-19
+
+Source branch `refactor/ktc-local-cleanup` now includes an isolated real-browser public-security smoke and a Windows runner XLSX compatibility job. [GitHub Actions run 44516748840](https://github.com/Nan1233/worker-management-system/actions/runs/44516748840): Backend, Frontend, Linux Desktop and Windows Desktop jobs completed SUCCESS; Windows 22/22 synthetic Node tests PASS and shared packaging contract PASS. Browser Chromium dependency installation was still in progress at the time of this entry; do not count browser as PASS without checking the final run.
+
+The original Playwright 1.56 install failed on Ubuntu 26.04; the browser runner was pinned to Ubuntu 24.04. Invalid job-level `runner.temp` in the first Windows workflow draft was removed; all five jobs then started successfully.
+
+**D-18 remains PARTIAL:** Windows CI validates XLSX/source compatibility, not a signed NSIS installer or installed-device smoke. **D-04/D-05/D-09/D-17 remain PARTIAL:** public unauthenticated route guard tests are not authenticated user flows. **D-11/D-13/D-14/D-15/D-16 remain PARTIAL:** no disposable TiDB credentials, no real concurrency/RBAC/rollback DB E2E. **D-19 PARTIAL:** paper XLSX edited-field fixture coverage incomplete; **D-07 OPEN:** no full-system acceptance or sign-off.
+
+**Ledger unchanged: 8 PASS, 11 PARTIAL, 1 OPEN. Production release NOT APPROVED.** See `docs/PHASE3_FULL_BATCH_ACCEPTANCE_20261119.md` for exact limitations.
+
 ## Deferred batch 5/5 — Final code fix, focused acceptance and release decision (2026-11-19)
 
 **Latest verified isolated CI [44511311244](https://github.com/Nan1233/worker-management-system/actions/runs/44511311244)**: source SHA `356e6052e6e8ca8742049e945fd5ace68005fa06`, **4/4 jobs SUCCESS**, **292/292 Node tests PASS** (Backend 162, Frontend 73, Desktop 57), frontend TypeScript/lint/build PASS, worker Excel synthetic smoke and packaged-contract read-only checks PASS. Earlier failures on new Workbook1 tests exposed a **real GC false-update bug**; this was fixed and re-tested green, not skipped.
