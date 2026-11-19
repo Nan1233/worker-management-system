@@ -71,3 +71,44 @@ test('non-retryable errors propagate and do not block the next report edit', asy
   assert.equal(await wrapped({ reportId: 3 }), 'ok');
   assert.equal(attempts, 2);
 });
+
+test('two simultaneous editors of one approved report: first commits, stale second gets 409 without a write', async () => {
+  const guard = createApprovedEditGuard();
+  const entered = deferred();
+  const release = deferred();
+  const writes = [];
+  const persisted = { updatedAt: 'v1', note: 'original' };
+  const edit = guard(async ({ editor, expectedUpdatedAt, note }) => {
+    // Simulate the row-version check performed inside a locked DB transaction.
+    const observed = persisted.updatedAt;
+    if (observed !== expectedUpdatedAt) {
+      throw Object.assign(new Error('stale approved report'), {
+        status: 409, code: 'REPORT_VERSION_CONFLICT'
+      });
+    }
+    if (editor === 'first') { entered.resolve(); await release.promise; }
+    writes.push({ editor, note });
+    persisted.note = note;
+    persisted.updatedAt = 'v2';
+    return { updatedAt: persisted.updatedAt };
+  }, 'reason');
+  const first = edit({ reportId: 501, editor: 'first', expectedUpdatedAt: 'v1', note: 'first edit' });
+  await entered.promise;
+  const second = edit({ reportId: 501, editor: 'second', expectedUpdatedAt: 'v1', note: 'stale edit' });
+  release.resolve();
+  assert.deepEqual(await first, { updatedAt: 'v2' });
+  await assert.rejects(second, error => error.code === 'REPORT_VERSION_CONFLICT' && error.status === 409);
+  assert.deepEqual(writes, [{ editor: 'first', note: 'first edit' }]);
+  assert.equal(persisted.note, 'first edit');
+});
+
+test('repeated deadlock stops retrying after the guard retry limit', async () => {
+  const guard = createApprovedEditGuard();
+  let attempts = 0;
+  const edit = guard(async () => {
+    attempts++;
+    throw Object.assign(new Error('deadlock'), { code: 'ER_LOCK_DEADLOCK', errno: 1213 });
+  }, 'reason');
+  await assert.rejects(edit({ reportId: 502 }), error => error.code === 'ER_LOCK_DEADLOCK');
+  assert.ok(attempts >= 2 && attempts <= 4, 'deadlock retries must be bounded');
+});
