@@ -19,7 +19,16 @@ const reportCodes = (r: ProductionReport, kind: "machine" | "product"): string =
     return [...new Set(values)].join(", ") || "—";
 };
 
-export default function Reports() {
+// Preserve the manager report-code display, including duplicate disambiguation.
+function pendingReportCode(report: ProductionReport, index = 0, duplicate = false) {
+    const data = report as ProductionReport & Record<string, unknown>;
+    const explicit = data.report_code || data.reportCode || data.code;
+    if (explicit) return String(explicit);
+    const fallback = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || String(report.id || index + 1).padStart(4, "0")}`;
+    return duplicate ? `${fallback}-${report.id ?? index + 1}` : fallback;
+}
+
+export default function Reports({ onOpenPendingReport }: { onOpenPendingReport?: (report: ProductionReport) => void } = {}) {
     const [date, setDate] = useState(getToday());
     const [range, setRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
     const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
@@ -96,10 +105,6 @@ export default function Reports() {
         };
     }, [load, filterKey, page]);
 
-    useEffect(() => {
-        if (loading) return;
-        window.dispatchEvent(new CustomEvent("ktc:manager-pending-page-data", { detail: { reports } }));
-    }, [reports, loading]);
     useEffect(() => {
         detailRequestSeqRef.current += 1;
         setPage(1); setDetail(null); setDetailLoading(false); setDetailError(""); setSelectedIds([]);
@@ -332,6 +337,24 @@ export default function Reports() {
         } finally { managerActionLockRef.current = false; setBulkApproving(false); setBulkProgress({ completed: 0, total: 0 }); }
     };
 
+    // Stable report identifiers are computed from React state, not rendered row positions.
+    const duplicateReportCodes = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const report of reports) {
+            const base = pendingReportCode(report);
+            counts.set(base, (counts.get(base) || 0) + 1);
+        }
+        return counts;
+    }, [reports]);
+    const openRow = (report: ProductionReport) => {
+        if (onOpenPendingReport) {
+            const id = Number(report.id);
+            if (Number.isSafeInteger(id) && id > 0) onOpenPendingReport(report);
+            return;
+        }
+        void openDetail(report);
+    };
+
     const detailKpi = detail ? kpi(detail) : null;
     const detailAny = detail as (ProductionReport & Record<string, unknown>) | null;
     const detailDeductions = Array.isArray(detailAny?.deductions) ? (detailAny?.deductions as any[]).filter(x => num(x.hours) > 0) : [];
@@ -392,14 +415,32 @@ export default function Reports() {
                     </div>}
                     <div className={`pending-table-wrap ${reports.length === 0 ? "pending-table-empty" : ""}`} role="region" aria-label="Bảng báo cáo chờ duyệt, có thể cuộn ngang" tabIndex={0} style={{ overflowX: "auto" }}>
                         <table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}><caption className="pending-table-caption">Danh sách báo cáo sản xuất chờ duyệt</caption>
-                            <thead><tr><th className="select-col"><input type="checkbox" aria-label="Chọn tất cả báo cáo trên trang này" checked={allVisibleSelected} ref={node => { if (node) node.indeterminate = selectedVisibleCount > 0 && !allVisibleSelected; }} onChange={toggleVisibleSelection} disabled={loading || approving || bulkApproving || rejecting || reports.length === 0} /></th><th>Công nhân</th><th>Công đoạn</th><th>Mã máy</th><th>Mã SP</th><th>Ca</th><th>Ngày báo cáo</th><th>Thời gian (giờ)</th><th>TT OK</th><th>NG</th><th>% năng suất</th><th>% PP</th></tr></thead><tbody>
-                                {loading ? <tr><td colSpan={12} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={12} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}><div role="alert">{error}</div><button type="button" onClick={() => void load()} disabled={loading} style={{ marginTop: 12, minHeight: 40, padding: "8px 16px", border: "1px solid #c24141", borderRadius: 8, background: "#fff", color: "#9f2828", fontWeight: 700, cursor: "pointer" }}>Thử tải lại</button></td></tr> : reports.length === 0 ? <tr><td colSpan={12} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
-                                    const x = kpi(r);return <tr key={r.id ?? i} tabIndex={0} aria-selected={detail?.id === r.id} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => void openDetail(r)} onKeyDown={e => {
+                            <thead><tr>
+                                <th className="select-col"><input type="checkbox" aria-label="Chọn tất cả báo cáo trên trang này" checked={allVisibleSelected} ref={node => { if (node) node.indeterminate = selectedVisibleCount > 0 && !allVisibleSelected; }} onChange={toggleVisibleSelection} disabled={loading || approving || bulkApproving || rejecting || reports.length === 0} /></th>
+                                {["Mã báo cáo", "Công nhân", "Công đoạn", "Ca", "Ngày báo cáo", "Thời gian", "% HV", "TT OK", "NG", "% năng suất", "% đạt", "% PP", "Trạng thái"].map(label => <th key={label} className={["% HV", "TT OK", "NG", "% năng suất", "% đạt", "% PP"].includes(label) ? "pending-full-metric" : ""}>{label}</th>)}
+                            </tr></thead>
+                            <tbody>
+                                {loading ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={14} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}><div role="alert">{error}</div><button type="button" onClick={() => void load()} disabled={loading} style={{ marginTop: 12, minHeight: 40, padding: "8px 16px", border: "1px solid #c24141", borderRadius: 8, background: "#fff", color: "#9f2828", fontWeight: 700, cursor: "pointer" }}>Thử tải lại</button></td></tr> : reports.length === 0 ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
+                                    const x = kpi(r);
+                                    const code = pendingReportCode(r, i);
+                                    return <tr key={r.id ?? i} data-report-id={r.id} tabIndex={0} aria-selected={detail?.id === r.id} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => openRow(r)} onKeyDown={e => {
                                         if (e.target !== e.currentTarget) return;
-                                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void openDetail(r); }
+                                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRow(r); }
                                     }} style={{ cursor: "pointer" }}>
-                                        <td className="select-col"><input type="checkbox" aria-label={`Chọn báo cáo ${r.id}`} checked={selectedIds.includes(Number(r.id))} disabled={loading || approving || bulkApproving || rejecting} onChange={() => toggleSelected(Number(r.id))} onClick={e => e.stopPropagation()} /></td><td className="report-worker-cell"><strong>{text(r.full_name || r.worker_name)}</strong><small>{text(r.worker_code)}</small></td><td>{processLabel(r)}</td><td className="report-code-cell">{reportCodes(r, "machine")}</td><td className="report-code-cell">{reportCodes(r, "product")}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td><td>{fmt(r.total_time || r.actual_time)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
-                                        <td className={`report-productivity-cell ${x.nangSuat <= 75 || x.nangSuat > 100 ? "is-low" : "is-normal"}`} title={x.standardMissing ? "Máy chưa có định mức hợp lệ trong báo cáo này" : undefined}><span>{x.standardMissing ? "Thiếu định mức" : pct(x.nangSuat)}</span></td><td className={`report-pp-cell ${x.pp === 0 ? "is-zero" : x.pp >= 1 ? "is-elevated" : "is-normal"}`}><span>{pct(x.pp)}</span></td>
+                                        <td className="select-col"><input type="checkbox" aria-label={`Chọn báo cáo ${r.id}`} checked={selectedIds.includes(Number(r.id))} disabled={loading || approving || bulkApproving || rejecting} onChange={() => toggleSelected(Number(r.id))} onClick={e => e.stopPropagation()} /></td>
+                                        <td className="report-code">{pendingReportCode(r, i, (duplicateReportCodes.get(code) || 0) > 1)}</td>
+                                        <td>{`${text(r.full_name || r.worker_name)} (${text(r.worker_code)})`}</td>
+                                        <td>{processLabel(r)}</td>
+                                        <td><span className="shift-chip">{text(r.shift)}</span></td>
+                                        <td>{dateText(r.work_date)}</td>
+                                        <td>{`${fmt(r.total_time || r.actual_time)} giờ`}</td>
+                                        <td className="pending-full-metric">{pct(x.hv)}</td>
+                                        <td className="pending-full-metric">{fmt(x.ok)}</td>
+                                        <td className="pending-full-metric">{fmt(x.ng)}</td>
+                                        <td className={`pending-full-metric ${x.nangSuat <= 75 || x.nangSuat > 100 ? "pending-full-productivity" : ""}`}>{x.standardMissing ? "Thiếu định mức" : pct(x.nangSuat)}</td>
+                                        <td className="pending-full-metric">{pct(x.dat)}</td>
+                                        <td className={`pending-full-metric ${x.pp === 0 || x.ngTypeCount === 1 ? "pending-full-pp" : ""}`}>{pct(x.pp)}</td>
+                                        <td>Chờ duyệt</td>
                                     </tr>;
                                 })}
                             </tbody>

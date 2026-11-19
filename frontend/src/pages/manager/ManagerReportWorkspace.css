@@ -1,0 +1,18 @@
+/* Manager/admin-ops pending review workspace. React owns the table, including
+   selectable checkboxes and all report rows: never use DOM mutation to restyle it. */
+@media (min-width: 801px) {
+  .ktc-manager-report-workspace .pending-reference-page { max-width: none; margin-top: 0; }
+  .ktc-manager-report-workspace .pending-reference-table { min-width: 1450px; table-layout: fixed; }
+  .ktc-manager-report-workspace .pending-table-wrap.pending-table-empty { overflow-x: hidden !important; }
+  .ktc-manager-report-workspace .pending-table-wrap.pending-table-empty .pending-reference-table { min-width: 0; width: 100%; table-layout: auto; }
+  .ktc-manager-report-workspace .pending-table-wrap.pending-table-empty .pending-reference-table thead { display: none; }
+  .ktc-manager-report-workspace .pending-reference-table th,
+  .ktc-manager-report-workspace .pending-reference-table td { height: 42px; padding: 0 9px; font-size: 11px; }
+}
+.ktc-manager-report-workspace .pending-reference-table .pending-full-metric { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ktc-manager-report-workspace .pending-reference-table .pending-full-productivity { background: #ffd6e7 !important; color: #9b123f !important; border: 1px solid #ff9fbe !important; font-weight: 800; }
+.ktc-manager-report-workspace .pending-reference-table .pending-full-pp { background: #fff0b8 !important; color: #795600 !important; border: 1px solid #e3ad20 !important; font-weight: 800; }
+@media (max-width: 800px) {
+  .ktc-manager-report-workspace .pending-table-wrap { overflow-x: auto; }
+  .ktc-manager-report-workspace .pending-reference-table { min-width: 1180px; }
+}
