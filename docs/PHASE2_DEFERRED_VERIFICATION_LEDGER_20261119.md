@@ -5,7 +5,7 @@ This ledger must be repeated in each chat progress report until closure and used
 | ID | Origin | Pending / blocked | Closure evidence | State |
 |---|---|---|---|---|
 | D-01 | Part 1 | Isolated repository checkout and exact SHA baseline; frontend lint/typecheck/build; backend check | Recorded command output and exit codes on a clean isolated checkout | PASS |
-| D-02 | Part 1 | Safe isolated unit suites and Desktop synthetic Excel smoke; no shared TEST/production DB | Test runner logs, fixture isolation, no DB writes | PARTIAL |
+| D-02 | Part 1 | Safe isolated focused Node suites and Desktop synthetic worker Excel smoke executed with temp fixtures and no shared DB | GitHub Actions 44509214418: Backend/Frontend/Desktop selected suites and scripts/smokeExcel.cjs PASS; no production data | PASS |
 | D-03 | Part 2 | Machine-event participant API Node contract test and TypeScript check, currently static-only | `node --test frontend/tests/machine-event-participant-api.contract.test.cjs`, typecheck pass | PASS |
 | D-04 | Part 3 | Manager approved-row navigation React/UI regression (click, keyboard, filtering, pagination, admin_ops path) | Browser/component test evidence on isolated checkout | PARTIAL |
 | D-05 | Part 3 | React-owned Pending table refactor completed; interactive browser selection, bulk approve/reject and responsive visual regression remain | Browser tests with fixture data prove checkbox, select all, filter, pagination, bulk approve/reject and layout | PARTIAL |
@@ -21,8 +21,8 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-15 | Part 7 | Backend/Desktop historical KPI and shared machine event fixture parity PASS in CI; approved-data DB + generated XLSX roundtrip parity not tested | Synthetic approved report fixture compared through backend, Desktop XLSX and immutable event/version snapshots | PARTIAL |
 | D-16 | Part 8 | Execute permission cache stale-response race tests, TS typecheck, permissions and Master Control regression on pinned checkout | `cd frontend && node --test tests/permission-cache-invalidation-race.test.cjs && npm run typecheck`; independently verify backend 403 on unauthorized roles with isolated fixtures | PARTIAL |
 | D-17 | Part 8 | Permission matrix CSS/visual responsive checks, dark theme and admin user/role override interactions | CSS contract test plus browser visual and role matrix interaction evidence at desktop/mobile widths | PARTIAL |
-| D-18 | Part 9 | Run new Desktop workbook naming parity test with pinned checkout; inspect packaging inclusion | `cd desktop && node --test tests/monthly-workbook-naming-parity.test.cjs` and desktop check/packaging tests PASS | PARTIAL |
-| D-19 | Part 9 | Execute synthetic XLSX workbook parity for ten process sheets, formulas, styles, _KTC_SYNC, sync/import and template round-trip | Compare generated workbook outputs before/after on isolated fixture, checksum key cells, no production files/NAS writes | OPEN |
+| D-18 | Part 9 | Desktop workbook naming, renderer syntax, packaging-sync tests and packaged shared contract checks PASS; full Electron/Windows package not built | Windows isolated NSIS/portable packaging, signing and device smoke evidence | PARTIAL |
+| D-19 | Part 9 | All 11 XLSX exports, six Workbook1 template/style tests, _KTC_SYNC lineage and edited CVK OK-field sync patch PASS; complete Workbook1 import and edited field round-trip still missing | Prove id/row mapping and full edit/import for all six Workbook1 sheets, other processes and metadata snapshot totals without DB writes | PARTIAL |
 | D-20 | Part 10 | GitHub Actions consolidated workflow has not produced any recorded run (actions run list returned zero on branch after workflow commit) | One CI run on pinned SHA with backend/frontend/Desktop job results, logs and failures triaged | PASS |
 
 ## Final one-time CI results (2026-11-19) — source SHA `263b6e916d506aa05b0e2f0f69e3c2d04d1827c4`
@@ -64,6 +64,19 @@ Changed:
 **Deployment safety:** Cloudflare Workers Builds triggers for `ktc-fe-test` and `ktc-be-test` were inspected read-only; both list `branch_includes: ["test"]`, not this refactor branch. No Cloudflare deploy command, merge, database access, or production file write was used.
 
 All other D entries retain their prior states. Next batch should start from D-09/D-16/D-17 and not re-run unrelated already-PASS suites unless impacted by new code.
+
+## Deferred batch 4/5 — Desktop XLSX export, sync and packaging (2026-11-19)
+
+**CI run [44509214418](https://github.com/Nan1233/worker-management-system/actions/runs/44509214418)**, pinned app/test SHA `0039c960c758a36e711dea2b5ffd10f9481ecd44`: **4/4 jobs SUCCESS**; **280/280 selected Node tests PASS** (Backend 162, Frontend 73, Desktop 45); frontend typecheck, lint and build PASS. Desktop's separate worker Excel smoke and packaged shared contract script also PASS.
+
+New `desktop/tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs`: generated a real summary workbook plus all 10 process XLSX buffers from synthetic approved fixtures, wrote these under a unique `os.tmpdir()` directory (never KTC Documents/NAS), reloaded each workbook, validated visible sheets, file suffix/prefix, `_KTC_SYNC` veryHidden contract/version/month/process, original report IDs and timestamps. Tested generic CVK import: changed OK in the actual temporary XLSX file and read it via `readExcelChanges`; expected a report patch with `tt_ok=91` and original `expected_updated_at`, no DB request. Existing six Workbook1 and MAI/DO original template tests preserve formulas, styled cells, coded NG, date rows and source-specific formats. Packaging-sync and packaged shared contract checks passed.
+
+- **D-02 PASS**: focused safe isolated unit suites + actual worker Excel synthetic smoke executed, no shared DB or production file write.
+- **D-18 PARTIAL**: naming and source packaging checks passed; Windows NSIS/portable build, signing and installed-device validation not performed.
+- **D-19 PARTIAL (was OPEN)**: actual XLSX buffer/file roundtrip for all 11 files and edited CVK import passed. **Important unresolved risk**: `WORKBOOK1_FORMS` mappings are paper-form columns without a visible `id`, while `readExcelChanges` currently requires an `id` column to associate rows. End-to-end edited Workbook1 report sync for the six processes has **not** been verified, so do not imply that the full two-way sync is safe. Dedicated row identity mapping, conflict checks and import regression are required before release.
+- The general folder validator `scripts/validateExcelFolder.cjs` assumes a common header/freeze contract that differs from user-approved Workbook1 paper templates; no production folder validation was attempted. Review its applicability to the two template families before using it as a release gate.
+
+All other D entries preserve their previous statuses. **Overall ledger: 8 PASS, 11 PARTIAL, 1 OPEN (D-07).** Next batch 5/5 must not mark the project release ready unless browser, DB-isolated, Excel import identity and Windows packaging blockers receive evidence or explicit risk acceptance.
 
 ## Deferred batch 3/5 — Backend and historical KPI (2026-11-19)
 
