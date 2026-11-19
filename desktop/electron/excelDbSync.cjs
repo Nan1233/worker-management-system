@@ -132,6 +132,10 @@ function parseMeta(workbook) {
     reports.set(id, {
       expectedUpdatedAt: metaSheet.getCell(row, 2).value || null,
       operationMode: asText(metaSheet.getCell(row, 3).value).toUpperCase(),
+      sourceRow: Number(metaSheet.getCell(row, 5).value || 0),
+      workerCode: asText(metaSheet.getCell(row, 6).value),
+      workDate: asText(metaSheet.getCell(row, 7).value),
+      sourceStt: Number(metaSheet.getCell(row, 8).value || 0),
       original
     });
   }
@@ -226,18 +230,67 @@ async function readExcelChanges(filePath) {
   const gcHelper = meta.config.processCode === 'GC' ? parseGcHelperSheet(workbook) : null;
   let helperDirty = false;
   const idColumn = meta.config.columns.find((col) => col.key === 'id');
-  if (!idColumn) throw new Error('Workbook thiếu cột ID để đồng bộ DB');
+  const paperRows = !idColumn && meta.config.rowIdentityMode === 'KTC_SYNC_ROW_V1';
+  if (!idColumn && !paperRows) {
+    // Legacy paper exports cannot be safely joined to report IDs. Require a
+    // fresh export rather than guessing by row position or worker name.
+    const error = new Error('Mẫu Excel cũ thiếu ánh xạ ID. Hãy xuất lại Excel từ DB trước khi đồng bộ.');
+    error.code = 'EXCEL_SYNC_ROW_IDENTITY_MISSING';
+    throw error;
+  }
+  const firstRow = paperRows ? Number(meta.config.firstDataRow) - 1 : 6;
+  if (paperRows && (!Number.isSafeInteger(firstRow) || firstRow < 1)) {
+    const error = new Error('Mẫu Excel thiếu thông tin dòng bắt đầu.');
+    error.code = 'EXCEL_SYNC_ROW_IDENTITY_INVALID';
+    throw error;
+  }
 
   const rowById = new Map();
   const rowDate = new Map();
+  const knownPaperRows = new Set();
   let activeDate = null;
-  for (let row = 6; row <= sheet.rowCount; row += 1) {
+  for (let row = firstRow; row <= sheet.rowCount; row += 1) {
     const first = sheet.getCell(row, 1).value;
     const parsedDate = excelDateToIso(first);
     if (parsedDate && !Number.isInteger(Number(first))) { activeDate = parsedDate; continue; }
+    if (paperRows) {
+      if (activeDate) rowDate.set(row, activeDate);
+      continue;
+    }
     const id = Number(sheet.getCell(row, idColumn.index).value);
-    if (Number.isInteger(id) && id > 0) rowById.set(id, row);
+    if (Number.isInteger(id) && id > 0) {
+      if (rowById.has(id)) {
+        const error = new Error('File Excel chứa ID báo cáo lặp.');
+        error.code = 'EXCEL_SYNC_DUPLICATE_ID';
+        throw error;
+      }
+      rowById.set(id, row);
+    }
     if (activeDate) rowDate.set(row, activeDate);
+  }
+  if (paperRows) {
+    for (const [id, saved] of meta.reports.entries()) {
+      const row = saved.sourceRow;
+      if (!Number.isSafeInteger(row) || row < firstRow + 1 || row > sheet.rowCount ||
+          knownPaperRows.has(row) || !saved.workerCode || !saved.workDate ||
+          !Number.isSafeInteger(saved.sourceStt) || saved.sourceStt < 1) {
+        const error = new Error('Ánh xạ ID / dòng trong _KTC_SYNC không hợp lệ.');
+        error.code = 'EXCEL_SYNC_ROW_IDENTITY_INVALID';
+        throw error;
+      }
+      knownPaperRows.add(row);
+      const current = currentByKey(sheet, row, meta.config.columns);
+      if (asText(current.workerCode) !== saved.workerCode ||
+          rowDate.get(row) !== saved.workDate ||
+          Number(sheet.getCell(row, 1).value) !== saved.sourceStt) {
+        // Moving/reordering paper rows must never change which approved
+        // report is updated; refuse the whole import before creating a patch.
+        const error = new Error('Dòng Excel đã bị di chuyển hoặc thay đổi mã NV, ngày, STT. Hãy xuất lại file từ DB.');
+        error.code = 'EXCEL_SYNC_ROW_IDENTITY_MISMATCH';
+        throw error;
+      }
+      rowById.set(id, row);
+    }
   }
 
   const changes = [];
@@ -277,8 +330,25 @@ async function readExcelChanges(filePath) {
       work_date: 'Ngày báo cáo', shift: 'Ca', operation_type: 'Loại thao tác', operation_mode: 'Chế độ', machine_no: 'Máy', product_name: 'Sản phẩm', training_percent: '% học việc',
       actual_time: 'TG thực tế', tt_ok: 'SL OK', note: 'Ghi chú', deductions: 'Trừ giờ', defects: 'NG chi tiết'
     };
+    // A paper template exposes only a subset of fields. Never turn an
+    // absent column into an empty/zero update to previously approved data.
+    const available = new Set(meta.config.columns.map(col => col.key));
+    const availablePatch = new Set([
+      'work_date',
+      ...(available.has('shift') ? ['shift'] : []),
+      ...(available.has('operationType') || gcHelper ? ['operation_type'] : []),
+      ...(available.has('operationMode') || gcHelper ? ['operation_mode'] : []),
+      ...(available.has('machine') || gcHelper ? ['machine_no'] : []),
+      ...(available.has('product') ? ['product_name'] : []),
+      ...(available.has('training') ? ['training_percent'] : []),
+      ...(available.has('actualTime') ? ['actual_time'] : []),
+      ...(available.has('ok') ? ['tt_ok'] : []),
+      ...(available.has('note') ? ['note'] : []),
+      ...(meta.config.columns.some(col => col.key.startsWith('deduction:') && col.typeId) ? ['deductions'] : []),
+      ...(meta.config.columns.some(col => col.key.startsWith('defect:') && col.typeId) ? ['defects'] : [])
+    ]);
     for (const [key, afterRaw] of Object.entries(candidate)) {
-      if (!isExcelMutableField(key)) continue;
+      if (!isExcelMutableField(key) || (paperRows && !availablePatch.has(key))) continue;
       const beforeRaw = original[key];
       const before = fieldValue(key, beforeRaw);
       const after = fieldValue(key, afterRaw);
@@ -303,14 +373,21 @@ async function readExcelChanges(filePath) {
   // Blank ID + real worker/product data means a manager intentionally added a new Excel row.
   // It is sent as CREATE and the backend remains authoritative for validation/calculation.
   const knownIds = new Set(meta.reports.keys());
-  for (let row = 6; row <= sheet.rowCount; row += 1) {
+  for (let row = paperRows ? firstRow : 6; row <= sheet.rowCount; row += 1) {
     // Chỉ coi dòng có STT số nguyên dương là dòng báo cáo mới.
     // Điều này loại bỏ dòng ngày, dòng TỔNG CỘNG và các dòng công thức/trang trí.
     const stt = Number(sheet.getCell(row, 1).value);
     if (!Number.isInteger(stt) || stt <= 0) continue;
-    const id = Number(sheet.getCell(row, idColumn.index).value);
+    if (paperRows && knownPaperRows.has(row)) continue;
+    const id = idColumn ? Number(sheet.getCell(row, idColumn.index).value) : 0;
     if (Number.isInteger(id) && id > 0) continue;
     const current = currentByKey(sheet, row, meta.config.columns);
+    if (paperRows && (asText(current.workerCode) || asText(current.product) || asText(current.shift))) {
+      const error = new Error('Dòng mới trong mẫu giấy chưa có ID đồng bộ. Hãy thêm báo cáo qua ứng dụng rồi xuất Excel lại.');
+      error.code = 'EXCEL_SYNC_UNTRACKED_PAPER_ROW';
+      throw error;
+    }
+    if (paperRows) continue;
     const workerCode = asText(current.workerCode);
     const productName = asText(current.product);
     const shift = asText(current.shift);
