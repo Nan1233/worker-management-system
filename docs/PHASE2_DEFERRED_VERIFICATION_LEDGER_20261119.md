@@ -14,11 +14,11 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-08 | Part 4 | Worker form hook simulation test and frontend typecheck | `node --test frontend/tests/f02-process-form-extracted-hooks.test.cjs` and typecheck PASS with pinned commit | PASS |
 | D-09 | Part 4 | Worker submit/draft/offline test suite PASS; actual browser submission/draft and offline synchronization still unverified | Browser integration with mocked/isolated API proves unchanged payload, draft recovery, single-click submit, offline retry and identity isolation | PARTIAL |
 | D-10 | Part 5 | Repository Node test for shared proposal read normalization | `cd backend && node --test tests/report-edit-proposal-read-normalization.test.js` with exact checkout SHA | PASS |
-| D-11 | Part 5 | Proposal review rollback/concurrency/scope behavior under isolated fixtures | Run `proposalReviewRollback.behavior.test.js`, `proposalReviewTransaction.contract.test.js` and permission tests; verify no DB writes | PARTIAL |
+| D-11 | Part 5 | Proposal rollback, transaction-order and approved-edit concurrency mock tests PASS; real DB scope and concurrent approval isolation not tested | Isolated database integration tests confirm rollback/commit and RBAC for different actors | PARTIAL |
 | D-12 | Part 6 | Execute child NG/deduction total validator tests and backend source checks on isolated checkout | `cd backend && node --test tests/production-child-totals-validation.test.js && npm run check` PASS with pinned SHA | PASS |
-| D-13 | Part 6 | Verify submission idempotency, concurrent submissions, split machine lines and rollback against isolated fixtures | Backend regression/behavior tests, no shared TEST/production DB; record outcomes | PARTIAL |
-| D-14 | Part 7 | Execute daily-hours parity and frozen historical snapshot/physical-machine tests on pinned checkout | `cd backend && node --test tests/production-daily-hours-parity-refactor.test.js`, reviewed historical/training/shared accounting suites and check command PASS | PARTIAL |
-| D-15 | Part 7 | Validate end-to-end physical machine output counted once and snapshot historical KPIs unchanged after refactor | Isolated fixture parity across backend + desktop; approved snapshot check, no shared DB | OPEN |
+| D-13 | Part 6 | Mocked logical-duplicate/locked-submit/queue and multi-machine tests PASS; real concurrent transaction + idempotency DB fixture pending | Disposable DB concurrent create/submission tests and rollback evidence | PARTIAL |
+| D-14 | Part 7 | Historical effective dates, missing snapshot fail-closed, daily-hours parity and physical event tests PASS on CI; TiDB isolation/snapshot migration parity still untested | Disposable DB historical standards and immutable snapshots checked across approval lifecycle | PARTIAL |
+| D-15 | Part 7 | Backend/Desktop historical KPI and shared machine event fixture parity PASS in CI; approved-data DB + generated XLSX roundtrip parity not tested | Synthetic approved report fixture compared through backend, Desktop XLSX and immutable event/version snapshots | PARTIAL |
 | D-16 | Part 8 | Execute permission cache stale-response race tests, TS typecheck, permissions and Master Control regression on pinned checkout | `cd frontend && node --test tests/permission-cache-invalidation-race.test.cjs && npm run typecheck`; independently verify backend 403 on unauthorized roles with isolated fixtures | PARTIAL |
 | D-17 | Part 8 | Permission matrix CSS/visual responsive checks, dark theme and admin user/role override interactions | CSS contract test plus browser visual and role matrix interaction evidence at desktop/mobile widths | PARTIAL |
 | D-18 | Part 9 | Run new Desktop workbook naming parity test with pinned checkout; inspect packaging inclusion | `cd desktop && node --test tests/monthly-workbook-naming-parity.test.cjs` and desktop check/packaging tests PASS | PARTIAL |
@@ -64,6 +64,19 @@ Changed:
 **Deployment safety:** Cloudflare Workers Builds triggers for `ktc-fe-test` and `ktc-be-test` were inspected read-only; both list `branch_includes: ["test"]`, not this refactor branch. No Cloudflare deploy command, merge, database access, or production file write was used.
 
 All other D entries retain their prior states. Next batch should start from D-09/D-16/D-17 and not re-run unrelated already-PASS suites unless impacted by new code.
+
+## Deferred batch 3/5 — Backend and historical KPI (2026-11-19)
+
+**CI source SHA `73aa3db7b4f8cb45abc4a438357c8030382fbff3`**: [GitHub Actions 44507431486](https://github.com/Nan1233/worker-management-system/actions/runs/44507431486) = **4/4 jobs SUCCESS**. Backend **162/162** focused/mocked tests, Frontend **73/73**, Desktop **21/21**, total **256/256 PASS**; frontend typecheck, lint and build PASS. No DB credentials provided, no production write or deployment.
+
+Added `backend/tests/phase2-batch3-historical-kpi-parity.test.js` (5 new tests) protecting immutable historical training percent, approved DB fields, missing-training fail-closed, single physical event across multiple workers and no fallback for missing physical event. Extended isolated CI to execute transaction rollback and ordering, approved-edit concurrency, logical duplicates and submission locking, historical standards, approved version snapshots, GC shared-machine accounting, and Backend/Desktop shared metric primitives. Fixed two outdated **test harnesses**, not runtime business logic: machine-copy helper extraction boundary and the create-model daily-hours delegation contract.
+
+- **D-11 PARTIAL:** mocked transaction review/rollback/ordering and edit concurrency PASS. Real permission scope, DB locking and rollback still untested.
+- **D-13 PARTIAL:** mock concurrency, duplicate and submission queue PASS; no disposable TiDB concurrent writes tested.
+- **D-14 PARTIAL:** historical effective-date/snapshot and shared accounting suites PASS; no real approved data migration/DB parity.
+- **D-15 PARTIAL (was OPEN):** historical KPI Backend/Desktop fixture tests PASS; missing approved-data/Excel workbook round-trip and machine totals tied to real database snapshots (requires D-19).
+
+All other D-01 to D-20 statuses unchanged. **Overall: 7 PASS, 11 PARTIAL, 2 OPEN**. Do not mark D-11/D-13/D-14/D-15 as full PASS until corresponding isolated DB and XLSX/browser acceptance evidence exists.
 
 ## Deferred batch 2/5 — Worker and Admin (2026-11-19)
 
