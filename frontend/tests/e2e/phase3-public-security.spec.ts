@@ -23,6 +23,15 @@ test.describe('Phase 3 browser security and responsive public surfaces', () => {
     expect(widths.page).toBeLessThanOrEqual(widths.viewport + 1);
   });
 
+  test('browser navigation never grants a protected role when a fake token is present', async ({ page }) => {
+    await page.goto('/#/login');
+    await page.evaluate(() => {
+      localStorage.setItem('token', 'PHASE5_INVALID_SYNTHETIC_TOKEN');
+    });
+    await page.goto('/#/manager/reports');
+    await expect(page).toHaveURL(/#\\/login(?:\\?|$)/);
+  });
+
   test('login keyboard input respects the configured 20-character limit', async ({ page }) => {
     await page.goto('/#/login');
     const field = page.getByPlaceholder('Nhập mã nhân viên');
