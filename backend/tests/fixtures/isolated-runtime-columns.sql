@@ -15,3 +15,25 @@ ALTER TABLE production_temp_machine_lines
 
 ALTER TABLE production_report_machine_lines
   MODIFY COLUMN standard_source VARCHAR(64) NULL;
+
+-- Historical migration 027/036: notifications link and entity identity.
+ALTER TABLE notifications
+  ADD COLUMN IF NOT EXISTS link_url VARCHAR(1000) NULL;
+ALTER TABLE notifications
+  ADD COLUMN IF NOT EXISTS entity_type VARCHAR(80) NULL;
+ALTER TABLE notifications
+  ADD COLUMN IF NOT EXISTS entity_id BIGINT NULL;
+CREATE INDEX IF NOT EXISTS idx_notification_entity
+  ON notifications (entity_type, entity_id);
+
+-- Historical migration 059: explicit GC machine work type (no code-prefix guess).
+ALTER TABLE machines
+  ADD COLUMN IF NOT EXISTS gc_work_type VARCHAR(10) NULL;
+UPDATE machines m JOIN processes p ON p.id = m.process_id
+SET m.gc_work_type='CUT'
+WHERE UPPER(TRIM(p.process_code))='GC' AND m.gc_work_type IS NULL
+  AND m.machine_name REGEXP '^Máy cắt số [0-9]+';
+UPDATE machines m JOIN processes p ON p.id = m.process_id
+SET m.gc_work_type='LONG'
+WHERE UPPER(TRIM(p.process_code))='GC' AND m.gc_work_type IS NULL
+  AND m.machine_name REGEXP '^Máy lồng số [0-9]+';
