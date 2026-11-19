@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { detectIncompleteMachineData } from "../../utils/machineLinesIntegrity";
 import axios from "axios";
 import { createApprovedReportFromExcel, deleteReport, getApprovedReports, getReportById, invalidateManagerReportCaches, updateReport } from "../../services/productionService";
@@ -42,7 +42,7 @@ export default function ManagerReportGrid(){
  const canEdit=!loading&&!saving;
  const goPage=(target:number)=>requestLeave(()=>setPage(Math.max(1,Math.min(lastPage,target))));
  const apply=(p:Preset)=>{const d=parse(getToday());let a:Date,b:Date;if(p==="today"){a=new Date(d);b=new Date(d)}else if(p==="yesterday"){a=new Date(d);a.setDate(a.getDate()-1);b=new Date(a)}else if(p==="week"){a=ws(d);b=we(d)}else if(p==="last-week"){b=ws(d);b.setDate(b.getDate()-1);a=new Date(b);a.setDate(a.getDate()-6)}else if(p==="month"){a=ms(d);b=me(d)}else if(p==="last-month"){a=new Date(d.getFullYear(),d.getMonth()-1,1);b=new Date(d.getFullYear(),d.getMonth(),0)}else{setPreset("custom");return}setPreset(p);setFrom(iso(a));setTo(iso(b));setPage(1)};
- const load=async(forceRefresh=false)=>{
+ const load=useCallback(async(forceRefresh=false)=>{
   const sequence=++requestSeqRef.current;
   try{
    setLoading(true);setLoadError("");
@@ -63,10 +63,10 @@ export default function ManagerReportGrid(){
     showToast(message,"error");
    }
   }finally{if(requestSeqRef.current===sequence)setLoading(false)}
- };
- useEffect(()=>{void load();return()=>{requestSeqRef.current+=1}},[process,from,to,search,page]);
+ },[process,from,to,search,page,showToast]);
+ useEffect(()=>{const requestSequence=requestSeqRef;void load();return()=>{requestSequence.current+=1}},[load]);
  useEffect(()=>{void getAllWorkers().then(list=>setWorkerDirectory(Object.fromEntries(list.map(w=>[String(w.worker_code||"").trim(),{worker_id:Number(w.worker_id),full_name:String(w.full_name||"")}]).filter(([code])=>Boolean(code))))).catch(()=>{})},[]);
- useEffect(()=>{setPage(1);if(!dirty){setEditing(null);setSelectedId(null);setDrafts({});}setProcessId(process.processId)},[process,from,to,search]);
+ useEffect(()=>{setPage(1);if(!dirty){setEditing(null);setSelectedId(null);setDrafts({});}setProcessId(process.processId)},[process,from,to,search,dirty]);
  useEffect(()=>{const before=(e:BeforeUnloadEvent)=>{if(!dirty)return;e.preventDefault();e.returnValue=""};addEventListener("beforeunload",before);return()=>removeEventListener("beforeunload",before)},[dirty]);
  useEffect(()=>{let alive=true;if(!processId){setDeductions([]);setDefects([]);return}Promise.all([getCachedDefects(processId),getCachedDeductions(processId)]).then(([a,b])=>{if(!alive)return;setDefects(normalizeDefectOptions(a,processId));setDeductions(normalizeDeductionOptions(b,processId))}).catch(()=>{if(alive){setDefects([]);setDeductions([])}});return()=>{alive=false}},[processId]);
  const row=(r:ProductionReport)=>drafts[Number(r.id)]||r,workerName=(r:ProductionReport)=>{const x=row(r),code=String((x as any).worker_code||"").trim();return workerDirectory[code]?.full_name||String((x as any).full_name||(x as any).worker_name||"").trim()||"—"},
