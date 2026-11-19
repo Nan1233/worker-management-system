@@ -60,10 +60,13 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
     await openFirstPendingReport(page);
 
-    await page.getByRole('button', { name: 'Từ chối' }).click();
-    await page.locator('textarea').fill('Nhập sai số lượng OK');
-    const rejected = page.waitForResponse((r) => r.url().endsWith('/api/production-temp/reject-selected'));
-    await page.getByRole('button', { name: 'Xác nhận từ chối' }).click();
+    await page.getByRole('button', { name: 'Từ chối báo cáo' }).click();
+    // Real UI requires selecting a reason; textarea exists only for "Khác".
+    await page.locator('#pending-reject-reason').selectOption({ label: 'Khác' });
+    await page.getByRole('textbox', { name: 'Lý do từ chối cụ thể' }).fill('Nhập sai số lượng OK');
+    page.once('dialog', dialog => void dialog.accept()); // native batch confirmation
+    const rejected = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/production-temp/reject-selected');
+    await page.getByRole('button', { name: /Xác nhận từ chối 1 báo cáo/ }).click();
     expect((await rejected).status()).toBe(200);
 
     const detail = await request.get(`${API}/api/production-temp/${state.reportId}`, { headers: { Authorization: `Bearer ${state.managerToken}` } });
@@ -119,8 +122,9 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
     await openFirstPendingReport(page);
 
-    const approved = page.waitForResponse((r) => r.url().endsWith('/api/production-temp/approve-selected'));
-    await page.getByRole('button', { name: /Duyệt/ }).first().click();
+    const approved = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/production-temp/approve-selected');
+    page.on('dialog', dialog => void dialog.accept());
+    await page.getByRole('button', { name: 'Duyệt báo cáo' }).click();
     const confirm = page.getByRole('button', { name: /Xác nhận|Đồng ý/ });
     if (await confirm.count()) await confirm.first().click();
     expect((await approved).status()).toBe(200);
