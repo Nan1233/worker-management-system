@@ -127,7 +127,8 @@ jobs:
 
   browser:
     name: Browser public security and responsive smoke (no backend)
-    runs-on: ubuntu-latest
+    # Playwright 1.56 does not support ubuntu-26.04 (ubuntu-latest in this runner pool).
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       NODE_ENV: test
