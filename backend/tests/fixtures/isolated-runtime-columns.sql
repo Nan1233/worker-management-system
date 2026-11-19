@@ -37,3 +37,9 @@ UPDATE machines m JOIN processes p ON p.id = m.process_id
 SET m.gc_work_type='LONG'
 WHERE UPPER(TRIM(p.process_code))='GC' AND m.gc_work_type IS NULL
   AND m.machine_name REGEXP '^Máy lồng số [0-9]+';
+
+-- Historical migration 029: pending-report edit audit updater.
+ALTER TABLE production_reports_temp
+  ADD COLUMN IF NOT EXISTS updated_by BIGINT NULL;
+CREATE INDEX IF NOT EXISTS idx_prt_updated_by
+  ON production_reports_temp (updated_by, updated_at);
