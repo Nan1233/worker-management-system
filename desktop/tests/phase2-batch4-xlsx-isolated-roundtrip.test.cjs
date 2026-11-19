@@ -234,3 +234,78 @@ test('paper row reorder or accidental worker-code overwrite fails closed rather 
     await fs.rm(directory, {recursive:true,force:true});
   }
 });
+
+test('older K1/K2 company paper layouts also preserve row-ID metadata and import only edited fields', async (t) => {
+  const { FORMS } = require('../electron/originalProcessExcelTemplate.cjs');
+  const { buildProcessWorkbookLocal } = require('../electron/monthlyWorkbookLocal.cjs');
+  for (const [index, code] of ['K1', 'K2'].entries()) {
+    await t.test(code, async () => {
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ktc-legacy-paper-'));
+      try {
+        const report = fixture(code, 80 + index);
+        const output = await buildProcessWorkbookLocal({
+          date: DATE, processCode: code,
+          payload: { yearMonth: MONTH, dataSource: 'tidb.production_reports.approved',
+            processes: { [code]: { reports: [report], deductionTypes: [], defectTypes: [] } } },
+        });
+        const name = path.join(dir, code+'.xlsx');
+        await fs.writeFile(name, output.buffer, {flag:'wx'});
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.readFile(name);
+        const metaSheet = wb.getWorksheet('_KTC_SYNC');
+        const config = JSON.parse(String(metaSheet.getCell('A1').value));
+        assert.equal(config.sheetName, FORMS[code].sheet);
+        assert.equal(config.rowIdentityMode, 'KTC_SYNC_ROW_V1');
+        assert.equal(Number(metaSheet.getCell('E3').value), FORMS[code].first + 1);
+        assert.ok(!config.columns.some(col => col.key === 'id'));
+        const before = await readExcelChanges(name);
+        assert.equal(before.changes.filter(c => c.id === report.id).length, 0, 'unedited '+code+' must not patch');
+        const actualTime = config.columns.find(c => c.key === 'actualTime');
+        assert.ok(actualTime);
+        wb.getWorksheet(config.sheetName).getCell(config.firstDataRow, actualTime.index).value = 6.25;
+        await wb.xlsx.writeFile(name);
+        const after = await readExcelChanges(name);
+        const update = after.changes.find(c => c.id === report.id);
+        assert.ok(update, code+' changed row must map back to the original ID');
+        assert.equal(update.patch.actual_time, 6.25);
+        assert.equal(update.expected_updated_at, report.updated_at);
+      } finally {
+        await fs.rm(dir, {recursive:true,force:true});
+      }
+    });
+  }
+});
+
+test('two dates in Workbook1 use distinct hidden source rows and never mix report IDs', async () => {
+  const { buildProcessWorkbookLocal } = require('../electron/monthlyWorkbookLocal.cjs');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ktc-multi-day-'));
+  try {
+    const older = fixture('DO', 95);
+    const newer = {...fixture('DO', 96), work_date: '2026-11-11', entry_date: '2026-11-11'};
+    const output = await buildProcessWorkbookLocal({
+      date: DATE, processCode:'DO',
+      payload: {yearMonth:MONTH, dataSource:'tidb.production_reports.approved',
+        processes:{DO:{reports:[newer,older], deductionTypes:[],defectTypes:[]}}},
+    });
+    const filepath=path.join(dir,'two-days.xlsx');
+    await fs.writeFile(filepath,output.buffer,{flag:'wx'});
+    const wb=new ExcelJS.Workbook();
+    await wb.xlsx.readFile(filepath);
+    const sync=wb.getWorksheet('_KTC_SYNC');
+    const byId=new Map();
+    for (let row=3;row<=sync.rowCount;row++) byId.set(Number(sync.getCell(row,1).value),Number(sync.getCell(row,5).value));
+    assert.equal(byId.get(older.id), 3);
+    assert.equal(byId.get(newer.id), 5);
+    const config=JSON.parse(String(sync.getCell('A1').value));
+    const actualTime=config.columns.find(c=>c.key==='actualTime');
+    wb.getWorksheet(config.sheetName).getCell(5,actualTime.index).value=6.75;
+    await wb.xlsx.writeFile(filepath);
+    const edited=await readExcelChanges(filepath);
+    assert.equal(edited.changes.filter(c=>c.id===older.id).length,0);
+    const changed=edited.changes.filter(c=>c.id===newer.id);
+    assert.equal(changed.length,1);
+    assert.equal(changed[0].patch.actual_time,6.75);
+  } finally {
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+});
