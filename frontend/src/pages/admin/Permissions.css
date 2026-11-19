@@ -26,3 +26,56 @@
 .permission-page button:disabled,.permission-page select:disabled{opacity:.65;cursor:not-allowed}
 .permission-page button:focus-visible,.permission-page input:focus-visible,.permission-page select:focus-visible,.permission-page .permission-table-wrap:focus-visible{outline:2px solid #1769d2;outline-offset:2px}
 @media(max-width:760px){.permission-page .permission-header{align-items:stretch;flex-wrap:wrap}.permission-page .permission-refresh{width:100%}.permission-page .permission-card-head{flex-wrap:wrap;padding:14px}.permission-page .permission-search{flex-basis:100%}.permission-page .permission-table-wrap{max-height:60vh}.permission-page .permission-user-grid label{grid-template-columns:minmax(0,1fr);gap:8px}.permission-page .permission-user-grid select,.permission-page .permission-table-wrap select{font-size:16px}}
+
+
+/* Explicit dark palette for permission feedback and table controls.
+   Do not rely on light-theme alert backgrounds under the dark root. */
+[data-theme="dark"] .permission-page {
+  color: #e1ecf8;
+}
+[data-theme="dark"] .permission-page .permission-card,
+[data-theme="dark"] .permission-page .permission-loading {
+  background: #223241;
+  border-color: #354a5d;
+  color: #e1ecf8;
+}
+[data-theme="dark"] .permission-page .permission-table-wrap th,
+[data-theme="dark"] .permission-page .module-row td,
+[data-theme="dark"] .permission-page .permission-user-grid label.is-disabled {
+  background: #293d50 !important;
+  color: #d5e3f2;
+}
+[data-theme="dark"] .permission-page .permission-table-wrap td,
+[data-theme="dark"] .permission-page .permission-user-grid label {
+  border-color: #354a5d;
+}
+[data-theme="dark"] .permission-page select,
+[data-theme="dark"] .permission-page input,
+[data-theme="dark"] .permission-page .permission-refresh {
+  background: #1b2c3b;
+  border-color: #50647a;
+  color: #ecf4ff;
+}
+[data-theme="dark"] .permission-page .permission-feedback {
+  background: #253b51;
+  border-color: #41617d;
+  color: #deebfa;
+}
+[data-theme="dark"] .permission-page .permission-feedback.success {
+  background: #193e31;
+  border-color: #3e8969;
+  color: #c5f4de;
+}
+[data-theme="dark"] .permission-page .permission-feedback.error {
+  background: #47282b;
+  border-color: #a75a62;
+  color: #ffe0e1;
+}
+[data-theme="dark"] .permission-page .permission-feedback.working {
+  color: #d5e3f2;
+}
+@media (max-width: 760px) {
+  .permission-page .permission-table-wrap { width: 100%; max-width: 100%; }
+  .permission-page .permission-user-grid { min-width: 0; }
+  .permission-page .permission-user-grid label { min-width: 0; }
+}

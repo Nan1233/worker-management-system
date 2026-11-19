@@ -78,7 +78,7 @@ export async function loadMyPermissions(force=false): Promise<Set<PermissionCode
     try {
       const response=await api.get('/permissions/me');
       const values=new Set<PermissionCode>((response.data?.data?.permissions || []) as PermissionCode[]);
-      if(requestGeneration !== permissionCacheGeneration) return new Set<PermissionCode>();
+      if(requestGeneration !== permissionCacheGeneration || Number(getStoredUser()?.id) !== userId) return new Set<PermissionCode>();
       cache={userId,values,expiresAt:Date.now()+60_000};
       return new Set(values);
     }

@@ -100,3 +100,19 @@ test('permission table group-row CSS stays scoped to the permissions page', () =
   assert.equal(selectors.length, 2);
   assert.equal(css.replaceAll('.permission-page .module-row td', '').includes('.module-row td'), false);
 });
+
+
+test('switching accounts while a permission request is in flight cannot cache or grant the former user rights', async () => {
+  const { api, requests, user } = harness();
+  const old = api.loadMyPermissions();
+  assert.equal(requests.length, 1);
+  user.id = 50;
+  const current = api.loadMyPermissions();
+  assert.equal(requests.length, 2);
+  requests[0].resolve({ data: { data: { permissions: ['PERMISSION_MANAGE'] } } });
+  assert.equal((await old).size, 0, 'old user response must fail closed');
+  requests[1].resolve({ data: { data: { permissions: ['PROFILE_VIEW'] } } });
+  assert.equal((await current).has('PROFILE_VIEW'), true);
+  assert.equal((await api.loadMyPermissions()).has('PERMISSION_MANAGE'), false);
+  assert.equal(requests.length, 2);
+});

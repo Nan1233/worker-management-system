@@ -10,6 +10,9 @@ on:
     paths:
       - .github/workflows/phase2-consolidated-safe.yml
       - frontend/tests/permission-cache-invalidation-race.test.cjs
+      - frontend/src/security/permissions.ts
+      - frontend/src/pages/admin/Permissions.css
+      - frontend/tests/admin-permission-responsive.contract.test.cjs
       - frontend/src/pages/manager/**
       - frontend/tests/manager-approved-native-navigation.contract.test.cjs
       - frontend/tests/manager-pending-native-table.contract.test.cjs
@@ -80,7 +83,17 @@ jobs:
             tests/manager-approved-native-navigation.contract.test.cjs \
             tests/manager-pending-native-table.contract.test.cjs \
             tests/f02-process-form-extracted-hooks.test.cjs \
-            tests/permission-cache-invalidation-race.test.cjs
+            tests/permission-cache-invalidation-race.test.cjs \
+            tests/f02-draft-storage-regression.test.cjs \
+            tests/phase5-split-submit-resume.test.cjs \
+            tests/phase5-offline-atomic-batch.test.cjs \
+            tests/offline-queue-flush-races.test.cjs \
+            tests/offline-any-network.contract.test.cjs \
+            tests/worker-single-click-submit.test.cjs \
+            tests/master-control-center.test.cjs \
+            tests/permissions-ui.test.cjs \
+            tests/master-tabs-mobile.test.cjs \
+            tests/admin-permission-responsive.contract.test.cjs
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
