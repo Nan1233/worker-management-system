@@ -8,17 +8,23 @@ const vm = require('node:vm');
 const ts = require('typescript');
 
 const source = fs.readFileSync(path.join(__dirname, '../src/security/permissions.ts'), 'utf8');
-const js = ts.transpileModule(source, {
+const diagnosticSource = source.replace(
+  'catch { return new Set<PermissionCode>(); }',
+  'catch (error) { if (typeof __ktcPermissionMockError === "function") __ktcPermissionMockError(error); return new Set<PermissionCode>(); }',
+);
+const js = ts.transpileModule(diagnosticSource, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
 function harness() {
   const requests = [];
+  const mockErrors = [];
   const user = { id: 49, role: 'manager' };
   const exports = {};
   const module = { exports };
   vm.runInNewContext(js, {
     module, exports,
+    __ktcPermissionMockError: (error) => mockErrors.push(String(error?.stack || error)),
     require(specifier) {
       if (specifier === '../services/api') return { default: {
         get: (endpoint) => {
@@ -31,13 +37,13 @@ function harness() {
     },
     Date, Set, Number, String,
   }, { filename: 'permissions.js' });
-  return { api: module.exports, requests, user };
+  return { api: module.exports, requests, user, mockErrors };
 }
 
 test('clearing permissions invalidates an in-flight old response and allows an immediate fresh request', async () => {
-  const { api, requests } = harness();
+  const { api, requests, mockErrors } = harness();
   const old = api.loadMyPermissions();
-  assert.equal(requests.length, 1);
+  assert.equal(requests.length, 1, 'Mock errors: ' + mockErrors.join('; '));
   api.clearPermissionClientCache();
   const fresh = api.loadMyPermissions();
   assert.equal(requests.length, 2, 'must not reuse the invalidated in-flight request');
@@ -68,6 +74,7 @@ test('in-flight callers share the same permission request before invalidation', 
 test('permission failures fail closed and a forced retry requests again', async () => {
   const { api, requests } = harness();
   const current = api.loadMyPermissions();
+  assert.equal(requests.length, 1, 'Mock errors: ' + mockErrors.join('; '));
   requests[0].reject(new Error('offline'));
   assert.equal((await current).size, 0);
   const retried = api.loadMyPermissions(true);
