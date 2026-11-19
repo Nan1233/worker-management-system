@@ -1,8 +1,9 @@
 'use strict';
 
-// Real HTTP + real database. Lifecycle under test (docs/KTC_REQUIREMENT_LOCK_WAVE0_20260812.md R5):
-//   pending -> rejected -> worker edits the SAME report -> pending -> approved
-// Worker edit window: pending = 10 min from creation; rejected = 10 min from rejection.
+// Real HTTP + real database: current temporary business policy is authoritative.
+// Rejected reports are NOT worker-editable; pending reports use mandatory optimistic CAS,
+// and the 10-minute worker edit window is temporarily disabled.
+// Restoring rejected-resubmit/time-window behavior requires separate product approval.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -72,71 +73,62 @@ test('worker is notified with a link to the report detail', opts, async () => {
   assert.doesNotMatch(notes[0].message, /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/);
 });
 
-test('rejected report: worker edits the SAME report, it returns to pending, no duplicate row, RESUBMIT audited', opts, async () => {
+
+test('rejected report is not worker-editable under the current temporary policy (no resubmit write)', opts, async () => {
   const { id, body } = await newReport({ shift: 'C', ok: 100 });
   await reject(id, 'Nhập sai OK');
-  const before = (await state.db.query('SELECT COUNT(*) c FROM production_reports_temp WHERE worker_id=?', [state.worker.workerId]))[0][0].c;
-
+  const before = await row(id);
   const detail = await h.request('GET', `/api/production-temp/${id}`, { token: state.workerToken });
   assert.equal(detail.status, 200);
   assert.equal(detail.body.data.status, 'rejected');
-  assert.equal(detail.body.data.review_note, 'Nhập sai OK');
-
   const put = await h.request('PUT', `/api/production-temp/${id}`, {
     token: state.workerToken,
-    body: { ...body, tt_ok: 90, actual_output: 90, note: 'đã sửa', expected_updated_at: detail.body.data.updated_at }
+    body: { ...body, tt_ok: 90, actual_output: 90, note: 'không được sửa', expected_updated_at: detail.body.data.updated_at }
   });
-  assert.equal(put.status, 200, JSON.stringify(put.body));
-
+  assert.equal(put.status, 422, JSON.stringify(put.body));
+  assert.equal(put.body.code, 'WORKER_REPORT_STATUS_NOT_EDITABLE');
   const after = await row(id);
-  assert.equal(after.status, 'pending');
-  assert.equal(after.review_note, null);
-  assert.equal(Number(after.tt_ok), 90);
-  const countAfter = (await state.db.query('SELECT COUNT(*) c FROM production_reports_temp WHERE worker_id=?', [state.worker.workerId]))[0][0].c;
-  assert.equal(countAfter, before, 'resubmit must not create a second report');
-
-  const [logs] = await state.db.query("SELECT action FROM report_action_logs WHERE report_type='temp' AND report_id=?", [id]);
-  assert.ok(logs.some((l) => l.action === 'RESUBMIT'), `expected RESUBMIT in ${JSON.stringify(logs)}`);
-
-  const [reviewers] = await state.db.query("SELECT user_id FROM notifications WHERE entity_id=? AND type='report_resubmitted'", [id]);
-  assert.ok(reviewers.some((n) => n.user_id === state.manager.userId), 'in-scope manager must be told the report was resubmitted');
-
-  // The resubmitted report is reviewable and approvable again.
-  const approve = await h.request('POST', '/api/production-temp/approve-selected', { token: state.managerToken, body: { ids: [id] } });
-  assert.equal(approve.status, 200, JSON.stringify(approve.body));
-  const [[approved]] = await state.db.query('SELECT tt_ok, status FROM production_reports WHERE source_temp_id=?', [id]);
-  assert.equal(Number(approved.tt_ok), 90, 'approved report must carry the corrected value');
-  assert.equal(approved.status, 'approved');
+  assert.equal(after.status, 'rejected');
+  assert.equal(Number(after.tt_ok), Number(before.tt_ok));
+  assert.equal((await state.db.query('SELECT COUNT(*) c FROM production_reports_temp WHERE id=?', [id]))[0][0].c, 1);
 });
 
-test('rejected window is 10 minutes from the REJECTION, not from creation', opts, async () => {
+test('a rejected report stays non-editable even within 10 minutes of rejection', opts, async () => {
   const { id, body } = await newReport({ shift: 'D' });
   await reject(id, 'Sai ca');
-  // created 3 hours ago, rejected 1 minute ago
-  await state.db.query('UPDATE production_reports_temp SET created_at = created_at - INTERVAL 3 HOUR, updated_at = NOW() - INTERVAL 1 MINUTE WHERE id=?', [id]);
-  const put = await h.request('PUT', `/api/production-temp/${id}`, { token: state.workerToken, body: { ...body, note: 'sửa lại sau 3 giờ' } });
-  assert.equal(put.status, 200, JSON.stringify(put.body));
-  assert.equal((await row(id)).status, 'pending');
-});
-
-test('rejected report cannot be edited by the worker after 10 minutes from rejection', opts, async () => {
-  const { id, body } = await newReport({ shift: 'Ca 1' });
-  await reject(id, 'Trễ');
-  await state.db.query('UPDATE production_reports_temp SET updated_at = NOW() - INTERVAL 11 MINUTE WHERE id=?', [id]);
-  const put = await h.request('PUT', `/api/production-temp/${id}`, { token: state.workerToken, body: { ...body, note: 'quá hạn' } });
+  await state.db.query('UPDATE production_reports_temp SET created_at=created_at - INTERVAL 3 HOUR, updated_at=NOW() - INTERVAL 1 MINUTE WHERE id=?', [id]);
+  const detail = await h.request('GET', `/api/production-temp/${id}`, { token: state.workerToken });
+  const put = await h.request('PUT', `/api/production-temp/${id}`, { token: state.workerToken, body: { ...body, note: 'sửa sau từ chối', expected_updated_at: detail.body.data.updated_at } });
   assert.equal(put.status, 422, JSON.stringify(put.body));
-  assert.equal(put.body.code, 'WORKER_EDIT_WINDOW_EXPIRED');
+  assert.equal(put.body.code, 'WORKER_REPORT_STATUS_NOT_EDITABLE');
   assert.equal((await row(id)).status, 'rejected');
 });
 
-test('pending report still uses the 10-minute-from-creation window', opts, async () => {
+test('a rejected report outside the former 10-minute window is also forbidden by status', opts, async () => {
+  const { id, body } = await newReport({ shift: 'Ca 1' });
+  await reject(id, 'Trễ');
+  await state.db.query('UPDATE production_reports_temp SET updated_at=NOW() - INTERVAL 11 MINUTE WHERE id=?', [id]);
+  const detail = await h.request('GET', `/api/production-temp/${id}`, { token: state.workerToken });
+  const put = await h.request('PUT', `/api/production-temp/${id}`, { token: state.workerToken, body: { ...body, note: 'quá hạn', expected_updated_at: detail.body.data.updated_at } });
+  assert.equal(put.status, 422, JSON.stringify(put.body));
+  assert.equal(put.body.code, 'WORKER_REPORT_STATUS_NOT_EDITABLE');
+  assert.equal((await row(id)).status, 'rejected');
+});
+
+test('pending report edit requires CAS; current temporary policy does not enforce 10-minute window', opts, async () => {
   const { id, body } = await newReport({ shift: 'Ca 2' });
-  const inside = await h.request('PUT', `/api/production-temp/${id}`, { token: state.workerToken, body: { ...body, note: 'trong hạn' } });
+  const current = await h.request('GET', `/api/production-temp/${id}`, { token: state.workerToken });
+  const inside = await h.request('PUT', `/api/production-temp/${id}`, {
+    token: state.workerToken, body: { ...body, note: 'trong hạn', expected_updated_at: current.body.data.updated_at }
+  });
   assert.equal(inside.status, 200, JSON.stringify(inside.body));
-  await state.db.query('UPDATE production_reports_temp SET created_at = NOW() - INTERVAL 11 MINUTE WHERE id=?', [id]);
-  const outside = await h.request('PUT', `/api/production-temp/${id}`, { token: state.workerToken, body: { ...body, note: 'quá hạn' } });
-  assert.equal(outside.status, 422, JSON.stringify(outside.body));
-  assert.equal(outside.body.code, 'WORKER_EDIT_WINDOW_EXPIRED');
+  await state.db.query('UPDATE production_reports_temp SET created_at=NOW() - INTERVAL 11 MINUTE WHERE id=?', [id]);
+  const fresh = await h.request('GET', `/api/production-temp/${id}`, { token: state.workerToken });
+  const outside = await h.request('PUT', `/api/production-temp/${id}`, {
+    token: state.workerToken, body: { ...body, note: 'sửa sau 11 phút', expected_updated_at: fresh.body.data.updated_at }
+  });
+  assert.equal(outside.status, 200, JSON.stringify(outside.body));
+  assert.equal((await row(id)).status, 'pending');
 });
 
 test('another worker cannot edit someone else\'s rejected report', opts, async () => {
