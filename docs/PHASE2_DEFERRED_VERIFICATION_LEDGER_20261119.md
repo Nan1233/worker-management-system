@@ -13,8 +13,12 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-07 | Cross-phase | Full permissions/transaction/shared-machine/Excel and end-to-end release gates | Consolidated run on isolated test DB and synthetic Excel, separately approved | OPEN |
 | D-08 | Part 4 | Worker form hook simulation test and frontend typecheck | `node --test frontend/tests/f02-process-form-extracted-hooks.test.cjs` and typecheck PASS with pinned commit | OPEN |
 | D-09 | Part 4 | Worker submit/draft/offline/browser regression after extraction | Isolated browser integration test verifying unchanged payload, draft save warnings and standard lookup behavior | OPEN |
+| D-10 | Part 5 | Repository Node test for shared proposal read normalization | `cd backend && node --test tests/report-edit-proposal-read-normalization.test.js` with exact checkout SHA | OPEN |
+| D-11 | Part 5 | Proposal review rollback/concurrency/scope behavior under isolated fixtures | Run `proposalReviewRollback.behavior.test.js`, `proposalReviewTransaction.contract.test.js` and permission tests; verify no DB writes | OPEN |
 
 ## Already verified by source inspection — avoid unnecessary repetition
+
+- Part 5 extracted proposal list/detail JSON parsing into a read-only helper. Review handler text was byte-for-byte unchanged at edit time; 11/11 static checks after re-fetch. Four behavioral tests of a **manually reconstructed isolated helper copy** passed (not a repository test-run PASS).
 
 - Part 4 moved single-product standard lookup and one-time draft-save warning into hooks without changing submission payload builder. 13/13 static checks after re-fetch; **not Node PASS**.
 
