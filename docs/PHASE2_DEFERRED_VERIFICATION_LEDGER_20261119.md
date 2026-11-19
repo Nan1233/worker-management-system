@@ -19,8 +19,12 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-13 | Part 6 | Verify submission idempotency, concurrent submissions, split machine lines and rollback against isolated fixtures | Backend regression/behavior tests, no shared TEST/production DB; record outcomes | OPEN |
 | D-14 | Part 7 | Execute daily-hours parity and frozen historical snapshot/physical-machine tests on pinned checkout | `cd backend && node --test tests/production-daily-hours-parity-refactor.test.js`, reviewed historical/training/shared accounting suites and check command PASS | OPEN |
 | D-15 | Part 7 | Validate end-to-end physical machine output counted once and snapshot historical KPIs unchanged after refactor | Isolated fixture parity across backend + desktop; approved snapshot check, no shared DB | OPEN |
+| D-16 | Part 8 | Execute permission cache stale-response race tests, TS typecheck, permissions and Master Control regression on pinned checkout | `cd frontend && node --test tests/permission-cache-invalidation-race.test.cjs && npm run typecheck`; independently verify backend 403 on unauthorized roles with isolated fixtures | OPEN |
+| D-17 | Part 8 | Permission matrix CSS/visual responsive checks, dark theme and admin user/role override interactions | CSS contract test plus browser visual and role matrix interaction evidence at desktop/mobile widths | OPEN |
 
 ## Already verified by source inspection — avoid unnecessary repetition
+
+- Part 8 invalidates in-flight permission requests with generation fencing and clears `inFlight` on cache invalidation; limits `.module-row td` selectors to `.permission-page`. Added 6 focused Node tests. After GitHub re-fetch, 12/12 static checks passed; **Node/browser tests not run**.
 
 - Part 7 changed locked create-model daily-hours expression to reuse existing pure `incomingDailyWorkHours` (GC/MAI grouping rules and fallback unchanged). Added 10 sample compatibility scenarios plus source guard tests. 12/12 source checks after re-fetch; **Node tests not run**.
 
