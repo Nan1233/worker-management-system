@@ -195,9 +195,32 @@ jobs:
           node --check electron/companyExcelLocal.cjs
           node --check electron/excelDbSync.cjs
 
+  windows:
+    name: Windows Desktop synthetic Excel and packaging source compatibility
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      KTC_EXPORT_ROOT: ${{ runner.temp }}\\ktc-phase3-excel
+      KTC_GIA_CONG_SAMPLE_ROOT: ${{ runner.temp }}\\ktc-phase3-gc
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run real XLSX roundtrip and Windows source packaging contracts
+        run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/packaging-sync.test.cjs tests/monthly-workbook-naming-parity.test.cjs
+      - run: node scripts/checkPackagedSharedContract.cjs
+
   summary:
     name: Consolidated focused source gate
-    needs: [backend, frontend, desktop, browser]
+    needs: [backend, frontend, desktop, browser, windows]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -207,11 +230,13 @@ jobs:
           FRONTEND: ${{ needs.frontend.result }}
           DESKTOP: ${{ needs.desktop.result }}
           BROWSER: ${{ needs.browser.result }}
+          WINDOWS: ${{ needs.windows.result }}
         run: |
           echo "Source SHA: ${GITHUB_SHA}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Backend: ${BACKEND}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Frontend: ${FRONTEND}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Desktop: ${DESKTOP}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Browser: ${BROWSER}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Windows: ${WINDOWS}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Not covered: authenticated browser UI, real Windows device, or isolated TiDB E2E." >> "${GITHUB_STEP_SUMMARY}"
-          test "${BACKEND}" = "success" && test "${FRONTEND}" = "success" && test "${DESKTOP}" = "success" && test "${BROWSER}" = "success"
+          test "${BACKEND}" = "success" && test "${FRONTEND}" = "success" && test "${DESKTOP}" = "success" && test "${BROWSER}" = "success" && test "${WINDOWS}" = "success"
