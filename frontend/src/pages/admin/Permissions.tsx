@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import api from "../../services/api";
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
@@ -69,6 +69,12 @@ export default function Permissions(){
       setError(message);showToast(message,"error");
     }finally{savingLockRef.current=false;setSavingKey("")}
   };
+  const handlePermissionChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const { kind, target, code } = event.currentTarget.dataset;
+    if ((kind !== "role" && kind !== "user") || !target || !code) return;
+    const value = event.currentTarget.value;
+    void change(kind, target, code, value === "default" ? null : value === "true");
+  };
   return <section className="permission-page admin-page">
     <header className="permission-header"><div><span className="eyebrow">Security & Access Control</span>
       <h1>Vai trò & quyền</h1><p>Thiết lập quyền theo vai trò và ngoại lệ theo tài khoản. Mỗi thay đổi được lưu ngay vào hệ thống.</p>
@@ -96,7 +102,7 @@ export default function Permissions(){
                   const overridden=Boolean(row && Object.prototype.hasOwnProperty.call(row.overrides||{},permission.code));
                   const current=overridden?row?.overrides[permission.code]:row?.defaults[permission.code];
                   const key=`role:${role}:${permission.code}`;
-                  return <td key={role}><select aria-label={`${permission.name} – ${roleLabel(role)}`} disabled={loading||Boolean(savingKey)||!supported} value={!supported?"na":overridden?String(current):"default"} onChange={event=>void change("role",role,permission.code,event.target.value==="default"?null:event.target.value==="true")}>
+                  return <td key={role}><select aria-label={`${permission.name} – ${roleLabel(role)}`} disabled={loading||Boolean(savingKey)||!supported} value={!supported?"na":overridden?String(current):"default"} data-kind="role" data-target={role} data-code={permission.code} onChange={handlePermissionChange}>
                     <option value="default">Mặc định ({row?.defaults[permission.code]?"Cho phép":"Từ chối"})</option>
                     <option value="true">Cho phép</option><option value="false">Từ chối</option>
                     {!supported&&<option value="na">Không áp dụng</option>}
@@ -120,7 +126,7 @@ export default function Permissions(){
           const overridden=Object.prototype.hasOwnProperty.call(userOverrides,permission.code);
           const key=`user:${userId}:${permission.code}`;
           return <label key={permission.code} className={!supported?"is-disabled":""}><span><strong>{permission.name}</strong><small>{permission.code}</small></span>
-            <select disabled={!supported||Boolean(savingKey)||loading} value={!supported?"na":overridden?String(userOverrides[permission.code]):"default"} onChange={event=>void change("user",userId,permission.code,event.target.value==="default"?null:event.target.value==="true")}>
+            <select disabled={!supported||Boolean(savingKey)||loading} value={!supported?"na":overridden?String(userOverrides[permission.code]):"default"} data-kind="user" data-target={userId} data-code={permission.code} onChange={handlePermissionChange}>
               <option value="default">Theo vai trò</option><option value="true">Cho phép</option><option value="false">Từ chối</option>{!supported&&<option value="na">Không áp dụng</option>}
             </select>{savingKey===key&&<small>Đang lưu...</small>}
           </label>;
