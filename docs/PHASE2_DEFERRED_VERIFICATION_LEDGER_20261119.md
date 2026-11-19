@@ -8,7 +8,7 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-02 | Part 1 | Safe isolated unit suites and Desktop synthetic Excel smoke; no shared TEST/production DB | Test runner logs, fixture isolation, no DB writes | PARTIAL |
 | D-03 | Part 2 | Machine-event participant API Node contract test and TypeScript check, currently static-only | `node --test frontend/tests/machine-event-participant-api.contract.test.cjs`, typecheck pass | PASS |
 | D-04 | Part 3 | Manager approved-row navigation React/UI regression (click, keyboard, filtering, pagination, admin_ops path) | Browser/component test evidence on isolated checkout | PARTIAL |
-| D-05 | Part 3 | Manager pending table wrapper still manually rebuilds DOM/moves checkboxes, uses global click capture/MutationObserver | Refactor to React-owned rendering and verify selection, bulk approve/reject, stable visual layout | PARTIAL |
+| D-05 | Part 3 | React-owned Pending table refactor completed; interactive browser selection, bulk approve/reject and responsive visual regression remain | Browser tests with fixture data prove checkbox, select all, filter, pagination, bulk approve/reject and layout | PARTIAL |
 | D-06 | Part 3 | Manager approved navigation contract Node test | `node --test frontend/tests/manager-approved-native-navigation.contract.test.cjs` pass | PASS |
 | D-07 | Cross-phase | Full permissions/transaction/shared-machine/Excel and end-to-end release gates | Consolidated run on isolated test DB and synthetic Excel, separately approved | OPEN |
 | D-08 | Part 4 | Worker form hook simulation test and frontend typecheck | `node --test frontend/tests/f02-process-form-extracted-hooks.test.cjs` and typecheck PASS with pinned commit | PASS |
