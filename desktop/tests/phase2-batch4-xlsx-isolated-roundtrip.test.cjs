@@ -336,3 +336,33 @@ test('duplicate report ID in veryHidden _KTC_SYNC fails closed before import', a
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test('mapped NG and deduction cells reject invalid values rather than silently clearing approved data', () => {
+  const { mergeEditableDetails } = require('../electron/excelDbSync.cjs')._private;
+  const ngCols = [{ key: 'defect:7', typeId: 7 }];
+  const deductionCols = [{ key: 'deduction:3', typeId: 3 }];
+  const originalNg = [{ defect_type_id: 7, quantity: 4 }, { defect_type_id: 8, quantity: 2 }];
+  const originalDeduction = [{ deduction_type_id: 3, hours: 0.5 }, { deduction_type_id: 4, hours: 0.25 }];
+  for (const invalid of [-1, 'not-a-number', 1.5, { formula: '1/0', result: '#DIV/0!' }]) {
+    assert.throws(
+      () => mergeEditableDetails({ 'defect:7': invalid }, ngCols, 'defect:', originalNg, 'defect_type_id', 'quantity', true),
+      error => error.code === 'EXCEL_SYNC_INVALID_DETAIL_VALUE'
+    );
+  }
+  for (const invalid of [-0.25, 'invalid', { formula: 'NA()', result: '#N/A' }]) {
+    assert.throws(
+      () => mergeEditableDetails({ 'deduction:3': invalid }, deductionCols, 'deduction:', originalDeduction, 'deduction_type_id', 'hours', false),
+      error => error.code === 'EXCEL_SYNC_INVALID_DETAIL_VALUE'
+    );
+  }
+  assert.deepEqual(
+    mergeEditableDetails({ 'defect:7': 0 }, ngCols, 'defect:', originalNg, 'defect_type_id', 'quantity', true),
+    [{ defect_type_id: 8, quantity: 2 }],
+    'explicit zero clears only the represented NG code'
+  );
+  assert.deepEqual(
+    mergeEditableDetails({ 'deduction:3': '' }, deductionCols, 'deduction:', originalDeduction, 'deduction_type_id', 'hours', false),
+    [{ deduction_type_id: 4, hours: 0.25 }],
+    'blank clears only the represented deduction; unmapped DB deductions remain'
+  );
+});
