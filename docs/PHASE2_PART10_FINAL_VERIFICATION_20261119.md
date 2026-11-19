@@ -4,7 +4,7 @@ Date: 2026-11-19. Repository: `Nan1233/worker-management-system`, branch `refact
 
 ## Executive decision
 
-**NOT RELEASE READY.** All nine prior parts have source-level, reversible edits and recorded static checks. However the exact repository has not completed its Node test, TS/lint/build, Windows/Desktop Excel, browser, DB-isolated E2E and visual acceptance gates. Phase 10's evidence collection and one-time CI workflow have been prepared, but not all tests are executed. Do not merge or deploy.
+**FOCUSED CI GREEN — NOT RELEASE READY.** All nine prior parts have source-level, reversible edits and recorded static checks. However the exact repository has not completed its Node test, TS/lint/build, Windows/Desktop Excel, browser, DB-isolated E2E and visual acceptance gates. Phase 10's evidence collection and one-time CI workflow have been prepared, but not all tests are executed. Do not merge or deploy.
 
 ### Exact environment and limits
 
@@ -62,3 +62,11 @@ Priority blockers:
 Previous phase reports `docs/PHASE2_PART2_*.md` through `docs/PHASE2_PART9_*.md` document individual commits and exceptions. No Phase 10 production code change was required for the pure checks; it added CI and documentation.
 
 **Current classification: Phase 2 parts 1–9 source work performed, Part 10 acceptance pending. No production changes.**
+
+## Verified GitHub Actions outcome (updated 2026-11-19)
+
+GitHub Actions run [44502489098](https://github.com/Nan1233/worker-management-system/actions/runs/44502489098) is **SUCCESS**, pinned to source SHA `263b6e916d506aa05b0e2f0f69e3c2d04d1827c4`: **Backend 43/43**, **Frontend 12/12**, **Desktop 21/21** Node tests passed (76/76 total). Backend syntax check, frontend typecheck/lint/build, Desktop syntax all passed. The last summary job succeeded.
+
+The initial CI workflow contained an invalid job-level `runner.temp` reference, then the frontend permission cache test mock lacked `__esModule`. Both were corrected before the successful run; the production permission cache code was not changed to make tests pass. See the final status and D-01–D-20 PASS/PARTIAL/OPEN labels in `docs/PHASE2_DEFERRED_VERIFICATION_LEDGER_20261119.md`.
+
+**The final source acceptance is partial, not a release sign-off:** D-05 DOM pending table remains unfixed; isolated DB integration, browser tests, real template XLSX roundtrips, Windows UAT and comprehensive rollback/permission scopes remain incomplete. Branch commits also triggered at least one external Cloudflare Workers Builds failure check; inspect external auto-build/deployment integration before further pushes. No manual deployment/merge/database write was performed by this phase.

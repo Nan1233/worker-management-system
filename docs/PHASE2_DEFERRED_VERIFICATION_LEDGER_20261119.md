@@ -4,26 +4,42 @@ This ledger must be repeated in each chat progress report until closure and used
 
 | ID | Origin | Pending / blocked | Closure evidence | State |
 |---|---|---|---|---|
-| D-01 | Part 1 | Isolated repository checkout and exact SHA baseline; frontend lint/typecheck/build; backend check | Recorded command output and exit codes on a clean isolated checkout | OPEN |
-| D-02 | Part 1 | Safe isolated unit suites and Desktop synthetic Excel smoke; no shared TEST/production DB | Test runner logs, fixture isolation, no DB writes | OPEN |
-| D-03 | Part 2 | Machine-event participant API Node contract test and TypeScript check, currently static-only | `node --test frontend/tests/machine-event-participant-api.contract.test.cjs`, typecheck pass | OPEN |
+| D-01 | Part 1 | Isolated repository checkout and exact SHA baseline; frontend lint/typecheck/build; backend check | Recorded command output and exit codes on a clean isolated checkout | PASS |
+| D-02 | Part 1 | Safe isolated unit suites and Desktop synthetic Excel smoke; no shared TEST/production DB | Test runner logs, fixture isolation, no DB writes | PARTIAL |
+| D-03 | Part 2 | Machine-event participant API Node contract test and TypeScript check, currently static-only | `node --test frontend/tests/machine-event-participant-api.contract.test.cjs`, typecheck pass | PASS |
 | D-04 | Part 3 | Manager approved-row navigation React/UI regression (click, keyboard, filtering, pagination, admin_ops path) | Browser/component test evidence on isolated checkout | OPEN |
 | D-05 | Part 3 | Manager pending table wrapper still manually rebuilds DOM/moves checkboxes, uses global click capture/MutationObserver | Refactor to React-owned rendering and verify selection, bulk approve/reject, stable visual layout | OPEN |
-| D-06 | Part 3 | Manager approved navigation contract Node test | `node --test frontend/tests/manager-approved-native-navigation.contract.test.cjs` pass | OPEN |
+| D-06 | Part 3 | Manager approved navigation contract Node test | `node --test frontend/tests/manager-approved-native-navigation.contract.test.cjs` pass | PASS |
 | D-07 | Cross-phase | Full permissions/transaction/shared-machine/Excel and end-to-end release gates | Consolidated run on isolated test DB and synthetic Excel, separately approved | OPEN |
-| D-08 | Part 4 | Worker form hook simulation test and frontend typecheck | `node --test frontend/tests/f02-process-form-extracted-hooks.test.cjs` and typecheck PASS with pinned commit | OPEN |
+| D-08 | Part 4 | Worker form hook simulation test and frontend typecheck | `node --test frontend/tests/f02-process-form-extracted-hooks.test.cjs` and typecheck PASS with pinned commit | PASS |
 | D-09 | Part 4 | Worker submit/draft/offline/browser regression after extraction | Isolated browser integration test verifying unchanged payload, draft save warnings and standard lookup behavior | OPEN |
-| D-10 | Part 5 | Repository Node test for shared proposal read normalization | `cd backend && node --test tests/report-edit-proposal-read-normalization.test.js` with exact checkout SHA | OPEN |
-| D-11 | Part 5 | Proposal review rollback/concurrency/scope behavior under isolated fixtures | Run `proposalReviewRollback.behavior.test.js`, `proposalReviewTransaction.contract.test.js` and permission tests; verify no DB writes | OPEN |
-| D-12 | Part 6 | Execute child NG/deduction total validator tests and backend source checks on isolated checkout | `cd backend && node --test tests/production-child-totals-validation.test.js && npm run check` PASS with pinned SHA | OPEN |
-| D-13 | Part 6 | Verify submission idempotency, concurrent submissions, split machine lines and rollback against isolated fixtures | Backend regression/behavior tests, no shared TEST/production DB; record outcomes | OPEN |
-| D-14 | Part 7 | Execute daily-hours parity and frozen historical snapshot/physical-machine tests on pinned checkout | `cd backend && node --test tests/production-daily-hours-parity-refactor.test.js`, reviewed historical/training/shared accounting suites and check command PASS | OPEN |
+| D-10 | Part 5 | Repository Node test for shared proposal read normalization | `cd backend && node --test tests/report-edit-proposal-read-normalization.test.js` with exact checkout SHA | PASS |
+| D-11 | Part 5 | Proposal review rollback/concurrency/scope behavior under isolated fixtures | Run `proposalReviewRollback.behavior.test.js`, `proposalReviewTransaction.contract.test.js` and permission tests; verify no DB writes | PARTIAL |
+| D-12 | Part 6 | Execute child NG/deduction total validator tests and backend source checks on isolated checkout | `cd backend && node --test tests/production-child-totals-validation.test.js && npm run check` PASS with pinned SHA | PASS |
+| D-13 | Part 6 | Verify submission idempotency, concurrent submissions, split machine lines and rollback against isolated fixtures | Backend regression/behavior tests, no shared TEST/production DB; record outcomes | PARTIAL |
+| D-14 | Part 7 | Execute daily-hours parity and frozen historical snapshot/physical-machine tests on pinned checkout | `cd backend && node --test tests/production-daily-hours-parity-refactor.test.js`, reviewed historical/training/shared accounting suites and check command PASS | PARTIAL |
 | D-15 | Part 7 | Validate end-to-end physical machine output counted once and snapshot historical KPIs unchanged after refactor | Isolated fixture parity across backend + desktop; approved snapshot check, no shared DB | OPEN |
-| D-16 | Part 8 | Execute permission cache stale-response race tests, TS typecheck, permissions and Master Control regression on pinned checkout | `cd frontend && node --test tests/permission-cache-invalidation-race.test.cjs && npm run typecheck`; independently verify backend 403 on unauthorized roles with isolated fixtures | OPEN |
-| D-17 | Part 8 | Permission matrix CSS/visual responsive checks, dark theme and admin user/role override interactions | CSS contract test plus browser visual and role matrix interaction evidence at desktop/mobile widths | OPEN |
-| D-18 | Part 9 | Run new Desktop workbook naming parity test with pinned checkout; inspect packaging inclusion | `cd desktop && node --test tests/monthly-workbook-naming-parity.test.cjs` and desktop check/packaging tests PASS | OPEN |
+| D-16 | Part 8 | Execute permission cache stale-response race tests, TS typecheck, permissions and Master Control regression on pinned checkout | `cd frontend && node --test tests/permission-cache-invalidation-race.test.cjs && npm run typecheck`; independently verify backend 403 on unauthorized roles with isolated fixtures | PARTIAL |
+| D-17 | Part 8 | Permission matrix CSS/visual responsive checks, dark theme and admin user/role override interactions | CSS contract test plus browser visual and role matrix interaction evidence at desktop/mobile widths | PARTIAL |
+| D-18 | Part 9 | Run new Desktop workbook naming parity test with pinned checkout; inspect packaging inclusion | `cd desktop && node --test tests/monthly-workbook-naming-parity.test.cjs` and desktop check/packaging tests PASS | PARTIAL |
 | D-19 | Part 9 | Execute synthetic XLSX workbook parity for ten process sheets, formulas, styles, _KTC_SYNC, sync/import and template round-trip | Compare generated workbook outputs before/after on isolated fixture, checksum key cells, no production files/NAS writes | OPEN |
-| D-20 | Part 10 | GitHub Actions consolidated workflow has not produced any recorded run (actions run list returned zero on branch after workflow commit) | One CI run on pinned SHA with backend/frontend/Desktop job results, logs and failures triaged | OPEN |
+| D-20 | Part 10 | GitHub Actions consolidated workflow has not produced any recorded run (actions run list returned zero on branch after workflow commit) | One CI run on pinned SHA with backend/frontend/Desktop job results, logs and failures triaged | PASS |
+
+## Final one-time CI results (2026-11-19) — source SHA `263b6e916d506aa05b0e2f0f69e3c2d04d1827c4`
+
+GitHub Actions **run [44502489098](https://github.com/Nan1233/worker-management-system/actions/runs/44502489098)** finished SUCCESS with **all 4 jobs green**:
+
+- Backend: `npm run check` PASS; **43/43** focused pure/mocked tests PASS.
+- Frontend: **12/12** focused tests PASS; `npm run typecheck`, `npm run lint`, `npm run build` all PASS.
+- Desktop: **21/21** selected synthetic/metric/Excel contract tests PASS; renderer `node --check` PASS.
+- Final summary gate: PASS. Total **76/76 Node tests PASS**. Earlier 18/18 JS pure-module assertions are separate evidence.
+- Earlier CI runs failed from invalid `runner.temp` at job env scope and then missing `__esModule` in test mock; both fixed. This successful run supersedes those failures **for the selected gates**.
+
+**Ledger distribution:** **7 PASS**, **7 PARTIAL**, **6 OPEN**. `PASS` means the entry's exact focused command/check met its stated gate on the pinned SHA; `PARTIAL` means only some acceptance checks passed. Never infer production readiness from focused CI.
+
+**Potential external automation:** GitHub check-runs showed a failed Cloudflare `Workers Builds: ktc-be-test` check on earlier commits. GitHub pushes may automatically trigger Cloudflare builds outside this workflow. This run did not intentionally deploy, and it does not prove all external deployment workflows were disabled. Verify those settings before further branch pushes.
+
+**Unresolved release blockers:** D-05 PendingReports DOM/checkbox refactor not done; D-04/D-09/D-17 browser role/UI; D-02/D-15/D-19 full XLSX template roundtrip/sync; D-07 overall release review; D-11/D-13/D-14/D-16/D-18 partial integrated/packaging checks. No isolated DB E2E or Windows physical-device UAT has been performed.
 
 ## Part 10 execution evidence (2026-11-19)
 
