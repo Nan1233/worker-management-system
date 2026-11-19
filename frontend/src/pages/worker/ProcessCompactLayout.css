@@ -189,7 +189,7 @@
 .worker-form-page .worker-submit-validation-error span { flex: 1 1 200px; }
 .worker-form-page .worker-submit-validation-error button {
   min-width: 34px; min-height: 34px; border-radius: 7px;
-  border: 1px solid #eab9b9; background: #fff; color: inherit; cursor: pointer;
+  border: 1px solid #eab9b9; background: var(--ktc-surface); color: inherit; cursor: pointer;
 }
 .worker-form-page .worker-action-group[aria-busy="true"] { opacity: .85; }
 .worker-form-page button:focus-visible,

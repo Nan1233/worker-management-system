@@ -14,11 +14,11 @@
 
 /* Calm review palette shared by pending and approved screens. */
 .pending-review-screen .pending-reference-table,
-.approved-review-screen .pending-reference-table { border-collapse: separate !important; border-spacing: 0; background: #fff; }
+.approved-review-screen .pending-reference-table { border-collapse: separate !important; border-spacing: 0; background: var(--ktc-surface); }
 .pending-review-screen .pending-reference-table thead th,
 .approved-review-screen .pending-reference-table thead th { background: #f3f7fd !important; color: #334c72 !important; border-bottom: 1px solid #e3ebf5; font-weight: 700; }
 .pending-review-screen .pending-reference-table tbody td,
-.approved-review-screen .pending-reference-table tbody td { background: #fff !important; color: #243955; border-bottom: 1px solid #edf1f7; box-shadow: none !important; font-weight: 400; }
+.approved-review-screen .pending-reference-table tbody td { background: var(--ktc-surface) !important; color: #243955; border-bottom: 1px solid #edf1f7; box-shadow: none !important; font-weight: 400; }
 .pending-review-screen .pending-reference-table tbody tr:hover td,
 .approved-review-screen .pending-reference-table tbody tr:hover td { background: #f3f8ff !important; }
 .pending-review-screen .pending-reference-table tbody tr.pending-row-active td,
@@ -45,7 +45,7 @@
 .pending-review-screen .pending-reference-table tbody tr,
 .approved-review-screen .pending-reference-table tbody tr { background: transparent !important; box-shadow: none !important; }
 .pending-review-screen .pending-reference-table tbody tr:not(.pending-row-active) > td,
-.approved-review-screen .pending-reference-table tbody tr:not(.pending-row-active) > td { background-color: #fff !important; }
+.approved-review-screen .pending-reference-table tbody tr:not(.pending-row-active) > td { background-color: var(--ktc-surface) !important; }
 .pending-review-screen .pending-reference-table tbody tr.pending-row-active > td,
 .approved-review-screen .pending-reference-table tbody tr.pending-row-active > td { background-color: #f0f6ff !important; }
 .pending-review-screen .pending-reference-table tbody tr > td.report-productivity-cell,
@@ -75,7 +75,7 @@
 .pending-review-screen .pending-reference-table tbody td.report-productivity-cell,
 .approved-review-screen .pending-reference-table tbody td.report-productivity-cell,
 .pending-review-screen .pending-reference-table tbody td.report-pp-cell,
-.approved-review-screen .pending-reference-table tbody td.report-pp-cell { background-color: #fff !important; border: 0 !important; outline: 0 !important; box-shadow: none !important; }
+.approved-review-screen .pending-reference-table tbody td.report-pp-cell { background-color: var(--ktc-surface) !important; border: 0 !important; outline: 0 !important; box-shadow: none !important; }
 .pending-review-screen .pending-reference-table tbody tr:hover td.report-productivity-cell,
 .approved-review-screen .pending-reference-table tbody tr:hover td.report-productivity-cell,
 .pending-review-screen .pending-reference-table tbody tr:hover td.report-pp-cell,

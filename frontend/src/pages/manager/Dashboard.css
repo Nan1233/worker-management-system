@@ -105,17 +105,17 @@
 
 /* 2026 minimal manager workspace refinement: information-first, less decoration. */
 .manager-dashboard{color:#243449!important;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif!important}
-.manager-dashboard .dashboard-welcome{height:auto!important;min-height:104px!important;margin-bottom:12px!important;padding:17px 20px!important;border:1px solid #e5eaf0!important;border-radius:10px!important;background:#fff!important;box-shadow:none!important}
+.manager-dashboard .dashboard-welcome{height:auto!important;min-height:104px!important;margin-bottom:12px!important;padding:17px 20px!important;border:1px solid #e5eaf0!important;border-radius:10px!important;background:var(--ktc-surface)!important;box-shadow:none!important}
 .manager-dashboard .dashboard-welcome:before,.manager-dashboard .dashboard-motto{display:none!important}
 .manager-dashboard .dashboard-welcome h1{color:#172b4d!important;font-size:21px!important;font-weight:650!important;letter-spacing:-.02em!important}
 .manager-dashboard .dashboard-welcome p{color:#64748b!important;font-size:12px!important;margin:5px 0 9px!important}
 .manager-dashboard .dashboard-tags span,.manager-dashboard .dashboard-tags span:nth-child(n){height:23px!important;padding:0 8px!important;border:1px solid #e7edf4!important;border-radius:5px!important;background:#f8fafc!important;color:#52647a!important;font-size:10px!important;font-weight:500!important}
 .manager-dashboard .dashboard-chart-grid,.manager-dashboard .dashboard-bottom-grid{gap:12px!important;margin-bottom:12px!important}
-.manager-dashboard .dashboard-panel{border:1px solid #e5eaf0!important;border-radius:10px!important;background:#fff!important;box-shadow:none!important}
+.manager-dashboard .dashboard-panel{border:1px solid #e5eaf0!important;border-radius:10px!important;background:var(--ktc-surface)!important;box-shadow:none!important}
 .manager-dashboard .dashboard-chart-grid .dashboard-panel{height:232px!important;padding:14px 15px!important}
 .manager-dashboard .dashboard-panel-title h2{color:#243449!important;font-size:14px!important;font-weight:650!important}
 .manager-dashboard .dashboard-panel-title>div>span{color:#8492a6!important;font-size:9px!important;letter-spacing:.07em!important}
-.manager-dashboard .dashboard-panel-title select{border-color:#e2e8f0!important;border-radius:6px!important;background:#fff!important;color:#475569!important}
+.manager-dashboard .dashboard-panel-title select{border-color:#e2e8f0!important;border-radius:6px!important;background:var(--ktc-surface)!important;color:#475569!important}
 .manager-dashboard .output-bars i{background:#3978bd!important}
 .manager-dashboard .quality-list section{border-radius:4px!important;background:#f1f5f9!important}
 .manager-dashboard .quality-list section b{background:#259b75!important}
@@ -138,7 +138,7 @@
 .manager-dashboard .dashboard-period-context{
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   margin:0 0 12px;padding:9px 12px;
-  border:1px solid #e5eaf0;border-radius:8px;background:#fff;
+  border:1px solid #e5eaf0;border-radius:8px;background:var(--ktc-surface);
   color:#64748b;font-size:11px;
 }
 .manager-dashboard .dashboard-period-context strong{
@@ -149,7 +149,7 @@
 .manager-dashboard .dashboard-error-state{min-height:260px;display:flex;align-items:flex-start}
 .manager-dashboard .dashboard-error-card{
   width:100%;display:flex;align-items:center;gap:14px;
-  padding:20px;border:1px solid #f0d6d6;border-radius:12px;background:#fff;
+  padding:20px;border:1px solid #f0d6d6;border-radius:12px;background:var(--ktc-surface);
 }
 .manager-dashboard .dashboard-error-icon{
   flex:0 0 42px;width:42px;height:42px;display:grid;place-items:center;
@@ -168,7 +168,7 @@
 .manager-dashboard .pending-table-wrap{overscroll-behavior:contain}
 .manager-dashboard .pending-table-wrap th:first-child,
 .manager-dashboard .pending-table-wrap td:first-child{
-  position:sticky;left:0;z-index:2;background:#fff
+  position:sticky;left:0;z-index:2;background:var(--ktc-surface)
 }
 .manager-dashboard .pending-table-wrap th:first-child{z-index:3;background:#f8fafc}
 .manager-dashboard .pending-table-wrap tbody tr:hover td:first-child{background:#f8fbff}
@@ -191,7 +191,7 @@
 .manager-dashboard-compact .dashboard-welcome h1{font-size:20px!important}
 .manager-dashboard-compact .dashboard-welcome p{margin:5px 0 7px!important}
 .manager-dashboard-compact .dashboard-period-context{margin:0!important;display:flex;align-items:center;gap:9px}
-.manager-dashboard-compact .dashboard-period-context select{margin-left:auto;min-width:145px;height:32px;padding:0 9px;border:1px solid #dce5ef;border-radius:7px;background:#fff;color:#43566d;font:inherit;font-size:11px}
+.manager-dashboard-compact .dashboard-period-context select{margin-left:auto;min-width:145px;height:32px;padding:0 9px;border:1px solid #dce5ef;border-radius:7px;background:var(--ktc-surface);color:#43566d;font:inherit;font-size:11px}
 .manager-dashboard-compact .dashboard-kpi-row-compact{grid-template-columns:repeat(4,minmax(0,1fr))!important;margin:0!important;gap:10px!important}
 .manager-dashboard-compact .dashboard-kpi-card{min-height:76px;padding:13px 15px}
 .manager-dashboard-compact .dashboard-compact-main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.85fr);gap:12px}
@@ -249,7 +249,7 @@
 .manager-dashboard-review .dashboard-inline-error button,
 .manager-dashboard-review .dashboard-pending-error button {
   min-height: 34px; padding: 6px 12px; border: 1px solid #cbb0b0;
-  border-radius: 7px; background: #fff; color: #9b2626; font-weight: 650; cursor: pointer;
+  border-radius: 7px; background: var(--ktc-surface); color: #9b2626; font-weight: 650; cursor: pointer;
 }
 .manager-dashboard-review .dashboard-pending-error {
   display: flex; align-items: center; justify-content: space-between;

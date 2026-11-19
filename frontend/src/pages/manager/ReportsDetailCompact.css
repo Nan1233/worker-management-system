@@ -32,7 +32,7 @@
 }
 
 /* Pending report: never use legacy red full-row hover or red full-cell KPI alert. */
-.pending-review-screen .pending-list-card .pending-reference-table tbody tr > td { background: #fff !important; outline: 0 !important; box-shadow: none !important; }
+.pending-review-screen .pending-list-card .pending-reference-table tbody tr > td { background: var(--ktc-surface) !important; outline: 0 !important; box-shadow: none !important; }
 .pending-review-screen .pending-list-card .pending-reference-table tbody tr:hover > td { background: #f5f9ff !important; }
 .pending-review-screen .pending-list-card .pending-reference-table tbody tr.pending-row-active > td,
 .pending-review-screen .pending-list-card .pending-reference-table tbody tr.pending-row-active:hover > td { background: #f0f6ff !important; }

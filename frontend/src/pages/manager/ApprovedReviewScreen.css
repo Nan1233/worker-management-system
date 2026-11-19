@@ -10,7 +10,7 @@
 .approved-review-screen .approved-retry-button,
 .approved-review-screen .approved-detail-error button {
   min-height: 38px; border: 1px solid #c4d8ea; border-radius: 8px;
-  padding: 8px 13px; background: #fff; color: #24547d;
+  padding: 8px 13px; background: var(--ktc-surface); color: #24547d;
   font-weight: 650; cursor: pointer;
 }
 .approved-review-screen .approved-review-toolbar button:disabled { opacity: .55; cursor: not-allowed; }
@@ -28,7 +28,7 @@
 .approved-review-screen .approved-report-import {
   display: flex; flex-wrap: wrap; align-items: center;
   gap: 10px; min-width: 0; margin: 10px 0; padding: 12px;
-  border: 1px solid #dbe6f2; border-radius: 10px; background: #fff;
+  border: 1px solid #dbe6f2; border-radius: 10px; background: var(--ktc-surface);
 }
 .approved-review-screen .approved-report-import button {
   min-height: 38px; border: 1px solid #b9d2f5; border-radius: 8px;
@@ -88,7 +88,7 @@
 .approved-review-screen .pending-list-card .pending-reference-table tbody td.report-worker-cell small { display: block; }
 .approved-review-screen .pending-list-card .pending-reference-table thead th:nth-last-child(-n+4),
 .approved-review-screen .pending-list-card .pending-reference-table tbody td:nth-last-child(-n+4) { text-align: right !important; }
-.approved-review-screen .pending-list-card .pending-reference-table tbody tr > td { background: #fff !important; box-shadow: none !important; outline: 0 !important; border-color: #edf1f7 !important; }
+.approved-review-screen .pending-list-card .pending-reference-table tbody tr > td { background: var(--ktc-surface) !important; box-shadow: none !important; outline: 0 !important; border-color: #edf1f7 !important; }
 .approved-review-screen .pending-list-card .pending-reference-table tbody tr:hover > td { background: #f5f9ff !important; }
 .approved-review-screen .pending-list-card .pending-reference-table tbody tr.pending-row-active > td,
 .approved-review-screen .pending-list-card .pending-reference-table tbody tr.pending-row-active:hover > td { background: #f0f6ff !important; }

@@ -15,7 +15,7 @@
   font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 .management-layout .management-sidebar {
-  background: #fff !important;
+  background: var(--ktc-surface) !important;
   border-right-color: var(--mg-border) !important;
 }
 .management-layout .management-sidebar-brand {
@@ -45,7 +45,7 @@
   color: #286fc3 !important;
 }
 .management-layout .management-header {
-  background: rgba(255,255,255,.97) !important;
+  background: var(--ktc-surface-a97) !important;
   border-bottom: 1px solid var(--mg-border) !important;
   box-shadow: 0 1px 3px rgba(20,40,70,.025) !important;
 }
@@ -206,7 +206,7 @@
 .management-layout .management-content .manager-excel-scroll {
   border: 1px solid var(--mg-border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--ktc-surface);
 }
 .management-layout .management-content .manager-excel-scroll th {
   background: #f5f7fa !important;

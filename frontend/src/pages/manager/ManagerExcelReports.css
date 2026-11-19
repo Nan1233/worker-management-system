@@ -19,7 +19,7 @@
 .manager-report-grid .manager-grid-error { background: #fff5f5; border: 1px solid #efb7b7; color: #9b2525; }
 .manager-report-grid .manager-grid-unsaved { background: #fff8e9; border: 1px solid #edce8b; color: #865c17; }
 .manager-report-grid .manager-grid-notice { background: #f0f7ff; border: 1px solid #bcd8ec; color: #24547d; }
-.manager-report-grid .manager-grid-error button, .manager-report-grid .manager-grid-notice button { border: 1px solid currentColor; border-radius: 6px; background: #fff; color: inherit; padding: 8px 12px; cursor: pointer; }
+.manager-report-grid .manager-grid-error button, .manager-report-grid .manager-grid-notice button { border: 1px solid currentColor; border-radius: 6px; background: var(--ktc-surface); color: inherit; padding: 8px 12px; cursor: pointer; }
 .manager-report-grid .manager-grid-caption { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .manager-report-grid .manager-grid-empty { padding: 24px; text-align: center; white-space: normal; }
 .manager-report-grid .manager-excel-scroll:focus-visible { outline: 2px solid #1769d2; outline-offset: -2px; }

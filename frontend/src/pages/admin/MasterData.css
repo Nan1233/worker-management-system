@@ -5,7 +5,7 @@
 
 /* Machine/product master catalog: accessible tables and edit dialogs. */
 .master-page .master-error,.master-page .master-modal-error{overflow-wrap:anywhere}
-.master-page .master-error button{margin-left:10px;min-height:36px;padding:7px 12px;border:1px solid #e6b9b9;border-radius:8px;background:#fff;color:#a32929;cursor:pointer}
+.master-page .master-error button{margin-left:10px;min-height:36px;padding:7px 12px;border:1px solid #e6b9b9;border-radius:8px;background:var(--ktc-surface);color:#a32929;cursor:pointer}
 .master-page .master-modal-error{margin:10px 0;padding:10px 12px;border:1px solid #e6b9b9;border-radius:8px;background:#fff6f6;color:#a32929;font-size:12px}
 .master-page .master-table-caption{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .master-page .master-table-wrap{max-width:100%;overscroll-behavior-x:contain}
@@ -29,7 +29,7 @@
 .master-catalog-page .master-dialog-hint{margin:0 0 12px;font-size:12px;color:#637d9b}
 .master-catalog-page .master-feedback,.master-catalog-page .master-process-error{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;border-radius:9px;border:1px solid #a3d9bf;background:#f1fbf6;color:#176548;font-size:12px;overflow-wrap:anywhere}
 .master-catalog-page .master-process-error{border-color:#e9b4b4;background:#fff5f5;color:#9b2626}
-.master-catalog-page .master-feedback button,.master-catalog-page .master-process-error button{min-height:34px;padding:5px 12px;border:1px solid currentColor;border-radius:7px;background:#fff;color:inherit;cursor:pointer}
+.master-catalog-page .master-feedback button,.master-catalog-page .master-process-error button{min-height:34px;padding:5px 12px;border:1px solid currentColor;border-radius:7px;background:var(--ktc-surface);color:inherit;cursor:pointer}
 .master-catalog-page .master-modal-error{overflow-wrap:anywhere}
 .master-catalog-page .master-table-wrap th{position:sticky;top:0;z-index:1;background:#f8fafc}
 .master-catalog-page .master-table-wrap td{overflow-wrap:anywhere}
