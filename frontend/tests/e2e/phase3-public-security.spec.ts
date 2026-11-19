@@ -23,13 +23,14 @@ test.describe('Phase 3 browser security and responsive public surfaces', () => {
     expect(widths.page).toBeLessThanOrEqual(widths.viewport + 1);
   });
 
-  test('login remains accessible by keyboard on desktop', async ({ page }) => {
+  test('login keyboard input respects the configured 20-character limit', async ({ page }) => {
     await page.goto('/#/login');
     const field = page.getByPlaceholder('Nhập mã nhân viên');
     await expect(field).toBeVisible();
     await field.focus();
     await expect(field).toBeFocused();
     await page.keyboard.type('E2E-SYNTHETIC-NO-SUBMIT');
-    await expect(field).toHaveValue('E2E-SYNTHETIC-NO-SUBMIT');
+    await expect(field).toHaveAttribute('maxlength', '20');
+    await expect(field).toHaveValue('E2E-SYNTHETIC-NO-SUB');
   });
 });
