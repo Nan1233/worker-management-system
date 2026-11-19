@@ -17,6 +17,8 @@ test('Manager Pending table is entirely React-owned: 14 cells, real selection ch
   assert.match(reports, /"Mã báo cáo", "Công nhân"/);
   assert.match(reports, /"Trạng thái"/);
   assert.match(reports, /"pending-full-productivity"/);
+  assert.match(reports, /values\.training_percent_snapshot \?\? values\.training_percent/);
+  assert.match(reports, /pct\(pendingTrainingPercent\(r\)\)/);
   assert.match(reports, /"pending-full-pp"/);
   assert.match(reports, /checked=\{selectedIds\.includes\(Number\(r\.id\)\)\}/);
   assert.match(reports, /onChange=\{\(\) => toggleSelected\(Number\(r\.id\)\)\}/);
