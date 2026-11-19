@@ -23,6 +23,14 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-17 | Part 8 | Permission matrix CSS/visual responsive checks, dark theme and admin user/role override interactions | CSS contract test plus browser visual and role matrix interaction evidence at desktop/mobile widths | OPEN |
 | D-18 | Part 9 | Run new Desktop workbook naming parity test with pinned checkout; inspect packaging inclusion | `cd desktop && node --test tests/monthly-workbook-naming-parity.test.cjs` and desktop check/packaging tests PASS | OPEN |
 | D-19 | Part 9 | Execute synthetic XLSX workbook parity for ten process sheets, formulas, styles, _KTC_SYNC, sync/import and template round-trip | Compare generated workbook outputs before/after on isolated fixture, checksum key cells, no production files/NAS writes | OPEN |
+| D-20 | Part 10 | GitHub Actions consolidated workflow has not produced any recorded run (actions run list returned zero on branch after workflow commit) | One CI run on pinned SHA with backend/frontend/Desktop job results, logs and failures triaged | OPEN |
+
+## Part 10 execution evidence (2026-11-19)
+
+- Verified branch SHA before CI workflow: `bfa9463f1bd303d42af7e69d16e4113c65c7949a`; CI workflow commit: `6c597a176a7a0f97362496fb1e2f48c18b317afe`.
+- Real isolated JavaScript execution (GitHub connector-retrieved source, with no Node require/DB/filesystem) tested 18 cases over four **exact current pure modules**: `productionChildTotalsValidation`, `productionDailyHoursCalculation`, `reportEditProposalReadNormalization` and `monthlyWorkbookNaming`. **18/18 PASS** on those function behavior assertions. This is narrower than `node --test` and cannot close D-01 through D-19.
+- Added `.github/workflows/phase2-consolidated-safe.yml` to run selected backend/frontend/Desktop tests plus frontend typecheck/lint/build, using only ephemeral GitHub runners and no DB credentials. Push trigger limited to changes to the workflow file on the refactor branch; manual dispatch available. GitHub Actions run-list query immediately after commit returned `0`; **no CI PASS evidence yet**.
+- D-05 remains **unfixed** (Manager Pending DOM recreation). D-04/D-09/D-17 need actual browser UI. D-19 needs synthetic XLSX round-trip. D-07 remains overall release gate. Do not convert any of these into PASS without evidence.
 
 ## Already verified by source inspection — avoid unnecessary repetition
 
