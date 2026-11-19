@@ -20,6 +20,8 @@ on:
       - desktop/tests/workbook1-process-export.test.cjs
       - desktop/electron/excelDbSync.cjs
       - desktop/electron/monthlyWorkbookLocal.cjs
+      - frontend/tests/e2e/phase3-public-security.spec.ts
+      - frontend/playwright.phase3.config.ts
       - frontend/src/pages/manager/**
       - frontend/tests/manager-approved-native-navigation.contract.test.cjs
       - frontend/tests/manager-pending-native-table.contract.test.cjs
@@ -123,6 +125,30 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  browser:
+    name: Browser public security and responsive smoke (no backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      DATABASE_URL: ""
+      DB_HOST: ""
+      VITE_API_URL: http://127.0.0.1:19999/api
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Real Chromium browser-only route guard and mobile login
+        run: npx playwright test --config=playwright.phase3.config.ts
+
   desktop:
     name: Desktop synthetic/pure Excel parity
     runs-on: ubuntu-latest
@@ -171,7 +197,7 @@ jobs:
 
   summary:
     name: Consolidated focused source gate
-    needs: [backend, frontend, desktop]
+    needs: [backend, frontend, desktop, browser]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -180,10 +206,12 @@ jobs:
           BACKEND: ${{ needs.backend.result }}
           FRONTEND: ${{ needs.frontend.result }}
           DESKTOP: ${{ needs.desktop.result }}
+          BROWSER: ${{ needs.browser.result }}
         run: |
           echo "Source SHA: ${GITHUB_SHA}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Backend: ${BACKEND}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Frontend: ${FRONTEND}" >> "${GITHUB_STEP_SUMMARY}"
           echo "Desktop: ${DESKTOP}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "Not covered: browser UI, real Windows device, real XLSX round-trip, or isolated TiDB E2E." >> "${GITHUB_STEP_SUMMARY}"
-          test "${BACKEND}" = "success" && test "${FRONTEND}" = "success" && test "${DESKTOP}" = "success"
+          echo "Browser: ${BROWSER}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Not covered: authenticated browser UI, real Windows device, or isolated TiDB E2E." >> "${GITHUB_STEP_SUMMARY}"
+          test "${BACKEND}" = "success" && test "${FRONTEND}" = "success" && test "${DESKTOP}" = "success" && test "${BROWSER}" = "success"
