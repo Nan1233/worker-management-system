@@ -12,7 +12,7 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-06 | Part 3 | Manager approved navigation contract Node test | `node --test frontend/tests/manager-approved-native-navigation.contract.test.cjs` pass | PASS |
 | D-07 | Cross-phase | Full permissions/transaction/shared-machine/Excel and end-to-end release gates | Consolidated run on isolated test DB and synthetic Excel, separately approved | OPEN |
 | D-08 | Part 4 | Worker form hook simulation test and frontend typecheck | `node --test frontend/tests/f02-process-form-extracted-hooks.test.cjs` and typecheck PASS with pinned commit | PASS |
-| D-09 | Part 4 | Worker submit/draft/offline/browser regression after extraction | Isolated browser integration test verifying unchanged payload, draft save warnings and standard lookup behavior | OPEN |
+| D-09 | Part 4 | Worker submit/draft/offline test suite PASS; actual browser submission/draft and offline synchronization still unverified | Browser integration with mocked/isolated API proves unchanged payload, draft recovery, single-click submit, offline retry and identity isolation | PARTIAL |
 | D-10 | Part 5 | Repository Node test for shared proposal read normalization | `cd backend && node --test tests/report-edit-proposal-read-normalization.test.js` with exact checkout SHA | PASS |
 | D-11 | Part 5 | Proposal review rollback/concurrency/scope behavior under isolated fixtures | Run `proposalReviewRollback.behavior.test.js`, `proposalReviewTransaction.contract.test.js` and permission tests; verify no DB writes | PARTIAL |
 | D-12 | Part 6 | Execute child NG/deduction total validator tests and backend source checks on isolated checkout | `cd backend && node --test tests/production-child-totals-validation.test.js && npm run check` PASS with pinned SHA | PASS |
@@ -64,6 +64,25 @@ Changed:
 **Deployment safety:** Cloudflare Workers Builds triggers for `ktc-fe-test` and `ktc-be-test` were inspected read-only; both list `branch_includes: ["test"]`, not this refactor branch. No Cloudflare deploy command, merge, database access, or production file write was used.
 
 All other D entries retain their prior states. Next batch should start from D-09/D-16/D-17 and not re-run unrelated already-PASS suites unless impacted by new code.
+
+## Deferred batch 2/5 — Worker and Admin (2026-11-19)
+
+**One-time focused CI run:** [44506347025](https://github.com/Nan1233/worker-management-system/actions/runs/44506347025), source SHA `a48134f4143a537329196d09e1efd0724373fe1e`. **4/4 jobs SUCCESS**, **137/137 Node tests PASS** (Backend 43, Frontend 73, Desktop 21), Frontend TypeScript typecheck, lint and build PASS.
+
+Actual changes:
+- `frontend/src/security/permissions.ts`: an in-flight permission response also fails closed if the signed-in user changes, preventing old-account rights from being returned or cached.
+- `frontend/tests/permission-cache-invalidation-race.test.cjs`: added race test for account identity change.
+- `frontend/src/pages/admin/Permissions.css`: added scoped `[data-theme="dark"]` palette and narrow viewport overflow safeguards. A follow-up CSS selector fix preserved two legacy `.module-row td` selectors exactly.
+- `frontend/tests/admin-permission-responsive.contract.test.cjs`: asserts dark mode, responsive and Master Control backend guard contracts.
+- `.github/workflows/phase2-consolidated-safe.yml`: extended focused no-DB test matrix with existing Worker draft, offline queue, split submission, Master Control and permission suites.
+
+D-09 **PARTIAL**: actual Node tests for worker draft persistence, quota failure, owner isolation, atomic offline queue, split-report submission resume and one-click submit passed; full browser worker flow, offline/online transition with API interception and UI state still open.
+
+D-16 **PARTIAL**: test checks confirm backend `role('admin')`, DB-backed `is_super_admin`, 403 guard and client permission cache race; user-account login/denial tests in isolated browser/API environment not run. Do not call actual role denial PASS.
+
+D-17 **PARTIAL**: scoped dark mode and mobile CSS implemented, CSS/structural contracts PASS; browser screenshot comparison at desktop/mobile/light/dark not run. No actual visual acceptance.
+
+The other D-01..D-20 states remain unchanged. Next batch 3/5 covers D-11/D-13/D-14/D-15.
 
 ## Part 10 execution evidence (2026-11-19)
 
