@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useToast } from "../../components/feedback/toastContext";
 import { getTempReportDetail } from "../../services/productionService";
 import { getReportEditProposals, reviewReportEditProposal, type ReportEditProposal } from "../../services/reportEditProposalService";
@@ -65,12 +65,12 @@ export default function ManagerReportEditProposals() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try { setLoading(true); setItems(await getReportEditProposals()); }
     catch (e: any) { showToast(e?.response?.data?.message || "Không thể tải đề xuất sửa", "error"); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { void load(); }, []);
+  }, [showToast]);
+  useEffect(() => { void load(); }, [load]);
 
   const open = async (p: ReportEditProposal) => {
     try {
