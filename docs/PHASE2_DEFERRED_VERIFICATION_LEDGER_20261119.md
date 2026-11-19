@@ -4,9 +4,9 @@ This ledger must be repeated in each chat progress report until closure and used
 
 | ID | Origin | Pending / blocked | Closure evidence | State |
 |---|---|---|---|---|
-| D-01 | Part 1 | Isolated repository checkout and exact SHA baseline; frontend lint/typecheck/build; backend check | Recorded command output and exit codes on a clean isolated checkout | PASS |
+| D-01 | Part 1 | GitHub Actions isolated checkout: Backend check, Frontend typecheck/lint/build completed at pinned source SHA | Recorded 4/4 successful jobs at run 44511311244 | PASS |
 | D-02 | Part 1 | Safe isolated focused Node suites and Desktop synthetic worker Excel smoke executed with temp fixtures and no shared DB | GitHub Actions 44509214418: Backend/Frontend/Desktop selected suites and scripts/smokeExcel.cjs PASS; no production data | PASS |
-| D-03 | Part 2 | Machine-event participant API Node contract test and TypeScript check, currently static-only | `node --test frontend/tests/machine-event-participant-api.contract.test.cjs`, typecheck pass | PASS |
+| D-03 | Part 2 | Machine-event participant API Node contract and frontend TypeScript check passed in isolated CI | Focused Node contract and typecheck PASS on pinned SHA | PASS |
 | D-04 | Part 3 | Manager approved-row navigation React/UI regression (click, keyboard, filtering, pagination, admin_ops path) | Browser/component test evidence on isolated checkout | PARTIAL |
 | D-05 | Part 3 | React-owned Pending table refactor completed; interactive browser selection, bulk approve/reject and responsive visual regression remain | Browser tests with fixture data prove checkbox, select all, filter, pagination, bulk approve/reject and layout | PARTIAL |
 | D-06 | Part 3 | Manager approved navigation contract Node test | `node --test frontend/tests/manager-approved-native-navigation.contract.test.cjs` pass | PASS |
@@ -22,8 +22,8 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-16 | Part 8 | Execute permission cache stale-response race tests, TS typecheck, permissions and Master Control regression on pinned checkout | `cd frontend && node --test tests/permission-cache-invalidation-race.test.cjs && npm run typecheck`; independently verify backend 403 on unauthorized roles with isolated fixtures | PARTIAL |
 | D-17 | Part 8 | Permission matrix CSS/visual responsive checks, dark theme and admin user/role override interactions | CSS contract test plus browser visual and role matrix interaction evidence at desktop/mobile widths | PARTIAL |
 | D-18 | Part 9 | Desktop workbook naming, renderer syntax, packaging-sync tests and packaged shared contract checks PASS; full Electron/Windows package not built | Windows isolated NSIS/portable packaging, signing and device smoke evidence | PARTIAL |
-| D-19 | Part 9 | All 11 XLSX exports, six Workbook1 template/style tests, _KTC_SYNC lineage and edited CVK OK-field sync patch PASS; complete Workbook1 import and edited field round-trip still missing | Prove id/row mapping and full edit/import for all six Workbook1 sheets, other processes and metadata snapshot totals without DB writes | PARTIAL |
-| D-20 | Part 10 | GitHub Actions consolidated workflow has not produced any recorded run (actions run list returned zero on branch after workflow commit) | One CI run on pinned SHA with backend/frontend/Desktop job results, logs and failures triaged | PASS |
+| D-19 | Part 9 | Six Workbook1 + K1/K2 paper-form actualTime edits and CVK OK edit parse correctly via _KTC_SYNC row/ID; multi-date and identity mismatch tested; all 11 XLSX export PASS | Remaining: all editable fields and detail columns, legacy/modified paper imports, GUI preview, server-side CAS and end-to-end DB synchronization on disposable environment | PARTIAL |
+| D-20 | Part 10 | Consolidated isolated CI run 44511311244 PASS all four jobs (292/292 selected Node tests) | GitHub run pinned to source SHA 356e6052e6e8ca8742049e945fd5ace68005fa06 | PASS |
 
 ## Final one-time CI results (2026-11-19) — source SHA `263b6e916d506aa05b0e2f0f69e3c2d04d1827c4`
 
@@ -64,6 +64,21 @@ Changed:
 **Deployment safety:** Cloudflare Workers Builds triggers for `ktc-fe-test` and `ktc-be-test` were inspected read-only; both list `branch_includes: ["test"]`, not this refactor branch. No Cloudflare deploy command, merge, database access, or production file write was used.
 
 All other D entries retain their prior states. Next batch should start from D-09/D-16/D-17 and not re-run unrelated already-PASS suites unless impacted by new code.
+
+## Deferred batch 5/5 — Final code fix, focused acceptance and release decision (2026-11-19)
+
+**Latest verified isolated CI [44511311244](https://github.com/Nan1233/worker-management-system/actions/runs/44511311244)**: source SHA `356e6052e6e8ca8742049e945fd5ace68005fa06`, **4/4 jobs SUCCESS**, **292/292 Node tests PASS** (Backend 162, Frontend 73, Desktop 57), frontend TypeScript/lint/build PASS, worker Excel synthetic smoke and packaged-contract read-only checks PASS. Earlier failures on new Workbook1 tests exposed a **real GC false-update bug**; this was fixed and re-tested green, not skipped.
+
+**Workbook1 ID-safe two-way editing source repair:**
+- `desktop/electron/monthlyWorkbookLocal.cjs` writes report ID, source data row, worker code, work date and day STT to veryHidden `_KTC_SYNC` for paper templates without an ID column; metadata refers to the *actual visible original sheet*, not the generic process sheet. Row assignment uses the same stable sort and date-separator policy as workbook output, in linear time. The six Workbook1 paper forms and older K1/K2 templates are supported without altering the printable sheet.
+- `desktop/electron/excelDbSync.cjs` resolves report rows by the saved hidden identity, validates row/worker/day/STT before producing any patch, preserves `expected_updated_at`, refuses old files missing safe mappings and rejects unmatched manually added paper rows. For paper exports it only proposes changes to fields actually mapped by that paper form. The GC helper no longer creates a phantom `operation_type: null` update if the helper has no typed operation value.
+- `desktop/tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs` now executes actual XLSX output/edit/import (not only source assertions) for all six Workbook1 forms, K1/K2, generic CVK; tests multiple dates, intact IDs, concurrency token, zero-update unedited file and worker-code tampering fail-closed.
+
+**Closure classification remains evidence-based: 8 PASS, 11 PARTIAL, 1 OPEN (D-07).** D-19 materially progressed but remains PARTIAL: not every mutable deduction/defect/detail field and unsupported legacy paper file was exercised, nor has a disposable TiDB server applied/rejected actual incoming patches. The veryHidden worksheet is a mapping aid, **not a security boundary**; backend RBAC/expected_updated_at must remain authoritative.
+
+**Cannot accept production release:** D-04/D-05/D-09/D-17 interactive browser and responsive visual UAT; D-11/D-13/D-14/D-15/D-16 disposable TiDB permission/concurrency/rollback/snapshot verification; D-18 Windows install/signing/device; D-19 full Excel edit/import/CAS and manual-blank-row UX; D-07 cross-system sign-off. No merge, manual deploy or write to production/shared TEST DB/NAS occurred.
+
+Five deferred batches of source and safe automated verification are done. **Final Phase 2 release approval: NOT APPROVED** until remaining gates pass or each risk is explicitly accepted by an authorized owner. New fixes must rerun affected tests.
 
 ## Deferred batch 4/5 — Desktop XLSX export, sync and packaging (2026-11-19)
 
