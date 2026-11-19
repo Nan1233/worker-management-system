@@ -14,6 +14,8 @@ on:
       - frontend/src/pages/admin/Permissions.css
       - frontend/tests/admin-permission-responsive.contract.test.cjs
       - backend/tests/phase2-batch3-historical-kpi-parity.test.js
+      - backend/tests/approved-machine-copy-real-mapping-integration.test.js
+      - backend/tests/shared-machine-accounting-flow.test.js
       - frontend/src/pages/manager/**
       - frontend/tests/manager-approved-native-navigation.contract.test.cjs
       - frontend/tests/manager-pending-native-table.contract.test.cjs

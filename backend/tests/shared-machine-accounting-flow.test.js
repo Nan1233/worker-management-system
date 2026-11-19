@@ -297,10 +297,12 @@ test('parallel-machine daily hours aggregate net hours by machine before taking 
   const updateModel = fs.readFileSync(path.join(root, 'models/productionTempUpdateModel.js'), 'utf8');
   const calculation = require('../services/productionDailyHoursCalculation');
   assert.match(source, /incomingDailyWorkHours/);
-  for (const code of [createModel, updateModel]) {
-    assert.match(code, /netHoursByMachine/);
-    assert.match(code, /netHoursByMachine\.set\(machine, \(netHoursByMachine\.get\(machine\) \|\| 0\) \+ net\)/);
-  }
+  // Create now delegates to the shared pure function; update still keeps the
+  // equivalent explicit grouping. Assert behavior rather than old source layout.
+  const sharedSource = fs.readFileSync(path.join(root, 'services/productionDailyHoursCalculation.js'), 'utf8');
+  assert.match(createModel, /incomingDailyWorkHours\(data, machineLines, processCode\)/);
+  assert.match(updateModel, /netHoursByMachine/);
+  assert.match(sharedSource, /netHoursByMachine\.set\(machine, \(netHoursByMachine\.get\(machine\) \|\| 0\) \+ netHours\)/);
   assert.equal(calculation.incomingDailyWorkHours({}, [
     { machine_code: 'M1', machine_time_hours: 3, deduction_time_hours: 1 },
     { machine_code: 'M1', machine_time_hours: 2, deduction_time_hours: 0.5 },
