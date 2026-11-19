@@ -1,0 +1,136 @@
+name: Phase 2 consolidated isolated verification
+
+# One-time run when this workflow is introduced or edited on the refactor branch.
+# Optional manual rerun at an explicitly selected SHA. This does not deploy,
+# connect to KTC databases, alter production files, or execute remote E2E.
+on:
+  push:
+    branches:
+      - refactor/ktc-local-cleanup
+    paths:
+      - .github/workflows/phase2-consolidated-safe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ktc-phase2-safe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    name: Backend focused regression and syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DB_HOST: ""
+      DB_NAME: ""
+      DATABASE_URL: ""
+      KTC_E2E_DB_NAME: ""
+      NODE_ENV: test
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Backend syntax/source check
+        run: npm run check
+      - name: Review, submission, idempotency, historical time and contract tests (mocked / pure)
+        run: |
+          node --test \
+            tests/report-edit-proposal-read-normalization.test.js \
+            tests/proposalReviewTransaction.contract.test.js \
+            tests/proposalReviewRollback.behavior.test.js \
+            tests/production-child-totals-validation.test.js \
+            tests/production-daily-hours-parity-refactor.test.js \
+            tests/production-submission-queue.test.js
+
+  frontend:
+    name: Frontend focused regression, lint, typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Focused frontend API, Manager, Worker and Admin tests
+        run: |
+          node --test \
+            tests/machine-event-participant-api.contract.test.cjs \
+            tests/manager-approved-native-navigation.contract.test.cjs \
+            tests/f02-process-form-extracted-hooks.test.cjs \
+            tests/permission-cache-invalidation-race.test.cjs
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+
+  desktop:
+    name: Desktop synthetic/pure Excel parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      KTC_EXPORT_ROOT: "${{ runner.temp }}/ktc-excel-phase2"
+      KTC_GIA_CONG_SAMPLE_ROOT: "${{ runner.temp }}/ktc-excel-phase2-gc"
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      # Electron installer download and lifecycle writers are unnecessary for
+      # the selected Node + ExcelJS synthetic fixture tests.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Excel naming, calculation and physical-machine metadata tests
+        run: |
+          node --test \
+            tests/monthly-workbook-naming-parity.test.cjs \
+            tests/production-calculation-engine.test.cjs \
+            tests/monthly-workbook-physical-events.test.cjs \
+            tests/company-excel-shared-machine.test.cjs \
+            tests/desktop-web-export-parity.test.cjs
+      - name: Validate Desktop renderer syntax without device preflight or NAS writes
+        run: |
+          node --check electron/monthlyWorkbookNaming.cjs
+          node --check electron/monthlyWorkbookLocal.cjs
+          node --check electron/companyExcelLocal.cjs
+          node --check electron/excelDbSync.cjs
+
+  summary:
+    name: Consolidated focused source gate
+    needs: [backend, frontend, desktop]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report exact source gate outcome
+        env:
+          BACKEND: ${{ needs.backend.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+          DESKTOP: ${{ needs.desktop.result }}
+        run: |
+          echo "Source SHA: ${GITHUB_SHA}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Backend: ${BACKEND}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Frontend: ${FRONTEND}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Desktop: ${DESKTOP}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Not covered: browser UI, real Windows device, real XLSX round-trip, or isolated TiDB E2E." >> "${GITHUB_STEP_SUMMARY}"
+          test "${BACKEND}" = "success" && test "${FRONTEND}" = "success" && test "${DESKTOP}" = "success"
