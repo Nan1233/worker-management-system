@@ -90,7 +90,7 @@ const parseMachineDefects = (detail: Record<string, unknown> | null) => {
     return result;
 };
 
-export default function ApprovedReports() {
+export default function ApprovedReports({ onOpenReport }: { onOpenReport?: (reportId: number) => void } = {}) {
     const [date, setDate] = useState(getToday());
     const [range, setRange] = useState<{ dateFrom: string; dateTo: string } | null>(() => rangeFor(getToday(), "month"));
     const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
@@ -177,6 +177,13 @@ export default function ApprovedReports() {
     const quick = (type: "day" | "week" | "month" | "year") => { setDate(getToday()); setRange(type === "day" ? null : rangeFor(getToday(), type)); };
 
     const openDetail = async (report: ProductionReport) => {
+        // Manager/admin-ops navigation uses the clicked report ID directly.
+        // Other roles retain the existing inline detail panel.
+        if (onOpenReport) {
+            const reportId = Number(report.id);
+            if (Number.isSafeInteger(reportId) && reportId > 0) onOpenReport(reportId);
+            return;
+        }
         const sequence = ++detailRequestSeqRef.current; detailReportRef.current = report;
         setDetail(report); setDetailLoading(true); setDetailError("");
         try {
