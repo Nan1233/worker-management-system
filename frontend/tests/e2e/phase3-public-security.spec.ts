@@ -29,7 +29,7 @@ test.describe('Phase 3 browser security and responsive public surfaces', () => {
       localStorage.setItem('token', 'PHASE5_INVALID_SYNTHETIC_TOKEN');
     });
     await page.goto('/#/manager/reports');
-    await expect(page).toHaveURL(/#\\/login(?:\\?|$)/);
+    await expect(page).toHaveURL(/#\/login(?:\?|$)/);
   });
 
   test('login keyboard input respects the configured 20-character limit', async ({ page }) => {
