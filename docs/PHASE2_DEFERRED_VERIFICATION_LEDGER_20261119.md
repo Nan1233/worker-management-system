@@ -17,8 +17,12 @@ This ledger must be repeated in each chat progress report until closure and used
 | D-11 | Part 5 | Proposal review rollback/concurrency/scope behavior under isolated fixtures | Run `proposalReviewRollback.behavior.test.js`, `proposalReviewTransaction.contract.test.js` and permission tests; verify no DB writes | OPEN |
 | D-12 | Part 6 | Execute child NG/deduction total validator tests and backend source checks on isolated checkout | `cd backend && node --test tests/production-child-totals-validation.test.js && npm run check` PASS with pinned SHA | OPEN |
 | D-13 | Part 6 | Verify submission idempotency, concurrent submissions, split machine lines and rollback against isolated fixtures | Backend regression/behavior tests, no shared TEST/production DB; record outcomes | OPEN |
+| D-14 | Part 7 | Execute daily-hours parity and frozen historical snapshot/physical-machine tests on pinned checkout | `cd backend && node --test tests/production-daily-hours-parity-refactor.test.js`, reviewed historical/training/shared accounting suites and check command PASS | OPEN |
+| D-15 | Part 7 | Validate end-to-end physical machine output counted once and snapshot historical KPIs unchanged after refactor | Isolated fixture parity across backend + desktop; approved snapshot check, no shared DB | OPEN |
 
 ## Already verified by source inspection — avoid unnecessary repetition
+
+- Part 7 changed locked create-model daily-hours expression to reuse existing pure `incomingDailyWorkHours` (GC/MAI grouping rules and fallback unchanged). Added 10 sample compatibility scenarios plus source guard tests. 12/12 source checks after re-fetch; **Node tests not run**.
 
 - Part 6 extracted the existing `validateChildTotals` function byte-for-byte into a pure module and left submission callsite unchanged. After GitHub re-fetch, 9/9 static checks passed; Node tests **not run**.
 
