@@ -92,3 +92,10 @@ test('permission route retains fail-closed, retry and denied-state handling', ()
   assert.match(route, /state\.allowed === null/);
   assert.match(route, /state\.fallback === location\.pathname/);
 });
+
+test('permission table group-row CSS stays scoped to the permissions page', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../src/pages/admin/Permissions.css'), 'utf8');
+  const selectors = css.match(/\.permission-page \.module-row td/g) || [];
+  assert.equal(selectors.length, 2);
+  assert.equal(css.replaceAll('.permission-page .module-row td', '').includes('.module-row td'), false);
+});
