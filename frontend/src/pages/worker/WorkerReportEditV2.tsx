@@ -30,13 +30,6 @@ const hm = (value: number) => {
   const minutes = Math.max(0, Math.round(n(value) * 60));
   return { hours: String(Math.floor(minutes / 60)), minutes: String(minutes % 60) };
 };
-const parseDbDateMs = (value?: string | null) => {
-  if (!value) return NaN;
-  const text = String(value).trim();
-  const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text) ? text.replace(" ", "T") + "Z" : text;
-  const parsed = new Date(normalized).getTime();
-  return Number.isFinite(parsed) ? parsed : NaN;
-};
 const dataFromReportGrindingMachine = (report: any): string => s(report?.extra_data?.grinding_machine_no);
 const slug = (code?: string | null) => ({ GC: "cat-long", MAI: "mai", DO: "do", K1: "kiem-1", K2: "kiem-2", CAN: "can", EP: "ep", XLBV: "bavia", SX3: "sx3", CVK: "cvk" } as Record<string, string>)[s(code).trim().toUpperCase()] || "cat-long";
 
