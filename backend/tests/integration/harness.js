@@ -81,6 +81,9 @@ async function buildDatabase() {
     await connection.query(fs.readFileSync(path.join(
       BACKEND_DIR, 'tests', 'fixtures', 'isolated-report-edit-proposals.sql'
     ), 'utf8'));
+    await connection.query(fs.readFileSync(path.join(
+      BACKEND_DIR, 'tests', 'fixtures', 'isolated-runtime-columns.sql'
+    ), 'utf8'));
 
     // All fixture DDL is confined to the throw-away ktc_it_* database.
     // Never copy or execute this bootstrapping step on production or shared TEST.
