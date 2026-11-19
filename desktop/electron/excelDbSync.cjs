@@ -336,8 +336,8 @@ async function readExcelChanges(filePath) {
     const availablePatch = new Set([
       'work_date',
       ...(available.has('shift') ? ['shift'] : []),
-      ...(available.has('operationType') || gcHelper ? ['operation_type'] : []),
-      ...(available.has('operationMode') || gcHelper ? ['operation_mode'] : []),
+      ...(available.has('operationType') || helperItem?.operationType ? ['operation_type'] : []),
+      ...(available.has('operationMode') || helperItem?.operationMode ? ['operation_mode'] : []),
       ...(available.has('machine') || gcHelper ? ['machine_no'] : []),
       ...(available.has('product') ? ['product_name'] : []),
       ...(available.has('training') ? ['training_percent'] : []),
