@@ -1,0 +1,127 @@
+name: KTC three-part isolated acceptance (no deployment)
+
+on:
+  push:
+    branches: [refactor/ktc-local-cleanup]
+    paths:
+      - .github/workflows/ktc-three-part-isolated-acceptance.yml
+      - backend/scripts/waitForIsolatedTidb.cjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ktc-three-part-acceptance
+  cancel-in-progress: true
+
+jobs:
+  backend-tidb:
+    name: Part 1 - isolated TiDB HTTP and transactions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      NODE_ENV: test
+      DATABASE_URL: ''
+      KTC_IT_DB_HOST: 127.0.0.1
+      KTC_IT_DB_PORT: '4000'
+      KTC_IT_DB_USER: root
+      KTC_IT_DB_PASSWORD: ''
+      KTC_IT_DB_NAME: ktc_it_part1_ci
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Start throwaway local TiDB UniStore
+        run: docker run --detach --rm --name ktc-part1-tidb -p 127.0.0.1:4000:4000 pingcap/tidb:v8.5.3 --store=unistore --path="" --host=0.0.0.0
+      - name: Require real local disposable TiDB
+        run: node scripts/waitForIsolatedTidb.cjs
+      - name: Real HTTP integration suite - never skipped
+        run: npm run test:integration
+      - name: Concurrent approved edit, historical snapshots and RBAC
+        run: node --test tests/approved-edit-concurrency.test.js tests/approved-edit-preserves-machine-data.test.js tests/phase2-batch3-historical-kpi-parity.test.js tests/authorization-process-scope.test.js tests/authorization-f09-scope.test.js
+      - name: Database diagnostic on failure
+        if: failure()
+        run: docker logs --tail 100 ktc-part1-tidb || true
+
+  browser-authenticated:
+    name: Part 2 - authenticated browser on local TiDB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+      NODE_ENV: test
+      DATABASE_URL: ''
+      KTC_IT_DB_HOST: 127.0.0.1
+      KTC_IT_DB_PORT: '4000'
+      KTC_IT_DB_USER: root
+      KTC_IT_DB_PASSWORD: ''
+      KTC_IT_DB_NAME: ktc_it_browser_ci
+      KTC_PLAYWRIGHT_START_SERVER: '1'
+      KTC_E2E_API_PORT: '19080'
+      KTC_FRONTEND_URL: http://127.0.0.1:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: backend
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: frontend
+      - name: Start throwaway browser TiDB
+        run: docker run --detach --rm --name ktc-part2-tidb -p 127.0.0.1:4000:4000 pingcap/tidb:v8.5.3 --store=unistore --path="" --host=0.0.0.0
+      - name: Require real local disposable TiDB
+        run: node scripts/waitForIsolatedTidb.cjs
+        working-directory: backend
+      - name: Install Chromium without apt mirror dependency
+        run: npx playwright install chromium
+        working-directory: frontend
+      - name: Authenticated worker, management, admin and mobile UI
+        run: npx playwright test --config=playwright.config.ts tests/e2e/account.spec.ts tests/e2e/critical-flow.spec.ts tests/e2e/role-navigation.spec.ts
+        working-directory: frontend
+      - name: Database diagnostic on failure
+        if: failure()
+        run: docker logs --tail 100 ktc-part2-tidb || true
+
+  windows-package:
+    name: Part 3 - Windows NSIS and portable staging packages
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      NODE_ENV: test
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Windows Excel, version and upgrade contracts
+        run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/release-signing.test.cjs tests/setup-auto-update.test.cjs tests/portable-upgrade-safety.test.cjs tests/deployment-profile.test.cjs
+      - name: Build unsigned STAGING NSIS and Portable artifacts (no distribution)
+        run: npx electron-builder --win nsis portable --x64 --publish never
+      - name: Verify actual staging executable presence
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem -Path release -File -Filter '*.exe')
+          if ($files.Count -lt 2) { throw "Expected Setup and Portable EXE, found $($files.Count)" }
+          $files | Select-Object Name, Length | Format-Table -AutoSize
+          node scripts/deviceSmoke.cjs
