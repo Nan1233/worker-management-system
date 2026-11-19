@@ -58,16 +58,30 @@ const defaults = buildRoleDefaults();
 
 let cache: { userId:number; values:Set<PermissionCode>; expiresAt:number } | null = null;
 let inFlight: { userId:number; promise:Promise<Set<PermissionCode>> } | null = null;
+// Invalidate responses started before a permission update or account switch.
+// A pending request must never repopulate the cache with superseded rights.
+let permissionCacheGeneration = 0;
 export function defaultPermissionsForRole(role?: string): Set<PermissionCode> { return new Set(defaults[String(role||'').toLowerCase()] || []); }
-export function clearPermissionClientCache(){ cache=null; }
+export function clearPermissionClientCache(){
+  permissionCacheGeneration += 1;
+  cache = null;
+  inFlight = null;
+}
 export async function loadMyPermissions(force=false): Promise<Set<PermissionCode>> {
   const user=getStoredUser(); if(!user) return new Set();
   const userId=Number(user.id);
   if(user.role==='admin') return new Set(all);
   if(!force && cache && cache.userId===userId && cache.expiresAt>Date.now()) return new Set(cache.values);
   if(inFlight?.userId===userId) return new Set(await inFlight.promise);
+  const requestGeneration = permissionCacheGeneration;
   const request = (async () => {
-    try { const response=await api.get('/permissions/me'); const values=new Set<PermissionCode>((response.data?.data?.permissions || []) as PermissionCode[]); cache={userId,values,expiresAt:Date.now()+60_000}; return new Set(values); }
+    try {
+      const response=await api.get('/permissions/me');
+      const values=new Set<PermissionCode>((response.data?.data?.permissions || []) as PermissionCode[]);
+      if(requestGeneration !== permissionCacheGeneration) return new Set<PermissionCode>();
+      cache={userId,values,expiresAt:Date.now()+60_000};
+      return new Set(values);
+    }
     catch { return new Set<PermissionCode>(); }
   })();
   inFlight={userId,promise:request};
