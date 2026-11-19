@@ -7,7 +7,7 @@ on:
       - .github/workflows/ktc-three-part-isolated-acceptance.yml
       - backend/scripts/waitForIsolatedTidb.cjs
       - backend/tests/integration/**
-      - backend/tests/fixtures/isolated-report-edit-proposals.sql
+      - backend/tests/fixtures/isolated-*.sql
       - frontend/tests/e2e/**
       - frontend/playwright.config.ts
       - desktop/tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs
