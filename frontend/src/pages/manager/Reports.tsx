@@ -10,6 +10,13 @@ import "./ReportsSplitReference.css";
 import "./ReportTableSimplified.css";
 import "./ReportsDetailCompact.css";
 
+// The manager table must display the immutable training snapshot first.
+function pendingTrainingPercent(report: ProductionReport): unknown {
+    const values = report as ProductionReport & Record<string, unknown>;
+    return values.training_percent_snapshot ?? values.training_percent ?? values.hv_percent
+        ?? values.learning_percent ?? values.hoc_viec_percent ?? 0;
+}
+
 // Preserve the manager report-code display, including duplicate disambiguation.
 function pendingReportCode(report: ProductionReport, index = 0, duplicate = false) {
     const data = report as ProductionReport & Record<string, unknown>;
@@ -425,7 +432,7 @@ export default function Reports({ onOpenPendingReport }: { onOpenPendingReport?:
                                         <td><span className="shift-chip">{text(r.shift)}</span></td>
                                         <td>{dateText(r.work_date)}</td>
                                         <td>{`${fmt(r.total_time || r.actual_time)} giờ`}</td>
-                                        <td className="pending-full-metric">{pct(x.hv)}</td>
+                                        <td className="pending-full-metric">{pct(pendingTrainingPercent(r))}</td>
                                         <td className="pending-full-metric">{fmt(x.ok)}</td>
                                         <td className="pending-full-metric">{fmt(x.ng)}</td>
                                         <td className={`pending-full-metric ${x.nangSuat <= 75 || x.nangSuat > 100 ? "pending-full-productivity" : ""}`}>{x.standardMissing ? "Thiếu định mức" : pct(x.nangSuat)}</td>
