@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { describeApprovalError } from "../../utils/approvalError";
 import { getStoredUser } from "../../utils/authStorage";
-import { approveSelectedTempReports, approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
+import { approveSelectedTempReports, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
+import { approvePendingReportBatch } from "./pendingReportBatchApproval";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import { dateText, rangeFor } from "./managerReportsPresentation";
@@ -281,34 +282,11 @@ export default function Reports({ onOpenPendingReport }: { onOpenPendingReport?:
         const selectionScope = selectionScopeRef.current;
         managerActionLockRef.current = true;
         setBulkApproving(true); setBulkProgress({ completed: 0, total: targets.length }); setError("");
-        const failedIds: number[] = [];
-        const failures: string[] = [];
-        let succeeded = 0;
         try {
-            // Keep individual approval outcomes; only two independent requests run at once.
-            // This reduces multi-select latency without making the backend's
-            // transaction/validation checks optional or retrying an unknown result.
-            setBulkProgress({ completed: 0, total: targets.length });
-            let nextIndex = 0;
-            let completed = 0;
-            const approveWorker = async () => {
-                while (nextIndex < targets.length) {
-                    const report = targets[nextIndex++];
-                    const id = Number(report.id);
-                    try {
-                        await approveTempReport(id);
-                        succeeded += 1;
-                    } catch (e: any) {
-                        failedIds.push(id);
-                        const code = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || id}`;
-                        failures.push(`${code} (#${id}): ${describeApprovalError(e, "Không thể duyệt")}`);
-                    } finally {
-                        completed += 1;
-                        setBulkProgress({ completed, total: targets.length });
-                    }
-                }
-            };
-            await Promise.all(Array.from({ length: Math.min(2, targets.length) }, () => approveWorker()));
+            const outcome = await approvePendingReportBatch(targets, ({ completed, total }) =>
+                setBulkProgress({ completed, total })
+            );
+            const { failedIds, failures, succeeded } = outcome;
             if (selectionScopeRef.current === selectionScope) setSelectedIds(failedIds);
             if (detail && detailRequestSeqRef.current === detailRequestSeq && approvedIds.includes(Number(detail.id)) && !failedIds.includes(Number(detail.id))) closeDetail();
             // The current filter/page owns its own request; never abort it with stale parameters.
