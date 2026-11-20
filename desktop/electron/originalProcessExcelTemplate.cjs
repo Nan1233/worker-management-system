@@ -940,6 +940,49 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         cell.numFmt="0%";
     }
   }
+  // K1/K2 and legacy non-Workbook1 forms use the same number/width policy.
+  // Source styles can overwrite formats while cloning report rows.
+  if (!workbook1) {
+    const timeCols=new Set(Object.entries(config.fields)
+      .filter(([,field])=>/(?:time|hours|minutes|duration)/i.test(field))
+      .map(([letter])=>toNumber(letter)));
+    if(config.deductions)for(let col=toNumber(config.deductions[0]);
+        col<=toNumber(config.deductions[1]);col++)timeCols.add(col);
+    const pctCols=new Set(Object.entries(config.fields)
+      .filter(([,field])=>["training","achievement","ngRate"].includes(field))
+      .map(([letter])=>toNumber(letter)));
+    const firstRow=config.first, lastRow=config.first+reports.length-1;
+    const maxCol=Math.min(sheet.columnCount,Math.max(lastMappedCol,lastDefectCol||0));
+    for(let col=1;col<=maxCol;col++) {
+      const column=sheet.getColumn(col);
+      if(column.hidden)continue;
+      let width=Number(column.width)||12;
+      const header=templateCellText(sheet.getCell(config.header,col));
+      for(const word of String(header).split(/\s+/))width=Math.max(width,Math.min(36,word.length+3));
+      for(let r=firstRow;r<=lastRow;r++){
+        const cell=sheet.getRow(r).getCell(col);
+        const raw=cell.value;
+        const formula=raw&&typeof raw==="object"&&typeof raw.formula==="string";
+        if(typeof raw==="number"||formula){
+          if(pctCols.has(col))cell.numFmt="0%";
+          else if(timeCols.has(col))cell.numFmt="#,##0.00";
+          else cell.numFmt="#,##0";
+        }
+        const v=formula?raw.result:raw;
+        if(v==null||v==="")continue;
+        let shown;
+        if(v instanceof Date)shown="00/00/0000";
+        else if(typeof v==="number"){
+          if(pctCols.has(col))shown=String(Math.round(v*100))+"%";
+          else if(timeCols.has(col))shown=v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+          else shown=v.toLocaleString("en-US",{maximumFractionDigits:0});
+        }else if(typeof v==="object")continue;
+        else shown=String(v);
+        for(const part of shown.split(/\n/))width=Math.max(width,part.length+3);
+      }
+      column.width=Math.min(80,Math.ceil(width));
+    }
+  }
   // Keep the company template print header/footer untouched. Some source sheets
   // have headerFooter=null, so assigning oddHeader would crash the export.
   sheet.views=[{state:"frozen",ySplit:config.header,xSplit:3,showGridLines:false}];
