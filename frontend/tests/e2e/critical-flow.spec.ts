@@ -101,7 +101,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
 
     // Use a separate, real API-created pending report for the approved-flow smoke:
     // rejected reports cannot be resubmitted under the current customer policy.
-    const date = new Date(Date.now() + 7 * 3600_000 - 13 * 86400_000).toISOString().slice(0,10);
+    const date = new Date(Date.now() + 7 * 3600_000 - 2 * 86400_000).toISOString().slice(0,10);
     const created = await request.post(`${API}/api/production-temp`, {
       headers: { Authorization: `Bearer ${state.workerToken}` },
       data: {
@@ -120,7 +120,12 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
-    await openFirstPendingReport(page);
+    await page.goto(route('/manager/reports'));
+    await page.getByRole('button', { name: 'Tháng này' }).click();
+    const targetRow = page.locator('main table tbody tr').filter({ hasText: ACCOUNTS.worker.code }).first();
+    await expect(targetRow).toBeVisible({ timeout: 15_000 });
+    await targetRow.click();
+    await expect(page.locator('button.review-btn.approve')).toBeEnabled();
 
     const approved = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/production-temp/approve-selected');
     await page.locator('button.review-btn.approve').click();
