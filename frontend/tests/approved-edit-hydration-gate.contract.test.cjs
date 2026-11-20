@@ -25,3 +25,17 @@ test('master data has independent basic and complete detail readiness gates', ()
     'detail readiness must follow the asynchronous NG/deduction lists');
   assert.match(hook, /masterDetailsReady,/);
 });
+
+test('TT OK input captures user text synchronously before React queues a state update', () => {
+  const page = fs.readFileSync(path.join(root, 'WorkerReportEditV2.tsx'), 'utf8');
+  const start = page.indexOf('const onTtOkChange = ');
+  const end = page.indexOf('const onNumberBlur', start);
+  assert.ok(start > 0 && end > start);
+  const handler = page.slice(start, end);
+  const capture = handler.indexOf('const typedOk = event.currentTarget.value');
+  const update = handler.indexOf('setForm((current) =>');
+  assert.ok(capture >= 0 && update > capture, 'capture currentTarget.value before the updater');
+  assert.match(handler, /ttOk: typedOk/);
+  assert.doesNotMatch(handler.slice(update), /event\.(target|currentTarget)\.value/,
+    'never access a mutable DOM event inside an asynchronous updater');
+});
