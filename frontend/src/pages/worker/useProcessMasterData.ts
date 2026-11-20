@@ -185,6 +185,20 @@ function filterEncodedOptions(options: WorkerMasterOption[], processCode: string
   });
 }
 
+// Every worker form must show each deduction label once, even when TiDB has
+// several active historical IDs. Keep the first (already priority-filtered)
+// DB-backed option so submitted reports retain a real deduction_type_id.
+function dedupeDeductionLabels(options: WorkerMasterOption[]): WorkerMasterOption[] {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    const label = normalizeMasterLabel(option.label);
+    const key = label || String(option.code || option.key).trim().toUpperCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 // XLBV codes are stable report keys; show approved Vietnamese defect names even
 // when older DB rows still store placeholder labels such as XLBV_NG_001.
 const XLBV_DEFECT_LABELS: Record<string, string> = {
@@ -346,11 +360,11 @@ export function useProcessMasterData(processId: number, processCode: string) {
 
       if (deductions) {
         setActiveDeductionOptions([
-          ...dedupeEncodedOrLegacyDeductions(
+          ...dedupeDeductionLabels(dedupeEncodedOrLegacyDeductions(
             normalizeDeductionOptions(deductions.value, resolvedProcessId)
               .filter((option) => !/^CUSTOM_DED_/i.test(String(option.code || ""))),
             processCode,
-          ).filter((option) => !["TRỪ GIỜ KHÁC", "KHÁC"].includes(String(option.label || "").trim().toUpperCase())),
+          )).filter((option) => !["TRỪ GIỜ KHÁC", "KHÁC"].includes(String(option.label || "").trim().toUpperCase())),
           OTHER_DEDUCTION_OPTION,
         ]);
       } else {
