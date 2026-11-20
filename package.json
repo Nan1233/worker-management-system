@@ -18,7 +18,7 @@
     "test:regression": "node --test tests/regression-report-issues.contract.test.cjs backend/tests/product-suggestion-scope.test.js",
     "perf:benchmark": "node scripts/performanceBenchmark.cjs",
     "test:quick": "node --test backend\\tests\\*.test.js backend\\tests\\*.test.cjs",
-    "release:readiness": "node scripts/phase5ReleaseReadiness.cjs",
-    "release:readiness:strict": "node scripts/phase5ReleaseReadiness.cjs --strict"
+    "release:readiness": "npm run check:repository && node scripts/phase5ReleaseReadiness.cjs",
+    "release:readiness:strict": "npm run check:repository && node scripts/phase5ReleaseReadiness.cjs --strict"
   }
 }
