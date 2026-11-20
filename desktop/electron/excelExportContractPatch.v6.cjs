@@ -11,7 +11,7 @@ if (typeof buildOriginalProcessWorkbookLocal !== 'function') {
 const ORIGINAL_COMPANY_CODES = new Set(['GC', 'MAI', 'DO', 'K1', 'K2', 'CAN', 'EP', 'XLBV']);
 const WORKBOOK1_CODES = new Set(['GC', 'MAI', 'DO', 'CAN', 'EP', 'XLBV']);
 
-const { buildWorkerProcessWorkbook, PROCESS_CODES, PROCESS_FILE_PREFIXES } = require('./workerReportTemplateLocal.v2.cjs');
+const { buildWorkerProcessWorkbook, PROCESS_CODES, PROCESS_FILE_PREFIXES } = require('./workerReportWorkbook.cjs');
 
 const norm = (value) => String(value ?? '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
