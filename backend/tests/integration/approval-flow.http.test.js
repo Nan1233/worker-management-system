@@ -221,3 +221,28 @@ test('reject needs a reason; rejected report leaves the pending queue', opts, as
   const rows = pending.body.data.reports || pending.body.data;
   assert.ok(!rows.some((r) => r.id === id));
 });
+
+test('approved list works on canonical TiDB without tt_dinh_muc and enforces process scope', opts, async () => {
+  const { id } = await pendingReport();
+  const a = await approve([id]);
+  assert.equal(a.status, 200, JSON.stringify(a.body));
+  const approved = await approvedRow(id);
+
+  const [[schema]] = await s.db.query(
+    "SELECT COUNT(*) AS total FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='production_reports' AND column_name='tt_dinh_muc'"
+  );
+  assert.equal(Number(schema.total), 0, 'the canonical table has no stored tt_dinh_muc column');
+
+  const visible = await h.request('GET', '/api/production?page=1&page_size=100', { token: s.mgr });
+  assert.equal(visible.status, 200, JSON.stringify(visible.body));
+  const own = visible.body.data.find((row) => Number(row.id) === Number(approved.id));
+  assert.ok(own, 'manager must see its own approved report');
+  assert.ok(Number(approved.standard_output) > 0);
+  assert.ok(Math.abs(Number(own.tt_dinh_muc) - Number(approved.actual_time) * Number(approved.standard_output)) < 1e-4,
+    'target must be calculated from the approved report standard snapshot');
+
+  const outOfScope = await h.request('GET', '/api/production?page=1&page_size=100', { token: s.other });
+  assert.equal(outOfScope.status, 200, JSON.stringify(outOfScope.body));
+  assert.ok(!outOfScope.body.data.some((row) => Number(row.id) === Number(approved.id)),
+    'another process manager must not see the approved report');
+});

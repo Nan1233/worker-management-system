@@ -89,6 +89,8 @@ exports.getApprovedReports = async (req, res) => {
       params,
     );
 
+    // Derive target only from persisted report/machine-line snapshots, never live standards.
+    // Canonical production_reports has no tt_dinh_muc column; referencing it breaks the list.
     const [dataRows] = await db.promise().query(
       `SELECT pr.*, p.process_name, w.worker_code, u.full_name,
               COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent,
@@ -122,14 +124,14 @@ exports.getApprovedReports = async (req, res) => {
               CASE
                 WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
                  AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE(NULLIF(pr.tt_dinh_muc,0),(
+                THEN COALESCE((
                   SELECT SUM(
                     GREATEST(0,COALESCE(ml.machine_time_hours,0)-COALESCE(ml.deduction_time_hours,0))
                     * GREATEST(0,COALESCE(ml.standard_output,0))
                   )
                     FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
                 ),0)
-                ELSE pr.tt_dinh_muc
+                ELSE GREATEST(0,COALESCE(pr.actual_time,0)) * GREATEST(0,COALESCE(pr.standard_output,0))
               END AS tt_dinh_muc,
               CASE
                 WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
