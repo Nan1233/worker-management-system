@@ -20,6 +20,7 @@ const { createMonthlyDesktopExport } = require('./monthlyDesktopExport.cjs');
 const { createExcelApiClient } = require('./excelApiClient.cjs');
 const { createRendererAuthClient } = require('./rendererAuthClient.cjs');
 const { createDesktopWindowFactory } = require('./desktopWindow.cjs');
+const { createDesktopExcelIpcHandlers } = require('./desktopExcelIpcHandlers.cjs');
 const { getDesktopDataRoot, getDocumentsRoot } = require('./platformPaths.cjs');
 const { readExcelChanges } = require('./excelDbSync.cjs');
 const { createExcelBackupRetention } = require('./excelBackupRetention.cjs');
@@ -382,140 +383,16 @@ ipcMain.on('ktc-network-online', (event) => {
   void writeLog('INFO', 'NETWORK_ONLINE_AUTO_SYNC_SKIPPED');
 });
 
-async function handleManualExcelSync(payload) {
-  const request = payload || {};
-  const date = request.date || getDateParts().date;
-  const startedAt = Date.now();
-  await writeLog('INFO', 'MANUAL_EXCEL_SYNC_REQUESTED', { date });
-  try {
-    const token = await waitForUsableRendererToken(request.token || '', 8_000);
-    if (!token) {
-      throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng xuất, đăng nhập lại rồi thử cập nhật Excel.');
-    }
-    await writeLog('INFO', 'MANUAL_EXCEL_TOKEN_RESOLVED', { date });
-    const result = await enqueueManualExcelSync({ date, source: 'manual', token });
-    await writeLog(result?.success ? 'INFO' : 'WARN', 'MANUAL_EXCEL_SYNC_FINISHED', {
-      date,
-      success: Boolean(result?.success),
-      skipped: Boolean(result?.skipped),
-      code: result?.code || null,
-      elapsedMs: Date.now() - startedAt
-    });
-    return result;
-  } catch (error) {
-    await writeLog('ERROR', 'MANUAL_EXCEL_SYNC_FAILED', {
-      date,
-      elapsedMs: Date.now() - startedAt,
-      ...normalizeError(error)
-    });
-    throw error;
-  }
-}
-
-
-async function handlePreviewExcelDbSync(payload = {}) {
-  const token = await waitForUsableRendererToken(payload.token || '', 8_000);
-  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
-  currentToken = token;
-  const yearMonth = /^\d{4}-\d{2}$/.test(String(payload.yearMonth || '')) ? String(payload.yearMonth) : '';
-  const result = await previewEditedExcelFilesToDb({ yearMonth });
-  await writeLog('INFO', 'MANUAL_EXCEL_DB_PREVIEW', { yearMonth, detected: result.detected });
-  return result;
-}
-
-async function handleApplyExcelDbSync(payload = {}) {
-  const token = await waitForUsableRendererToken(payload.token || '', 8_000);
-  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
-  currentToken = token;
-  const yearMonth = /^\d{4}-\d{2}$/.test(String(payload.yearMonth || '')) ? String(payload.yearMonth) : '';
-  const result = await syncEditedExcelFilesToDb({ source: 'manual-db-sync', yearMonth });
-  const months = Array.isArray(result.changedMonths) ? result.changedMonths : [];
-  for (const month of months) {
-    if (yearMonth && month !== yearMonth) continue;
-    await enqueueManualExcelSync({ date: `${month}-01`, source: 'excel-db-rebuild', token }).catch((error) =>
-      writeLog('ERROR', 'EXCEL_DB_REBUILD_FAILED', { yearMonth: month, ...normalizeError(error) })
-    );
-  }
-  await writeLog(result.failed ? 'WARN' : 'INFO', 'MANUAL_EXCEL_DB_APPLY_FINISHED', {
-    yearMonth, detected: result.detected, succeeded: result.succeeded, failed: result.failed
-  });
-  return result;
-}
-
-
-async function handlePreviewReportImport(payload = {}) {
-  const token = await waitForUsableRendererToken(payload.token || '', 8_000);
-  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
-  currentToken = token;
-  const picked = await dialog.showOpenDialog(mainWindow, {
-    title: 'Import báo cáo Excel vào KTC',
-    properties: ['openFile'],
-    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
-  });
-  if (picked.canceled || !picked.filePaths?.[0]) return { canceled: true, detected: 0, changes: [] };
-  const filePath = path.resolve(picked.filePaths[0]);
-  const stat = await fs.stat(filePath);
-  assertImportFileSize(stat);
-  const parsed = await readExcelChanges(filePath);
-  if (!parsed?.managed) {
-    const error = new Error('File này không phải workbook KTC có metadata đồng bộ. Hãy dùng file được xuất từ KTC hoặc template import KTC.');
-    error.code = 'KTC_IMPORT_UNMANAGED_WORKBOOK';
-    throw error;
-  }
-  const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
-  reportImportPreviewGuard.remember(filePath);
-  await writeLog('INFO', 'REPORT_IMPORT_PREVIEW', {
-    filePath,
-    yearMonth: parsed.yearMonth || null,
-    detected: changes.length,
-    creates: changes.filter((item) => item?.create === true).length,
-    updates: changes.filter((item) => item?.create !== true).length
-  });
-  return {
-    canceled: false,
-    filePath,
-    fileName: path.basename(filePath),
-    yearMonth: parsed.yearMonth || null,
-    detected: changes.length,
-    creates: changes.filter((item) => item?.create === true).length,
-    updates: changes.filter((item) => item?.create !== true).length,
-    changes
-  };
-}
-
-async function handleApplyReportImport(payload = {}) {
-  const token = await waitForUsableRendererToken(payload.token || '', 8_000);
-  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
-  currentToken = token;
-  const filePath = reportImportPreviewGuard.assertAllowed(payload.filePath);
-  if (!filePath.toLowerCase().endsWith('.xlsx') || !fsSync.existsSync(filePath)) throw new Error('File import không còn tồn tại.');
-  const stat = await fs.stat(filePath);
-  assertImportFileSize(stat);
-  const parsed = await readExcelChanges(filePath);
-  if (!parsed?.managed) throw new Error('File import không còn đúng contract KTC. Hãy xuất lại file từ DB trước.');
-  const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
-  if (!changes.length) return { detected: 0, succeeded: 0, failed: 0, filePath, yearMonth: parsed.yearMonth || null };
-  const payloadResult = await postExcelChanges(changes.map((change) => ({
-    ...change,
-    source: { ...(change.source || {}), file: path.basename(filePath), import_center: true }
-  })));
-  const succeeded = Number(payloadResult.succeeded || 0);
-  const failed = Number(payloadResult.failed || 0);
-  if (parsed.yearMonth && /^\d{4}-\d{2}$/.test(parsed.yearMonth)) {
-    await enqueueManualExcelSync({ date: `${parsed.yearMonth}-01`, source: 'report-import-rebuild', token }).catch((error) =>
-      writeLog('ERROR', 'REPORT_IMPORT_REBUILD_FAILED', { yearMonth: parsed.yearMonth, ...normalizeError(error) })
-    );
-  }
-  if (failed === 0) reportImportPreviewGuard.consume(filePath);
-  await writeLog(failed ? 'WARN' : 'INFO', 'REPORT_IMPORT_APPLY', {
-    filePath,
-    yearMonth: parsed.yearMonth || null,
-    detected: changes.length,
-    succeeded,
-    failed
-  });
-  return { detected: changes.length, succeeded, failed, results: payloadResult.results || [], filePath, yearMonth: parsed.yearMonth || null };
-}
+const {
+  handleManualExcelSync, handlePreviewExcelDbSync, handleApplyExcelDbSync,
+  handlePreviewReportImport, handleApplyReportImport,
+} = createDesktopExcelIpcHandlers({
+  getDateParts, writeLog, waitForUsableRendererToken, enqueueManualExcelSync,
+  normalizeError, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb,
+  setCurrentToken: (value) => { currentToken = value; },
+  dialog, getMainWindow: () => mainWindow, assertImportFileSize,
+  readExcelChanges, reportImportPreviewGuard, postExcelChanges,
+});
 
 ipcMain.handle('ktc-preview-excel-db-sync', protectedDesktopIpc((_event, payload) => handlePreviewExcelDbSync(payload)));
 ipcMain.handle('ktc-preview-report-import', protectedDesktopIpc((_event, payload) => handlePreviewReportImport(payload)));
