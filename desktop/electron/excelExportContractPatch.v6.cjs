@@ -391,6 +391,46 @@ async function reconcileMaiWorkbookDeductions(buffer) {
       row.getCell(12).value = displayedHours;
       changed += 1;
     }
+    // Old MAI MACHINE snapshots can have actualTime=0 even though J (total
+    // worked hours) and L (deduction hours) are populated. The MAI standard
+    // in AH is already output/hour: rate = output/actualHours/standard.
+    // Work from the finalized Excel cells, never from a stale cached metric.
+    const numberAt = (column) => {
+      const raw = row.getCell(column).value;
+      if (raw === null || raw === undefined || raw === '') return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+    const totalHours = numberAt(10); // J
+    const deductionHours = numberAt(12); // L, already reconciled
+    let actualHours = numberAt(11); // K
+    const output = numberAt(35); // AI, KQSX
+    const hourlyStandard = numberAt(34); // AH, SP/h
+    if ((actualHours === null || actualHours <= 0)
+      && totalHours !== null && totalHours > 0
+      && deductionHours !== null && deductionHours >= 0
+      && totalHours > deductionHours) {
+      // No inferred negative/zero effective time; leave ambiguous rows for
+      // review rather than inventing a productivity measurement.
+      actualHours = totalHours - deductionHours;
+      row.getCell(11).value = actualHours;
+      changed += 1;
+    }
+    if (actualHours !== null && actualHours > 0 && output !== null && output >= 0) {
+      const perHourCell = row.getCell(38); // AL, SL/H
+      const hourlyValue = output / actualHours;
+      if (numberAt(38) === null) {
+        perHourCell.value = hourlyValue;
+        perHourCell.numFmt = '#,##0.##';
+        changed += 1;
+      }
+      if (hourlyStandard !== null && hourlyStandard > 0 && numberAt(36) === null) {
+        const achievementCell = row.getCell(36); // AJ, % Thực tích
+        achievementCell.value = hourlyValue / hourlyStandard;
+        achievementCell.numFmt = '0.##%';
+        changed += 1;
+      }
+    }
   }
   return { buffer: changed ? Buffer.from(await workbook.xlsx.writeBuffer()) : buffer, changed };
 }
