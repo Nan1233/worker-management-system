@@ -127,3 +127,27 @@ test('MAI: standard already represents pieces/hour and must not be multiplied by
   assert.equal(output.getWorksheet('Mài').getCell('AL3').value, 180);
   assert.equal(output.getWorksheet('Mài').getCell('AJ3').value, 1);
 });
+
+test('MAI MACHINE: numeric zero SL/H and achievement are repaired, not treated as valid cached figures', async () => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Mài');
+  sheet.getCell('L1').value = 'Tổng TG trừ giờ';
+  sheet.getCell('C1').value = 'Mã số';
+  sheet.getCell('A3').value = 1;
+  sheet.getCell('C3').value = '4174';
+  sheet.getCell('J3').value = 6.6667;
+  sheet.getCell('K3').value = 0;
+  sheet.getCell('L3').value = 1;
+  sheet.getCell('AH3').value = 120;
+  sheet.getCell('AI3').value = 709;
+  sheet.getCell('AL3').value = 0;
+  sheet.getCell('AJ3').value = 0;
+  const result = await reconcileMaiWorkbookDeductions(Buffer.from(await workbook.xlsx.writeBuffer()));
+  const fixed = new ExcelJS.Workbook();
+  await fixed.xlsx.load(result.buffer);
+  const row = fixed.getWorksheet('Mài').getRow(3);
+  assert.ok(Math.abs(row.getCell(11).value - 5.6667) < 1e-9);
+  assert.ok(Math.abs(row.getCell(38).value - 709 / 5.6667) < 1e-9);
+  assert.ok(Math.abs(row.getCell(36).value - (709 / 5.6667) / 120) < 1e-9);
+  assert.equal((await reconcileMaiWorkbookDeductions(result.buffer)).changed, 0);
+});
