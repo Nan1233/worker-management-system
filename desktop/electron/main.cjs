@@ -98,7 +98,7 @@ const {
   fetchWithTimeout, fetchCompanyData,
 } = createExcelApiClient({
   API_BASE_URL, REQUEST_TIMEOUT_MS, DOWNLOAD_RETRY_COUNT, RETRY_DELAY_MS,
-  authenticatedFetch, writeLog, normalizeError, parseDownloadFileName,
+  authenticatedFetch: (...args) => authenticatedFetch(...args), writeLog, normalizeError, parseDownloadFileName,
   normalizeProcessInfo, getExportRoot, safeFileName, safeFolderName,
   getCompanyMonthTarget, buildCompanyExcelLocal, getProcessExportPath,
   getAppPath: () => app.getAppPath(), wait,
