@@ -302,6 +302,26 @@ function reportSnapshot(report, settings = {}) {
   const exportDeductionHours = !isGcMachine && detailDeductionHours > 0
     && (reportedDeductionHours === null || Math.abs(reportedDeductionHours) < 0.000001)
     ? detailDeductionHours : reportedDeductionHours;
+  // MAI multi-machine approved snapshots can have zero actualTime although
+  // the stored working hours and deductions are valid. For export only,
+  // reconstruct effective machine hours and rate from the hourly standard.
+  // Do not change the underlying approved TiDB snapshot.
+  const isMai = normalize(report.process_code) === 'MAI';
+  const oldActualHours = asNumber(metrics.actualTime);
+  const totalHours = asNumber(metrics.workingTime);
+  const subtractionHours = asNumber(exportDeductionHours);
+  const restoredActualHours = isMai && (oldActualHours === null || oldActualHours <= 0)
+    && totalHours !== null && totalHours > 0
+    && subtractionHours !== null && subtractionHours >= 0
+    && totalHours > subtractionHours
+    ? totalHours - subtractionHours : null;
+  const exportActualHours = restoredActualHours ?? metrics.actualTime;
+  const outputQuantity = asNumber(metrics.adjustedOutput);
+  const standardPerHour = asNumber(metrics.standard);
+  const restoredRate = restoredActualHours !== null && outputQuantity !== null && outputQuantity >= 0
+    ? outputQuantity / restoredActualHours : null;
+  const restoredAchievement = restoredRate !== null && standardPerHour !== null && standardPerHour > 0
+    ? restoredRate / standardPerHour : null;
   return {
     id: asNumber(report.id),
     date: asDate(report.work_date),
@@ -316,15 +336,15 @@ function reportSnapshot(report, settings = {}) {
     training: metrics.trainingFactor,
     standard: metrics.standard,
     workingTime: metrics.workingTime,
-    actualTime: metrics.actualTime,
+    actualTime: exportActualHours,
     deductionTime: exportDeductionHours,
     ok: metrics.ok,
     ng: metrics.allNg,
     countedNg: metrics.countedNg,
     enteredOutput: metrics.enteredOutput,
     output: metrics.adjustedOutput,
-    outputPerHour: metrics.outputPerHour,
-    achievement: metrics.achievement,
+    outputPerHour: restoredRate ?? metrics.outputPerHour,
+    achievement: restoredAchievement ?? metrics.achievement,
     ngRate: metrics.ngRate,
     status: asText(report.status),
     note: asText(report.note)
