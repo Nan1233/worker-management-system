@@ -244,6 +244,9 @@ jobs:
             tests/desktop-log-privacy.test.cjs \
             tests/startup-crash-diagnostics.test.cjs \
             tests/startup-performance.test.cjs \
+            tests/deep-security-boundary.test.cjs \
+            tests/renderer-auth-token-source.test.cjs \
+            tests/deployment-profile.test.cjs \
             tests/windows-artifact-inventory.test.cjs \
             tests/excel-backup-retention.test.cjs
       - name: Execute existing worker Excel smoke in an isolated temporary directory
@@ -283,7 +286,7 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run real XLSX roundtrip and Windows source packaging contracts
-        run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/packaging-sync.test.cjs tests/monthly-workbook-naming-parity.test.cjs tests/electron-startup-ipc-privacy.test.cjs tests/desktop-log-privacy.test.cjs tests/startup-crash-diagnostics.test.cjs
+        run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/packaging-sync.test.cjs tests/monthly-workbook-naming-parity.test.cjs tests/electron-startup-ipc-privacy.test.cjs tests/desktop-log-privacy.test.cjs tests/startup-crash-diagnostics.test.cjs tests/deep-security-boundary.test.cjs tests/renderer-auth-token-source.test.cjs
       - run: node scripts/checkPackagedSharedContract.cjs
       - name: Windows release configuration, signing policy and update safety contracts
         run: node --test tests/release-signing.test.cjs tests/setup-auto-update.test.cjs tests/portable-upgrade-safety.test.cjs tests/deployment-profile.test.cjs
