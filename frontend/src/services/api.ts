@@ -563,7 +563,7 @@ if (typeof window !== "undefined") {
     window.setInterval(() => {
         if (loginTransitionActive || crossTabAuthInvalidated) return;
         const route = window.location.hash.replace(/^#/, "") || "/";
-        if (/^\\/login(?:\\/|$)/.test(route) || !getAccessToken()) return;
+        if (/^\/login(?:\/|$)/.test(route) || !getAccessToken()) return;
         void api.get("/auth/session", { timeout: 8000, _skipProactiveRefresh: true } as any)
             .catch(() => { /* Network failures are not evidence of revocation. */ });
     }, SESSION_HEARTBEAT_MS);
