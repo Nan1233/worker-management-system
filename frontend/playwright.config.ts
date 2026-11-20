@@ -25,7 +25,7 @@ export default defineConfig({
   },
   projects: [
     { name: 'chromium-desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
-    { name: 'chromium-mobile', use: { ...devices['iPhone 15'] } },
+    { name: 'chromium-mobile', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   // KTC_PLAYWRIGHT_START_SERVER=1 starts the REAL backend (fresh throw-away database,
   // seeded accounts; needs KTC_IT_DB_* with a ktc_it_* database name) and the web app.
