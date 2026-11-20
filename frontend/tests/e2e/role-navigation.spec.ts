@@ -123,31 +123,12 @@ test.describe('Role navigation (real browser)', () => {
     await expect(page.locator('#ttOk')).toHaveValue('40');
     await expect(page.locator('[data-form-ready="true"]')).toBeVisible();
     const okInput = page.locator('#ttOk');
-    await okInput.evaluate((input) => {
-      (window as any).__ktcOkEvents = [];
-      for (const kind of ['input', 'change', 'beforeinput', 'focus', 'blur']) {
-        input.addEventListener(kind, () => {
-          (window as any).__ktcOkEvents.push({
-            kind,
-            value: (input as HTMLInputElement).value,
-            savedValue: document.querySelector('[data-ttok-state]')?.getAttribute('data-ttok-state'),
-            ready: document.querySelector('[data-form-ready]')?.getAttribute('data-form-ready'),
-          });
-        }, true);
-      }
-    });
-    await okInput.fill('35');
-    try {
-      await expect(okInput).toHaveValue('35');
-    } catch (error) {
-      console.log('TTOK_INPUT_DIAGNOSTICS', JSON.stringify(await page.evaluate(() => ({
-        events: (window as any).__ktcOkEvents,
-        state: document.querySelector('[data-ttok-state]')?.getAttribute('data-ttok-state'),
-        currentValue: (document.querySelector('#ttOk') as HTMLInputElement | null)?.value,
-        ready: document.querySelector('[data-form-ready]')?.getAttribute('data-form-ready'),
-      }))));
-      throw error;
-    }
+    // Actual keyboard path: unlike scripted fills, each keystroke produces a
+    // native input event while React's controlled value is being formatted.
+    await okInput.click();
+    await okInput.press('ControlOrMeta+A');
+    await okInput.pressSequentially('35');
+    await expect(okInput).toHaveValue('35');
     await page.locator('#approved-change-reason').fill('Kiểm tra cập nhật sản lượng E2E');
     await expect(page.locator('#ttOk')).toHaveValue('35');
     const saved = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/production/${approvedId}` && r.request().method() === 'PUT');
