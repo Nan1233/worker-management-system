@@ -429,8 +429,8 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
       changed += 1;
     }
     // Old MAI MACHINE snapshots can have actualTime=0 even though J (total
-    // worked hours) and L (deduction hours) are populated. The MAI standard
-    // in AH is already output/hour: rate = output/actualHours/standard.
+    // worked hours) and L (deduction hours) are populated. AJ is output/AH
+    // where AH is the TOTAL production target, never hourly SP/h.
     // Work from the finalized Excel cells, never from a stale cached metric.
     const numberAt = (column) => {
       const cellValue = row.getCell(column).value;
@@ -451,7 +451,21 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
       changed += 1;
     }
     const output = numberAt(35); // AI, KQSX
-    const hourlyStandard = numberAt(34); // AH, SP/h
+    // A legacy export may still put SP/h (plain number) in AH.
+    // Convert it to the company's total standard once, then keep it a
+    // formula. A subsequent reconciliation sees the formula and does NOT
+    // multiply again.
+    const standardCell = row.getCell(34);
+    const originalStandardValue = standardCell.value;
+    if (typeof originalStandardValue === 'number' && Number.isFinite(originalStandardValue)) {
+      const target = totalHours !== null && totalHours >= 0
+        ? originalStandardValue * totalHours : null;
+      standardCell.value = target === null ? null : {
+        formula: 'IFERROR(' + String(originalStandardValue) + '*J' + r + ',"")',
+        result: target
+      };
+      changed += 1;
+    }
     // K is the approved TiDB actual_time snapshot. It must not be inferred
     // from J-L: historical MAI MACHINE rows have different time semantics.
     if ((actualHours === null || actualHours <= 0) && output !== null && output > 0) {
@@ -498,11 +512,11 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
     const ngPercent = finalOutput !== null && finalOutput > 0 && finalNg !== null && finalNg >= 0
       ? finalNg / finalOutput : (finalOutput === 0 ? 0 : null);
     setCalculated(38, 'AL', 'IFERROR(IF(OR(J' + r + '<=0,AI' + r + '=""),"",AI' + r + '/J' + r + '),"")',
-      rate, '#,##0.00');
+      rate, '#,##0');
     setCalculated(36, 'AJ', 'IFERROR(IF(AH' + r + '>0,AI' + r + '/AH' + r + ',""),"")',
-      percent, '0.00%');
+      percent, '0%');
     setCalculated(41, 'AO', 'IFERROR(IF(AI' + r + '>0,AN' + r + '/AI' + r + ',0),0)',
-      ngPercent, '0.00%');
+      ngPercent, '0%');
   }
   return { buffer: changed ? Buffer.from(await workbook.xlsx.writeBuffer()) : buffer, changed };
 }
