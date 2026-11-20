@@ -26,16 +26,22 @@ test('master data has independent basic and complete detail readiness gates', ()
   assert.match(hook, /masterDetailsReady,/);
 });
 
-test('TT OK input captures user text synchronously before React queues a state update', () => {
+test('TT OK supports native input and React change without reading delayed DOM events', () => {
   const page = fs.readFileSync(path.join(root, 'WorkerReportEditV2.tsx'), 'utf8');
-  const start = page.indexOf('const onTtOkChange = ');
-  const end = page.indexOf('const onNumberBlur', start);
-  assert.ok(start > 0 && end > start);
-  const handler = page.slice(start, end);
-  const capture = handler.indexOf('const typedOk = event.currentTarget.value');
-  const update = handler.indexOf('setForm((current) =>');
-  assert.ok(capture >= 0 && update > capture, 'capture currentTarget.value before the updater');
-  assert.match(handler, /ttOk: typedOk/);
-  assert.doesNotMatch(handler.slice(update), /event\.(target|currentTarget)\.value/,
-    'never access a mutable DOM event inside an asynchronous updater');
+  const quality = fs.readFileSync(path.join(root, 'components/ProcessQualitySection.tsx'), 'utf8');
+  assert.match(page, /const applyTtOkInput = \(raw: string\)/);
+  assert.match(page, /const typedOk = raw\.replace\(/);
+  assert.match(page, /const typedOk = event\.currentTarget\.value/);
+  assert.match(page, /onTtOkInput=\{applyTtOkInput\}/);
+  assert.match(quality, /onInput=\{!qualityLocked && onTtOkInput/);
+  assert.match(quality, /onChange=\{qualityLocked \? undefined : onTtOkChange\}/);
+});
+test('hydration does not dispatch other state from inside a form state updater', () => {
+  const page = fs.readFileSync(path.join(root, 'WorkerReportEditV2.tsx'), 'utf8');
+  assert.match(page, /setSelectedNg\(hydratedNg\.map/);
+  assert.match(page, /setSelectedDeduction\(hydratedDeductions\.map/);
+  const ngHydration = page.slice(page.indexOf('setSelectedNg(hydratedNg.map'), page.indexOf('setMachineLines(', page.indexOf('setSelectedNg(hydratedNg.map')));
+  const dedHydration = page.slice(page.indexOf('setSelectedDeduction(hydratedDeductions.map'), page.indexOf('setFormReady(true)', page.indexOf('setSelectedDeduction(hydratedDeductions.map')));
+  assert.doesNotMatch(ngHydration, /setSelectedNg\(selected\)/);
+  assert.doesNotMatch(dedHydration, /setSelectedDeduction\(selected\)/);
 });

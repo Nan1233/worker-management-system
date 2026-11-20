@@ -245,11 +245,20 @@ function WorkerReportEditV2() {
     hydratedReportRef.current = report;
     const findNgKey = (item: any) => /^CUSTOM_NG_/i.test(s(item.defect_code)) ? "__otherNg" : editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
     const findDeductionKey = (item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)) ? "__otherDeduction" : editDeductionOptions.find((o: any) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
+    // Resolve both slices before queuing updates. Do not enqueue one React
+    // state update inside another updater (which React can replay/defer).
+    const hydratedNg: Array<{ key: string; quantity: string; name: string }> = [];
+    sourceDefects.forEach((d: any) => {
+      const key = findNgKey(d);
+      if (key) hydratedNg.push({ key, quantity: s(d.quantity ?? 0), name: s(d.defect_name) });
+    });
+    setSelectedNg(hydratedNg.map(({ key }) => key));
     setForm((current) => {
       const next = { ...current };
-      const selected: string[] = [];
-      sourceDefects.forEach((d: any) => { const key = findNgKey(d); if (key) { next[key] = s(d.quantity ?? 0); if (key === "__otherNg") next.otherNgName = s(d.defect_name); selected.push(key); } });
-      setSelectedNg(selected);
+      hydratedNg.forEach(({ key, quantity, name }) => {
+        next[key] = quantity;
+        if (key === "__otherNg") next.otherNgName = name;
+      });
       return next;
     });
     setMachineLines((Array.isArray(report?.__edit_machine_lines) ? report.__edit_machine_lines : sourceLines).map((line: any) => {
@@ -275,11 +284,16 @@ function WorkerReportEditV2() {
     }));
     const existingOtherDeduction = sourceDeductions.find((item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)));
     if (existingOtherDeduction) setForm((current) => ({ ...current, otherDeductionName: s(existingOtherDeduction.deduction_name) }));
+    const hydratedDeductions: Array<{ key: string; minutes: string }> = [];
+    sourceDeductions.forEach((d: any) => {
+      const key = findDeductionKey(d);
+      const minutes = d.minutes ?? d.deduction_minutes ?? n(d.hours) * 60;
+      if (key) hydratedDeductions.push({ key, minutes: String(Math.round(n(minutes))) });
+    });
+    setSelectedDeduction(hydratedDeductions.map(({ key }) => key));
     setDeductions((current) => {
       const next: DeductionState = { ...current };
-      const selected: string[] = [];
-      sourceDeductions.forEach((d: any) => { const key = findDeductionKey(d); const minutes = d.minutes ?? d.deduction_minutes ?? n(d.hours) * 60; if (key) { next[key] = String(Math.round(n(minutes))); selected.push(key); } });
-      setSelectedDeduction(selected);
+      hydratedDeductions.forEach(({ key, minutes }) => { next[key] = minutes; });
       return next;
     });
     // Restored defect/deduction values and the ready flag are batched together.
@@ -329,11 +343,19 @@ function WorkerReportEditV2() {
   };
   const toggleNg = (key: NgKey, checked: boolean) => setSelectedNg((current) => checked ? Array.from(new Set([...current, key])) : current.filter((item) => item !== key));
   const updateNg = (key: NgKey, value: string) => setForm((current) => recalcQuality({ ...current, [key]: value.replace(/\D/g, "") }));
+  const applyTtOkInput = (raw: string) => {
+    // Both a native input event (paste/mobile) and React's change event must
+    // preserve the entered value, without retaining a pooled DOM event.
+    const typedOk = raw.replace(/\D/g, "");
+    setForm((current) => {
+      const next = recalcQuality({ ...current, ttOk: typedOk });
+      return next.ttOk === current.ttOk && next.ttNg === current.ttNg
+        && next.actualOutput === current.actualOutput ? current : next;
+    });
+  };
   const onTtOkChange = (event: ChangeEvent<HTMLInputElement>) => {
-    // React may apply queued state updates after the input has re-rendered.
-    // Capture the raw value before entering the functional updater.
-    const typedOk = event.currentTarget.value.replace(/\D/g, "");
-    setForm((current) => recalcQuality({ ...current, ttOk: typedOk }));
+    const typedOk = event.currentTarget.value;
+    applyTtOkInput(typedOk);
   };
   const onNumberBlur = () => setForm((current) => recalcQuality(current));
 
@@ -462,7 +484,7 @@ function WorkerReportEditV2() {
       <ProcessBasicInfoSection processCode={String(report?.process_code || capabilities.processCode)} form={form} setForm={setForm} onFormChange={onFormChange} isCutLongProcess={capabilities.isCutLongProcess} isInspectionProcess={capabilities.isInspectionProcess} isCvkMode={isCvkMode} setIsCvkMode={setIsCvkMode} operationType={operationType} setOperationType={setOperationType} cutExecutionMode={cutExecutionMode} setCutExecutionMode={setCutExecutionMode} operationMode={operationMode} setOperationMode={setOperationMode} usesMultiMachineLines={usesMultiMachineLines} usesSingleMachine={usesSingleMachine} productAutocompleteOptions={toProductAutocompleteOptions(editProductOptions)} getMachineProductAutocompleteOptions={getMachineProductAutocompleteOptions} productOptions={editProductOptions as any} machineAutocompleteOptions={machineAutocompleteOptions} machineOptions={editMachineOptions} loadingMasterData={loadingMasterData} machineCount={machineCount} maxMachineCount={maxMachineCount} machineLines={machineLines} resizeMachineLines={resizeMachineLines} updateMachineLine={updateLine} refreshMachineLineStandard={refreshMachineLineStandard} getMachineNgTotal={getMachineNgTotal} activeNgOptions={editNgOptions as any} activeDeductionOptions={editDeductionOptions as any} toggleMachineDefect={toggleMachineDefect} updateMachineDefectValue={updateMachineDefectValue} />
       {report.process_code === "CVK" && <section className="worker-form-card"><h2 className="worker-card-title">Thông tin công việc</h2><div className="worker-basic-grid"><div className="worker-field-block"><label className="worker-field-label">Loại công việc</label><select className="worker-text-input" value={workType} onChange={(e) => { const value = e.currentTarget.value; setWorkType(value); setForm((current) => ({ ...current, workType: value })); }}><option>Xuất nhập</option><option>Hỗ trợ</option><option>Kho</option><option>Vệ sinh</option><option>Công việc khác</option></select></div></div></section>}
       {usesMultiMachineLines && <section className="worker-form-card worker-quality-section" aria-label="Tổng sản lượng OK NG của các máy"><h2 className="worker-card-title">Tổng sản lượng OK / NG</h2><div className="worker-quality-summary"><div className="worker-quality-card ok"><label>TT OK (tổng các máy)</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.okQuantity) || 0), 0)))} readOnly aria-label="Tổng OK các máy" /></div><div className="worker-quality-card ng"><label>TT NG (tổng các máy)</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.ngQuantity) || 0), 0)))} readOnly aria-label="Tổng NG các máy" /></div><div className="worker-quality-card total-output"><label>Tổng sản lượng</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0), 0)))} readOnly aria-label="Tổng sản lượng các máy" /></div></div><p className="worker-field-hint">Số liệu tổng hợp tự động từ từng máy; chỉnh sửa OK/NG tại từng máy.</p></section>}
-      {!report.process_code || report.process_code !== "CVK" ? <ProcessQualitySection form={form} activeNgOptions={editNgOptions as any} selectedNg={selectedNg} showNg={showNg} setShowNg={setShowNg} usesMultiMachineLines={usesMultiMachineLines} operationMode={operationMode} formatIntegerDisplay={formatIntegerDisplay} onTtOkChange={onTtOkChange} onNumberBlur={onNumberBlur} onToggleNg={toggleNg} onNgValue={updateNg} onOtherNgName={(value) => setForm((prev) => ({ ...prev, otherNgName: value }))} /> : null}
+      {!report.process_code || report.process_code !== "CVK" ? <ProcessQualitySection form={form} activeNgOptions={editNgOptions as any} selectedNg={selectedNg} showNg={showNg} setShowNg={setShowNg} usesMultiMachineLines={usesMultiMachineLines} operationMode={operationMode} formatIntegerDisplay={formatIntegerDisplay} onTtOkChange={onTtOkChange} onTtOkInput={applyTtOkInput} onNumberBlur={onNumberBlur} onToggleNg={toggleNg} onNgValue={updateNg} onOtherNgName={(value) => setForm((prev) => ({ ...prev, otherNgName: value }))} /> : null}
       {!usesMultiMachineLines && <ProcessTimeDeductionSection processCode={String(report?.process_code || (Number(report?.process_id) === 4 ? "K1" : ""))} form={form} setForm={setForm} deductions={deductions} activeDeductionOptions={editDeductionOptions as any} selectedDeduction={selectedDeduction} showDeduction={showDeduction} setShowDeduction={setShowDeduction} onToggleDeduction={toggleDeduction} onUpdateDeduction={updateDeduction} onNormalizeDeduction={normalizeDeduction} onWarning={warning} onOtherDeductionName={(value) => setForm((prev) => ({ ...prev, otherDeductionName: value }))} />}
       </fieldset>
       {!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : WORKER_EDIT_TIME_LIMIT_ENABLED ? `Còn ${timeText} để sửa báo cáo.` : "Có thể sửa báo cáo không giới hạn thời gian khi còn chờ xử lý."}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || !formReady || (!managerRoute && WORKER_EDIT_TIME_LIMIT_ENABLED && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && WORKER_EDIT_TIME_LIMIT_ENABLED && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}

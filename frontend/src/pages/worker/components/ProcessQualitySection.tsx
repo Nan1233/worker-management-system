@@ -7,13 +7,13 @@ interface NgOption { key: NgKey; code: string; label: string; }
 interface Props {
     form: FormState; activeNgOptions: NgOption[]; selectedNg: NgKey[]; showNg: boolean; setShowNg: Dispatch<SetStateAction<boolean>>;
     usesMultiMachineLines: boolean; operationMode: OperationMode; qualityLocked?: boolean; formatIntegerDisplay: (value: string) => string;
-    onTtOkChange: (event: ChangeEvent<HTMLInputElement>) => void; onNumberBlur: (event: FocusEvent<HTMLInputElement>) => void;
+    onTtOkChange: (event: ChangeEvent<HTMLInputElement>) => void; onTtOkInput?: (rawValue: string) => void; onNumberBlur: (event: FocusEvent<HTMLInputElement>) => void;
     onToggleNg: (key: NgKey, checked: boolean) => void; onNgValue: (key: NgKey, value: string) => void; onOtherNgName: (value: string) => void;
 }
 const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase();
 const CVK_WORK_TYPES = new Set(["CVK", "XUATNHAP", "KTCD", "TAIPP"]);
 
-export default function ProcessQualitySection({ form, activeNgOptions, selectedNg, showNg, setShowNg, usesMultiMachineLines, operationMode, qualityLocked: qualityLockedProp, formatIntegerDisplay, onTtOkChange, onNumberBlur, onToggleNg, onNgValue, onOtherNgName }: Props) {
+export default function ProcessQualitySection({ form, activeNgOptions, selectedNg, showNg, setShowNg, usesMultiMachineLines, operationMode, qualityLocked: qualityLockedProp, formatIntegerDisplay, onTtOkChange, onTtOkInput, onNumberBlur, onToggleNg, onNgValue, onOtherNgName }: Props) {
     // Keep hook order stable when the process or execution mode changes in-place.
     const shouldHide = CVK_WORK_TYPES.has(String(form.workType ?? "").trim().toUpperCase())
         || isNoStandardLongWork(form.productName)
@@ -47,7 +47,7 @@ export default function ProcessQualitySection({ form, activeNgOptions, selectedN
     return <section className="worker-form-card worker-quality-section">
         <h2 className="worker-card-title"><span><AppIcon name="sheet" size={20} /></span> {operationMode === "MACHINE" ? "Lỗi NG của máy" : "Báo cáo Chất lượng"}</h2>
         {operationMode !== "MACHINE" && <div className="worker-quality-summary">
-            <div className="worker-quality-card ok"><label htmlFor="ttOk">{qualityLocked ? "OK của người (tổng các máy)" : "TT OK"}</label><input id="ttOk" name="ttOk" value={formatIntegerDisplay(form.ttOk)} onChange={qualityLocked ? undefined : onTtOkChange} onBlur={qualityLocked ? undefined : onNumberBlur} readOnly={qualityLocked} inputMode="numeric" autoComplete="off" /></div>
+            <div className="worker-quality-card ok"><label htmlFor="ttOk">{qualityLocked ? "OK của người (tổng các máy)" : "TT OK"}</label><input id="ttOk" name="ttOk" value={formatIntegerDisplay(form.ttOk)} onChange={qualityLocked ? undefined : onTtOkChange} onInput={!qualityLocked && onTtOkInput ? (event) => onTtOkInput(event.currentTarget.value) : undefined} onBlur={qualityLocked ? undefined : onNumberBlur} readOnly={qualityLocked} inputMode="numeric" autoComplete="off" /></div>
             <div className="worker-quality-card ng"><label htmlFor="ttNg">{qualityLocked ? "NG của người (tổng các máy)" : "TT NG"}</label><input id="ttNg" name="ttNg" value={formatIntegerDisplay(form.ttNg)} readOnly disabled={qualityLocked} /></div>
             <div className="worker-quality-card total-output"><label htmlFor="totalOutput">{qualityLocked ? "Sản lượng người" : "Tổng sản lượng"}</label><input id="totalOutput" value={formatIntegerDisplay(String((Number(form.ttOk) || 0) + (Number(form.ttNg) || 0)))} readOnly disabled={qualityLocked} aria-label="Tổng sản lượng bằng TT OK cộng TT NG" /><small>{qualityLocked ? "Tổng sản lượng thực tế của tất cả máy người này chạy" : "OK + NG"}</small></div>
         </div>}

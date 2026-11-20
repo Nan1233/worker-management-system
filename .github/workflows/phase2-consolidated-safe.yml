@@ -45,6 +45,7 @@ on:
       - frontend/tests/approved-edit-hydration-gate.contract.test.cjs
       - frontend/tests/approved-reports-presentation.test.cjs
       - frontend/src/pages/worker/WorkerReportEditV2.tsx
+      - frontend/src/pages/worker/components/ProcessQualitySection.tsx
       - frontend/src/pages/admin/MasterData.tsx
       - frontend/src/pages/admin/masterDataConfig.ts
       - frontend/tests/master-data-config.test.cjs
