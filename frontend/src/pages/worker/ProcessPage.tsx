@@ -394,7 +394,7 @@ const machineAutocompleteOptions =
         selectedNg,
     ]);
 
-    const { handleCreateDuplicateAnyway, handleUpdateExistingReport } = useProcessDuplicateActions({
+    const { handleCreateDuplicateAnyway, handleUpdateExistingReport, handleCancelDuplicate } = useProcessDuplicateActions({
         process, navigate, showToast, duplicatePrompt, setDuplicatePrompt,
         setSubmitting, getDuplicateFormSignature, submitLockRef,
         clientRequestIdRef, pendingSplitPayloadsRef, duplicatePrimaryCompletedRef,
@@ -677,17 +677,7 @@ const machineAutocompleteOptions =
                 submitting={submitting}
                 loadingWorker={loadingWorker}
                 loadingMasterData={loadingMasterData}
-                onCancelDuplicate={() => {
-                    if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
-                        showToast("Một phần báo cáo đã gửi thành công. Vui lòng thử lại để gửi nốt các báo cáo còn lại trước khi thoát.", "warning");
-                        return;
-                    }
-                    setDuplicatePrompt(null);
-                    pendingSplitPayloadsRef.current = [];
-                    duplicatePrimaryCompletedRef.current = false;
-                    duplicateForceRequestIdRef.current = null;
-                    submitLockRef.current = false;
-                }}
+                onCancelDuplicate={handleCancelDuplicate}
                 onUpdateExisting={() => void handleUpdateExistingReport()}
                 onCreateDuplicate={() => void handleCreateDuplicateAnyway()}
                 canUpdateExisting={duplicatePrompt?.reportType !== "approved"}
