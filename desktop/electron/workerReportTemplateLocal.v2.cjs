@@ -215,6 +215,24 @@ function asDate(value) {
   const vn = new Date(date.getTime() + 7 * 3600 * 1000);
   return new Date(Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate()));
 }
+// Convert database timestamps to the Vietnam wall-clock value stored in Excel.
+function asSubmissionDateTime(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate(),
+      value.getUTCHours(), value.getUTCMinutes(), value.getUTCSeconds()));
+  }
+  const text = String(value).trim();
+  const mysql = text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
+  if (mysql) return new Date(Date.UTC(Number(mysql[1]), Number(mysql[2]) - 1, Number(mysql[3]),
+    Number(mysql[4]), Number(mysql[5]), Number(mysql[6])));
+  const iso = new Date(text);
+  if (Number.isNaN(iso.getTime())) return null;
+  const vn = new Date(iso.getTime() + 7 * 3600 * 1000);
+  return new Date(Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate(),
+    vn.getUTCHours(), vn.getUTCMinutes(), vn.getUTCSeconds()));
+}
+
 function detailItems(report, kind) {
   const keys = kind === 'deduction'
     ? ['deductions', 'deductionDetails', 'deduction_details', 'deductionRows', 'deduction_rows']
@@ -619,8 +637,9 @@ function applyReportRow(row, report, contract, processData, index) {
     ? { ...report, deductions: exportTimes.deductions }
     : report;
   set(contract.cols.stt, index + 1);
-  set(contract.cols.entryDate, asDate(report.entry_date || report.created_at));
-  set(contract.cols.date, asDate(report.work_date || report.entry_date));
+  set(contract.cols.entryDate, asSubmissionDateTime(report.submitted_at));
+  if (contract.cols.entryDate) row.getCell(contract.cols.entryDate).numFmt = 'dd/mm/yyyy hh:mm:ss';
+  set(contract.cols.date, asDate(report.work_date));
   set(contract.cols.workerCode, report.worker_code);
   set(contract.cols.workerName, report.full_name || report.worker_name || report.name);
   set(contract.cols.shift, report.shift);
@@ -650,7 +669,7 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.product, directProduct || [...new Set(lineProducts)].join(', '));
   if (contract.cols.submittedAt) {
     const cell = row.getCell(contract.cols.submittedAt);
-    cell.value = asDateTime(report.submitted_at);
+    cell.value = asSubmissionDateTime(report.submitted_at);
     cell.numFmt = 'dd/mm/yyyy hh:mm:ss';
   }
   const { planned, trainingPercent } = plannedOutputFor(report);
@@ -796,13 +815,13 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
   else sheet.spliceRows(dateRowNumber, sheet.rowCount - dateRowNumber + 1);
 
   const dayKey = (report) => {
-    const day = asDate(report.work_date || report.entry_date);
+    const day = asDate(report.work_date);
     return day ? day.toISOString().slice(0, 10) : '';
   };
   const ordered = [...reports].sort((a, b) => dayKey(a).localeCompare(dayKey(b)) || number(a?.id) - number(b?.id));
   const groups = new Map();
   for (const report of ordered) {
-    const day = asDate(report.work_date || report.entry_date);
+    const day = asDate(report.work_date);
     const key = day ? day.toISOString().slice(0, 10) : '';
     if (!groups.has(key)) groups.set(key, { day, reports: [] });
     groups.get(key).reports.push(report);
@@ -938,6 +957,11 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   if (code === 'GC') normalizeGcDefectHeaders(sheet, headerRow);
   const columnMap = findColumnMap(sheet, headerRow);
   const contract = buildColumnContract(columnMap, processData);
+  // Reuse the existing audit column instead of shifting template merges/styles.
+  if (Number(contract.cols.stt) === 1 && Number(contract.cols.entryDate) === 2) {
+    sheet.getRow(headerRow).getCell(2).value = 'Thời gian nộp báo cáo';
+    sheet.getColumn(2).hidden = true;
+  }
   reports.sort((a, b) => String(a?.work_date || '').localeCompare(String(b?.work_date || '')) || number(a?.id) - number(b?.id));
   appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData, code);
 
