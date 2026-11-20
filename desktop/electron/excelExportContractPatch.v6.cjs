@@ -419,16 +419,23 @@ async function reconcileMaiWorkbookDeductions(buffer) {
     if (actualHours !== null && actualHours > 0 && output !== null && output >= 0) {
       const perHourCell = row.getCell(38); // AL, SL/H
       const hourlyValue = output / actualHours;
-      if (numberAt(38) === null) {
+      // A legacy calculation can serialize blank metrics as numeric 0.
+      // Do not mistake a zero cached rate for a valid measurement when
+      // positive output and positive machine time establish the true rate.
+      const existingPerHour = numberAt(38);
+      if (existingPerHour === null || (existingPerHour <= 0 && output > 0)) {
         perHourCell.value = hourlyValue;
         perHourCell.numFmt = '#,##0.##';
         changed += 1;
       }
-      if (hourlyStandard !== null && hourlyStandard > 0 && numberAt(36) === null) {
+      if (hourlyStandard !== null && hourlyStandard > 0) {
         const achievementCell = row.getCell(36); // AJ, % Thực tích
-        achievementCell.value = hourlyValue / hourlyStandard;
-        achievementCell.numFmt = '0.##%';
-        changed += 1;
+        const existingAchievement = numberAt(36);
+        if (existingAchievement === null || (existingAchievement <= 0 && output > 0)) {
+          achievementCell.value = hourlyValue / hourlyStandard;
+          achievementCell.numFmt = '0.##%';
+          changed += 1;
+        }
       }
     }
   }
