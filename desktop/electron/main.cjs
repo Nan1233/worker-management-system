@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, shell, session, powerMonitor, dialog } = require('electron');
+const { registerFolderIpc } = require('./ipc/folderIpc.cjs');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
@@ -1664,31 +1665,7 @@ ipcMain.handle('ktc-configure-auto-sync', protectedDesktopIpc(async (_event, tok
     exportRoot: getExportRoot()
   };
 }));
-ipcMain.handle('ktc-open-export-folder', protectedDesktopIpc(async (_event, date) => {
-  const selected = date || getDateParts().date;
-  assertDate(selected);
-  const [year] = selected.split('-');
-  const folder = path.join(getExportRoot(), year);
-  await fs.mkdir(folder, { recursive: true });
-  const error = await shell.openPath(folder);
-  if (error) throw new Error(error);
-  return folder;
-}));
-ipcMain.handle('ktc-get-export-folder', protectedDesktopIpc(async (_event, date) => {
-  const selected = date || getDateParts().date;
-  assertDate(selected);
-  const [year] = selected.split('-');
-  const folder = path.join(getExportRoot(), year);
-  await fs.mkdir(folder, { recursive: true });
-  return folder;
-}));
-ipcMain.handle('ktc-open-log-folder', protectedDesktopIpc(async () => {
-  const folder = path.join(app.getPath('userData'), 'logs');
-  await fs.mkdir(folder, { recursive: true });
-  const error = await shell.openPath(folder);
-  if (error) throw new Error(error);
-  return folder;
-}));
+registerFolderIpc({ ipcMain, protectedDesktopIpc, getDateParts, assertDate, getExportRoot, path, fs, shell, app });
 
 ipcMain.on('ktc-frontend-painted', (event) => {
   // Only our own window may mark first paint; no renderer data is accepted.
