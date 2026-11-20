@@ -71,7 +71,7 @@ test('machine INSERT mapping preserves empty input and falsy values', () => {
 
 test('copy function retains single bulk INSERT and calls extracted mapper', () => {
   const start = source.indexOf('async function copyMachineLinesToApproved(');
-  const endCopy = source.indexOf('function getExtraDataObject(', start);
+  const endCopy = source.indexOf('// Keep standard resolver warm-up input aligned', start);
   const copy = source.slice(start, endCopy);
   const builder = source.slice(source.indexOf('function buildApprovedMachineLinesInsert('), source.indexOf('function buildApprovedMachineLinesRead('));
   assert.match(copy, /buildApprovedMachineLinesInsert\(tempLines, approvedReportId\)/);
