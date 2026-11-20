@@ -351,6 +351,20 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     const fields=Object.keys(report||{}).filter(key=>/date|ngay/i.test(key)).join(",");
     throw new Error("Báo cáo "+code+" (id="+String(report?.id??"?")+") thiếu ngày sản xuất thuộc "+yearMonth+"; dateFields="+fields);
   };
+  // Capture the company's actual formulas BEFORE clearing sample rows.
+  // Only computed fields are reused; approved TiDB input cells remain DB values.
+  const maiOriginalFormulas = {};
+  if (workbook1 && code === "MAI") {
+    for (const letter of ["AJ", "AL", "AO"]) {
+      for (let sourceRow = config.first; sourceRow <= Math.min(sheet.rowCount, config.first + 30); sourceRow++) {
+        const formula = sheet.getCell(letter + sourceRow).value?.formula;
+        if (typeof formula === "string" && formula.trim()) {
+          maiOriginalFormulas[letter] = { formula, sourceRow };
+          break;
+        }
+      }
+    }
+  }
   // Capture an untouched template body style before inserting date separators.
   // Reuse the original cell formatting for every MAI data row, including rows
   // beyond the template's preformatted sample area.
@@ -468,7 +482,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         // reportSnapshot.training is already a 0..1 factor (100% = 1).
         // Format only; dividing again would incorrectly turn 100% into 1%.
         // Applies to every process template that maps a training column.
-        if(key==="training") cell.numFmt="0.##%";
+        if(key==="training") cell.numFmt="0.00%";
       }
     }
     const deductionDetails=helpers.detailMap(helpers.reportDetailItems(report,code,"deduction"),"deduction");
@@ -612,7 +626,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       const row = sheet.getRow(rowNumber);
       for (const {col,field} of percentageColumns) {
         const cell = row.getCell(col);
-        cell.numFmt = "0.##%";
+        cell.numFmt = "0.00%";
         const fillColor = workbook1RateFill(field,cell.value);
         if (fillColor) {
           cell.fill = workbook1SolidFill(fillColor);
@@ -670,7 +684,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       for(const col of timeColumns){
         const cell=sheet.getRow(rowNumber).getCell(col);
         if(typeof cell.value==="number" && Number.isFinite(cell.value))
-          cell.numFmt='#,##0.##';
+          cell.numFmt='#,##0.00';
       }
     // Size columns from visible report values. ExcelJS has no font metrics;
     // widths include padding for Times New Roman 12 and percentage symbols.
@@ -818,6 +832,6 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   sheet.views=[{state:"frozen",ySplit:config.header,xSplit:3,showGridLines:false}];
   workbook.creator="KTC Production Control";
   workbook.modified=new Date();
-  return {workbook,sheet,result:{processCode:code,reportCount:reports.length,templateKind:"original-company",templatePath:filename},mapping};
+  return {workbook,sheet,result:{processCode:code,reportCount:reports.length,templateKind:"original-company",templatePath:filename},mapping,maiOriginalFormulas};
 }
 module.exports={FORMS,WORKBOOK1_FORMS,TEMPLATE_ROOT,templatePath,renderOriginalProcessTemplate};
