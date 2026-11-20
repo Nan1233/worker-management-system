@@ -33,7 +33,11 @@ export default function AdminLayout(){
  const {unreadCount}=useNotificationBadge(can("NOTIFICATION_VIEW"));
  const user=getStoredUser();
  const roleLabel=user?.is_super_admin?"Super Admin":ADMIN_LABEL;
- const [mobileMoreOpen,setMobileMoreOpen]=useState(false),[mobileSidebarOpen,setMobileSidebarOpen]=useState(false);
+ // Key menus by pathname; late route-close effects must never hide a newly
+ // opened mobile drawer while navigation/permissions render.
+ const [mobileMorePath,setMobileMorePath]=useState<string|null>(null),[mobileSidebarPath,setMobileSidebarPath]=useState<string|null>(null);
+ const mobileMoreOpen=mobileMorePath===location.pathname;
+ const mobileSidebarOpen=mobileSidebarPath===location.pathname;
  // Master Control Center is Super Admin only; the backend enforces it, the menu only mirrors it.
  const visible=items.filter(item=>can(item.permission)&&(item.path!=="master-control"||user?.is_super_admin===true));
  // Primary mobile slots must never shift while permissions are loading.
@@ -42,11 +46,11 @@ export default function AdminLayout(){
  const active=(path:string)=>path===""?location.pathname==="/admin":location.pathname===`/admin/${path}`||location.pathname.startsWith(`/admin/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel;
  const avatarText=displayName.trim().charAt(0).toUpperCase()||"A";
- useEffect(()=>{setMobileMoreOpen(false);setMobileSidebarOpen(false);},[location.pathname]);
- const go=(path:string)=>{setMobileSidebarOpen(false);setMobileMoreOpen(false);navigate(`/admin${path?`/${path}`:""}`)};
+
+ const go=(path:string)=>{setMobileSidebarPath(null);setMobileMorePath(null);navigate(`/admin${path?`/${path}`:""}`)};
  useEffect(()=>{
   if(!mobileMoreOpen&&!mobileSidebarOpen)return;
-  const onKeyDown=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();setMobileMoreOpen(false);setMobileSidebarOpen(false)}};
+  const onKeyDown=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();setMobileMorePath(null);setMobileSidebarPath(null)}};
   document.addEventListener("keydown",onKeyDown);
   return()=>document.removeEventListener("keydown",onKeyDown);
  },[mobileMoreOpen,mobileSidebarOpen]);
@@ -62,21 +66,21 @@ export default function AdminLayout(){
     <button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button>
    </div>
   </aside>
-  {mobileSidebarOpen&&<button className="admin-sidebar-backdrop" aria-label="Đóng menu" type="button" onClick={()=>setMobileSidebarOpen(false)}/>} 
+  {mobileSidebarOpen&&<button className="admin-sidebar-backdrop" aria-label="Đóng menu" type="button" onClick={()=>setMobileSidebarPath(null)}/>} 
   <section className="admin-main">
    <header className="admin-header">
-    <div className="admin-header-left"><button className="admin-mobile-menu" type="button" aria-label="Mở menu" onClick={()=>setMobileSidebarOpen(true)}><Menu size={20}/></button><div className="admin-header-title"><strong>KTC Production Control</strong><span>ADMIN CONSOLE</span></div></div>
+    <div className="admin-header-left"><button className="admin-mobile-menu" type="button" aria-label="Mở menu" onClick={()=>setMobileSidebarPath(location.pathname)}><Menu size={20}/></button><div className="admin-header-title"><strong>KTC Production Control</strong><span>ADMIN CONSOLE</span></div></div>
     <div className="admin-header-actions">{can("NOTIFICATION_VIEW")&&<button className="admin-notification" type="button" aria-label="Thông báo" onClick={()=>go("notifications")}><Bell size={19}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>}<button className="admin-user" type="button" onClick={()=>go("profile")}><span className="admin-user-avatar">{avatarText}</span><span className="admin-user-copy"><strong>{displayName}</strong><small>{roleLabel}</small></span></button></div>
    </header>
    <main className="admin-content"><Outlet/></main>
   </section>
-  {mobileMoreOpen&&<button className="admin-mobile-overflow-dismiss" type="button" aria-label="Đóng menu điều hướng" onClick={()=>setMobileMoreOpen(false)}/>}
+  {mobileMoreOpen&&<button className="admin-mobile-overflow-dismiss" type="button" aria-label="Đóng menu điều hướng" onClick={()=>setMobileMorePath(null)}/>}
   <nav className="admin-mobile-nav" aria-label="Điều hướng quản trị trên di động">
    {mobileMoreOpen&&<div id="admin-mobile-overflow" className="admin-mobile-overflow" role="group" aria-label="Các trang quản trị khác">{mobileOverflow.map(item=>{const Icon=item.icon;return <button key={`more-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label}</span></button>;})}<button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button></div>}
    {mobilePrimary.map(item=>{const Icon=item.icon;return <button key={`primary-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label.replace(" hệ thống","")}</span></button>;})}
    {can("NOTIFICATION_VIEW")&&<button type="button" className={location.pathname.startsWith("/admin/notifications")?"active":""} onClick={()=>go("notifications")}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="admin-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>}
    <button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button>
-   <button type="button" className={mobileMoreOpen?"active":""} aria-label={mobileMoreOpen?"Đóng danh sách trang khác":"Mở danh sách trang khác"} aria-expanded={mobileMoreOpen} aria-controls={mobileMoreOpen?"admin-mobile-overflow":undefined} onClick={()=>setMobileMoreOpen(open=>!open)}>{mobileMoreOpen?<X size={18}/>:<MoreHorizontal size={18}/>}<span>Thêm</span></button>
+   <button type="button" className={mobileMoreOpen?"active":""} aria-label={mobileMoreOpen?"Đóng danh sách trang khác":"Mở danh sách trang khác"} aria-expanded={mobileMoreOpen} aria-controls={mobileMoreOpen?"admin-mobile-overflow":undefined} onClick={()=>setMobileMorePath(current=>current===location.pathname?null:location.pathname)}>{mobileMoreOpen?<X size={18}/>:<MoreHorizontal size={18}/>}<span>Thêm</span></button>
   </nav>
  </div>;
 }
