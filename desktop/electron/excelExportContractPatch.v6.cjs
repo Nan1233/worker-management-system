@@ -465,9 +465,12 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
     // these cells when any DB input changes after opening the workbook.
     const setCalculated = (column, templateLetter, fallback, cached, format) => {
       const source = templateFormulas[templateLetter];
-      const formula = typeof source?.formula === 'string'
-        ? relocateExcelFormula(source.formula, Number(source.sourceRow), r)
-        : fallback;
+      // The company's new hourly-rate rule is the visible working-time column J.
+      // Older source AL formulas may refer to K, so never reintroduce K here.
+      const formula = templateLetter === 'AL' ? fallback
+        : typeof source?.formula === 'string'
+          ? relocateExcelFormula(source.formula, Number(source.sourceRow), r)
+          : fallback;
       const cell = row.getCell(column);
       const value = cached === null || cached === undefined || !Number.isFinite(cached) ? '' : cached;
       const previous = cell.value;
@@ -477,7 +480,7 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
       }
       cell.numFmt = format;
     };
-    const finalHours = numberAt(11);
+    const finalHours = numberAt(10); // MAI SL/H uses visible J, not hidden K
     const finalOutput = numberAt(35);
     const finalStandard = numberAt(34);
     const finalNg = numberAt(37);
@@ -487,7 +490,7 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
       ? rate / finalStandard : null;
     const ngPercent = finalOutput !== null && finalOutput > 0 && finalNg !== null && finalNg >= 0
       ? finalNg / finalOutput : (finalOutput === 0 ? 0 : null);
-    setCalculated(38, 'AL', 'IFERROR(IF(OR(K' + r + '<=0,AI' + r + '=""),"",AI' + r + '/K' + r + '),"")',
+    setCalculated(38, 'AL', 'IFERROR(IF(OR(J' + r + '<=0,AI' + r + '=""),"",AI' + r + '/J' + r + '),"")',
       rate, '#,##0.00');
     setCalculated(36, 'AJ', 'IFERROR(IF(OR(AH' + r + '<=0,AL' + r + '=""),"",AL' + r + '/AH' + r + '),"")',
       percent, '0.00%');
