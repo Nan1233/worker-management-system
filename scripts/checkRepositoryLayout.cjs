@@ -41,12 +41,21 @@ for (const name of templateResource.filter || []) {
 
 // The company-original templates and Workbook1 modes have hard-coded names.
 // Do not delete or rename these until the code contracts and package resources are migrated.
-const originalProcess = fs.readFileSync(at('desktop', 'electron', 'originalProcessExcelTemplate.cjs'), 'utf8');
+const originalProcess = fs.readFileSync(at('desktop', 'electron', 'originalProcessTemplateRegistry.cjs'), 'utf8');
 const sourceNames = [...originalProcess.matchAll(/\bfile:\s*["']([^"']+\.xlsx)["']/g)].map(match => match[1]);
 for (const name of new Set(sourceNames)) {
   assert.ok(exists('backend', 'templates', name), `Process-specific template missing: ${name}`);
 }
 
+// Registry consolidation and stable export compatibility must remain intact.
+const naming = fs.readFileSync(at('desktop', 'electron', 'monthlyWorkbookNaming.cjs'), 'utf8');
+const workerRegistry = fs.readFileSync(at('desktop', 'electron', 'workerReportTemplateRegistry.cjs'), 'utf8');
+assert.ok(naming.includes('PROCESS_FILE_PREFIXES'), 'Canonical process naming registry missing');
+assert.ok(workerRegistry.includes("require('./monthlyWorkbookNaming.cjs')"),
+  'Worker template registry must reuse canonical file prefixes');
+for (const file of ['workerReportWorkbook.cjs', 'productionExcelExport.cjs', 'deferredDesktopServices.cjs']) {
+  assert.ok(exists('desktop', 'electron', file), `Stable desktop entry missing: ${file}`);
+}
 // Retain the exported workflow facade so existing backend routes resolve.
 const approvalFacade = fs.readFileSync(at('backend', 'models', 'productionTempApprovalModel.js'), 'utf8');
 for (const moduleName of ['productionApprovalWorkflow', 'productionRejectionWorkflow']) {
