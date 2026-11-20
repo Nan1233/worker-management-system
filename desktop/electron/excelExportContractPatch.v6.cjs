@@ -428,7 +428,9 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
     // in AH is already output/hour: rate = output/actualHours/standard.
     // Work from the finalized Excel cells, never from a stale cached metric.
     const numberAt = (column) => {
-      const raw = row.getCell(column).value;
+      const cellValue = row.getCell(column).value;
+      const raw = cellValue && typeof cellValue === 'object' && 'result' in cellValue
+        ? cellValue.result : cellValue;
       if (raw === null || raw === undefined || raw === '') return null;
       const n = Number(raw);
       return Number.isFinite(n) ? n : null;
