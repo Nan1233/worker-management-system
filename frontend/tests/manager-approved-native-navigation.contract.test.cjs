@@ -29,8 +29,10 @@ test('approved manager rows navigate by stable report ID without DOM index/refet
 test('pending workspace navigates by report ID without DOM interception', () => {
   const workspace = read('src/pages/manager/ManagerReportWorkspaceFix.tsx');
   const reports = read('src/pages/manager/Reports.tsx');
+  const pendingTable = read('src/pages/manager/components/PendingReportTable.tsx');
   assert.match(workspace, /<Reports onOpenPendingReport=\{openReport\} \/>/);
+  assert.match(reports, /<PendingReportTable/);
   assert.match(workspace, /report\/review\?source=pending&date=/);
-  assert.match(reports, /checked=\{selectedIds\.includes\(Number\(r\.id\)\)\}/);
+  assert.match(pendingTable, /checked=\{selectedIds\.includes\(Number\(r\.id\)\)\}/);
   assert.doesNotMatch(workspace, /installPendingTableFix|MutationObserver|ktc:manager-pending-page-data/);
 });
