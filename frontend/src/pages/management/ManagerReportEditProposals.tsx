@@ -33,7 +33,6 @@ function compareRows(original: any, draft: any) {
   add("Thông tin chung", "Sản phẩm", original?.product_name, draft?.product_name);
   add("Sản xuất", "Giờ làm thực tế", `${num(original?.actual_time)} giờ`, `${num(draft?.actual_time)} giờ`);
   add("Sản xuất", "Sản lượng OK", num(original?.tt_ok), num(draft?.tt_ok));
-  add("Sản xuất", "Ghi chú", original?.note || "---", draft?.note || "---");
 
   const beforeDed = new Map((original?.deductions || []).map((x: any) => [key(x, "deduction"), x]));
   const afterDed = new Map((draft?.deductions || []).map((x: any) => [key(x, "deduction"), x]));
@@ -198,7 +197,6 @@ export default function ManagerReportEditProposals() {
                 <span>sp</span>
               </div>)}
 
-              <label className="proposal-note">Ghi chú<textarea rows={3} value={draft.note || ""} onChange={e => set({ note: e.target.value })} /></label>
             </section>
 
             {rejectOpen && <section className="proposal-reject-box">
