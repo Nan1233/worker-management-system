@@ -116,7 +116,7 @@ const enforceDailyWorkerHours = async (data, executor = db, machineLines = []) =
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
-    const processRows = await query(executor, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data?.process_id)]);
+    const processRows = await findSubmissionProcessCode(data?.process_id, executor);
     const resolvedProcessCode = String(processRows?.[0]?.process_code || "").trim().toUpperCase();
     // Keep the DB-resolved process code for the later persistence transaction. This
     // avoids repeating the same master-data lookup and lets the locked daily-hours
