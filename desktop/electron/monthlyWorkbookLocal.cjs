@@ -1236,6 +1236,8 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
   sheet.state = 'veryHidden';
   sheet.getCell('A1').value = JSON.stringify({
     version: EXCEL_SYNC_CONTRACT_VERSION,
+    desktopVersion: require('../package.json').version,
+    exportCodeRevision: 'mai-total-final-20261120',
     processCode: code,
     sheetName: processConfig.sheet,
     generatedAt: new Date().toISOString(),
