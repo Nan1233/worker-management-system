@@ -10,6 +10,13 @@ function calculated(cell) {
   return value;
 }
 
+function setStandardTotal(sheet, row, hourly, hours) {
+  sheet.getCell('AH'+row).value = {
+    formula: 'IFERROR('+hourly+'*J'+row+',"")',
+    result: hourly * hours
+  };
+}
+
 
 async function sample() {
   const book = new ExcelJS.Workbook();
@@ -77,7 +84,7 @@ test('MAI: export mirrors J to K and calculates hourly rates without subtracting
   sheet.getCell('J3').value = 6.6667;
   sheet.getCell('K3').value = 0;
   sheet.getCell('L3').value = 1;
-  sheet.getCell('AH3').value = 120 * 6.6667;
+  setStandardTotal(sheet, 3, 120, 6.6667);
   sheet.getCell('AI3').value = 709;
   // Real 15/11 machine 1 case: J=12; L=0.5833; output 2054; standard 180/h.
   sheet.getCell('A4').value = 2;
@@ -85,7 +92,7 @@ test('MAI: export mirrors J to K and calculates hourly rates without subtracting
   sheet.getCell('J4').value = 12;
   sheet.getCell('K4').value = 0;
   sheet.getCell('L4').value = 0.5833;
-  sheet.getCell('AH4').value = 180 * 12;
+  setStandardTotal(sheet, 4, 180, 12);
   sheet.getCell('AI4').value = 2054;
   // Invalid effective hours: no SL/H or percentage may be fabricated.
   sheet.getCell('A5').value = 3;
@@ -93,7 +100,7 @@ test('MAI: export mirrors J to K and calculates hourly rates without subtracting
   sheet.getCell('J5').value = 5;
   sheet.getCell('K5').value = 0;
   sheet.getCell('L5').value = 7;
-  sheet.getCell('AH5').value = 85 * 5;
+  setStandardTotal(sheet, 5, 85, 5);
   sheet.getCell('AI5').value = 350;
   const result = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
   const output = new ExcelJS.Workbook();
@@ -125,7 +132,7 @@ test('MAI: total target standard is SP/hour times J, achievement is output divid
   sheet.getCell('J3').value = 4;
   sheet.getCell('K3').value = 4;
   sheet.getCell('L3').value = 0;
-  sheet.getCell('AH3').value = 180 * 4;
+  setStandardTotal(sheet, 3, 180, 4);
   sheet.getCell('AI3').value = 720;
   const result = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
   const output = new ExcelJS.Workbook();
@@ -144,7 +151,7 @@ test('MAI MACHINE: numeric zero SL/H and achievement are repaired, not treated a
   sheet.getCell('J3').value = 6.6667;
   sheet.getCell('K3').value = 0;
   sheet.getCell('L3').value = 1;
-  sheet.getCell('AH3').value = 120 * 6.6667;
+  setStandardTotal(sheet, 3, 120, 6.6667);
   sheet.getCell('AI3').value = 709;
   sheet.getCell('AL3').value = 0;
   sheet.getCell('AJ3').value = 0;
@@ -168,7 +175,7 @@ test('MAI: re-computes stale nonzero SL/H and percent from output over total sta
   sheet.getCell('J3').value = 5;
   sheet.getCell('K3').value = 5;
   sheet.getCell('L3').value = 7; // source inconsistency: never subtract again from K
-  sheet.getCell('AH3').value = 85 * 5;
+  setStandardTotal(sheet, 3, 85, 5);
   sheet.getCell('AI3').value = 350;
   sheet.getCell('AL3').value = 999;
   sheet.getCell('AJ3').value = 3;
@@ -197,7 +204,7 @@ test('MAI: unmapped approved deduction is counted in total instead of silently d
   sheet.getCell('W3').value = 7 / 6;
   sheet.getCell('Z3').value = 0.15;
   sheet.getCell('AW3').value = 1; // legacy deduction type id 115
-  sheet.getCell('AH3').value = 125 * 9.3333;
+  setStandardTotal(sheet, 3, 125, 9.3333);
   sheet.getCell('AI3').value = 1123;
   const out = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
   const fixed = new ExcelJS.Workbook();
@@ -240,7 +247,7 @@ test('MAI: numeric DB inputs remain values while calculated cells retain editabl
   sheet.getCell('J3').value = 6.6667;
   sheet.getCell('K3').value = 5.6667;
   sheet.getCell('L3').value = 1;
-  sheet.getCell('AH3').value = 120 * 6.6667;
+  setStandardTotal(sheet, 3, 120, 6.6667);
   sheet.getCell('AI3').value = 709;
   sheet.getCell('AN3').value = 2;
   const result = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
@@ -248,12 +255,12 @@ test('MAI: numeric DB inputs remain values while calculated cells retain editabl
   await wb.xlsx.load(result.buffer);
   const row = wb.getWorksheet('Mài').getRow(3);
   assert.equal(row.getCell(35).value, 709, 'quantity is the approved database input');
-  assert.equal(row.getCell(34).value, 120 * 6.6667, 'standard is a total target');
+  assert.equal(calculated(row.getCell(34)), 120 * 6.6667, 'standard is a total target');
   assert.match(row.getCell(38).value.formula, /AI3\/J3/);
   assert.match(row.getCell(36).value.formula, /AI3\/AH3/);
   assert.match(row.getCell(41).value.formula, /AN3\/AI3/);
-  assert.equal(row.getCell(36).numFmt, '0.00%');
-  assert.equal(row.getCell(38).numFmt, '#,##0.00');
+  assert.equal(row.getCell(36).numFmt, '0%');
+  assert.equal(row.getCell(38).numFmt, '#,##0');
   assert.equal(row.getCell(11).value, 6.6667, 'K mirrors J');
   assert.equal(calculated(row.getCell(38)), 709 / 6.6667);
   assert.equal(calculated(row.getCell(36)), 709 / (120 * 6.6667));
@@ -269,7 +276,7 @@ test('MAI: uses preserved source formula when template supplies one', async () =
   sheet.getCell('C3').value = '3922';
   sheet.getCell('J3').value = 4;
   sheet.getCell('K3').value = 4;
-  sheet.getCell('AH3').value = 180 * 4;
+  setStandardTotal(sheet, 3, 180, 4);
   sheet.getCell('AI3').value = 720;
   const result = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()), {
     templateFormulas: { AL: { formula: 'IFERROR(AI7/K7,0)', sourceRow: 7 } }
@@ -277,4 +284,28 @@ test('MAI: uses preserved source formula when template supplies one', async () =
   const out = new ExcelJS.Workbook();
   await out.xlsx.load(result.buffer);
   assert.match(out.getWorksheet('Mài').getCell('AL3').value.formula, /AI3\/J3/);
+});
+
+test('MAI legacy hourly standard is converted to total once and kept as a formula', async () => {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Mài');
+  sheet.getCell('L1').value = 'Tổng TG trừ giờ';
+  sheet.getCell('C1').value = 'Mã số';
+  sheet.getCell('A3').value = 1;
+  sheet.getCell('C3').value = '3922';
+  sheet.getCell('J3').value = 8;
+  sheet.getCell('K3').value = 8;
+  sheet.getCell('AH3').value = 125; // legacy hourly value, not total
+  sheet.getCell('AI3').value = 900;
+  const first = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
+  const out = new ExcelJS.Workbook();
+  await out.xlsx.load(first.buffer);
+  const row = out.getWorksheet('Mài').getRow(3);
+  assert.equal(calculated(row.getCell(34)), 1000);
+  assert.match(row.getCell(34).value.formula, /125\*J3/);
+  assert.equal(calculated(row.getCell(36)), 0.9);
+  assert.equal(row.getCell(34).numFmt, '#,##0');
+  assert.equal(row.getCell(36).numFmt, '0%');
+  assert.equal(row.getCell(38).numFmt, '#,##0');
+  assert.equal((await reconcileMaiWorkbookDeductions(first.buffer)).changed, 0);
 });
