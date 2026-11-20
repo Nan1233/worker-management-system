@@ -121,8 +121,8 @@ const { syncProcessReportsFirst } = createProcessReportExport({
 });
 
 const { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb } = createExcelDbSyncController({
-  authenticatedFetch, API_BASE_URL, listExcelFiles, getExportRoot, readExcelChanges,
-  writeLog, normalizeError, waitForUsableRendererToken, sendRenderer,
+  authenticatedFetch: (...args) => authenticatedFetch(...args), API_BASE_URL, listExcelFiles, getExportRoot, readExcelChanges,
+  writeLog, normalizeError, waitForUsableRendererToken: (...args) => waitForUsableRendererToken(...args), sendRenderer,
   enqueueManualExcelSync, isQuitting: () => quitting, isSyncRunning: () => syncRunning,
 });
 
@@ -134,7 +134,8 @@ function startExcelDbSyncWatcher() {
 }
 
 const { performSyncSingleMonth } = createMonthlyDesktopExport({
-  writeLog, getExportRoot, logPendingFiles, waitForUsableRendererToken,
+  writeLog, getExportRoot, logPendingFiles,
+  waitForUsableRendererToken: (...args) => waitForUsableRendererToken(...args),
   getCurrentToken: () => currentToken, setCurrentToken: (value) => { currentToken = value; },
   fetchCompanyData, buildSplitMonthlyWorkbooksLocal, getAppPath: () => app.getAppPath(),
   PROCESS_SHEETS, safeFileName, atomicOverwrite, normalizeError, cleanupLegacyMonthlyLayout,
