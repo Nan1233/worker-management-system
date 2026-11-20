@@ -25,7 +25,7 @@ function ensurePresent(file) {
   return stat.size;
 }
 
-async function ensureBetaManifest({ directory, version }) {
+async function ensureBetaManifest({ directory, version, verifyPackaged = false }) {
   if (!/^\d+\.\d+\.\d+-beta\.\d+$/.test(version || '')) {
     throw new Error('Invalid TEST beta version: ' + version);
   }
@@ -68,13 +68,24 @@ async function ensureBetaManifest({ directory, version }) {
     || hashes.some(value => value !== sha512)) {
     throw new Error('TEST beta.yml does not match the actual NSIS Setup bytes/version; refusing release.');
   }
+  if (verifyPackaged) {
+    const embeddedConfig = path.join(directory, 'win-unpacked', 'resources', 'app-update.yml');
+    ensurePresent(embeddedConfig);
+    const config = fs.readFileSync(embeddedConfig, 'utf8');
+    if (!/^provider:\s*github\s*$/m.test(config)
+      || !/^owner:\s*Nan1233\s*$/m.test(config)
+      || !/^repo:\s*worker-management-system\s*$/m.test(config)
+      || (/^channel:\s*(\S+)/m.test(config) && !/^channel:\s*beta\s*$/m.test(config))) {
+      throw new Error('The packaged Desktop does not use the expected GitHub beta update feed.');
+    }
+  }
   console.log('TEST beta update manifest verified:', { version, installer: INSTALLER, size, hashPrefix: sha512.slice(0, 12) });
   return { manifestPath, size, sha512 };
 }
 
 function parseArgs(argv) {
   const value = (flag) => argv[argv.indexOf(flag) + 1];
-  return { version: value('--version'), directory: path.resolve(value('--directory') || 'release') };
+  return { version: value('--version'), directory: path.resolve(value('--directory') || 'release'), verifyPackaged: argv.includes('--verify-packaged') };
 }
 
 if (require.main === module) {
