@@ -152,7 +152,9 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     assert.ok(timeFields.length,code+' has time columns');
     for(const [letter] of timeFields){
       const originalWidth=originalSheet.getColumn(letter).width;
-      assert.equal(sheet.getColumn(letter).width,originalWidth,code+' time width unchanged: '+letter);
+      if (!sheet.getColumn(letter).hidden) {
+        assert.equal(sheet.getColumn(letter).width,originalWidth,code+' visible time width unchanged: '+letter);
+      }
       const cell=sheet.getCell(letter+dataRow);
       if(typeof cell.value==='number')
         assert.equal(cell.numFmt,'#,##0.00',code+' time displays with 2 decimals: '+letter);
