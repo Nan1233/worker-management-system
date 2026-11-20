@@ -1,7 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { _private: { reportSnapshot } } = require('../electron/monthlyWorkbookLocal.cjs');
+const ExcelJS = require('exceljs');
+const { buildProcessWorkbookLocal, _private: { reportSnapshot } } = require('../electron/monthlyWorkbookLocal.cjs');
 
 function fixture(overrides = {}) {
   return {
@@ -48,4 +49,32 @@ test('GC MACHINE: preserve per-machine accounting, not parent detail fallback', 
     }
   }));
   assert.equal(snapshot.deductionTime, 0);
+});
+
+test('MAI Workbook1 real export: L3 matches rendered W3 + Z3, while J3/K3 stay approved snapshots', async () => {
+  const report = fixture({
+    id: 4333, full_name: 'Test worker', shift: 'A', machine_no: '16',
+    work_date: '2026-11-06', created_at: '2026-11-06T12:00:00',
+    product_code: '9276-15', standard_output: 350, tt_ok: 3731,
+    tt_ng: 0, actual_output: 3731, training_percent_snapshot: 100,
+    dataSource: 'production_reports', isApprovedDatabaseRecord: true,
+    deductions: [
+      { deduction_type_code: 'NGHI_GIAI_LAO', deduction_type_name: 'Nghỉ giải lao', hours: 7/6 },
+      { deduction_type_code: '5S', deduction_type_name: '5s, đổ bụi,xì bụi,lấy bụi', hours: 1/6 }
+    ]
+  });
+  const built = await buildProcessWorkbookLocal({
+    date: '2026-11-01', processCode: 'MAI',
+    payload: { yearMonth: '2026-11', dataSource: 'tidb.production_reports.approved',
+      processes: { MAI: { reports: [report] } } }
+  });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(built.buffer);
+  const sheet = workbook.getWorksheet('Mài');
+  assert.ok(sheet);
+  assert.ok(Math.abs(sheet.getCell('W3').value - 7/6) < 1e-9);
+  assert.ok(Math.abs(sheet.getCell('Z3').value - 1/6) < 1e-9);
+  assert.ok(Math.abs(sheet.getCell('L3').value - 4/3) < 1e-9);
+  assert.equal(sheet.getCell('J3').value, 10.6667);
+  assert.equal(sheet.getCell('K3').value, 10.6667);
 });
