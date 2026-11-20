@@ -77,7 +77,7 @@ test('MAI: export mirrors J to K and calculates hourly rates without subtracting
   sheet.getCell('J3').value = 6.6667;
   sheet.getCell('K3').value = 0;
   sheet.getCell('L3').value = 1;
-  sheet.getCell('AH3').value = 120;
+  sheet.getCell('AH3').value = 120 * 6.6667;
   sheet.getCell('AI3').value = 709;
   // Real 15/11 machine 1 case: J=12; L=0.5833; output 2054; standard 180/h.
   sheet.getCell('A4').value = 2;
@@ -85,7 +85,7 @@ test('MAI: export mirrors J to K and calculates hourly rates without subtracting
   sheet.getCell('J4').value = 12;
   sheet.getCell('K4').value = 0;
   sheet.getCell('L4').value = 0.5833;
-  sheet.getCell('AH4').value = 180;
+  sheet.getCell('AH4').value = 180 * 12;
   sheet.getCell('AI4').value = 2054;
   // Invalid effective hours: no SL/H or percentage may be fabricated.
   sheet.getCell('A5').value = 3;
@@ -93,29 +93,29 @@ test('MAI: export mirrors J to K and calculates hourly rates without subtracting
   sheet.getCell('J5').value = 5;
   sheet.getCell('K5').value = 0;
   sheet.getCell('L5').value = 7;
-  sheet.getCell('AH5').value = 85;
+  sheet.getCell('AH5').value = 85 * 5;
   sheet.getCell('AI5').value = 350;
   const result = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
   const output = new ExcelJS.Workbook();
   await output.xlsx.load(result.buffer);
   const corrected = output.getWorksheet('Mài');
   for (const [row, total, deduction, standard, quantity] of [
-    [3, 6.6667, 1, 120, 709],
-    [4, 12, 0.5833, 180, 2054]
+    [3, 6.6667, 1, 120*6.6667, 709],
+    [4, 12, 0.5833, 180*12, 2054]
   ]) {
     assert.equal(corrected.getCell('K' + row).value, total, 'K must equal visible J');
     assert.ok(Math.abs(calculated(corrected.getCell('AL' + row)) - quantity / total) < 1e-8);
-    assert.ok(Math.abs(calculated(corrected.getCell('AJ' + row)) - (quantity / total) / standard) < 1e-8);
+    assert.ok(Math.abs(calculated(corrected.getCell('AJ' + row)) - quantity / standard) < 1e-8);
     assert.ok(corrected.getCell('AL' + row).value.formula.includes('/J' + row));
   }
   assert.equal(corrected.getCell('K5').value, 5, 'time deduction 7 must not alter time J=5');
   assert.equal(calculated(corrected.getCell('AL5')), 70);
-  assert.ok(Math.abs(calculated(corrected.getCell('AJ5')) - 70 / 85) < 1e-9);
+  assert.ok(Math.abs(calculated(corrected.getCell('AJ5')) - 350 / (85 * 5)) < 1e-9);
   const second = await reconcileMaiWorkbookDeductions(result.buffer);
   assert.equal(second.changed, 0, 'reconciliation is idempotent');
 });
 
-test('MAI: standard already represents pieces/hour and must not be multiplied by hours', async () => {
+test('MAI: total target standard is SP/hour times J, achievement is output divided by total target', async () => {
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet('Mài');
   sheet.getCell('L1').value = 'Tổng TG trừ giờ';
@@ -125,7 +125,7 @@ test('MAI: standard already represents pieces/hour and must not be multiplied by
   sheet.getCell('J3').value = 4;
   sheet.getCell('K3').value = 4;
   sheet.getCell('L3').value = 0;
-  sheet.getCell('AH3').value = 180;
+  sheet.getCell('AH3').value = 180 * 4;
   sheet.getCell('AI3').value = 720;
   const result = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
   const output = new ExcelJS.Workbook();
@@ -144,7 +144,7 @@ test('MAI MACHINE: numeric zero SL/H and achievement are repaired, not treated a
   sheet.getCell('J3').value = 6.6667;
   sheet.getCell('K3').value = 0;
   sheet.getCell('L3').value = 1;
-  sheet.getCell('AH3').value = 120;
+  sheet.getCell('AH3').value = 120 * 6.6667;
   sheet.getCell('AI3').value = 709;
   sheet.getCell('AL3').value = 0;
   sheet.getCell('AJ3').value = 0;
@@ -154,11 +154,11 @@ test('MAI MACHINE: numeric zero SL/H and achievement are repaired, not treated a
   const row = fixed.getWorksheet('Mài').getRow(3);
   assert.equal(row.getCell(11).value, 6.6667, 'K is a mirror of J');
   assert.ok(Math.abs(calculated(row.getCell(38)) - 709 / 6.6667) < 1e-9);
-  assert.ok(Math.abs(calculated(row.getCell(36)) - (709 / 6.6667) / 120) < 1e-9);
+  assert.ok(Math.abs(calculated(row.getCell(36)) - 709 / (120 * 6.6667)) < 1e-9);
   assert.equal((await reconcileMaiWorkbookDeductions(result.buffer)).changed, 0);
 });
 
-test('MAI: re-computes stale nonzero SL/H and percent using J and hourly standard', async () => {
+test('MAI: re-computes stale nonzero SL/H and percent from output over total standard', async () => {
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet('Mài');
   sheet.getCell('L1').value = 'Tổng TG trừ giờ';
@@ -168,7 +168,7 @@ test('MAI: re-computes stale nonzero SL/H and percent using J and hourly standar
   sheet.getCell('J3').value = 5;
   sheet.getCell('K3').value = 5;
   sheet.getCell('L3').value = 7; // source inconsistency: never subtract again from K
-  sheet.getCell('AH3').value = 85;
+  sheet.getCell('AH3').value = 85 * 5;
   sheet.getCell('AI3').value = 350;
   sheet.getCell('AL3').value = 999;
   sheet.getCell('AJ3').value = 3;
@@ -178,7 +178,7 @@ test('MAI: re-computes stale nonzero SL/H and percent using J and hourly standar
   const row = out.getWorksheet('Mài').getRow(3);
   assert.equal(row.getCell(11).value, 5, 'must preserve an existing positive actual hour snapshot');
   assert.equal(calculated(row.getCell(38)), 70);
-  assert.ok(Math.abs(calculated(row.getCell(36)) - 70/85) < 1e-10);
+  assert.ok(Math.abs(calculated(row.getCell(36)) - 350/(85*5)) < 1e-10);
   assert.equal((await reconcileMaiWorkbookDeductions(fixed.buffer)).changed, 0);
 });
 
@@ -197,7 +197,7 @@ test('MAI: unmapped approved deduction is counted in total instead of silently d
   sheet.getCell('W3').value = 7 / 6;
   sheet.getCell('Z3').value = 0.15;
   sheet.getCell('AW3').value = 1; // legacy deduction type id 115
-  sheet.getCell('AH3').value = 125;
+  sheet.getCell('AH3').value = 125 * 9.3333;
   sheet.getCell('AI3').value = 1123;
   const out = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
   const fixed = new ExcelJS.Workbook();
@@ -205,7 +205,7 @@ test('MAI: unmapped approved deduction is counted in total instead of silently d
   const result = fixed.getWorksheet('Mài');
   assert.ok(Math.abs(result.getCell('L3').value - 2.65) < 1e-9);
   assert.ok(Math.abs(calculated(result.getCell('AL3')) - 1123 / 9.3333) < 1e-7);
-  assert.ok(Math.abs(calculated(result.getCell('AJ3')) - (1123 / 9.3333) / 125) < 1e-7);
+  assert.ok(Math.abs(calculated(result.getCell('AJ3')) - (1123 / (125*9.3333)) < 1e-7);
 });
 
 test('MAI: keeps mismatching approved deduction totals visible with reconciliation note', async () => {
@@ -240,7 +240,7 @@ test('MAI: numeric DB inputs remain values while calculated cells retain editabl
   sheet.getCell('J3').value = 6.6667;
   sheet.getCell('K3').value = 5.6667;
   sheet.getCell('L3').value = 1;
-  sheet.getCell('AH3').value = 120;
+  sheet.getCell('AH3').value = 120 * 6.6667;
   sheet.getCell('AI3').value = 709;
   sheet.getCell('AN3').value = 2;
   const result = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
@@ -248,15 +248,15 @@ test('MAI: numeric DB inputs remain values while calculated cells retain editabl
   await wb.xlsx.load(result.buffer);
   const row = wb.getWorksheet('Mài').getRow(3);
   assert.equal(row.getCell(35).value, 709, 'quantity is the approved database input');
-  assert.equal(row.getCell(34).value, 120, 'standard is per hour');
+  assert.equal(row.getCell(34).value, 120 * 6.6667, 'standard is a total target');
   assert.match(row.getCell(38).value.formula, /AI3\/J3/);
-  assert.match(row.getCell(36).value.formula, /AL3\/AH3/);
+  assert.match(row.getCell(36).value.formula, /AI3\/AH3/);
   assert.match(row.getCell(41).value.formula, /AN3\/AI3/);
   assert.equal(row.getCell(36).numFmt, '0.00%');
   assert.equal(row.getCell(38).numFmt, '#,##0.00');
   assert.equal(row.getCell(11).value, 6.6667, 'K mirrors J');
   assert.equal(calculated(row.getCell(38)), 709 / 6.6667);
-  assert.equal(calculated(row.getCell(36)), (709 / 6.6667) / 120);
+  assert.equal(calculated(row.getCell(36)), 709 / (120 * 6.6667));
   assert.equal((await reconcileMaiWorkbookDeductions(result.buffer)).changed, 0);
 });
 
@@ -269,7 +269,7 @@ test('MAI: uses preserved source formula when template supplies one', async () =
   sheet.getCell('C3').value = '3922';
   sheet.getCell('J3').value = 4;
   sheet.getCell('K3').value = 4;
-  sheet.getCell('AH3').value = 180;
+  sheet.getCell('AH3').value = 180 * 4;
   sheet.getCell('AI3').value = 720;
   const result = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()), {
     templateFormulas: { AL: { formula: 'IFERROR(AI7/K7,0)', sourceRow: 7 } }
