@@ -1,0 +1,48 @@
+'use strict';
+const AuditService = require('../services/auditService');
+const { buildRejectionScopeQuery } = require('./productionTempApprovalQueries');
+const { buildApprovalSelection, assertApprovalSelectionVisible, assertApprovalSelectionVersions } = require('./productionTempApprovalSelection');
+const { buildRejectedReportUpdate, buildRejectedReportActivity, buildRejectedReportNotification } = require('./productionTempRejectionBuilders');
+const { query, getConnection, beginTransaction, commit } = require('./productionTempModelShared');
+const { assertReviewBatchSize } = require('../services/managerReportPaginationService');
+const { assertRejectedTempTransition, buildRejectionBatchResult } = require('./productionApprovalReviewBuilders');
+const {
+  rollbackReviewTransaction, deliverRejectedPostCommitNotifications, recordRejectedTempVersion,
+} = require('./productionApprovalReviewSideEffects');
+
+// Atomic rejection: version check, status update and audit share one transaction.
+async function rejectSelected(targets, reviewerId, reason, isAdmin = false) {
+    assertReviewBatchSize(targets);
+    const { reportIds, expectedById } = buildApprovalSelection(targets);
+    const cleanReason = String(reason || "").trim();
+    if (!cleanReason) throw new Error("Vui lòng nhập lý do từ chối");
+
+    const connection = await getConnection();
+    const postCommitNotifications = [];
+    try {
+      await beginTransaction(connection);
+      const { sql: selectionSql, params: selectionParams } = buildRejectionScopeQuery(reportIds, reviewerId, isAdmin);
+      const rows = await query(connection, selectionSql, selectionParams);
+      assertApprovalSelectionVisible(rows, reportIds);
+      assertApprovalSelectionVersions(rows, expectedById);
+      for (const row of rows) {
+        const expected = expectedById.get(Number(row.id));
+        const { sql: updateSql, params: updateParams } = buildRejectedReportUpdate(row, expected, cleanReason, reviewerId);
+        const updateResult = await query(connection,updateSql,updateParams);
+        assertRejectedTempTransition(updateResult, row);
+        await recordRejectedTempVersion(row, cleanReason, reviewerId, connection);
+        await AuditService.logActivity(buildRejectedReportActivity(row, cleanReason, reviewerId), connection);
+        postCommitNotifications.push(buildRejectedReportNotification(row, cleanReason));
+      }
+      await commit(connection);
+      await deliverRejectedPostCommitNotifications(postCommitNotifications);
+      return buildRejectionBatchResult(rows);
+    } catch (error) {
+      await rollbackReviewTransaction(connection, error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+module.exports = { rejectSelected };
