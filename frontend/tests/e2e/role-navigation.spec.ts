@@ -79,9 +79,16 @@ test.describe('Role navigation (real browser)', () => {
 
     await page.getByRole('tab', { name: 'Công đoạn' }).click();
     await expect.poll(() => hashPath(page)).toBe('/admin/master/processes');
+    // HashRouter location changes before MasterData synchronizes its resource
+    // state and clears the previous tab's modal. Wait for the real destination
+    // heading and its async table load before opening the process editor.
+    await expect(page.getByRole('heading', { name: 'Công đoạn', exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Bảng dữ liệu máy móc và sản phẩm, cuộn ngang' })).toHaveAttribute('aria-busy', 'false');
     await page.getByRole('button', { name: 'Thêm mới' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Thêm Công đoạn' });
+    await expect(dialog).toBeVisible();
     const code = `E2E${Date.now().toString().slice(-6)}`;
-    const inputs = page.locator('.modal-card input');
+    const inputs = dialog.locator('input');
     await inputs.nth(0).fill(code);
     await inputs.nth(1).fill('Công đoạn kiểm thử E2E');
     const created = page.waitForResponse((r) => r.url().endsWith('/api/admin/master/processes') && r.request().method() === 'POST');
