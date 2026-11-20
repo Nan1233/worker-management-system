@@ -242,6 +242,8 @@ jobs:
         run: node scripts/smokeExcel.cjs
       - name: Check packaged shared sync contract and Excel resources
         run: node scripts/checkPackagedSharedContract.cjs
+      - name: Check manual Excel to DB review/identity guard
+        run: node scripts/checkExcelDbSync.cjs
       - name: Validate Desktop renderer syntax without device preflight or NAS writes
         run: |
           node --check electron/monthlyWorkbookNaming.cjs
