@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
-const { reconcileMaiWorkbookDeductions } = require('../electron/excelExportContractPatch.v6.cjs');
+const { reconcileMaiWorkbookDeductions, enforceFinalQuantityNumberFormats } = require('../electron/excelExportContractPatch.v6.cjs');
 
 function calculated(cell) {
   const value = cell.value;
@@ -308,4 +308,31 @@ test('MAI legacy hourly standard is converted to total once and kept as a formul
   assert.equal(row.getCell(36).numFmt, '0%');
   assert.equal(row.getCell(38).numFmt, '#,##0');
   assert.equal((await reconcileMaiWorkbookDeductions(first.buffer)).changed, 0);
+});
+
+test('final exported XLSX strips .00 from target standard, SL/H, OK and total PP while preserving time', async () => {
+  const wb = new ExcelJS.Workbook();
+  const sh = wb.addWorksheet('Mài');
+  sh.getCell('A3').value = 1;
+  sh.getCell('J3').value = 7.833333;
+  sh.getCell('J3').numFmt = '0.00';
+  sh.getCell('AH3').value = { formula: '120*J3', result: 940 };
+  sh.getCell('AL3').value = { formula: 'AI3/J3', result: 115.5 };
+  sh.getCell('AM3').value = 900;
+  sh.getCell('AN3').value = 12;
+  for (const col of ['AH','AL','AM','AN']) sh.getCell(col+'3').numFmt = '#,##0.00';
+  const input = Buffer.from(await wb.xlsx.writeBuffer());
+  const options = {cols:{standard:34,outputPerHour:38,ok:39,ng:40}};
+  const first = await enforceFinalQuantityNumberFormats(input,options);
+  assert.equal(first.changed,4);
+  const out = new ExcelJS.Workbook();
+  await out.xlsx.load(first.buffer);
+  const got=out.getWorksheet('Mài');
+  for (const col of ['AH','AL','AM','AN']) {
+    assert.equal(got.getCell(col+'3').numFmt,'#,##0',col+' has no decimals');
+  }
+  assert.equal(got.getCell('AH3').value.formula,'120*J3');
+  assert.equal(got.getCell('AL3').value.result,115.5,'underlying precision is retained');
+  assert.equal(got.getCell('J3').numFmt,'0.00','time still has decimal places');
+  assert.equal((await enforceFinalQuantityNumberFormats(first.buffer,options)).changed,0);
 });
