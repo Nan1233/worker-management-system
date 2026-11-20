@@ -23,6 +23,7 @@ on:
       - backend/tests/review-locking-and-cas-regression.test.js
       - backend/tests/review-rejection-row-lock.contract.test.js
       - backend/tests/business-matrix-nine-process-four-shifts.test.js
+      - backend/tests/integration/business-process-scope.http.test.js
       - backend/services/processMachinePolicy.js
       - backend/utils/reportValidation.js
       - backend/services/processAuthorizationService.js
