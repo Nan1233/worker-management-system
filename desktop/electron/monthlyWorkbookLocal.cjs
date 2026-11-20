@@ -634,7 +634,6 @@ function makeColumns(processCode, deductionTypes, defectTypes) {
     { key: 'achievement', header: 'Tỷ lệ đạt', group: 'summary', width: 11, format: NUMBER_FORMATS.PERCENT },
     { key: 'ngRate', header: 'Tỷ lệ NG', group: 'summary', width: 11, format: NUMBER_FORMATS.PERCENT },
     { key: 'status', header: 'Trạng thái', group: 'summary', width: 13 },
-    { key: 'note', header: 'Ghi chú', group: 'summary', width: 28, align: 'left' },
     { key: 'id', header: 'ID', group: 'summary', width: 10, format: NUMBER_FORMATS.INTEGER }
   );
 
@@ -945,8 +944,8 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
       let fontColor = COLORS.black;
       const machineMode = asText(report.operation_mode).toUpperCase() === 'MACHINE';
       const editableCore = machineMode
-        ? new Set(['training','note'])
-        : new Set(['shift','machine','product','training','actualTime','ok','note']);
+        ? new Set(['training'])
+        : new Set(['shift','machine','product','training','actualTime','ok']);
       const editableCell = editableCore.has(column.key) || (!machineMode && (column.key.startsWith('deduction:') || column.key.startsWith('defect:')));
 
       if (column.key === 'workingTime' || column.key === 'outputPerHour') fill = COLORS.blueLight;
@@ -1400,7 +1399,7 @@ async function buildReconciliationWorkbook({ date, payload }) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'KTC Production Control';
   const sheet = workbook.addWorksheet('DATA_DB', { views: [{ state: 'frozen', ySplit: 1 }] });
-  const headers = ['Công đoạn','ID','Ngày báo cáo','Ngày nhập','Mã NV','Tên NV','Ca','Máy','Mã SP','% học việc','Định mức','Tổng thời gian','Thời gian thực tế','Tổng thời gian trừ','OK','NG','SP công nhân nhập','Tổng SP quy đổi','Trừ giờ JSON','NG JSON','Máy JSON','Trạng thái','Ghi chú'];
+  const headers = ['Công đoạn','ID','Ngày báo cáo','Ngày nhập','Mã NV','Tên NV','Ca','Máy','Mã SP','% học việc','Định mức','Tổng thời gian','Thời gian thực tế','Tổng thời gian trừ','OK','NG','SP công nhân nhập','Tổng SP quy đổi','Trừ giờ JSON','NG JSON','Máy JSON','Trạng thái'];
   sheet.addRow(headers);
   headers.forEach((_, index) => {
     applyCellStyle(sheet.getCell(1, index + 1), { fill: COLORS.navy, fontColor: COLORS.white, bold: true });
@@ -1413,7 +1412,7 @@ async function buildReconciliationWorkbook({ date, payload }) {
     for (const report of sortReports(processData.reports)) {
       const itemSettings = settingsForReport(report, baseSettings, processData.formulaSettingsByDate || {});
       const value = reportSnapshot(report, itemSettings);
-      const row = sheet.addRow([config.title,value.id,value.date,value.entryDate,value.workerCode,value.workerName,value.shift,value.machine,value.product,value.training,value.standard,value.workingTime,value.actualTime,value.deductionTime,value.ok,value.ng,value.enteredOutput,value.output,JSON.stringify(report.deductions || []),JSON.stringify(report.defects || []),JSON.stringify(report.machineLines || []),report.status,value.note]);
+      const row = sheet.addRow([config.title,value.id,value.date,value.entryDate,value.workerCode,value.workerName,value.shift,value.machine,value.product,value.training,value.standard,value.workingTime,value.actualTime,value.deductionTime,value.ok,value.ng,value.enteredOutput,value.output,JSON.stringify(report.deductions || []),JSON.stringify(report.defects || []),JSON.stringify(report.machineLines || []),report.status]);
       row.getCell(2).numFmt = NUMBER_FORMATS.INTEGER;
       row.getCell(3).numFmt = NUMBER_FORMATS.DATE;
       row.getCell(4).numFmt = NUMBER_FORMATS.DATE;
