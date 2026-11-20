@@ -115,11 +115,15 @@ test.describe('Role navigation (real browser)', () => {
     await edit.click();
     await expect.poll(() => hashPath(page)).toBe(`/lead/report/${approvedId}/edit`);
 
+    await expect(page.locator('#ttOk')).toHaveValue('40');
     await page.locator('#ttOk').fill('35');
     await page.locator('#approved-change-reason').fill('Kiểm tra cập nhật sản lượng E2E');
+    await expect(page.locator('#ttOk')).toHaveValue('35');
     const saved = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/production/${approvedId}` && r.request().method() === 'PUT');
     await page.getByRole('button', { name: 'Lưu thay đổi' }).click();
-    expect((await saved).status()).toBe(200);
+    const savedResponse = await saved;
+    expect(Number(savedResponse.request().postDataJSON().tt_ok), 'frontend must send the visible OK amount').toBe(35);
+    expect(savedResponse.status()).toBe(200);
     await expect.poll(() => hashPath(page)).toBe(`/lead/report/${approvedId}`);
 
     const leadToken = await apiToken(request, { username: ACCOUNTS.lead.code, password: ACCOUNTS.lead.password, access_type: 'management' });
