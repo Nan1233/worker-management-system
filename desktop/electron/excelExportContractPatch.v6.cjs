@@ -396,6 +396,4 @@ async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
   const summary = await monthly.buildMonthlySummaryWorkbookLocal({ date, payload });
   return { mode: 'PROCESS_WORKBOOKS', processes, summary, expectedFileCount: processes.length + 1 };
 }
-monthly.buildSplitMonthlyWorkbooksLocal = buildWorkerSplit;
-
 module.exports = { buildWorkerSplit, PROCESS_CODES, PROCESS_FILE_PREFIXES };
