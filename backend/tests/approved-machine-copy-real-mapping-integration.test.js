@@ -17,7 +17,7 @@ const helpers = [
   extract('function buildApprovedMachineLinesRead(', 'function buildApprovedVersionRequest('),
   extract('function verifyApprovedMachineLineCopy(', '// Copies the temp machine lines'),
   extract('function buildApprovedMachineDefectRows(', '// Keep the approved machine-line INSERT'),
-  extract('async function copyMachineLinesToApproved(', 'function getExtraDataObject('),
+  extract('async function copyMachineLinesToApproved(', '// Keep standard resolver warm-up input aligned'),
 ].join('\n');
 
 function setup({ approved, failAt = null }) {
