@@ -32,6 +32,10 @@ on:
       - frontend/tests/e2e/phase3-public-security.spec.ts
       - frontend/playwright.phase3.config.ts
       - frontend/src/pages/manager/**
+      - frontend/src/pages/worker/WorkerReportEditV2.tsx
+      - frontend/src/layouts/AdminLayout.tsx
+      - frontend/tests/e2e/role-navigation.spec.ts
+      - frontend/playwright.config.ts
       - frontend/tests/manager-approved-native-navigation.contract.test.cjs
       - frontend/tests/manager-pending-native-table.contract.test.cjs
   workflow_dispatch:

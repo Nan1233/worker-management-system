@@ -12,6 +12,8 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  // A retry may help diagnose failures but must NEVER make flaky acceptance green.
+  failOnFlakyTests: !!process.env.CI,
   workers: 1,
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
   snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{arg}{ext}',
