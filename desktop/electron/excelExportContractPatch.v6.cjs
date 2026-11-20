@@ -440,16 +440,8 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
     let actualHours = numberAt(11); // K
     const output = numberAt(35); // AI, KQSX
     const hourlyStandard = numberAt(34); // AH, SP/h
-    if ((actualHours === null || actualHours <= 0)
-      && totalHours !== null && totalHours > 0
-      && deductionHours !== null && deductionHours >= 0
-      && totalHours > deductionHours) {
-      // No inferred negative/zero effective time; leave ambiguous rows for
-      // review rather than inventing a productivity measurement.
-      actualHours = totalHours - deductionHours;
-      row.getCell(11).value = actualHours;
-      changed += 1;
-    }
+    // K is the approved TiDB actual_time snapshot. It must not be inferred
+    // from J-L: historical MAI MACHINE rows have different time semantics.
     if ((actualHours === null || actualHours <= 0) && output !== null && output > 0
       && totalHours !== null && deductionHours !== null && totalHours <= deductionHours) {
       const actualCell = row.getCell(11);
