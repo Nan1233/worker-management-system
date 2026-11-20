@@ -138,10 +138,8 @@ function asSubmissionDateTime(value) {
 
 const { createWorkerReportDetailMapping } = require('./workerReportDetailMapping.cjs');
 const {
-  detailItems, detailValue, typeLabel, typeKeys, itemKeys, processTypes,
-  resolveType, typeCandidates, detailScore, detailColumn,
-  encodedGcDefectCode, legacyGcDefectTarget, assignDetailColumns,
-  subMap, buildColumnContract, buildDetailValueMap, valueForType,
+  detailItems, detailValue, typeLabel, itemKeys, resolveType, typeCandidates,
+  encodedGcDefectCode, buildColumnContract,
 } = createWorkerReportDetailMapping({
   number, normalize, detailVariants, canonicalDetailKey,
   pick, pickExact, findColumn, GC_FORM_DEFECT_COLUMN_BY_CODE, TEMPLATE_COLUMN_ALIASES,
