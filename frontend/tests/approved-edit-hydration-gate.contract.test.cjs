@@ -18,6 +18,10 @@ test('master data has independent basic and complete detail readiness gates', ()
   const hook = fs.readFileSync(path.join(root, 'useProcessMasterData.ts'), 'utf8');
   assert.match(hook, /setLoading\(false\);[\s\S]*const optionalResults = await Promise\.allSettled/);
   assert.match(hook, /setMasterDetailsReady\(false\)/);
-  assert.match(hook, /setActiveDeductionOptions\(\[\s\S]*setMasterDetailsReady\(true\)/);
+  const optionsBegin = hook.indexOf('const optionalResults = await Promise.allSettled');
+  const deductionCommit = hook.indexOf('setActiveDeductionOptions([', optionsBegin);
+  const detailsReady = hook.indexOf('setMasterDetailsReady(true);', optionsBegin);
+  assert.ok(optionsBegin >= 0 && deductionCommit > optionsBegin && detailsReady > deductionCommit,
+    'detail readiness must follow the asynchronous NG/deduction lists');
   assert.match(hook, /masterDetailsReady,/);
 });
