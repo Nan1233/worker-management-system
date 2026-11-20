@@ -80,7 +80,7 @@ test('MAI Workbook1 real export: L3 matches rendered W3 + Z3, while J3/K3 stay a
   assert.equal(sheet.getCell('K3').value, 10.6667);
 });
 
-test('MAI MACHINE legacy snapshot: rebuild actual time, SL/H and percent from hourly standard', () => {
+test('MAI MACHINE legacy snapshot: preserve approved actual_time even when zero', () => {
   const report = fixture({
     total_time: 6.6667,
     actual_time: 0,
@@ -94,11 +94,10 @@ test('MAI MACHINE legacy snapshot: rebuild actual time, SL/H and percent from ho
     }
   });
   const snapshot = reportSnapshot(report);
-  const expectedTime = 6.6667 - 1;
-  assert.ok(Math.abs(snapshot.actualTime - expectedTime) < 1e-9);
-  assert.ok(Math.abs(snapshot.outputPerHour - 709 / expectedTime) < 1e-9);
-  assert.ok(Math.abs(snapshot.achievement - 709 / expectedTime / 120) < 1e-9);
-  assert.equal(report.calculationSnapshot.actualTime, 0, 'never mutate approved snapshot');
+  assert.equal(snapshot.actualTime, 0);
+  assert.equal(snapshot.outputPerHour, null);
+  assert.equal(snapshot.achievement, null);
+  assert.equal(report.calculationSnapshot.actualTime, 0);
 });
 
 test('MAI MACHINE invalid effective time: do not infer productivity from negative hours', () => {
