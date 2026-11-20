@@ -7,6 +7,7 @@ const os = require('node:os');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { buildCompanyExcelLocal, buildProcessExcelLocal } = require('./companyExcelLocal.cjs');
+const { parseDownloadFileName, normalizeProcessInfo } = require('./excelDownloadMetadata.cjs');
 const { createDesktopLogger, normalizeError } = require('./desktopLog.cjs');
 const { normalizeAccessToken, isUsableAccessToken } = require('./authToken.cjs');
 const { buildSplitMonthlyWorkbooksLocal, PROCESS_SHEETS } = require('./monthlyWorkbookLocal.cjs');
@@ -185,16 +186,6 @@ async function fetchCompanyData(date) {
   return payload.data;
 }
 
-function parseDownloadFileName(response, fallback) {
-  const value = response.headers.get('content-disposition') || '';
-  const utf8 = value.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  const normal = value.match(/filename="?([^";]+)"?/i)?.[1];
-  const encoded = utf8 || normal;
-  if (!encoded) return fallback;
-  try { return decodeURIComponent(encoded); } catch { return encoded; }
-}
-
-
 async function downloadConsolidatedExcelOnce(token, date) {
   const response = await fetchWithTimeout(`${API_BASE_URL}/reports/export-excel`, {
     method: 'POST',
@@ -280,15 +271,6 @@ async function buildCompanyExcelOnDesktop(date, fileInfo, companyData) {
     reusedExistingFile: false,
     requestedYearMonth: built.requestedYearMonth,
     periodReplacementCount: Number(built.periodReplacementCount || 0)
-  };
-}
-
-function normalizeProcessInfo(row) {
-  return {
-    ...row,
-    id: Number(row?.id ?? row?.processId ?? row?.process_id),
-    processCode: row?.processCode ?? row?.process_code ?? row?.code ?? '',
-    processName: row?.processName ?? row?.process_name ?? row?.name ?? row?.title ?? ''
   };
 }
 
