@@ -152,6 +152,20 @@ async function ensureCanonicalDeductionTypes(processId) {
     return process;
 }
 
+// Read-only safeguard for processes whose catalogues are maintained in TiDB.
+// Do not rewrite historical IDs; only collapse equivalent display names.
+function uniqueActiveDeductionNames(rows) {
+    const seen = new Set();
+    return (Array.isArray(rows) ? rows : []).filter((row) => {
+        const key = String(row.deduction_name || row.deduction_code || '')
+            .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
+            .replace(/đ/gi, 'd').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
 const Deduction = {
     async getByProcess(process_id) {
         const requestedId = Number(process_id);
@@ -185,7 +199,7 @@ const Deduction = {
                 processCode,
                 returned: Array.isArray(rows) ? rows.length : 0,
             }));
-            return rows;
+            return uniqueActiveDeductionNames(rows);
         }
 
         const process = await ensureCanonicalDeductionTypes(requestedId);
@@ -215,7 +229,7 @@ const Deduction = {
                     processSource: process?.source ?? null,
                     returned: Array.isArray(rows) ? rows.length : 0,
                 }));
-                resolve(rows);
+                resolve(uniqueActiveDeductionNames(rows));
             });
         });
     },
