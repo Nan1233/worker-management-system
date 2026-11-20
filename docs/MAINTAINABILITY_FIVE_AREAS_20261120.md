@@ -6,8 +6,8 @@ Branch: `refactor/ktc-local-cleanup`. **No merge, deployment, Cloudflare mutatio
 
 | Area | Work committed | Runtime status |
 | --- | --- | --- |
-| 1. Remaining Desktop Excel modules | Extracted `companyExcelMetrics.cjs` and `workerReportDateGrouping.cjs`, preserving the old `getMetrics` diagnostic export and date-separated row logic | Needs Excel smoke and side-by-side workbook comparison |
-| 2. Shared production registry | Worker template codes now derive from `PROCESS_SHEETS`; worker filename prefixes now reuse `monthlyWorkbookNaming.cjs` | Static source compatibility reviewed; runtime parity test added |
+| 1. Remaining Desktop Excel modules | Extracted `companyExcelMetrics.cjs` and `workerReportDateGrouping.cjs` (company builder ~610 lines, worker report builder ~485 lines), preserving the old `getMetrics` diagnostic export and date-separated row logic | Needs Excel smoke and side-by-side workbook comparison |
+| 2. Shared production registry | Worker template codes derive from `PROCESS_SHEETS`; worker filename prefixes reuse `monthlyWorkbookNaming.cjs` | Static source compatibility reviewed; runtime parity test added |
 | 3. Electron startup dependencies | `deferredDesktopServices.cjs` explicitly binds `authenticatedFetch`, `waitForUsableRendererToken`, `enqueueManualExcelSync` and `isSyncRunning` before window/IPC startup; unbound calls fail with a named error | Startup / auth / IPC tests still required |
 | 4. Stable module naming | New entry points `workerReportWorkbook.cjs` and `productionExcelExport.cjs`. Runtime main and active export route through them. v2/v6 implementation files remain backward compatible for scripts and Electron resources. | Existing import consumers preserved |
 | 5. Regression gates | Added `desktop/tests/refactor-boundaries.test.cjs` for process file names, CAT/LONG category independence, shared-machine metrics and service initialization; added `test:refactor-boundaries`, `check:refactor-modules` to Desktop and integrated with `check` / `smoke:excel`. Updated `scripts/checkRepositoryLayout.cjs` for moved registry and canonical naming contracts. | **Written and wired, not executed** |
@@ -39,5 +39,7 @@ npm run smoke:excel
 ```
 
 Then run Frontend typecheck/build and backend approval/rejection integration tests on a **test** TiDB database, especially concurrency, historical standards, shared machines, Excel import round-trips, and output to the correct company process templates. Inspect package resources with an actual Windows Electron build.
+
+Checks have been **added** to the Desktop package scripts, but no command has been run within this GitHub-only editing session. The sandbox cannot access the repository's network remote, so no passing test result or runtime verification is claimed.
 
 A static scan or lower line count alone does not prove correctness. Do not merge/deploy until these checks have produced passing results.
