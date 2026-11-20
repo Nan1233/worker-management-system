@@ -646,7 +646,7 @@ function makeColumns(processCode, deductionTypes, defectTypes) {
     },
     CAN: {
       fields: ['stt','workerCode','workerName','shift','machine','extra:material_code','product','extra:rolling_hours','workingTime','actualTime','deductionTime','@deduction','standard','enteredOutput','output','achievement','outputPerHour','ngRate','ng','@defect','ok','extra:stop_reason'],
-      headers: { machine: 'Số máy cán', product: 'Mã SP Cán', standard: 'Định mức (kg/h)', enteredOutput: 'Thực tích nhập (kg)', output: 'Thực tích cán (kg)', outputPerHour: 'KG/H', achievement: '% thực tích', ng: 'Tổng lỗi Cán' },
+      headers: { machine: 'Số máy cán', product: 'Mã SP Cán', standard: 'Định mức (kg)', enteredOutput: 'Thực tích nhập (kg)', output: 'Thực tích cán (kg)', outputPerHour: 'KG/H', achievement: '% thực tích', ng: 'Tổng lỗi Cán' },
       decimalFields: ['enteredOutput','output','ok','ng']
     },
     EP: {
