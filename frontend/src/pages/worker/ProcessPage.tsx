@@ -114,7 +114,7 @@ import { useProcessDraftAutosave } from "./useProcessDraftAutosave";
 import { useProcessDraftRestore } from "./useProcessDraftRestore";
 import { useProcessMachineLineActions } from "./useProcessMachineLineActions";
 import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
-import { hasProcessReportInput } from "./processFormResetGuard";
+import { hasProcessReportInput, resetProcessFormRetainingWorker } from "./processFormResetGuard";
 import { filterProductsForSelection } from "./productSuggestionRules";
 
 import type {
@@ -946,30 +946,7 @@ const machineAutocompleteOptions =
         }
         void clearProcessDraftAsync(process);
 
-        setForm((prev) => ({
-
-            ...initialForm,
-            // Explicitly clear every time field so a reset can never retain
-            // the previous working/deduction/total time values.
-            actualHours: "",
-            actualMinutes: "",
-            actualTime: "",
-            deductionTime: "",
-            totalTime: "",
-
-            workDate:
-                getCurrentLocalDate(),
-
-            workerCode:
-                prev.workerCode,
-
-            workerName:
-                prev.workerName,
-
-            trainingPercent:
-                prev.trainingPercent
-
-        }));
+        setForm((prev) => resetProcessFormRetainingWorker(prev, getCurrentLocalDate()));
 
 
         setSubmitValidationError("");
