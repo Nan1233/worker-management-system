@@ -63,6 +63,7 @@ export default function ReportReviewDetail() {
   const source = params.get("source") === "approved" ? "approved" : "pending";
   const requestedDate = params.get("date") || "";
   const requestedKey = params.get("key") || "";
+  const requestedReportId = params.get("id");
   const currentRole = String(getStoredUser()?.role || "manager").toLowerCase();
   const basePath = currentRole === "lead" ? "/lead" : currentRole === "admin_ops" ? "/admin-ops" : "/manager";
   const { can } = usePermissions();
@@ -126,7 +127,27 @@ export default function ReportReviewDetail() {
     setError("");
     try {
       let date = requestedDate;
-      let rows = date ? await loadList(date) : [];
+      const rows = date ? await loadList(date) : [];
+      // The list can contain another report for the same worker/date/shift. The
+      // selected URL id, not a heuristic row key, is the identity of the report
+      // the reviewer intended to approve or reject.
+      if (requestedReportId !== null) {
+        const exactId = Number(requestedReportId);
+        if (!Number.isSafeInteger(exactId) || exactId <= 0) {
+          throw new Error("ID báo cáo không hợp lệ. Vui lòng chọn lại từ danh sách.");
+        }
+        const exact = await getReportById(exactId, source);
+        if (!exact || Number(exact.id) !== exactId) {
+          throw new Error("Báo cáo được chọn không còn khả dụng. Vui lòng mở lại danh sách.");
+        }
+        if (date && String(exact.work_date || "").slice(0, 10) !== date) {
+          throw new Error("Ngày báo cáo không khớp với báo cáo đã chọn. Vui lòng mở lại danh sách.");
+        }
+        setList(rows);
+        setCurrentIndex(rows.findIndex(r => Number(r.id) === exactId));
+        setReport(exact);
+        return;
+      }
       let target: ProductionReport | undefined;
       if (rows.length && requestedKey) {
         target = rows.find(r => rowKey(r) === requestedKey);
@@ -135,6 +156,7 @@ export default function ReportReviewDetail() {
           target = rows.find(r => String(r.worker_code || "") === keyParts[1] && String(r.process_name || r.process_code || "") === keyParts[2] && String(r.shift || "") === keyParts[3]);
         }
       }
+      if (!target && requestedKey) throw new Error('Không tìm thấy chính xác báo cáo được chọn. Vui lòng mở lại danh sách.');
       if (!target && rows.length) target = rows[0];
       if (!target && !date) {
         const today = new Date();
@@ -157,7 +179,7 @@ export default function ReportReviewDetail() {
     } finally {
       setLoading(false);
     }
-  }, [loadList, requestedDate, requestedKey, source]);
+  }, [loadList, requestedDate, requestedKey, requestedReportId, source]);
 
   useEffect(() => { void resolveInitial(); }, [resolveInitial]);
 

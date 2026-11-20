@@ -126,6 +126,12 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     const targetRow = page.locator('main table tbody tr').filter({ hasText: state.workerCode }).first();
     await expect(targetRow).toBeVisible({ timeout: 15_000 });
     await targetRow.click();
+    // Approve the exact report created by this scenario, never a nearby row
+    // with the same worker/process/date selected by a fallback heuristic.
+    await expect.poll(() => {
+      const hashQuery = page.url().split('?')[1] || '';
+      return new URLSearchParams(hashQuery).get('id');
+    }).toBe(String(state.approvableId));
     await expect(page.locator('button.review-btn.approve')).toBeEnabled();
 
     const approved = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/production-temp/approve-selected');
