@@ -121,7 +121,7 @@ const { syncProcessReportsFirst } = createProcessReportExport({
 const { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb } = createExcelDbSyncController({
   authenticatedFetch: (...args) => authenticatedFetch(...args), API_BASE_URL, listExcelFiles, getExportRoot, readExcelChanges,
   writeLog, normalizeError, waitForUsableRendererToken: (...args) => waitForUsableRendererToken(...args), sendRenderer,
-  enqueueManualExcelSync, isQuitting: () => quitting, isSyncRunning: () => isSyncRunning(),
+  enqueueManualExcelSync: (...args) => enqueueManualExcelSync(...args), isQuitting: () => quitting, isSyncRunning: () => isSyncRunning(),
 });
 
 function startExcelDbSyncWatcher() {
