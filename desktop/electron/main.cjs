@@ -13,6 +13,7 @@ const { normalizeAccessToken, isUsableAccessToken } = require('./authToken.cjs')
 const { PROCESS_SHEETS } = require('./monthlyWorkbookLocal.cjs');
 const { buildWorkerSplit: buildSplitMonthlyWorkbooksLocal } = require('./excelExportContractPatch.v6.cjs');
 const { getCompanyMonthTarget } = require('./excelDualLayout.cjs');
+const { cleanupLegacyMonthlyLayout } = require('./excelLegacyCleanup.cjs');
 const { getDesktopDataRoot, getDocumentsRoot } = require('./platformPaths.cjs');
 const { readExcelChanges } = require('./excelDbSync.cjs');
 const { createExcelBackupRetention } = require('./excelBackupRetention.cjs');
@@ -1059,7 +1060,7 @@ async function performSyncSingleMonth({ date, source }) {
 
   const expectedFileCount = files.filter((file) => file.category === 'MONTHLY_PROCESS').length === 1 ? 1 : Object.keys(PROCESS_SHEETS).length + 1;
   const success = files.length === expectedFileCount && files.every((file) => file.success === true);
-  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean));
+  if (success) await cleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean), writeLog);
   const result = {
     success,
     partialSuccess: false,
@@ -1159,33 +1160,6 @@ async function performSync({ date, source }) {
     fileCount: files.length
   });
   return result;
-}
-
-async function __ktcCleanupLegacyMonthlyLayout(root, date, keepFileNames = []) {
-  try {
-    const [year, month] = String(date).split('-');
-    const monthFolder = path.join(root, year, month);
-    const keep = new Set((keepFileNames || []).map((name) => String(name).toLowerCase()));
-    const processFileRe = new RegExp('^\\d{2}_[A-Z0-9_]+_' + month + '-' + year + '\\.xlsx$', 'i');
-    const entries = await fs.readdir(monthFolder, { withFileTypes: true }).catch(() => []);
-    const removed = [];
-    for (const entry of entries) {
-      const full = path.join(monthFolder, entry.name);
-      if (entry.isDirectory()) continue;
-      const lower = entry.name.toLowerCase();
-      if (keep.has(lower)) continue;
-      const legacySummary = /^00_TONG_HOP_SAN_XUAT_\d{2}-\d{4}\.xlsx$/i.test(entry.name);
-      const staleProcessFile = processFileRe.test(entry.name);
-      const leftover = /\.pending\.xlsx$/i.test(entry.name) || /\.tmp$/i.test(entry.name);
-      if (legacySummary || staleProcessFile || leftover) {
-        await fs.rm(full, { force: true });
-        removed.push(entry.name);
-      }
-    }
-    if (removed.length) await writeLog('INFO', 'EXCEL_MONTH_FOLDER_CLEANED', { monthFolder, removed });
-  } catch (error) {
-    await writeLog('WARN', 'EXCEL_LEGACY_LAYOUT_CLEANUP_FAILED', { root, date, message: error?.message || String(error) });
-  }
 }
 
 async function syncAllProcessExcel({ date, source = 'manual', token: requestedToken = '' } = {}) {
