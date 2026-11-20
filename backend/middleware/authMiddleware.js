@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { assertActiveAccessSession } = require("../services/refreshSessionService");
 const db = require("../config/db");
 const { getOrLoadAuthUser, setCachedAuthUser } = require("../utils/authUserCache");
 const { effectiveRole, isSuperAdminRole } = require("../utils/roles");
@@ -31,6 +32,9 @@ module.exports = async (req,res,next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const decodedUserId = Number(decoded?.id), decodedWorkerId = Number(decoded?.worker_id), decodedUsername = String(decoded?.username || "").trim();
         if ((!Number.isInteger(decodedUserId)||decodedUserId<=0) && (!Number.isInteger(decodedWorkerId)||decodedWorkerId<=0) && !decodedUsername) return res.status(401).json({code:"TOKEN_USER_INVALID",message:"Thông tin tài khoản trong token không hợp lệ"});
+        if (!(await assertActiveAccessSession(decodedUserId, decoded.sid))) {
+            return res.status(401).json({code:"SESSION_REPLACED",message:"Tài khoản đã đăng nhập ở nơi khác. Phiên này đã kết thúc."});
+        }
         const cacheKey = Number.isInteger(decodedUserId)&&decodedUserId>0 ? decodedUserId : Number.isInteger(decodedWorkerId)&&decodedWorkerId>0 ? decodedWorkerId : decodedUsername;
         const currentUser = await getOrLoadAuthUser(cacheKey, () => loadCurrentUser(decoded));
         if (!currentUser) return res.status(401).json({code:"TOKEN_USER_NOT_FOUND",message:"Phiên đăng nhập cần được làm mới"});
