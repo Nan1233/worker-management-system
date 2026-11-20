@@ -384,7 +384,18 @@ async function reconcileMaiWorkbookDeductions(buffer) {
     // Date separators and empty template rows are not production records.
     if (!Number.isFinite(Number(row.getCell(1).value))
       || !String(row.getCell(3).value ?? '').trim()) continue;
-    const displayedHours = Array.from({ length: 20 }, (_, i) => Number(row.getCell(13 + i).value))
+    // Include the explicit unmapped deduction overflow (after the defect block).
+    // Otherwise the total can still be zero when only an obsolete type ID
+    // was saved in the approved record.
+    const overflowCol = (() => {
+      for (let col = 49; col <= sheet.getRow(1).cellCount; col += 1) {
+        if (norm(sheet.getCell(1, col).value) === norm('Trừ giờ chưa ghép loại (giờ)')) return col;
+      }
+      return null;
+    })();
+    const detailNumbers = Array.from({ length: 20 }, (_, i) => Number(row.getCell(13 + i).value));
+    if (overflowCol !== null) detailNumbers.push(Number(row.getCell(overflowCol).value));
+    const displayedHours = detailNumbers
       .reduce((sum, n) => sum + (Number.isFinite(n) && n > 0 ? n : 0), 0);
     const recorded = Number(row.getCell(12).value);
     if (displayedHours > 0 && (!Number.isFinite(recorded) || Math.abs(recorded) < 0.000001)) {
