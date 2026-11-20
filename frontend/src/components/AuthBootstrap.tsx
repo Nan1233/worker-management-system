@@ -5,6 +5,7 @@ import {
   getStoredUser,
   hasRefreshSessionHint,
   recoverUserFromAccessToken,
+  supportsElectronRefreshTokenBody,
 } from "../utils/authStorage";
 
 function isLoginRoute(): boolean {
@@ -34,14 +35,14 @@ export default function AuthBootstrap({ children }: { children: ReactNode }) {
 
     // No previous session: let /login render immediately.
     // A refresh-only session still needs the bootstrap before protected routes.
-    return !hasRefreshSessionHint() || isLoginRoute();
+    return !hasRefreshSessionHint() || !supportsElectronRefreshTokenBody() || isLoginRoute();
   });
 
   useEffect(() => {
     let active = true;
 
     const authStartMs = performance.now();
-    const refreshOnly = !getAccessToken() && hasRefreshSessionHint() && !isLoginRoute();
+    const refreshOnly = !getAccessToken() && hasRefreshSessionHint() && supportsElectronRefreshTokenBody() && !isLoginRoute();
     console.info(`[KTC-STARTUP] AUTH_BOOTSTRAP_START refreshOnly=${refreshOnly}`);
     void initializeAuthSession().catch(() => undefined).finally(() => {
       console.info(`[KTC-STARTUP] AUTH_BOOTSTRAP_FINISHED durationMs=${Math.round(performance.now() - authStartMs)} refreshOnly=${refreshOnly}`);
