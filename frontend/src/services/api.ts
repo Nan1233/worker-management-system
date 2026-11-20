@@ -22,6 +22,8 @@ import {
 
 import {
     bumpAuthEpoch,
+    ACTIVE_AUTH_TAB_KEY,
+    isActiveBrowserTab,
     clearAuthSession,
     clearCurrentTabAuthSession,
     clearLegacyRefreshToken,
@@ -379,7 +381,7 @@ api.interceptors.request.use(
         // though localStorage now contains the newer tab's shared credentials.
         // Permit only a fresh login; never send the new account's token or let
         // a stale tab's logout/refresh mutate the active session.
-        if (crossTabAuthInvalidated && !requestUrl.includes("/auth/login")) {
+        if ((crossTabAuthInvalidated || (getAccessToken() && !isActiveBrowserTab())) && !requestUrl.includes("/auth/login")) {
             return Promise.reject(staleSessionError());
         }
 
@@ -595,6 +597,19 @@ function scheduleConnectionRestore(): void {
 
 if (typeof window !== "undefined") {
     window.addEventListener("storage", (event) => {
+        if (event.key === ACTIVE_AUTH_TAB_KEY && getAccessToken() && !isActiveBrowserTab()) {
+            crossTabAuthInvalidated = true;
+            refreshAbortController?.abort();
+            refreshAbortController = null;
+            refreshPromise = null;
+            clearCurrentTabAuthSession();
+            sessionStorage.setItem("ktcSessionReplacedMessage", "Tài khoản đang được sử dụng ở tab khác.");
+            const route = window.location.hash.replace(/^#/, "") || "/";
+            if (!/^\/login(?:\/|$)/.test(route)) {
+                window.location.replace(`${window.location.origin}${window.location.pathname}#/login`);
+            }
+            return;
+        }
         if (event.key !== "ktcAuthEpoch") return;
 
         authGeneration = getAuthEpoch();
