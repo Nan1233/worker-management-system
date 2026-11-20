@@ -1,4 +1,4 @@
-import type { FormState, MachineLineState } from "./processPageConfig";
+import { initialForm, type FormState, type MachineLineState } from "./processPageConfig";
 
 /** Reset confirmation guard; pure and free of browser-side effects. */
 export function hasProcessReportInput(
@@ -25,4 +25,20 @@ export function hasProcessReportInput(
             )
         
     );
+}
+
+/** Reset editable fields while retaining the authenticated worker identity. */
+export function resetProcessFormRetainingWorker(previous: FormState, today: string): FormState {
+    return {
+        ...initialForm,
+        actualHours: "",
+        actualMinutes: "",
+        actualTime: "",
+        deductionTime: "",
+        totalTime: "",
+        workDate: today,
+        workerCode: previous.workerCode,
+        workerName: previous.workerName,
+        trainingPercent: previous.trainingPercent,
+    };
 }
