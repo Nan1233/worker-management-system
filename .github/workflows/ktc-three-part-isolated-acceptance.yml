@@ -11,6 +11,9 @@ on:
       - backend/routes/productionTempRoutes.js
       - backend/utils/dailyHoursLimit.js
       - backend/tests/integration/**
+      - backend/controllers/productionTempManagementController.js
+      - backend/controllers/managerReportListUtils.js
+      - backend/tests/manager-report-list-utils.test.js
       - backend/tests/fixtures/isolated-*.sql
       - frontend/tests/e2e/**
       - frontend/src/**

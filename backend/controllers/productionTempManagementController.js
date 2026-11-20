@@ -1,6 +1,7 @@
 const db = require("../config/db");
 const { omitUnsentCollections, preserveStoredMachineData } = require("../utils/editPayload");
 const { TtlCache } = require("../utils/cache");
+const { normalizeManagerReportFilters, managerReportCacheKey } = require("./managerReportListUtils");
 const managerListCache = new TtlCache({ maxEntries: 300 });
 const MANAGER_LIST_TTL_MS = 15000;
 
@@ -30,33 +31,30 @@ const { assertWorkerOwnership } = require("../services/processAuthorizationServi
 const { validateProductionReport } = require("../utils/reportValidation");
 const { calculateProductionOutput } = require("../../shared/productionOutput.cjs");
 const {
-    normalizePagination,
-    normalizeSearch,
     assertReviewBatchSize
 } = require("../services/managerReportPaginationService");
+
+// Keep the pending and approved list cache keyed by actor, role, filters and mode.
+async function getCachedManagerReports(kind, req, userId) {
+    const filters = normalizeManagerReportFilters(req.query, kind === "pending");
+    const cacheKey = managerReportCacheKey(kind, req.user?.role, userId, filters);
+    let data = managerListCache.get(cacheKey);
+    if (data === undefined) {
+        const isAdmin = req.user?.role === "admin";
+        data = kind === "pending"
+            ? await ProductionTemp.getPending(userId, filters, isAdmin)
+            : await ProductionTemp.getApproved(userId, filters, isAdmin);
+        managerListCache.set(cacheKey, data, MANAGER_LIST_TTL_MS);
+    }
+    return data;
+}
 
 exports.getPendingReports = async (req, res) => {
     try {
         const userId = toPositiveInteger(req.user?.id);
         if (!userId) return res.status(401).json({ success: false, message: "Thông tin đăng nhập không hợp lệ" });
 
-        const filters = {
-            date: req.query.date || null,
-            date_from: req.query.date_from || null,
-            date_to: req.query.date_to || null,
-            shift: req.query.shift || null,
-            process_id: toPositiveInteger(req.query.process_id),
-            process_name: req.query.process_name?.trim() || null,
-            search: normalizeSearch(req.query.search),
-            include_meta: req.query.include_meta !== "0",
-            pagination: normalizePagination(req.query)
-        };
-        const cacheKey = `manager:pending:${req.user?.role}:${userId}:${JSON.stringify(filters)}`;
-        let data = managerListCache.get(cacheKey);
-        if (data === undefined) {
-            data = await ProductionTemp.getPending(userId, filters, req.user?.role === "admin");
-            managerListCache.set(cacheKey, data, MANAGER_LIST_TTL_MS);
-        }
+        const data = await getCachedManagerReports("pending", req, userId);
         return res.status(200).json({
             success: true,
             data: data.items,
@@ -75,22 +73,7 @@ exports.getApprovedReports = async (req, res) => {
         const userId = toPositiveInteger(req.user?.id);
         if (!userId) return res.status(401).json({ success: false, message: "Thông tin đăng nhập không hợp lệ" });
 
-        const filters = {
-            date: req.query.date || null,
-            date_from: req.query.date_from || null,
-            date_to: req.query.date_to || null,
-            shift: req.query.shift || null,
-            process_id: toPositiveInteger(req.query.process_id),
-            process_name: req.query.process_name?.trim() || null,
-            search: normalizeSearch(req.query.search),
-            pagination: normalizePagination(req.query)
-        };
-        const cacheKey = `manager:approved:${req.user?.role}:${userId}:${JSON.stringify(filters)}`;
-        let data = managerListCache.get(cacheKey);
-        if (data === undefined) {
-            data = await ProductionTemp.getApproved(userId, filters, req.user?.role === "admin");
-            managerListCache.set(cacheKey, data, MANAGER_LIST_TTL_MS);
-        }
+        const data = await getCachedManagerReports("approved", req, userId);
         return res.status(200).json({
             success: true,
             data: data.items,
