@@ -17,6 +17,9 @@ on:
       - backend/tests/approved-edit-preserves-machine-data.test.js
       - backend/tests/approved-edit-concurrency.test.js
       - backend/controllers/productionTempManagementController.js
+      - backend/models/productionTempApprovalModel.js
+      - backend/models/productionTempRejectionBuilders.js
+      - backend/tests/rejection-builders-batch-refactor.test.js
       - backend/controllers/managerReportListUtils.js
       - backend/tests/manager-report-list-utils.test.js
       - backend/tests/approved-machine-copy-real-mapping-integration.test.js
@@ -101,6 +104,7 @@ jobs:
             tests/production-submission-queue.test.js \
             tests/review-transaction-failure-order-regression.test.js \
             tests/approved-edit-concurrency.test.js \
+            tests/rejection-builders-batch-refactor.test.js \
             tests/approved-edit-preserves-machine-data.test.js \
             tests/logical-duplicate-transaction.test.js \
             tests/production-submission-lock.contract.test.js \

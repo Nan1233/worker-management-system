@@ -3,18 +3,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
-
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-const start = source.indexOf('function buildRejectedReportUpdate(');
-const end = source.indexOf('module.exports = {', start);
-assert.ok(start >= 0 && end > start);
-const ctx = { toDateKey: (value) => String(value).slice(0, 10) };
-vm.runInNewContext(source.slice(start, end), ctx);
-const update = vm.runInNewContext('buildRejectedReportUpdate', ctx);
-const version = vm.runInNewContext('buildRejectedReportVersion', ctx);
-const activity = vm.runInNewContext('buildRejectedReportActivity', ctx);
-const notification = vm.runInNewContext('buildRejectedReportNotification', ctx);
+const {
+  buildRejectedReportUpdate: update,
+  buildRejectedReportVersion: version,
+  buildRejectedReportActivity: activity,
+  buildRejectedReportNotification: notification,
+} = require('../models/productionTempRejectionBuilders');
 
 test('rejection UPDATE preserves optimistic version condition and positional values', () => {
   const row = { id: 17 };
@@ -86,4 +81,30 @@ test('rejection retains transactional ordering, guarded status update and post-c
   assert.ok(positions.every((n) => n >= 0), 'all transaction markers remain');
   assert.ok(positions.every((n, i) => i === 0 || positions[i - 1] < n), 'transaction order unchanged');
   assert.match(reject, /await rollbackReviewTransaction\(connection, error\)/);
+});
+
+test('rejection builders do not mutate report rows and preserve date semantics', () => {
+  const row = { id: 41, worker_id: 5, process_id: 8, worker_user_id: 17, work_date: '2026-11-20', shift: 'D' };
+  const original = { ...row };
+  const previousSnapshot = { tt_ok: 21 };
+  const updateSql = update(row, '2026-11-20T05:00:00Z', 'Thiếu dữ liệu', 7);
+  const result = version(row, previousSnapshot, 'Thiếu dữ liệu', 7);
+  const activityValue = activity(row, 'Thiếu dữ liệu', 7);
+  const workerNotice = notification(row, 'Thiếu dữ liệu');
+  assert.strictEqual(result.snapshot, previousSnapshot);
+  assert.deepEqual(row, original);
+  assert.deepEqual(updateSql.params, ['Thiếu dữ liệu',7,41,'2026-11-20T05:00:00Z']);
+  assert.equal(activityValue.metadata.worker_id, 5);
+  assert.equal(activityValue.metadata.process_id, 8);
+  assert.equal(workerNotice.payload.message, 'Báo cáo ngày 2026-11-20, ca D bị từ chối: Thiếu dữ liệu');
+  assert.equal(workerNotice.payload.linkUrl, '/worker/history/41?source=pending');
+});
+
+test('rejection helpers are separate from transactional connection lifecycle', () => {
+  const helperSource = fs.readFileSync(path.join(__dirname, '../models/productionTempRejectionBuilders.js'), 'utf8');
+  assert.doesNotMatch(helperSource, /beginTransaction|commit\(connection\)|rollback\(connection\)|FOR UPDATE/);
+  assert.match(source, /await beginTransaction\(connection\)/);
+  assert.match(source, /await commit\(connection\)/);
+  assert.match(source, /await rollbackReviewTransaction\(connection, error\)/);
+  assert.match(source, /buildRejectedReportUpdate\(row, expected, cleanReason, reviewerId\)/);
 });
