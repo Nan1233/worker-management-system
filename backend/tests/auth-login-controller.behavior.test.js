@@ -102,7 +102,7 @@ const mocks = {
       }
       return { found: true, familyId };
     },
-    async createFamilyRoot(data) {
+    async createExclusiveFamilyRoot(data) {
       state.calls.push({ op: 'create', userId: data.user_id });
       if (state.failCreate) throw new Error('synthetic database failure');
       const refreshToken = 'refresh-token-' + (++state.nextToken);
