@@ -89,6 +89,7 @@ import {
 import { focusProcessValidationTarget } from "./processValidationFocus";
 import { useProcessQualityActions } from "./useProcessQualityActions";
 import { useProcessDeductionActions } from "./useProcessDeductionActions";
+import { validateProcessForm } from "./processFullFormValidation";
 
 import {
     validateWorkerWorkDate,
@@ -683,108 +684,13 @@ const machineAutocompleteOptions =
     // KIỂM TRA FORM
     // =====================================================
 
-    const validateForm = (): string => {
-        if (loadingMasterData) return "Danh mục sản phẩm, máy hoặc lỗi NG đang tải. Vui lòng chờ hoàn tất.";
-        if (
-            loadingWorker
-        ) {
-
-            return "Thông tin nhân viên đang được tải";
-
-        }
-
-
-        if (
-            !worker
-            ||
-            !form.workerCode
-            ||
-            !form.workerName
-        ) {
-
-            return "Không tìm thấy thông tin nhân viên";
-
-        }
-
-
-        const workDateError = validateWorkerWorkDate(
-            form.workDate,
-            getWorkerMinWorkDate(),
-            getWorkerMaxWorkDate()
-        );
-        if (workDateError) return workDateError;
-
-
-        const shiftError = validateWorkerShift(form.shift);
-        if (shiftError) return shiftError;
-
-        const sharedError = validateSharedReportNumbers({
-            form,
-            deductions,
-            activeNgOptions,
-            selectedNg,
-            selectedDeduction,
-            usesMachineLineAccounting,
-            isCvkMode,
-        });
-        if (sharedError) return sharedError;
-        const detailNamesError = validateCustomReasonNames(form, selectedNg, selectedDeduction, machineLines);
-        if (detailNamesError) return detailNamesError;
-
-        if (!isCvkMode && !usesMultiMachineLines) {
-            if (!form.productName.trim()) {
-                return "Vui lòng chọn sản phẩm";
-            }
-
-            const eligibleProducts = usesSingleMachine
-                ? getMachineProductOptions(form.machineNo)
-                : filterProductsForSelection({ products: scopedProductOptions, mode: "MANUAL", machineOptions, useEncodedMachineSuffix: processCode === "GC" });
-            const matchedProduct = eligibleProducts.find(
-                (item) => item.product_code.trim().toLowerCase() === form.productName.trim().toLowerCase()
-            );
-            if (!matchedProduct) {
-                return "Sản phẩm không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
-            }
-        }
-
-        if (usesMultiMachineLines) {
-            const machineLinesError = validateMachineLines({
-                processCode,
-                machineLines,
-                maxMachines: maxMachineCount,
-                allowZeroQuantity: isCvkMode,
-                isMachineValid: (machineCode) => machineOptions.some(
-                    (item) => item.machine_code.trim().toLowerCase() === machineCode.trim().toLowerCase()
-                ),
-                isProductValid: (machineCode, productCode) => getMachineProductOptions(machineCode).some(
-                    (item) => item.product_code.trim().toLowerCase() === productCode.trim().toLowerCase()
-                ),
-            });
-            if (machineLinesError) return machineLinesError;
-        } else if (usesSingleMachine) {
-            if (!form.machineNo.trim() && processCode !== "DO") return "Vui lòng chọn số máy";
-            const matchedMachine = machineOptions.find(
-                (item) => item.machine_code.trim().toLowerCase() === form.machineNo.trim().toLowerCase()
-            );
-            if (form.machineNo.trim() && !matchedMachine) return "Máy không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
-        }
-
-        const manualError = validateManualMachineData(form, machineLines, isManualOnlyProcess);
-        if (manualError) return manualError;
-
-        const timeError = validateReportTime(form, usesMachineLineAccounting);
-        if (timeError) return timeError;
-
-        const totalsError = validateReportTotals(form, activeNgOptions, isCvkMode, usesMachineLineAccounting, calculateActualOutput);
-        if (totalsError) return totalsError;
-
-        const extraError = validateRequiredExtraFields(currentExtraFields, extraData);
-        if (extraError) return extraError;
-
-        return "";
-
-    };
-
+    const validateForm = (): string => validateProcessForm({
+        loadingMasterData, loadingWorker, hasWorker: Boolean(worker), form, deductions,
+        activeNgOptions, selectedNg, selectedDeduction, usesMachineLineAccounting, isCvkMode,
+        usesMultiMachineLines, usesSingleMachine, machineLines, processCode, maxMachineCount,
+        machineOptions, scopedProductOptions, getMachineProductOptions, isManualOnlyProcess,
+        currentExtraFields, extraData, calculateActualOutput,
+    });
 
     // =====================================================
     // GỬI BÁO CÁO
