@@ -127,7 +127,7 @@ export default function ReportReviewDetail() {
     setError("");
     try {
       let date = requestedDate;
-      const rows = date ? await loadList(date) : [];
+      let rows = date ? await loadList(date) : [];
       // The list can contain another report for the same worker/date/shift. The
       // selected URL id, not a heuristic row key, is the identity of the report
       // the reviewer intended to approve or reject.
