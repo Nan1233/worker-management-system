@@ -472,7 +472,7 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
       const source = templateFormulas[templateLetter];
       // The company's new hourly-rate rule is the visible working-time column J.
       // Older source AL formulas may refer to K, so never reintroduce K here.
-      const formula = templateLetter === 'AL' ? fallback
+      const formula = (templateLetter === 'AL' || templateLetter === 'AJ') ? fallback
         : typeof source?.formula === 'string'
           ? relocateExcelFormula(source.formula, Number(source.sourceRow), r)
           : fallback;
@@ -491,13 +491,15 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
     const finalNg = numberAt(37);
     const rate = finalHours !== null && finalHours > 0 && finalOutput !== null && finalOutput >= 0
       ? finalOutput / finalHours : null;
-    const percent = rate !== null && finalStandard !== null && finalStandard > 0
-      ? rate / finalStandard : null;
+    // AH now contains the TOTAL standard (hourly DB standard × visible J).
+    // The correct achievement is output / total standard, not SL/H / AH.
+    const percent = finalStandard !== null && finalStandard > 0 && finalOutput !== null
+      ? finalOutput / finalStandard : null;
     const ngPercent = finalOutput !== null && finalOutput > 0 && finalNg !== null && finalNg >= 0
       ? finalNg / finalOutput : (finalOutput === 0 ? 0 : null);
     setCalculated(38, 'AL', 'IFERROR(IF(OR(J' + r + '<=0,AI' + r + '=""),"",AI' + r + '/J' + r + '),"")',
       rate, '#,##0.00');
-    setCalculated(36, 'AJ', 'IFERROR(IF(OR(AH' + r + '<=0,AL' + r + '=""),"",AL' + r + '/AH' + r + '),"")',
+    setCalculated(36, 'AJ', 'IFERROR(IF(AH' + r + '>0,AI' + r + '/AH' + r + ',""),"")',
       percent, '0.00%');
     setCalculated(41, 'AO', 'IFERROR(IF(AI' + r + '>0,AN' + r + '/AI' + r + ',0),0)',
       ngPercent, '0.00%');
