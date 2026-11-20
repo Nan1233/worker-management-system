@@ -31,6 +31,7 @@ import { createClientRequestId } from "../../utils/workerSubmitGuard";
 import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
 import { isTransientNetworkFailure } from "../../services/offlineReportQueue";
 import { queueRemainingMachineReports, shouldQueuePendingMachineReports } from "./processMachineReportQueue";
+import { reportsAwaitingDuplicateConfirmation, reportsUnsentAfterNetworkFailure } from "./processSubmitBatchSlices";
 
 import type {
     AutocompleteOption
@@ -456,18 +457,14 @@ const machineAutocompleteOptions =
         // A confirmed duplicate creation/update is a successful submission.
         // Cancel any pending autosave and invalidate its snapshot before
         // clearing, otherwise navigating back can restore an already-sent form.
+        // Invalidate autosave exactly once before deleting the sent draft.
         resetVersionRef.current += 1;
         if (draftSaveTimerRef.current !== null) {
             window.clearTimeout(draftSaveTimerRef.current);
             draftSaveTimerRef.current = null;
         }
         isRestoringDraftRef.current = true;
-                    resetVersionRef.current += 1;
-                    if (draftSaveTimerRef.current !== null) {
-                        window.clearTimeout(draftSaveTimerRef.current);
-                        draftSaveTimerRef.current = null;
-                    }
-                    void clearProcessDraftAsync(process);
+        void clearProcessDraftAsync(process);
         setDuplicatePrompt(null);
         pendingSplitPayloadsRef.current = [];
         duplicatePrimaryCompletedRef.current = false;
@@ -1020,7 +1017,7 @@ const updateDeductionValue = (
                                 if (prompt) {
                                     duplicatePrimaryCompletedRef.current = false;
                                     duplicateForceRequestIdRef.current = null;
-                                    pendingSplitPayloadsRef.current = payloads.slice(index + 1);
+                                    pendingSplitPayloadsRef.current = reportsAwaitingDuplicateConfirmation(payloads, index);
                                     const reportType = duplicateResponse.data?.report_type === "approved" ? "approved" : "temp";
                                     setDuplicatePrompt({ ...prompt, reportType, formSignature: getDuplicateFormSignature() });
                                     return;
@@ -1028,7 +1025,7 @@ const updateDeductionValue = (
                             }
                         }
                         if (isTransientNetworkFailure(error)) {
-                            queueRemainingMachineReports(payloads.slice(index));
+                            queueRemainingMachineReports(reportsUnsentAfterNetworkFailure(payloads, index));
                             showToast("Kết nối Internet bị gián đoạn. Các báo cáo còn lại đã được lưu trên thiết bị và sẽ tự gửi khi có mạng.", "warning");
                             isRestoringDraftRef.current = true;
                     resetVersionRef.current += 1;
@@ -1050,7 +1047,7 @@ const updateDeductionValue = (
                         if (prompt) {
                             duplicatePrimaryCompletedRef.current = false;
                             duplicateForceRequestIdRef.current = null;
-                            pendingSplitPayloadsRef.current = payloads.slice(index + 1);
+                            pendingSplitPayloadsRef.current = reportsAwaitingDuplicateConfirmation(payloads, index);
                             setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
                             return;
                         }

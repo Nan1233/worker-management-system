@@ -36,6 +36,8 @@ on:
       - frontend/playwright.phase3.config.ts
       - frontend/src/pages/manager/**
       - frontend/src/pages/worker/ProcessPage.tsx
+      - frontend/src/pages/worker/processSubmitBatchSlices.ts
+      - frontend/tests/process-submit-batch-slices.test.cjs
       - frontend/src/pages/worker/processFormValidationRules.ts
       - frontend/tests/process-form-validation-rules.test.cjs
       - frontend/src/pages/worker/processDeductionLogic.ts
@@ -147,6 +149,7 @@ jobs:
             tests/permission-cache-invalidation-race.test.cjs \
             tests/f02-draft-storage-regression.test.cjs \
             tests/phase5-split-submit-resume.test.cjs \
+            tests/process-submit-batch-slices.test.cjs \
             tests/phase5-offline-atomic-batch.test.cjs \
             tests/offline-queue-flush-races.test.cjs \
             tests/offline-any-network.contract.test.cjs \
