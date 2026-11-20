@@ -1,6 +1,6 @@
 // Stable sheet mapping and baseline template definitions for KTC workbooks.
 // Preserve insertion order, labels and field types; workbook formatting/writing
-// belongs to monthlyWorkbookLocal.cjs and must not mutate these contracts.
+// belongs to the monthlyWorkbook* modules; these frozen contracts must not be mutated.
 const PROCESS_SHEETS = Object.freeze({
   CAN: { sheet: 'CÁN', title: 'CÁN', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
   EP: { sheet: 'ÉP', title: 'ÉP', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
