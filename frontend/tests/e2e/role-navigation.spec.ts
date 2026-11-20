@@ -123,6 +123,7 @@ test.describe('Role navigation (real browser)', () => {
     await expect(page.locator('#ttOk')).toHaveValue('40');
     await expect(page.locator('[data-form-ready="true"]')).toBeVisible();
     await page.locator('#ttOk').fill('35');
+    await expect(page.locator('#ttOk')).toHaveValue('35');
     await page.locator('#approved-change-reason').fill('Kiểm tra cập nhật sản lượng E2E');
     await expect(page.locator('#ttOk')).toHaveValue('35');
     const saved = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/production/${approvedId}` && r.request().method() === 'PUT');

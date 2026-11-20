@@ -273,6 +273,9 @@ export function useProcessMasterData(processId: number, processCode: string) {
   const [activeNgOptions, setActiveNgOptions] = useState<WorkerMasterOption[]>([]);
   const [activeDeductionOptions, setActiveDeductionOptions] = useState<WorkerMasterOption[]>([]);
   const [loadingMasterData, setLoading] = useState(true);
+  // Optional defect and deduction lists may arrive after the basic machines and
+  // products. Edit forms must not hydrate until this second phase finishes.
+  const [masterDetailsReady, setMasterDetailsReady] = useState(false);
   const requestGeneration = useRef(0);
 
   const load = useCallback(async () => {
@@ -281,6 +284,7 @@ export function useProcessMasterData(processId: number, processCode: string) {
       : PROCESS_ID_BY_CODE[String(processCode || "").trim().toUpperCase()] || 0;
 
     if (!resolvedProcessId) {
+      setMasterDetailsReady(false);
       setMachineOptions([]);
       setProductOptions([]);
       setActiveNgOptions([]);
@@ -291,6 +295,7 @@ export function useProcessMasterData(processId: number, processCode: string) {
 
     const generation = ++requestGeneration.current;
     setLoading(true);
+    setMasterDetailsReady(false);
 
     const isProcessSelectionRoute =
       typeof window !== "undefined" &&
@@ -370,9 +375,14 @@ export function useProcessMasterData(processId: number, processCode: string) {
       } else {
         setActiveDeductionOptions([]);
       }
+      // Basic dropdowns were already displayed; all NG/deduction rows are now
+      // resolved, so a report editor may restore saved detail values safely.
+      setMasterDetailsReady(true);
     } catch {
       if (generation === requestGeneration.current) {
         setLoading(false);
+        // Retain false on failure: avoid saving a report without its categories.
+        setMasterDetailsReady(false);
       }
     }
   }, [processId, processCode]);
@@ -404,5 +414,6 @@ export function useProcessMasterData(processId: number, processCode: string) {
     activeNgOptions,
     activeDeductionOptions,
     loadingMasterData,
+    masterDetailsReady,
   };
 }

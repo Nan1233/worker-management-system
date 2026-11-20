@@ -71,10 +71,11 @@ function WorkerReportEditV2() {
   // ProcessBasicInfoSection toggles this from its operation-type / CVK buttons; without a real setter those handlers threw.
   const [isCvkMode, setIsCvkMode] = useState(false);
 
-  const process = slug(report?.process_code);
+  // Do not request GC master data before the actual report process is known.
+  const process = report ? slug(report?.process_code) : "";
   const capabilities = useMemo(() => getProcessCapabilities(process), [process]);
-  const processId = getCanonicalProcessId(Number(report?.process_id) || 0, capabilities.processCode);
-  const { machineOptions, productOptions, activeNgOptions, activeDeductionOptions, loadingMasterData: masterLoading } = useProcessMasterData(processId, capabilities.processCode);
+  const processId = report ? getCanonicalProcessId(Number(report?.process_id) || 0, capabilities.processCode) : 0;
+  const { machineOptions, productOptions, activeNgOptions, activeDeductionOptions, loadingMasterData: masterLoading, masterDetailsReady } = useProcessMasterData(processId, capabilities.processCode);
   useEffect(() => setLoadingMasterData(masterLoading), [masterLoading]);
 
   const sourceDefects = useMemo(() => getWorkerDeclaredDefects<any>(report), [report]);
@@ -170,7 +171,8 @@ function WorkerReportEditV2() {
         if (!data) throw new Error("Không tìm thấy báo cáo.");
         if (!alive) return;
         originalUpdatedAtRef.current = source === "approved" ? (data.updated_at || null) : null;
-        setReport(data);
+        // Commit only the fully prepared report once. Intermediate report identities
+        // could trigger a second hydration after an operator starts editing.
         const rawMachineLines = Array.isArray(data.machine_lines) ? data.machine_lines : Array.isArray(data.machineLines) ? data.machineLines : [];
         const isMachineReport = String(data.operation_mode || "").toUpperCase() === "MACHINE" || rawMachineLines.length > 0;
         const legacyMachine = s(data.machine_no).split(",").map((v) => v.trim()).filter(Boolean)[0] || "";
@@ -239,7 +241,7 @@ function WorkerReportEditV2() {
   useEffect(() => {
     // Hydrate each loaded report once, after its master options are ready.
     // Later option refreshes must never overwrite unsaved edits.
-    if (!report || loading || loadingMasterData || hydratedReportRef.current === report) return;
+    if (!report || loading || loadingMasterData || !masterDetailsReady || hydratedReportRef.current === report) return;
     hydratedReportRef.current = report;
     const findNgKey = (item: any) => /^CUSTOM_NG_/i.test(s(item.defect_code)) ? "__otherNg" : editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
     const findDeductionKey = (item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)) ? "__otherDeduction" : editDeductionOptions.find((o: any) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
@@ -282,7 +284,7 @@ function WorkerReportEditV2() {
     });
     // Restored defect/deduction values and the ready flag are batched together.
     setFormReady(true);
-  }, [report, loading, loadingMasterData, sourceDefects, sourceDeductions, sourceLines, editNgOptions, editDeductionOptions]);
+  }, [report, loading, loadingMasterData, masterDetailsReady, sourceDefects, sourceDeductions, sourceLines, editNgOptions, editDeductionOptions]);
 
   // Preserve the persisted per-line standard snapshot on initial edit load.
   // Standard lookup is triggered by explicit machine/product changes in the form,

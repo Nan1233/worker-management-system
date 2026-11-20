@@ -35,6 +35,8 @@ on:
       - frontend/tests/e2e/phase3-public-security.spec.ts
       - frontend/playwright.phase3.config.ts
       - frontend/src/pages/manager/**
+      - frontend/src/pages/worker/useProcessMasterData.ts
+      - frontend/tests/approved-edit-hydration-gate.contract.test.cjs
       - frontend/tests/approved-reports-presentation.test.cjs
       - frontend/src/pages/worker/WorkerReportEditV2.tsx
       - frontend/src/pages/admin/MasterData.tsx
@@ -130,6 +132,7 @@ jobs:
             tests/machine-event-participant-api.contract.test.cjs \
             tests/manager-approved-native-navigation.contract.test.cjs \
             tests/approved-reports-presentation.test.cjs \
+            tests/approved-edit-hydration-gate.contract.test.cjs \
             tests/manager-pending-native-table.contract.test.cjs \
             tests/f02-process-form-extracted-hooks.test.cjs \
             tests/permission-cache-invalidation-race.test.cjs \
