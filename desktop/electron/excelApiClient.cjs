@@ -22,7 +22,7 @@ async function fetchWithTimeout(url, options = {}) {
     }
     const networkError = new Error(
       `Không kết nối được backend KTC (${API_BASE_URL}). ` +
-      'Kiểm tra Internet hoặc chờ Render khởi động rồi thử lại.'
+      'Kiểm tra Internet hoặc trạng thái dịch vụ Cloudflare Workers rồi thử lại.'
     );
     networkError.code = 'API_FETCH_FAILED';
     networkError.cause = error;
@@ -41,7 +41,7 @@ async function readApiError(response) {
     }
     const text = (await response.text()).trim();
     if (!text) return `HTTP ${response.status}`;
-    if (/<html|<!doctype/i.test(text)) return `HTTP ${response.status} - dịch vụ Render tạm thời không khả dụng.`;
+    if (/<html|<!doctype/i.test(text)) return `HTTP ${response.status} - dịch vụ Cloudflare Workers tạm thời không khả dụng.`;
     return text.length > 500 ? `${text.slice(0, 500)}…` : text;
   } catch {
     return `HTTP ${response.status}`;
@@ -66,7 +66,7 @@ async function fetchCompanyFiles(token, date) {
   );
   if (response.status === 401 || response.status === 403) throw new Error('Phiên đăng nhập đã hết hạn hoặc không có quyền xuất Excel.');
   if (response.status === 404) {
-    // Tương thích trong thời gian backend Render đang chuyển phiên bản.
+    // Tương thích khi Cloudflare Workers chưa hỗ trợ endpoint danh sách file.
     // Vẫn thử xuất hai workbook chuẩn; endpoint POST sẽ cho biết backend đã
     // được deploy đầy đủ hay chưa.
     await writeLog('WARN', 'COMPANY_FILE_LIST_404_USING_DEFAULT_GROUPS', { date });
