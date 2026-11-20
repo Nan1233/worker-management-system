@@ -920,11 +920,39 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
     const values = rowValues(code, report, deductionTypes, defectTypes, reportSettings);
     values.stt = sequenceInDate;
     if (mirrorTime) values.actualTime = values.workingTime;
+    const visibleHours = Number(workingColumnIndex >= 0 ? values.workingTime : values.actualTime);
+    const hourlyStandard = Number(values.standard);
+    const expectedQuantity = values.standard != null && Number.isFinite(hourlyStandard)
+      && Number.isFinite(visibleHours) && visibleHours >= 0
+      ? hourlyStandard * visibleHours : null;
+    if (expectedQuantity !== null) values.standard = expectedQuantity;
+    if (expectedQuantity !== null && expectedQuantity > 0 && values.output != null
+      && Number.isFinite(Number(values.output)))
+      values.achievement = Number(values.output) / expectedQuantity;
 
     columns.forEach((column, columnIndex) => {
       const cell = sheet.getCell(rowNumber, columnIndex + 1);
       const value = values[column.key];
-      if (column.key === 'outputPerHour' && outputColumnIndex >= 0
+      if (column.key === 'standard' && expectedQuantity !== null) {
+        const hoursIndex = workingColumnIndex >= 0 ? workingColumnIndex : actualColumnIndex;
+        if (hoursIndex >= 0) {
+          const hoursRef = sheet.getColumn(hoursIndex + 1).letter + rowNumber;
+          cell.value = {
+            formula: 'IFERROR(' + String(hourlyStandard) + '*' + hoursRef + ',"")',
+            result: expectedQuantity
+          };
+        } else cell.value = expectedQuantity;
+      } else if (column.key === 'achievement' && expectedQuantity !== null
+        && outputColumnIndex >= 0) {
+        const targetIndex = columns.findIndex(item => item.key === 'standard');
+        const outputRef = sheet.getColumn(outputColumnIndex + 1).letter + rowNumber;
+        const targetRef = sheet.getColumn(targetIndex + 1).letter + rowNumber;
+        cell.value = {
+          formula: 'IFERROR(IF(' + targetRef + '>0,' + outputRef + '/' + targetRef + ',""),"")',
+          result: expectedQuantity > 0 && Number.isFinite(Number(values.output))
+            ? Number(values.output) / expectedQuantity : ''
+        };
+      } else if (column.key === 'outputPerHour' && outputColumnIndex >= 0
         && (workingColumnIndex >= 0 || actualColumnIndex >= 0)) {
         const hoursIndex = workingColumnIndex >= 0 ? workingColumnIndex : actualColumnIndex;
         const hours = Number(workingColumnIndex >= 0 ? values.workingTime : values.actualTime);
@@ -942,6 +970,7 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
         cell.value = value === undefined ? null : value;
       }
       if (column.format) cell.numFmt = resolvedNumberFormat(value, column.format);
+      if (column.key === 'training') cell.numFmt = '0%';
       const numericValue = typeof value === 'number' && Number.isFinite(value) ? value : null;
       // Rule tháng 07/2026: nền dữ liệu mặc định trắng, không zebra/rainbow.
       // Chỉ các chỉ số tổng hợp chính mới có màu cố định; chi tiết trừ giờ/NG luôn nền trắng.
