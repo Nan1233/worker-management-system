@@ -50,7 +50,7 @@ test('read and insert stay within original transaction data flow',()=>{
   const readFlow=source.slice(source.indexOf('async function getTempMachineLines('),source.indexOf('function buildApprovedMachineDefectRows('));
   assert.ok(readFlow.indexOf('if (!lines.length) return []')<readFlow.indexOf('buildTempMachineLineDefectsQuery(lines)'));
   assert.ok(readFlow.indexOf('buildTempMachineLineDefectsQuery(lines)')<readFlow.indexOf('attachMachineLineDefects(lines, defects)'));
-  const copy=source.slice(source.indexOf('async function copyMachineLinesToApproved('),source.indexOf('function getExtraDataObject('));
+  const copy=source.slice(source.indexOf('async function copyMachineLinesToApproved('),source.indexOf('// Keep standard resolver warm-up input aligned'));
   assert.ok(copy.indexOf('const pendingDefects = buildApprovedMachineDefectRows(')<copy.indexOf('if (pendingDefects.length)'));
   assert.ok(copy.indexOf('buildApprovedMachineDefectsInsert(pendingDefects)')<copy.lastIndexOf('return { ids:'));
 });
