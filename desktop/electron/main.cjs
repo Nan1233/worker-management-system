@@ -15,6 +15,8 @@ const { readExcelChanges } = require('./excelDbSync.cjs');
 const { createExcelBackupRetention } = require('./excelBackupRetention.cjs');
 const {
   isTrustedRendererNavigation,
+  isTrustedIpcSender,
+  assertTrustedIpcSender,
   isSafeExternalUrl,
   isRetrySafeMethod,
   assertImportFileSize,
@@ -1497,7 +1499,17 @@ function createWindow() {
   });
 }
 
-ipcMain.on('ktc-network-online', () => {
+// Keep file, sync and diagnostic handlers callable only by the current KTC
+// main frame on the configured trusted origin or packaged index/offline page.
+function protectedDesktopIpc(handler) {
+  return (event, ...args) => {
+    assertTrustedIpcSender(event, mainWindow?.webContents, TRUSTED_RENDERER_FILES);
+    return handler(event, ...args);
+  };
+}
+
+ipcMain.on('ktc-network-online', (event) => {
+  if (!isTrustedIpcSender(event, mainWindow?.webContents, TRUSTED_RENDERER_FILES)) return;
   void writeLog('INFO', 'NETWORK_ONLINE_AUTO_SYNC_SKIPPED');
 });
 
@@ -1636,13 +1648,13 @@ async function handleApplyReportImport(payload = {}) {
   return { detected: changes.length, succeeded, failed, results: payloadResult.results || [], filePath, yearMonth: parsed.yearMonth || null };
 }
 
-ipcMain.handle('ktc-preview-excel-db-sync', (_event, payload) => handlePreviewExcelDbSync(payload));
-ipcMain.handle('ktc-preview-report-import', (_event, payload) => handlePreviewReportImport(payload));
-ipcMain.handle('ktc-apply-report-import', (_event, payload) => handleApplyReportImport(payload));
-ipcMain.handle('ktc-apply-excel-db-sync', (_event, payload) => handleApplyExcelDbSync(payload));
-ipcMain.handle('ktc-save-excel', (_event, payload) => handleManualExcelSync(payload));
-ipcMain.handle('ktc-sync-all-excel', (_event, payload) => handleManualExcelSync(payload));
-ipcMain.handle('ktc-configure-auto-sync', async (_event, token) => {
+ipcMain.handle('ktc-preview-excel-db-sync', protectedDesktopIpc((_event, payload) => handlePreviewExcelDbSync(payload)));
+ipcMain.handle('ktc-preview-report-import', protectedDesktopIpc((_event, payload) => handlePreviewReportImport(payload)));
+ipcMain.handle('ktc-apply-report-import', protectedDesktopIpc((_event, payload) => handleApplyReportImport(payload)));
+ipcMain.handle('ktc-apply-excel-db-sync', protectedDesktopIpc((_event, payload) => handleApplyExcelDbSync(payload)));
+ipcMain.handle('ktc-save-excel', protectedDesktopIpc((_event, payload) => handleManualExcelSync(payload)));
+ipcMain.handle('ktc-sync-all-excel', protectedDesktopIpc((_event, payload) => handleManualExcelSync(payload)));
+ipcMain.handle('ktc-configure-auto-sync', protectedDesktopIpc(async (_event, token) => {
   const resolvedToken = await resolveDesktopToken(token);
   configureAutomaticSync(resolvedToken);
   return {
@@ -1651,8 +1663,8 @@ ipcMain.handle('ktc-configure-auto-sync', async (_event, token) => {
     intervalMinutes: SYNC_INTERVAL_MS / 60000,
     exportRoot: getExportRoot()
   };
-});
-ipcMain.handle('ktc-open-export-folder', async (_event, date) => {
+}));
+ipcMain.handle('ktc-open-export-folder', protectedDesktopIpc(async (_event, date) => {
   const selected = date || getDateParts().date;
   assertDate(selected);
   const [year] = selected.split('-');
@@ -1661,31 +1673,31 @@ ipcMain.handle('ktc-open-export-folder', async (_event, date) => {
   const error = await shell.openPath(folder);
   if (error) throw new Error(error);
   return folder;
-});
-ipcMain.handle('ktc-get-export-folder', async (_event, date) => {
+}));
+ipcMain.handle('ktc-get-export-folder', protectedDesktopIpc(async (_event, date) => {
   const selected = date || getDateParts().date;
   assertDate(selected);
   const [year] = selected.split('-');
   const folder = path.join(getExportRoot(), year);
   await fs.mkdir(folder, { recursive: true });
   return folder;
-});
-ipcMain.handle('ktc-open-log-folder', async () => {
+}));
+ipcMain.handle('ktc-open-log-folder', protectedDesktopIpc(async () => {
   const folder = path.join(app.getPath('userData'), 'logs');
   await fs.mkdir(folder, { recursive: true });
   const error = await shell.openPath(folder);
   if (error) throw new Error(error);
   return folder;
-});
+}));
 
 ipcMain.on('ktc-frontend-painted', (event) => {
   // Only our own window may mark first paint; no renderer data is accepted.
-  if (mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents) {
+  if (mainWindow && !mainWindow.isDestroyed() && isTrustedIpcSender(event, mainWindow.webContents, TRUSTED_RENDERER_FILES)) {
     global.__KTC_STARTUP_MARK__?.('frontend_painted');
   }
 });
 
-ipcMain.handle('ktc-startup-diagnostics', () => {
+ipcMain.handle('ktc-startup-diagnostics', protectedDesktopIpc(() => {
   // Immutable, restricted metadata: never return log contents or auth data.
   const diagnostics = global.__KTC_STARTUP_DIAGNOSTICS__ || {};
   return {
@@ -1698,7 +1710,7 @@ ipcMain.handle('ktc-startup-diagnostics', () => {
     platform: process.platform,
     arch: process.arch
   };
-});
+}));
 
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));

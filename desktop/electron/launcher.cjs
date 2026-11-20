@@ -21,6 +21,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { sanitizeLogDetails } = require('./desktopLog.cjs');
+const { assertTrustedIpcSender } = require('./securityPolicy.cjs');
 
 // Excel export: use the company NAS when reachable; otherwise save locally
 // under the current Windows user's Documents\KTC\Bao cao san xuat folder.
@@ -286,7 +287,20 @@ async function ensureCurrentMonthlyFolder() {
 // writable-root resolution happens when Excel export/sync is requested.
 process.env.KTC_EXPORT_ROOT = readConfiguredExportRoot();
 
-ipcMain.handle('ktc-get-export-root', async () => {
+const TRUSTED_LAUNCHER_FILES = [
+  path.join(__dirname, '..', 'frontend', 'dist', 'index.html'),
+  path.join(__dirname, '..', 'assets', 'offline.html')
+];
+
+function protectedLauncherIpc(handler) {
+  return (event, ...args) => {
+    const owner = event?.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+    assertTrustedIpcSender(event, owner?.webContents, TRUSTED_LAUNCHER_FILES);
+    return handler(event, ...args);
+  };
+}
+
+ipcMain.handle('ktc-get-export-root', protectedLauncherIpc(async () => {
   const configured = readConfiguredExportRoot();
   const resolved = resolveWritableExportRoot(configured);
   process.env.KTC_EXPORT_ROOT = resolved.root;
@@ -298,17 +312,17 @@ ipcMain.handle('ktc-get-export-root', async () => {
     });
   }
   return resolved.root;
-});
+}));
 
-ipcMain.handle('ktc-reset-export-root', async () => {
+ipcMain.handle('ktc-reset-export-root', protectedLauncherIpc(async () => {
   const root = await saveConfiguredExportRoot(DEFAULT_EXPORT_ROOT);
   const resolved = resolveWritableExportRoot(root);
   process.env.KTC_EXPORT_ROOT = resolved.root;
   await ensureCurrentMonthlyFolder();
   return resolved.root;
-});
+}));
 
-ipcMain.handle('ktc-choose-export-root', async () => {
+ipcMain.handle('ktc-choose-export-root', protectedLauncherIpc(async () => {
   const current = normalizeExportRoot(process.env.KTC_EXPORT_ROOT || DEFAULT_EXPORT_ROOT);
   const result = await dialog.showOpenDialog({
     title: 'Chọn thư mục lưu Excel KTC',
@@ -322,9 +336,9 @@ ipcMain.handle('ktc-choose-export-root', async () => {
   const exportRoot = await saveConfiguredExportRoot(result.filePaths[0]);
   await fsp.mkdir(exportRoot, { recursive: true });
   return { canceled: false, exportRoot };
-});
+}));
 
-ipcMain.handle('ktc-save-statistics-excel', async (_event, payload = {}) => {
+ipcMain.handle('ktc-save-statistics-excel', protectedLauncherIpc(async (_event, payload = {}) => {
   const content = String(payload.content || '');
   if (!content) throw new Error('Không có dữ liệu thống kê để xuất Excel.');
   if (Buffer.byteLength(content, 'utf8') > 20 * 1024 * 1024) throw new Error('File thống kê vượt quá giới hạn 20 MB.');
@@ -338,7 +352,7 @@ ipcMain.handle('ktc-save-statistics-excel', async (_event, payload = {}) => {
   const filePath = path.join(folder, fileName.toLowerCase().endsWith('.xls') ? fileName : `${fileName}.xls`);
   await fsp.writeFile(filePath, content, 'utf8');
   return { success: true, filePath, exportRoot: root, fallback: Boolean(resolved.fallback) };
-});
+}));
 
 const originalReaddir = fsp.readdir.bind(fsp);
 fsp.readdir = async (...args) => {

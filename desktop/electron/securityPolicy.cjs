@@ -37,6 +37,26 @@ function isTrustedRendererNavigation(targetUrl, trustedFiles = []) {
   return trusted.has(candidate);
 }
 
+/**
+ * Every privileged IPC entry point must originate from the current window's
+ * main frame and a page already permitted to navigate in this deployment.
+ * Checking only the sender WebContents is insufficient: subframes can send IPC
+ * with the parent WebContents identity.
+ */
+function isTrustedIpcSender(event, expectedWebContents, trustedFiles = []) {
+  if (!event || !expectedWebContents || event.sender !== expectedWebContents) return false;
+  const frame = event.senderFrame;
+  if (!frame || frame !== expectedWebContents.mainFrame) return false;
+  return isTrustedRendererNavigation(frame.url, trustedFiles);
+}
+
+function assertTrustedIpcSender(event, expectedWebContents, trustedFiles = []) {
+  if (isTrustedIpcSender(event, expectedWebContents, trustedFiles)) return;
+  const error = new Error('KTC Desktop IPC sender is not trusted');
+  error.code = 'KTC_IPC_UNTRUSTED_SENDER';
+  throw error;
+}
+
 function isSafeExternalUrl(targetUrl) {
   try {
     const url = new URL(String(targetUrl || ''));
@@ -111,6 +131,8 @@ module.exports = {
   DEFAULT_TRUSTED_WEB_ORIGIN,
   normalizedFilePathFromUrl,
   isTrustedRendererNavigation,
+  isTrustedIpcSender,
+  assertTrustedIpcSender,
   isSafeExternalUrl,
   isRetrySafeMethod,
   assertImportFileSize,

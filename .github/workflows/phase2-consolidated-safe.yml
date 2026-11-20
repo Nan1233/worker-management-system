@@ -44,6 +44,9 @@ on:
       - desktop/electron/launcher.cjs
       - desktop/electron/preload.cjs
       - desktop/tests/electron-startup-ipc-privacy.test.cjs
+      - desktop/electron/securityPolicy.cjs
+      - desktop/electron/main.cjs
+      - desktop/tests/electron-ipc-sender-guard.test.cjs
       - frontend/tests/e2e/phase3-public-security.spec.ts
       - frontend/playwright.phase3.config.ts
       - frontend/src/pages/manager/**
@@ -241,6 +244,7 @@ jobs:
             tests/monthly-workbook-physical-event-metadata.test.cjs \
             tests/packaging-sync.test.cjs \
             tests/electron-startup-ipc-privacy.test.cjs \
+            tests/electron-ipc-sender-guard.test.cjs \
             tests/desktop-log-privacy.test.cjs \
             tests/startup-crash-diagnostics.test.cjs \
             tests/startup-performance.test.cjs \
@@ -265,6 +269,8 @@ jobs:
           node --check electron/desktopLog.cjs
           node --check electron/launcher.cjs
           node --check electron/preload.cjs
+          node --check electron/securityPolicy.cjs
+          node --check electron/main.cjs
 
   windows:
     name: Windows Desktop synthetic Excel and packaging source compatibility
@@ -286,7 +292,7 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run real XLSX roundtrip and Windows source packaging contracts
-        run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/packaging-sync.test.cjs tests/monthly-workbook-naming-parity.test.cjs tests/electron-startup-ipc-privacy.test.cjs tests/desktop-log-privacy.test.cjs tests/startup-crash-diagnostics.test.cjs tests/deep-security-boundary.test.cjs tests/renderer-auth-token-source.test.cjs
+        run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/packaging-sync.test.cjs tests/monthly-workbook-naming-parity.test.cjs tests/electron-startup-ipc-privacy.test.cjs tests/electron-ipc-sender-guard.test.cjs tests/desktop-log-privacy.test.cjs tests/startup-crash-diagnostics.test.cjs tests/deep-security-boundary.test.cjs tests/renderer-auth-token-source.test.cjs
       - run: node scripts/checkPackagedSharedContract.cjs
       - name: Windows release configuration, signing policy and update safety contracts
         run: node --test tests/release-signing.test.cjs tests/setup-auto-update.test.cjs tests/portable-upgrade-safety.test.cjs tests/deployment-profile.test.cjs
