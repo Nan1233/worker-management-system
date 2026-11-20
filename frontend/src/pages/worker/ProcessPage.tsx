@@ -88,9 +88,6 @@ import {
     validateRequiredExtraFields,
 } from "./processFormValidationRules";
 import { focusProcessValidationTarget } from "./processValidationFocus";
-import {
-    calculateDeductionTimeSummary,
-} from "./processDeductionLogic";
 import { useProcessQualityActions } from "./useProcessQualityActions";
 import { useProcessDeductionActions } from "./useProcessDeductionActions";
 
@@ -630,7 +627,6 @@ const machineAutocompleteOptions =
     // =====================================================
 
     const {
-        updateTotalDeduction,
         normalizeDeductionValue,
         updateDeductionValue,
         handleToggleDeduction,
