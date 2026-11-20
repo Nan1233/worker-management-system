@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { assertActiveAccessSession } = require("../services/refreshSessionService");
 const { effectiveRole, isSuperAdminRole } = require("../utils/roles");
 const db = require("../config/db");
 const { getOrLoadAuthUser } = require("../utils/authUserCache");
@@ -40,6 +41,10 @@ module.exports = async (req, res, next) => {
 
     if (!Number.isInteger(userId) || userId <= 0) {
       return res.status(401).json({ code: "TOKEN_USER_INVALID", message: "Thông tin tài khoản trong token không hợp lệ" });
+    }
+
+    if (!(await assertActiveAccessSession(userId, decoded.sid))) {
+      return res.status(401).json({ code: "SESSION_REPLACED", message: "Tài khoản đã đăng nhập ở nơi khác. Phiên này đã kết thúc." });
     }
 
     const currentUser = await getOrLoadAuthUser(userId, () => loadCurrentUser(userId));
