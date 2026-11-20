@@ -466,6 +466,8 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
       };
       changed += 1;
     }
+    // Standard target is a quantity, never a decimal hours/rate display.
+    standardCell.numFmt = '#,##0';
     // K is the approved TiDB actual_time snapshot. It must not be inferred
     // from J-L: historical MAI MACHINE rows have different time semantics.
     if ((actualHours === null || actualHours <= 0) && output !== null && output > 0) {
