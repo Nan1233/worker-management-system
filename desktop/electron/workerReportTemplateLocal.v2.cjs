@@ -682,7 +682,7 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.outputPerHour, number(report.calculationSnapshot?.actual_per_hour ?? report.actual_output_per_hour));
   set(contract.cols.ngRate, number(report.calculationSnapshot?.ng_rate ?? report.ng_rate));
   set(contract.cols.status, report.status);
-  set(contract.cols.note, report.note || report.review_note);
+  // Ghi chú báo cáo không còn là cột xuất; dữ liệu lịch sử vẫn lưu trong DB.
   set(contract.cols.id, Number(report.id) || null);
 
   writeDetailBlock(row, reportForDetails, processData, contract.deductions, 'deduction');
@@ -963,6 +963,14 @@ contract.cols.workTime = workTimeColumn;
     }
     const clearCount = Math.max(0, sheet.rowCount - (dataStartRow + reports.length) + 1);
     clearDataRows(sheet, dataStartRow + reports.length, clearCount, sheet.columnCount);
+  }
+  // Giữ vị trí cột template để tránh dịch công thức Excel; ẩn hoàn toàn Ghi chú.
+  for (let c = 1; c <= sheet.columnCount; c += 1) {
+    const heading = String(sheet.getRow(headerRow).getCell(c).value ?? '').trim().toLowerCase();
+    if (heading === 'ghi chú' || heading === 'ghi chu') {
+      sheet.getColumn(c).hidden = true;
+      for (let r = dataStartRow; r <= sheet.rowCount; r += 1) sheet.getRow(r).getCell(c).value = null;
+    }
   }
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const outputBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
