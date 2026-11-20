@@ -155,8 +155,7 @@ require('./excelExportContractPatch.v5.cjs');
 void writeLauncherLog('INFO', 'STARTUP_EXCEL_PATCH_V5_READY', { elapsedMs: startupElapsedMs() });
 // Compact one-sheet GC template is layered after v5 and remains DB-first.
 require('./compactGcExcelPatch.cjs');
-// Patch the existing white B column before v6 loads workerReportTemplateLocal.v2.
-require('./excelReportDateSubmissionPatch.cjs');
+// Worker template handles submitted_at and work_date directly; no loader hook needed.
 // v6 replaces the legacy split/monthly layout with the worker-report template.
 require('./excelExportContractPatch.v6.cjs');
 global.__KTC_STARTUP_MARK__('excel_patches_ready');
