@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ACCOUNTS, hashPath, loginManagement, route } from './helpers';
+import { ACCOUNTS, hashPath, loginManagement, projectAccount, route } from './helpers';
 
 // Password change for management accounts (real app, real API).
 // Uses the dedicated seeded account "e2e-pw" so the shared accounts keep their password.
@@ -7,8 +7,9 @@ import { ACCOUNTS, hashPath, loginManagement, route } from './helpers';
 const OLD = ACCOUNTS.manager.password;
 const NEW = 'MatKhauMoi#2026';
 
-test('manager changes own password; session ends; only the new password signs in', async ({ page }) => {
-  await loginManagement(page, { code: 'e2e-pw', password: OLD }, /^\/manager/);
+test('manager changes own password; session ends; only the new password signs in', async ({ page }, testInfo) => {
+  const username = projectAccount(testInfo, 'password');
+  await loginManagement(page, { code: username, password: OLD }, /^\/manager/);
   await page.goto(route('/manager/profile'));
   const card = page.getByTestId('change-password-card');
   await expect(card).toBeVisible();
@@ -39,7 +40,7 @@ test('manager changes own password; session ends; only the new password signs in
   await expect.poll(() => hashPath(page), { timeout: 10_000 }).toBe('/login');
 
   // The old password is refused, the new one works.
-  await page.getByPlaceholder('Nhập mã nhân viên').fill('e2e-pw');
+  await page.getByPlaceholder('Nhập mã nhân viên').fill(username);
   await page.getByRole('button', { name: /Tiếp tục/ }).click();
   await page.getByTestId('login-role-management').click();
   await page.locator('input[type=password]').fill(OLD);

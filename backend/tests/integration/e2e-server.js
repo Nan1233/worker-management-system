@@ -24,5 +24,14 @@ for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => process.exi
   await h.createUser(db, { username: 'e2e-lead', role: 'lead', processCodes: ['XLBV'], fullName: 'Tổ trưởng E2E' });
   await h.createUser(db, { username: 'e2e-admin', role: 'admin', fullName: 'Admin E2E' });
   await h.createUser(db, { username: 'e2e-pw', role: 'manager', processCodes: ['XLBV'], fullName: 'Quản lý đổi mật khẩu E2E' });
+  // Per-project, per-retry identities prevent persistent state collisions.
+  for (const project of ['D', 'M']) {
+    for (let retry = 0; retry <= 2; retry++) {
+      const suffix = `${project}${retry}`;
+      await h.createUser(db, { username: `E2E-W-${suffix}`, role: 'worker', workerCode: `E2E-W-${suffix}`, processCodes: ['XLBV'], fullName: 'Công nhân E2E' });
+      await h.createUser(db, { username: `E2E-E-${suffix}`, role: 'worker', workerCode: `E2E-E-${suffix}`, processCodes: ['XLBV'], fullName: 'Công nhân sửa báo cáo E2E' });
+      await h.createUser(db, { username: `e2e-pw-${suffix}`, role: 'manager', processCodes: ['XLBV'], fullName: 'Quản lý đổi mật khẩu E2E' });
+    }
+  }
   console.log(`KTC_E2E_API_READY http://127.0.0.1:${port}`);
 })().catch((error) => { console.error('E2E server failed', error); process.exit(1); });

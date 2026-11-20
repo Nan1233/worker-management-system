@@ -1,4 +1,4 @@
-import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, type Browser, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 
 // The app uses HashRouter: every in-app URL is  <origin>/#/<route>.
 export const WEB = (process.env.KTC_FRONTEND_URL || 'http://127.0.0.1:5173').replace(/\/$/, '');
@@ -12,6 +12,11 @@ export const ACCOUNTS = {
   admin: { code: 'e2e-admin', password: process.env.KTC_E2E_MANAGER_PASSWORD || 'Passw0rd!x' },
 };
 
+/** Each project/retry uses isolated mutable accounts on the disposable DB. */
+export const projectAccount = (info: TestInfo, kind: 'worker' | 'edit' | 'password'): string => {
+  const suffix = `${info.project.name.includes('mobile') ? 'M' : 'D'}${info.retry}`;
+  return kind === 'worker' ? `E2E-W-${suffix}` : kind === 'edit' ? `E2E-E-${suffix}` : `e2e-pw-${suffix}`;
+};
 export const route = (path: string) => `${WEB}/#${path}`;
 export const hashPath = (page: Page) => new URL(page.url()).hash.replace(/^#/, '').split('?')[0];
 

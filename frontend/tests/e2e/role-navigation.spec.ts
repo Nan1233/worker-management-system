@@ -1,15 +1,36 @@
-import { test, expect } from '@playwright/test';
-import { ACCOUNTS, API, apiToken, hashPath, loginManagement, route } from './helpers';
+import { test, expect, type Page } from '@playwright/test';
+import { ACCOUNTS, API, apiToken, hashPath, loginManagement, projectAccount, route } from './helpers';
 
 // Navigation contract per role against the real app (HashRouter URLs).
+async function clickManagementNav(page: Page, label: string) {
+  if ((page.viewportSize()?.width || 1440) <= 800) {
+    const nav = page.getByRole('navigation', { name: 'Điều hướng nhanh' });
+    await nav.getByRole('button', { name: 'Thêm', exact: true }).click();
+    await page.locator('#management-mobile-overflow').getByRole('button', { name: label, exact: true }).click();
+  } else {
+    await page.getByRole('navigation', { name: 'Điều hướng quản lý' }).getByRole('button', { name: label, exact: true }).click();
+  }
+}
+async function clickAdminNav(page: Page, label: string) {
+  if ((page.viewportSize()?.width || 1440) <= 800) {
+    const nav = page.getByRole('navigation', { name: 'Điều hướng quản trị trên di động' });
+    if (label === 'Chờ duyệt') {
+      await nav.getByRole('button', { name: label, exact: true }).click();
+    } else {
+      await nav.getByRole('button', { name: 'Mở danh sách trang khác' }).click();
+      await page.locator('#admin-mobile-overflow').getByRole('button', { name: label, exact: true }).click();
+    }
+  } else {
+    await page.getByRole('navigation', { name: 'Điều hướng quản trị viên' }).getByRole('button', { name: label, exact: true }).click();
+  }
+}
 
 test.describe('Role navigation (real browser)', () => {
   test('lead: master data opens inside /lead, without the defect catalogue', async ({ page }) => {
     await loginManagement(page, ACCOUNTS.lead, /^\/lead/);
-    const menu = page.getByRole('navigation', { name: 'Management navigation' });
-    await expect(menu.getByRole('button', { name: 'Lỗi NG' })).toHaveCount(0);
-
-    await menu.getByRole('button', { name: 'Máy móc' }).click();
+    const menu = page.getByRole('navigation', { name: (page.viewportSize()?.width || 1440) <= 800 ? 'Điều hướng nhanh' : 'Điều hướng quản lý' });
+    await expect(menu.getByRole('button', { name: 'Danh mục lỗi NG' })).toHaveCount(0);
+    await clickManagementNav(page, 'Máy móc');
     await expect.poll(() => hashPath(page)).toBe('/lead/master/machines');
     await expect(page.getByRole('tab')).toHaveText(['Máy', 'Sản phẩm & định mức', 'Trừ giờ']);
 
@@ -24,7 +45,7 @@ test.describe('Role navigation (real browser)', () => {
 
   test('lead: Excel page and approved page explain the Desktop requirement', async ({ page }) => {
     await loginManagement(page, ACCOUNTS.lead, /^\/lead/);
-    await page.getByRole('navigation', { name: 'Management navigation' }).getByRole('button', { name: 'Xuất Excel' }).click();
+    await clickManagementNav(page, 'Xuất báo cáo Excel');
     await expect.poll(() => hashPath(page)).toBe('/lead/export');
     await expect(page.getByTestId('desktop-excel-notice')).toBeVisible();
     await page.goto(route('/lead/approved'));
@@ -33,12 +54,12 @@ test.describe('Role navigation (real browser)', () => {
 
   test('manager: master data tabs include defects and stay under /manager', async ({ page }) => {
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
-    await page.getByRole('navigation', { name: 'Management navigation' }).getByRole('button', { name: 'Lỗi NG' }).click();
+    await clickManagementNav(page, 'Danh mục lỗi NG');
     await expect.poll(() => hashPath(page)).toBe('/manager/master/defects');
     await expect(page.getByRole('tab')).toHaveText(['Máy', 'Sản phẩm & định mức', 'Lỗi NG', 'Trừ giờ']);
 
     // The "Thống kê" menu item opens the statistics page (it used to bounce back to the dashboard).
-    await page.getByRole('navigation', { name: 'Management navigation' }).getByRole('button', { name: 'Thống kê' }).click();
+    await clickManagementNav(page, 'Thống kê sản xuất');
     await expect.poll(() => hashPath(page)).toBe('/manager/statistics');
     await page.waitForTimeout(500);
     expect(hashPath(page)).toBe('/manager/statistics');
@@ -46,9 +67,8 @@ test.describe('Role navigation (real browser)', () => {
 
   test('admin: reports/statistics/export menus exist; master tabs stay under /admin; process CRUD works', async ({ page }) => {
     await loginManagement(page, ACCOUNTS.admin, /^\/admin/);
-    const menu = page.getByRole('navigation', { name: 'Điều hướng quản trị viên' });
     for (const [label, path] of [['Chờ duyệt', '/admin/reports'], ['Đã duyệt', '/admin/approved'], ['Thống kê', '/admin/statistics'], ['Xuất Excel', '/admin/export']] as const) {
-      await menu.getByRole('button', { name: label }).click();
+      await clickAdminNav(page, label);
       await expect.poll(() => hashPath(page), label).toBe(path);
     }
 
@@ -70,9 +90,9 @@ test.describe('Role navigation (real browser)', () => {
     await expect(page.locator('table')).toContainText(code);
   });
 
-  test('lead: edits an approved report through the UI (route, save, new version)', async ({ page, request }) => {
+  test('lead: edits an approved report through the UI (route, save, new version)', async ({ page, request }, testInfo) => {
     // Setup through the real API: a worker report approved by the manager.
-    const workerToken = await apiToken(request, { username: ACCOUNTS.worker.code, access_type: 'worker' });
+    const workerToken = await apiToken(request, { username: projectAccount(testInfo, 'edit'), access_type: 'worker' });
     const managerToken = await apiToken(request, { username: ACCOUNTS.manager.code, password: ACCOUNTS.manager.password, access_type: 'management' });
     // A fresh (date, shift) per run keeps duplicate detection (409) out of the way on a reused database.
     const n = Math.floor(Date.now() / 1000);
@@ -96,6 +116,7 @@ test.describe('Role navigation (real browser)', () => {
     await expect.poll(() => hashPath(page)).toBe(`/lead/report/${approvedId}/edit`);
 
     await page.locator('#ttOk').fill('35');
+    await page.locator('#approved-change-reason').fill('Kiểm tra cập nhật sản lượng E2E');
     const saved = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/production/${approvedId}` && r.request().method() === 'PUT');
     await page.getByRole('button', { name: 'Lưu thay đổi' }).click();
     expect((await saved).status()).toBe(200);

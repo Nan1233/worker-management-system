@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ACCOUNTS, API, apiToken, hashPath, loginManagement, loginWorker, phoneContext, route } from './helpers';
+import { ACCOUNTS, API, apiToken, hashPath, loginManagement, loginWorker, phoneContext, projectAccount, route } from './helpers';
 
 // Real browser + real frontend + real backend + real database
 // (backend/tests/integration/e2e-server.js). Nothing is mocked and no step is
@@ -11,12 +11,12 @@ import { ACCOUNTS, API, apiToken, hashPath, loginManagement, loginWorker, phoneC
 // Excel: workbooks are produced by the Desktop app only, so on the web the
 // export page must say so (and link to the Desktop download).
 
-const state: { reportId: number; approvableId: number; managerToken: string; workerToken: string } = { reportId: 0, approvableId: 0, managerToken: '', workerToken: '' };
+const state: { reportId: number; approvableId: number; managerToken: string; workerToken: string; workerCode: string } = { reportId: 0, approvableId: 0, managerToken: '', workerToken: '', workerCode: '' };
 
-async function openFirstPendingReport(page: Page) {
+async function openFirstPendingReport(page: Page, workerCode: string) {
   await page.goto(route('/manager/reports'));
   await page.getByRole('button', { name: 'Tháng này' }).click();
-  const row = page.locator('main table tbody tr').filter({ hasText: ACCOUNTS.worker.code }).first();
+  const row = page.locator('main table tbody tr').filter({ hasText: workerCode }).first();
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.click();
   // ManagerReportWorkspace routes row clicks to ReportReviewDetail, not the old inline panel.
@@ -24,15 +24,16 @@ async function openFirstPendingReport(page: Page) {
 }
 
 test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ request }, testInfo) => {
+    state.workerCode = projectAccount(testInfo, 'worker');
     state.managerToken = await apiToken(request, { username: ACCOUNTS.manager.code, password: ACCOUNTS.manager.password, access_type: 'management' });
-    state.workerToken = await apiToken(request, { username: ACCOUNTS.worker.code, access_type: 'worker' });
+    state.workerToken = await apiToken(request, { username: state.workerCode, access_type: 'worker' });
   });
 
   test('worker submits a report through the real phone form', async ({ browser }) => {
     const context = await phoneContext(browser);
     const page = await context.newPage();
-    await loginWorker(page);
+    await loginWorker(page, state.workerCode);
 
     await page.goto(route('/worker/process/select'));
     await page.getByText('Xử lý bavia').first().click();
@@ -59,7 +60,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
-    await openFirstPendingReport(page);
+    await openFirstPendingReport(page, state.workerCode);
 
     // The native review-detail page uses its own reason/details modal, not the list bulk dialog.
     await page.locator('button.review-btn.reject').click();
@@ -80,7 +81,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
   test('worker sees rejection, and current policy refuses any edit to the rejected report', async ({ browser, request }) => {
     const context = await phoneContext(browser);
     const page = await context.newPage();
-    await loginWorker(page);
+    await loginWorker(page, state.workerCode);
     await page.goto(route('/worker/notifications'));
     await expect(page.getByText('Báo cáo đã bị từ chối')).toBeVisible();
     await expect(page.getByText(/Nhập sai số lượng OK/)).toBeVisible();
@@ -122,7 +123,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
     await page.goto(route('/manager/reports'));
     await page.getByRole('button', { name: 'Tháng này' }).click();
-    const targetRow = page.locator('main table tbody tr').filter({ hasText: ACCOUNTS.worker.code }).first();
+    const targetRow = page.locator('main table tbody tr').filter({ hasText: workerCode }).first();
     await expect(targetRow).toBeVisible({ timeout: 15_000 });
     await targetRow.click();
     await expect(page.locator('button.review-btn.approve')).toBeEnabled();
@@ -136,7 +137,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
 
     await page.goto(route('/manager/approved'));
     await page.getByRole('button', { name: 'Tháng này' }).click();
-    await expect(page.locator('main')).toContainText(ACCOUNTS.worker.code);
+    await expect(page.locator('main')).toContainText(state.workerCode);
     await expect(page.getByTestId('desktop-excel-notice')).toBeVisible();
 
     await page.goto(route('/manager/export'));
