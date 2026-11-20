@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ACCOUNTS, API, apiToken, hashPath, loginManagement, loginWorker, phoneContext, projectAccount, route } from './helpers';
+import { ACCOUNTS, API, apiToken, loginManagement, loginWorker, phoneContext, projectAccount, route } from './helpers';
 
 // Real browser + real frontend + real backend + real database
 // (backend/tests/integration/e2e-server.js). Nothing is mocked and no step is
