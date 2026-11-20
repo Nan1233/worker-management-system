@@ -604,6 +604,7 @@ if (typeof window !== "undefined") {
             refreshPromise = null;
             clearCurrentTabAuthSession();
             sessionStorage.setItem("ktcSessionReplacedMessage", "Tài khoản đang được sử dụng ở tab khác.");
+            sessionStorage.setItem(CROSS_TAB_LOGIN_MARKER_KEY, "1");
             const route = window.location.hash.replace(/^#/, "") || "/";
             if (!/^\/login(?:\/|$)/.test(route)) {
                 window.location.replace(`${window.location.origin}${window.location.pathname}#/login`);
