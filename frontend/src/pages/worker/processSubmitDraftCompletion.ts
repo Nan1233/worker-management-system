@@ -1,4 +1,4 @@
-import type { MutableRefObject, RefObject } from "react";
+import type { MutableRefObject } from "react";
 import { clearProcessDraftAsync } from "./processDraftStorage";
 
 /**
