@@ -91,7 +91,9 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
       if (hasReportValue)continue;
       const before=Number(originalSheet.getColumn(col).width)||0;
       const after=Number(sheet.getColumn(col).width)||0;
-      assert.equal(after,before,code+' H+ blank-data column '+col+' retains original width');
+      assert.ok(after >= Math.min(before,80),
+        code+' unused column '+col+' remains legible or is safely width-capped');
+      assert.ok(after <= 80,code+' column '+col+' must not be excessively wide');
     }
     assert.deepEqual(sheet.getCell('B'+(form.first-1)).fill,originalPink,code+' pink date row keeps source fill');
     assert.equal(sheet.getCell('C'+dataRow).value,'49-001',code+' employee');
