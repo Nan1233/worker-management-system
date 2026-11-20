@@ -969,8 +969,17 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
       } else {
         cell.value = value === undefined ? null : value;
       }
-      if (column.format) cell.numFmt = resolvedNumberFormat(value, column.format);
-      if (column.key === 'training') cell.numFmt = '0%';
+      // Only real hours/deductions use decimal display. All quantities,
+      // rates, targets and percentages are whole-number presentations.
+      const isDuration = ['workingTime','actualTime','deductionTime'].includes(column.key)
+        || column.group === 'deduction'
+        || /(?:time|hours|minutes|duration)/i.test(column.key);
+      const isPercent = ['training','achievement','ngRate'].includes(column.key);
+      if (isPercent) cell.numFmt = '0%';
+      else if (isDuration) cell.numFmt = '#,##0.00';
+      else if (column.format === NUMBER_FORMATS.DATE) cell.numFmt = NUMBER_FORMATS.DATE;
+      else if (typeof value === 'number' || cell.value?.formula) cell.numFmt = '#,##0';
+      else if (column.format) cell.numFmt = resolvedNumberFormat(value, column.format);
       const numericValue = typeof value === 'number' && Number.isFinite(value) ? value : null;
       // Rule tháng 07/2026: nền dữ liệu mặc định trắng, không zebra/rainbow.
       // Chỉ các chỉ số tổng hợp chính mới có màu cố định; chi tiết trừ giờ/NG luôn nền trắng.
@@ -1047,6 +1056,32 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
     if (column.format) cell.numFmt = resolvedNumberFormat(value, column.format);
     applyCellStyle(cell, { fill: COLORS.navy, fontColor: COLORS.white, bold: true, align: 'right' });
   });
+  // Fit to report contents (not only fixed schema widths). Keep hidden
+  // duplicate time columns hidden; expand every visible data-bearing column.
+  const displayedText = (cell) => {
+    const v = cell.value && typeof cell.value === 'object' && 'result' in cell.value
+      ? cell.value.result : cell.value;
+    if (v == null || v === '') return '';
+    if (v instanceof Date) return '00/00/0000';
+    if (typeof v === 'number') {
+      if (String(cell.numFmt||'').includes('%')) return String(Math.round(v*100))+'%';
+      if (String(cell.numFmt||'').includes('.00'))
+        return v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+      return v.toLocaleString('en-US',{maximumFractionDigits:0});
+    }
+    return typeof v === 'object' ? '' : String(v);
+  };
+  for (let col=1; col<=lastColumn; col++) {
+    const excelCol=sheet.getColumn(col);
+    if(excelCol.hidden) continue;
+    let needed=Number(excelCol.width)||10;
+    for(let r=5;r<totalRowNumber;r++) {
+      const cell=sheet.getRow(r).getCell(col);
+      for(const part of displayedText(cell).split(/\n/))
+        needed=Math.max(needed,part.length+4);
+    }
+    excelCol.width=Math.min(70,Math.ceil(needed));
+  }
   sheet.getRow(totalRowNumber).height = 24;
   sheet.autoFilter = { from: { row: 5, column: 1 }, to: { row: Math.max(5, totalRowNumber - 1), column: lastColumn } };
   sheet.pageSetup = {
