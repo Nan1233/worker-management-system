@@ -24,11 +24,15 @@ test('updater starts after launch and does not silently install on quit', () => 
 });
 
 test('TEST Setup release workflow pins GitHub beta channel and requires beta manifest', () => {
-  const profile = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../electron-builder.test-beta.json'), 'utf8'));
+  const profile = require('../electron-builder.test-beta.cjs');
   const workflow = fs.readFileSync(path.resolve(__dirname, '../../.github/workflows/publish-desktop-test-beta.yml'), 'utf8');
+  const baseBuild = require('../package.json').build;
+  assert.equal(profile.appId, baseBuild.appId);
+  assert.deepEqual(profile.nsis, baseBuild.nsis);
+  assert.deepEqual(profile.extraResources, baseBuild.extraResources);
   assert.equal(profile.publish[0].provider, 'github');
   assert.equal(profile.publish[0].channel, 'beta');
-  assert.match(workflow, /--config electron-builder\.test-beta\.json/);
+  assert.match(workflow, /--config electron-builder\.test-beta\.cjs/);
   assert.match(workflow, /release\/beta\.yml/);
   assert.match(workflow, /--prerelease --latest=false/);
 });
