@@ -1,9 +1,7 @@
-const ExcelJS = require('exceljs');
-const { PROCESS_SHEETS, PROCESS_TEMPLATE_SCHEMAS } = require('./monthlyWorkbookSchemas.cjs');
+'use strict';
+const { PROCESS_SHEETS } = require('./monthlyWorkbookSchemas.cjs');
 const { PROCESS_FILE_PREFIXES, processWorkbookFileName, summaryWorkbookFileName } = require('./monthlyWorkbookNaming.cjs');
-const { createPhysicalMachineMetadata } = require('./monthlyWorkbookPhysicalEvents.cjs');
-const { FORMS: ORIGINAL_KTC_FORMS, WORKBOOK1_FORMS, renderOriginalProcessTemplate } = require('./originalProcessExcelTemplate.cjs');
-const { calculateProductionMetrics, DEFAULT_SETTINGS, trainingFactor, calculateNg } = require('./productionCalculationEngine.cjs');
+const { trainingFactor } = require('./productionCalculationEngine.cjs');
 const { EXCEL_SYNC_CONTRACT_VERSION } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs') : '../../shared/excelSyncContract.cjs');
 
 const EXCEL_CONTRACT_VERSION = EXCEL_SYNC_CONTRACT_VERSION;
@@ -15,8 +13,7 @@ const { createGcModeHelper } = require('./monthlyWorkbookGcHelper.cjs');
 const { createMonthlySummarySheets } = require('./monthlyWorkbookSummarySheets.cjs');
 const { createProcessSheetRenderer } = require('./monthlyWorkbookProcessSheet.cjs');
 
-const { asText, asNumber, asInteger, NUMBER_FORMATS, resolvedNumberFormat,
-  asDate, asDateTime, normalize, pad2, dateKey } = require('./monthlyWorkbookValues.cjs');
+const { asText, resolvedNumberFormat, asDate, normalize, pad2, dateKey } = require('./monthlyWorkbookValues.cjs');
 
 const {
   assertApprovedDatabasePayload, countedNg, reportTimeKey, formulaSettingsFor,
@@ -24,9 +21,7 @@ const {
   settingsForReport, headerFontSize,
 } = require('./monthlyWorkbookReportData.cjs');
 
-const {
-  detailId, detailKey, reportDetailItems, processDetailTypes, detailValue, detailMap,
-} = require('./monthlyWorkbookDetails.cjs');
+const { detailKey, reportDetailItems, processDetailTypes, detailValue, detailMap } = require('./monthlyWorkbookDetails.cjs');
 
 const { thinBorder, solidFill, applyAllBorders, applyCellStyle } = require('./monthlyWorkbookCellStyles.cjs');
 
@@ -45,8 +40,6 @@ const { addSummary, addReconciliationSheet } = createMonthlySummarySheets({
   applyCellStyle, applyAllBorders, sortReports, formulaSettingsFor,
   settingsForReport, reportSnapshot, reportDetailItems, detailValue,
 });
-
-const GC_HELPER_SHEET = 'TAY MÁY CẮT LỒNG';
 
 const { addGcModeHelperSheet } = createGcModeHelper({ applyCellStyle, solidFill, applyAllBorders });
 
