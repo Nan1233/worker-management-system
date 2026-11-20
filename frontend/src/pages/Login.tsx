@@ -30,13 +30,14 @@ function Login() {
     const [, setAccessType] = useState<AccessType | null>(null);
     const [rememberAccount, setRememberAccount] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useState(() => sessionStorage.getItem("ktcSessionReplacedMessage") || "");
     const [loading, setLoading] = useState(false);
     const [loginLogoSrc, setLoginLogoSrc] = useState(LOGIN_LOGO_URL);
 
     useEffect(() => {
         if (initializedRef.current) return;
         initializedRef.current = true;
+        sessionStorage.removeItem("ktcSessionReplacedMessage");
         const passiveCrossTabRedirect = sessionStorage.getItem(CROSS_TAB_LOGIN_MARKER_KEY) === "1";
         sessionStorage.removeItem(CROSS_TAB_LOGIN_MARKER_KEY);
         if (passiveCrossTabRedirect) clearCurrentTabAuthSession(); else { preservePreviousRefreshTokenForLogin(); beginLoginTransition(); clearAuthSession({ bumpEpoch: false }); finishLoginTransition(); }
