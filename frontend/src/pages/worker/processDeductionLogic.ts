@@ -35,3 +35,18 @@ export function calculateDeductionTimeSummary(data: DeductionState, actualHours:
     totalTime: (actualMinutesTotal + deduction) / 60,
   };
 }
+
+/** Pure worker deduction checkbox transitions. Preserve existing selection identity. */
+export function toggleSelectedDeductionKeys<T extends string>(
+  current: T[], key: T, checked: boolean,
+): T[] {
+  return checked
+    ? current.includes(key) ? current : [...current, key]
+    : current.filter((item) => item !== key);
+}
+
+export function transitionSelectedDeduction(
+  current: DeductionState, key: string, checked: boolean,
+): DeductionState {
+  return { ...current, [key]: checked ? current[key] || "" : "" };
+}

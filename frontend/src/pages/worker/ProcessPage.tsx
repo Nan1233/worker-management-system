@@ -84,6 +84,8 @@ import {
     getProspectiveTotalWorkMinutes,
     normalizeDeductionInput,
     normalizeDeductionStoredValue,
+    toggleSelectedDeductionKeys,
+    transitionSelectedDeduction,
 } from "./processDeductionLogic";
 import {
     applyNgToggleToForm,
@@ -122,6 +124,7 @@ import {
     updateMachineLineDefectValue,
 } from "./processMachineLineState";
 import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
+import { hasProcessReportInput } from "./processFormResetGuard";
 import { filterProductsForSelection } from "./productSuggestionRules";
 
 import type {
@@ -736,104 +739,15 @@ const updateDeductionValue = (
     // CHỌN / BỎ CHỌN LOẠI TRỪ GIỜ
     // =====================================================
 
-    const handleToggleDeduction = (
-
-        key: DeductionKey,
-
-        checked: boolean
-
-    ) => {
-
-        if (checked) {
-
-            setSelectedDeduction(
-                (prev) => {
-
-                    if (
-                        prev.includes(
-                            key
-                        )
-                    ) {
-
-                        return prev;
-
-                    }
-
-
-                    return [
-                        ...prev,
-                        key
-                    ];
-
-                }
-            );
-
-
-            setDeductions((prev) => {
-
-                const next = {
-
-                    ...prev,
-
-                    [key]:
-                        prev[key]
-                        ||
-                        ""
-
-                };
-
-
-                updateTotalDeduction(
-                    next
-                );
-
-
-                return next;
-
-            });
-
-
-            return;
-
-        }
-
-
-        setSelectedDeduction(
-            (prev) =>
-                prev.filter(
-                    (item) =>
-                        item !== key
-                )
-        );
-
-
-        setDeductions((prev) => {
-
-            const next = {
-
-                ...prev,
-
-                [key]:
-                    ""
-
-            };
-
-
-            updateTotalDeduction(
-                next
-            );
-
-
+    // Deduction checkbox transitions are pure; keep time accounting centralized.
+    const handleToggleDeduction = (key: DeductionKey, checked: boolean) => {
+        setSelectedDeduction((previous) => toggleSelectedDeductionKeys(previous, key, checked));
+        setDeductions((previous) => {
+            const next = transitionSelectedDeduction(previous, key, checked);
+            updateTotalDeduction(next);
             return next;
-
         });
-
-
-        
-
     };
-
-
 
     // =====================================================
     // CẬP NHẬT GIÁ TRỊ LỖI NG
@@ -1265,23 +1179,7 @@ const updateDeductionValue = (
             return;
         }
         if (submitLockRef.current || submitting) return;
-        const hasEnteredData = Boolean(
-            form.productName.trim()
-            || form.machineNo.trim()
-            || Number(form.actualTime || 0) > 0
-            || Number(form.ttOk || 0) > 0
-            || Number(form.ttNg || 0) > 0
-            || selectedNg.length
-            || selectedDeduction.length
-            || machineLines.some((line) =>
-                line.machineCode.trim()
-                || line.productCode.trim()
-                || Number(line.okQuantity || 0) > 0
-                || Number(line.ngQuantity || 0) > 0
-                || Number(line.hours || 0) > 0
-                || Number(line.minutes || 0) > 0
-            )
-        );
+        const hasEnteredData = hasProcessReportInput(form, selectedNg, selectedDeduction, machineLines);
 
         if (hasEnteredData && !window.confirm("Làm mới sẽ xóa dữ liệu bạn đang nhập. Bạn có chắc muốn tiếp tục?")) {
             return;
