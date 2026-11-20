@@ -1,21 +1,14 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-
-function extract(start, end, name) {
-  const a = source.indexOf(start);
-  const b = source.indexOf(end, a);
-  assert.ok(a >= 0 && b > a, name + ' must exist');
-  return vm.runInNewContext(source.slice(a, b) + '\n' + name + ';', {});
-}
-const approvalScope = extract('function buildApprovalScopeQuery(', 'function buildRejectionScopeQuery(', 'buildApprovalScopeQuery');
-const rejectionScope = extract('function buildRejectionScopeQuery(', 'function buildTempMachineLineDefectsQuery(', 'buildRejectionScopeQuery');
-const approvedTransition = extract('function buildApprovedTempTransitionQuery(', 'async function copyApprovedReportDetails(', 'buildApprovedTempTransitionQuery');
-const rejectedTransition = extract('function buildRejectedReportUpdate(', 'function buildRejectedReportVersion(', 'buildRejectedReportUpdate');
+// Execute the live query/rejection builders, not source snippets from an
+// older version of productionTempApprovalModel.
+const {
+  buildApprovalScopeQuery: approvalScope,
+  buildRejectionScopeQuery: rejectionScope,
+  buildApprovedTempTransitionQuery: approvedTransition,
+} = require('../models/productionTempApprovalQueries');
+const { buildRejectedReportUpdate: rejectedTransition } = require('../models/productionTempRejectionBuilders');
 
 test('approval and rejection lock selected pending rows and scope manager access', () => {
   for (const scope of [approvalScope, rejectionScope]) {
