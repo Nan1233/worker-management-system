@@ -8,6 +8,9 @@ on:
       - backend/scripts/waitForIsolatedTidb.cjs
       - backend/tests/authorization-f09-scope.test.js
       - backend/models/productionTempApprovalQueries.js
+      - backend/models/productionTempApprovalModel.js
+      - backend/models/productionTempRejectionBuilders.js
+      - backend/tests/rejection-builders-batch-refactor.test.js
       - backend/routes/productionTempRoutes.js
       - backend/utils/dailyHoursLimit.js
       - backend/tests/integration/**
@@ -64,6 +67,8 @@ jobs:
         run: npm run test:integration
       - name: Concurrent approved edit, historical snapshots and RBAC
         run: node --test tests/approved-edit-concurrency.test.js tests/approved-edit-preserves-machine-data.test.js tests/phase2-batch3-historical-kpi-parity.test.js tests/authorization-process-scope.test.js tests/authorization-f09-scope.test.js
+      - name: Rejection SQL, version, audit and worker notice compatibility
+        run: node --test tests/rejection-builders-batch-refactor.test.js
       - name: Database diagnostic on failure
         if: failure()
         run: docker logs --tail 100 ktc-part1-tidb || true
