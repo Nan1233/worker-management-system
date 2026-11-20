@@ -212,6 +212,14 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   const reports = helpers.sortReports(sourceReports);
   const deductionTypes = helpers.processDetailTypes(code,processData,"deductionTypes","deductions","deduction");
   const defectTypes = helpers.processDetailTypes(code,processData,"defectTypes","defects","defect");
+  // The user-approved export rule applies to all company process forms that
+  // contain BOTH gross/work hours and a duplicate actual-time column.
+  // Never hide a literal K in other forms: e.g. K1 K is late/early hours.
+  const workingTimeColumn = Object.entries(config.fields).find(([, key]) => key === "workingTime")?.[0] || null;
+  const actualTimeColumn = Object.entries(config.fields).find(([, key]) => key === "actualTime")?.[0] || null;
+  const outputColumn = Object.entries(config.fields).find(([, key]) => key === "output")?.[0] || null;
+  const outputPerHourColumn = Object.entries(config.fields).find(([, key]) => key === "outputPerHour")?.[0] || null;
+  const unifiedTimeColumns = Boolean(workingTimeColumn && actualTimeColumn);
   const mapping = [];
   const putMap = (letter,key) => mapping.push({index:toNumber(letter),key,header:templateCellText(sheet.getCell(config.header,toNumber(letter)))});
   Object.entries(config.fields).forEach(([c,k])=>putMap(c,k));
@@ -394,6 +402,11 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     })
   } : null;
   if (workbook1) sheet.getColumn(2).hidden = true; // Thời gian nộp báo cáo
+  if (unifiedTimeColumns) {
+    // Keep the mirrored actual-time values for compatibility with old
+    // company formulas and the metadata column contract, but hide duplication.
+    sheet.getColumn(actualTimeColumn).hidden = true;
+  }
   // Clear old sample body cells, while preserving each company's formatting.
   const bodyEnd=sheet.rowCount;
   for(let r=workbook1 ? config.first-1 : config.first;r<=bodyEnd;r++){
@@ -463,6 +476,11 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     const excelWorkDate=new Date(Date.UTC(dayYear,dayMonth-1,dayNumber));
     const values={...snapshot,stt:++dayStt, date:excelWorkDate,
       expectedOutput:(asNumeric(snapshot.standard)||0)*(asNumeric(snapshot.actualTime)||0)};
+    if (unifiedTimeColumns) {
+      // Export presentation only: J=K in MAI, H=I in GC, I=J in DO,
+      // V=W in K2, etc. Do not modify approved records in TiDB.
+      values.actualTime = values.workingTime;
+    }
     // Preserve the established GC work-type codes when the row represents
     // non-product work; never replace them with an invented product code.
     if (code === "GC") {
@@ -484,6 +502,19 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         // Applies to every process template that maps a training column.
         if(key==="training") cell.numFmt="0.00%";
       }
+    }
+    if (unifiedTimeColumns && outputColumn && outputPerHourColumn) {
+      const time = asNumeric(values.workingTime);
+      const quantity = asNumeric(values.output);
+      const preview = time !== null && time > 0 && quantity !== null
+        ? quantity / time : "";
+      const target = row.getCell(toNumber(outputPerHourColumn));
+      const r = row.number;
+      const formula = "IFERROR(IF(OR(" + workingTimeColumn + r +
+        "<=0," + outputColumn + r + "=\"\"),\"\"," +
+        outputColumn + r + "/" + workingTimeColumn + r + "),\"\")";
+      target.value = { formula, result: preview };
+      target.numFmt = "#,##0.00";
     }
     const deductionDetails=helpers.detailMap(helpers.reportDetailItems(report,code,"deduction"),"deduction");
     for(const d of detailCols){
