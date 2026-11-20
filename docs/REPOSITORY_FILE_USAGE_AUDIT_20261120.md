@@ -44,3 +44,8 @@ Proposed canonical naming:
 5. Never delete a file solely because its name contains `vN`, `legacy`, `Temp` or `backup`.
 
 No production DB, merge or deployment touched. **Full automated test suite and Windows packaging have not been run.**
+
+## Follow-up cleanup
+- Removed `desktop/copy` (empty tracked placeholder).
+- Removed `desktop/electron/workerReportTemplateLocal.cjs` (superseded by the actively imported `.v2.cjs`; GitHub exact-name code search returned no references). Dynamic lookup and full packaged-runtime verification remain outstanding.
+- Confirmed export patches modify `monthlyWorkbookLocal` exports in sequence: v5, compact GC patch, then v6. Both `excelReportDateSubmissionPatch.cjs` and v6 override CommonJS module loaders. These are architectural debt; **do not delete or reorder until replacing their behavior with explicit module APIs and regression testing**.
