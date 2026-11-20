@@ -22,6 +22,8 @@ const { createRendererAuthClient } = require('./rendererAuthClient.cjs');
 const { createDesktopWindowFactory } = require('./desktopWindow.cjs');
 const { createDesktopExcelIpcHandlers } = require('./desktopExcelIpcHandlers.cjs');
 const { createDesktopSyncCoordinator } = require('./desktopSyncCoordinator.cjs');
+const { resolveDesktopDeploymentProfile } = require('./deploymentProfile.cjs');
+const { createDesktopRendererMonitoring } = require('./desktopRendererMonitoring.cjs');
 const { getDesktopDataRoot, getDocumentsRoot } = require('./platformPaths.cjs');
 const { readExcelChanges } = require('./excelDbSync.cjs');
 const { createExcelBackupRetention } = require('./excelBackupRetention.cjs');
@@ -46,7 +48,7 @@ const {
 
 
 const API_BASE_URL = String(
-  process.env.KTC_API_URL || 'https://worker-management-system-2-5jqv.onrender.com/api'
+  process.env.KTC_API_URL || resolveDesktopDeploymentProfile(process.env.KTC_DESKTOP_ENV || 'test').apiUrl
 ).trim().replace(/\/+$/, '');
 if (!/\/api$/i.test(API_BASE_URL)) {
   throw new Error('KTC_API_URL must be the full API base URL ending in /api');
@@ -61,8 +63,6 @@ const DOWNLOAD_RETRY_COUNT = 2;
 let mainWindow = null;
 let currentToken = '';
 let quitting = false;
-let tokenDiscoveryTimer = null;
-let lastApprovedMutationAt = 0;
 let excelDbSyncTimer = null;
 const reportImportPreviewGuard = new ReportImportPreviewGuard();
 
@@ -172,50 +172,13 @@ const {
   sendRenderer, wait, RETRY_COUNT, RETRY_DELAY_MS,
 });
 
-async function discoverRendererToken() {
-  try {
-    const normalized = await readRendererAccessToken();
-    // An empty storage read is not proof of logout: the remote frontend may
-    // be reloading or refreshing its auth state. Never erase a valid token
-    // mid-export. Expiry is still enforced by isUsableAccessToken.
-    if (!normalized && isUsableAccessToken(currentToken)) return currentToken;
-    if (normalized !== currentToken) {
-      configureAutomaticSync(normalized);
-      await writeLog('INFO', normalized ? 'TOKEN_DISCOVERED_AUTO_SYNC_ENABLED' : 'TOKEN_REMOVED_AUTO_SYNC_DISABLED');
-    }
-    return normalized;
-  } catch (error) {
-    await writeLog('WARN', 'TOKEN_DISCOVERY_FAILED', normalizeError(error));
-    return '';
-  }
-}
-
-function startTokenDiscovery() {
-  if (tokenDiscoveryTimer) clearInterval(tokenDiscoveryTimer);
-  if (excelDbSyncTimer) clearInterval(excelDbSyncTimer);
-  excelDbSyncTimer = null;
-  void discoverRendererToken();
-  // Avoid continuously executing JavaScript against the renderer while it is
-  // loading or the user is interacting with the application.
-  tokenDiscoveryTimer = setInterval(() => {
-    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isLoading()) return;
-    void discoverRendererToken();
-  }, 15000);
-  tokenDiscoveryTimer.unref?.();
-}
-
-function scheduleSyncAfterApprovedMutation(url, statusCode) {
-  if (statusCode < 200 || statusCode >= 300) return;
-  const lower = String(url || '').toLowerCase();
-  const changesApprovedData = lower.includes('/production-temp/approve')
-    || lower.includes('/production/approve')
-    || (lower.includes('/production/') && (lower.includes('/update') || lower.includes('/reports')));
-  if (!changesApprovedData) return;
-  const now = Date.now();
-  if (now - lastApprovedMutationAt < 1500) return;
-  lastApprovedMutationAt = now;
-  void writeLog('INFO', 'APPROVED_MUTATION_AUTO_SYNC_SKIPPED', { url: lower });
-}
+const { startTokenDiscovery, stopTokenDiscovery, scheduleSyncAfterApprovedMutation } =
+  createDesktopRendererMonitoring({
+    readRendererAccessToken, isUsableAccessToken,
+    getCurrentToken: () => currentToken, configureAutomaticSync,
+    writeLog, normalizeError, getMainWindow: () => mainWindow,
+    stopExcelDbSyncWatcher: startExcelDbSyncWatcher,
+  });
 
 const { createWindow } = createDesktopWindowFactory({
   BrowserWindow, shell, writeLog, normalizeError, API_BASE_URL, FRONTEND_INDEX,
@@ -315,10 +278,8 @@ app.on('activate', () => {
 });
 app.on('before-quit', () => {
   quitting = true;
-  if (tokenDiscoveryTimer) clearInterval(tokenDiscoveryTimer);
-  if (excelDbSyncTimer) clearInterval(excelDbSyncTimer);
-  excelDbSyncTimer = null;
-  tokenDiscoveryTimer = null;
+  stopTokenDiscovery();
+  startExcelDbSyncWatcher();
   currentToken = '';
   stopAutomaticSync();
 });
