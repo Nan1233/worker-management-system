@@ -17,8 +17,8 @@
 ## Bằng chứng kiểm thử
 
 - [Phase 2 consolidated run 44689976392](https://github.com/Nan1233/worker-management-system/actions/runs/44689976392): **6/6 PASS** trên runtime SHA, gồm Frontend lint/typecheck/build, unit tests, Backend, Excel và Windows.
-- [Three-part isolated acceptance run 44689976301](https://github.com/Nan1233/worker-management-system/actions/runs/44689976301): Backend/TiDB và Windows staging **PASS**; lần E2E đầu **FAIL do một bài mobile admin navigation flaky** (`clickAdminNav` không tìm thấy nút Đã duyệt). Đây là bài kiểm thử điều hướng, không thuộc logic submit được refactor; đã yêu cầu rerun để xác nhận. Không coi E2E đã PASS cho tới khi có kết quả.
-- Không dùng retry hoặc bỏ kiểm tra E2E để che lỗi. CI có `failOnFlakyTests`.
+- [Three-part isolated acceptance run 44689976301](https://github.com/Nan1233/worker-management-system/actions/runs/44689976301): Backend/TiDB **PASS**, Windows staging **PASS**. Lượt E2E đầu thất bại vì **một bài điều hướng mobile admin flaky** (không tìm nút "Đã duyệt"). Job E2E được chạy lại trên **cùng runtime SHA** và đạt **22/22 PASS, không flaky trong lượt chạy lại**. Do đó, kết quả cuối của workflow là **3/3 SUCCESS**, nhưng lịch sử lỗi intermittent của mobile nav vẫn là việc cần theo dõi.
+- CI giữ `failOnFlakyTests`; không bỏ kiểm thử, không sửa nhánh production để che kết quả thất bại trước.
 
 ## Phần còn lại và giới hạn
 
@@ -27,4 +27,4 @@
 - **Hạng mục 1/12 chưa xong:** Backend transaction/model, Desktop Excel/sync, Electron IPC/packaging và tổng kiểm toàn repo.
 - **Production NO-GO:** Chưa chạy UAT trên Windows PC công ty và dữ liệu TEST đối chiếu Excel–DB.
 
-Tài liệu này giữ nguyên dữ kiện CI được quan sát; cập nhật trạng thái E2E cuối sau khi rerun nếu đủ bằng chứng.
+Đợt 4 đạt các cổng tự động ở lượt nghiệm thu cuối; còn cần UAT thực địa và điều tra nguyên nhân gốc của lỗi điều hướng mobile từng xuất hiện.
