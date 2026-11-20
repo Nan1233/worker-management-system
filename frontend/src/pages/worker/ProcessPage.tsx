@@ -1701,21 +1701,6 @@ const updateDeductionValue = (
                 />
                 )}
 
-                <section className="worker-form-card">
-                        <label htmlFor="process-production-note" className="worker-card-title">
-                            Ghi chú (không bắt buộc)
-                        </label>
-                        <textarea
-                            id="process-production-note"
-                            value={form.note}
-                            onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))}
-                            placeholder="Nhập ghi chú về quá trình sản xuất hoặc sự cố máy (nếu có)"
-                            rows={3}
-                            maxLength={1000}
-                            style={{ width: "100%", boxSizing: "border-box", padding: "12px", borderRadius: "10px", border: "1px solid #cbd5e1", font: "inherit", resize: "vertical" }}
-                        />
-                    </section>
-
                 {submitValidationError && <div className="worker-submit-validation-error" role="alert">
                     <strong>Chưa thể nộp báo cáo</strong>
                     <span>{submitValidationError}</span>
