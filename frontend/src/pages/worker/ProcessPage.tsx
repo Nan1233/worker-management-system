@@ -77,8 +77,7 @@ import { useProcessProductOptions } from "./useProcessProductOptions";
 import { useMachineLineStandardLookup } from "./useMachineLineStandardLookup";
 import { useProcessSingleStandardLookup } from "./useProcessSingleStandardLookup";
 import { useProcessDraftSaveWarning } from "./useProcessDraftSaveWarning";
-import { useProcessDraftAutosave } from "./useProcessDraftAutosave";
-import { useProcessDraftRestore } from "./useProcessDraftRestore";
+import { useProcessDraftLifecycle } from "./useProcessDraftLifecycle";
 import { useProcessMachineLineActions } from "./useProcessMachineLineActions";
 import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
 
@@ -307,42 +306,14 @@ const machineAutocompleteOptions =
         duplicateForceRequestIdRef, isRestoringDraftRef, draftSaveTimerRef, resetVersionRef,
     });
 
-    useProcessDraftRestore({
-        process,
-        isRestoringDraftRef,
-        setForm,
-        setDeductions,
-        setSelectedDeduction,
-        setSelectedNg,
-        setMachineLines,
-        setMachineCount,
-        setOperationType,
-        setIsCvkMode,
-        setCutExecutionMode,
-        setOperationMode,
-        setExtraData,
-    });
-
-    useProcessDraftAutosave({
-        process,
-        processCode,
-        form,
-        deductions,
-        selectedDeduction,
-        selectedNg,
-        machineLines,
-        machineCount,
-        operationType,
-        operationMode,
-        isCvkMode,
-        cutExecutionMode,
-        extraData,
-        loadingWorker,
-        loadingMasterData,
-        submitting,
-        isRestoringDraftRef,
-        draftSaveTimerRef,
-        resetVersionRef,
+    useProcessDraftLifecycle({
+        process, processCode, form, deductions, selectedDeduction, selectedNg,
+        machineLines, machineCount, operationType, operationMode, isCvkMode,
+        cutExecutionMode, extraData, loadingWorker, loadingMasterData, submitting,
+        isRestoringDraftRef, draftSaveTimerRef, resetVersionRef,
+        setForm, setDeductions, setSelectedDeduction, setSelectedNg,
+        setMachineLines, setMachineCount, setOperationType, setIsCvkMode,
+        setCutExecutionMode, setOperationMode, setExtraData,
     });
 
     const isOnline = useProcessOnlineStatus();
