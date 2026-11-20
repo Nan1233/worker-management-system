@@ -17,9 +17,6 @@ import type { ProductionReport } from "../../types/production";
 import type { ProductStandardOption } from "../../services/masterDataService";
 
 import { useToast } from "../../components/feedback/toastContext";
-import {
-    clearProcessDraftAsync,
-} from "./processDraftStorage";
 import { useProcessOnlineStatus } from "./useProcessOnlineStatus";
 
 import type {
@@ -33,7 +30,6 @@ import type {
 import {
     clampWorkerWorkDate,
     createEmptyMachineLine,
-    getCurrentLocalDate,
     getWorkerAllowedWorkDates,
     initialDeduction,
     initialForm,
@@ -56,7 +52,6 @@ import {
 import {
     calculateActualOutput as calculateActualOutputValue,
     formatIntegerDisplay,
-    parseIntegerDisplay,
 } from "./processFormUtils";
 import {
     aggregateMachineLines,
@@ -86,7 +81,6 @@ import { useProcessDraftAutosave } from "./useProcessDraftAutosave";
 import { useProcessDraftRestore } from "./useProcessDraftRestore";
 import { useProcessMachineLineActions } from "./useProcessMachineLineActions";
 import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
-import { hasProcessReportInput, resetProcessFormRetainingWorker } from "./processFormResetGuard";
 
 import type {
     DeductionKey,
@@ -107,7 +101,6 @@ function ProcessPage() {
     const duplicatePrimaryCompletedRef = useRef(false);
     // Reuse the same idempotency key if the server accepted a forced duplicate but its response was lost.
     const duplicateForceRequestIdRef = useRef<string | null>(null);
-    const masterDataRequestSeqRef = useRef(0);
     const isRestoringDraftRef = useRef(false);
     const draftSaveTimerRef = useRef<number | null>(null);
     const resetVersionRef = useRef(0);
@@ -155,9 +148,6 @@ function ProcessPage() {
     } = useProcessMasterData(processInfo.id, processCode);
 
 
-    useEffect(() => {
-        masterDataRequestSeqRef.current += 1;
-    }, [processInfo.id, processCode, showToast]);
 
 
 const machineAutocompleteOptions =
