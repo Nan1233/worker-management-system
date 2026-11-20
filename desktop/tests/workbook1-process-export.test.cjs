@@ -74,6 +74,11 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     await exported.xlsx.load(built.buffer);
     const sheet = exported.getWorksheet(form.sheet);
     const dataRow = form.first;
+    if (code === 'MAI') {
+      assert.equal(sheet.getCell('J'+dataRow).value, 12, 'Mài J uses approved workingTime');
+      assert.equal(sheet.getCell('K'+dataRow).value, 12, 'Mài K must equal J, not approved actualTime');
+      assert.equal(sheet.getCell('L'+dataRow).value, 2, 'Mài deduction hours remain separate');
+    }
     const original = new ExcelJS.Workbook();
     await original.xlsx.readFile(source);
     const originalSheet = original.getWorksheet(form.sheet);
