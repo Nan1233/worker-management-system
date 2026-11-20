@@ -145,9 +145,21 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     if(trainingColumn){
       const trainingCell=sheet.getCell(trainingColumn+dataRow);
       assert.equal(trainingCell.value,1,code+' training ratio stays 1 for 100%');
-      assert.equal(trainingCell.numFmt,'0.00%',code+' training displays as 100%, not 1');
+      assert.equal(trainingCell.numFmt,'0%',code+' training displays as 100%, not 100.00%');
     }
 
+    const visibleTime = Object.entries(form.fields).find(([,key]) => key === 'workingTime')?.[0]
+      || Object.entries(form.fields).find(([,key]) => key === 'actualTime')?.[0];
+    const stdCol = Object.entries(form.fields).find(([,key]) => key === 'standard')?.[0]
+      || Object.entries(form.fields).find(([,key]) => key === 'expectedOutput')?.[0];
+    if (visibleTime && stdCol) {
+      const standardCell = sheet.getCell(stdCol+dataRow);
+      assert.equal(typeof standardCell.value.formula, 'string',code+' target standard is a formula');
+      assert.ok(standardCell.value.formula.includes('*'+visibleTime+dataRow),
+        code+' total target standard multiplies hourly DB standard by visible hours');
+      assert.equal(standardCell.value.result, 500*12,
+        code+' standard target is 500 SP/h x 12h');
+    }
     const timeFields=Object.entries(form.fields).filter(([,key])=>/(?:time|hours|minutes|duration)/i.test(key));
     assert.ok(timeFields.length,code+' has time columns');
     for(const [letter] of timeFields){
@@ -164,7 +176,10 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
       if (key !== 'achievement' && key !== 'ngRate') continue;
       const cell=sheet.getCell(column+dataRow);
       assert.equal(cell.numFmt,'0.00%',code+' '+key+' is displayed as percent');
-      assert.equal(cell.value,key==='achievement' ? 0.2 : 0.01,code+' '+key+' remains a numeric ratio');
+      if (key === 'achievement') {
+        assert.equal(cell.value.result, 100/(500*12),code+' achievement uses output / total standard');
+        assert.match(cell.value.formula,/\//,code+' achievement stays a native Excel formula');
+      } else assert.equal(cell.value,0.01,code+' NG percentage remains a numeric ratio');
       assert.equal(cell.fill?.fgColor?.argb,key==='achievement' ? 'FFFF5252' : 'FFC6E0B4',
         code+' '+key+' matches Gia công color thresholds');
     }
@@ -302,7 +317,7 @@ test('All six Workbook1 forms use Gia công percentage bands at thresholds',asyn
       worker_code:'49-001',full_name:'Kiểm thử',shift:'A',
       isApprovedDatabaseRecord:true,dataSource:'production_reports',
       calculationSnapshot:{
-        trainingFactor:1,standard:100,workingTime:8,actualTime:8,
+        trainingFactor:1,standard:100/(8*scenario.achievement),workingTime:8,actualTime:8,
         deductionTime:0,ok:100,allNg:1,countedNg:1,enteredOutput:100,
         adjustedOutput:100,outputPerHour:12.5,
         achievement:scenario.achievement,ngRate:scenario.ngRate
