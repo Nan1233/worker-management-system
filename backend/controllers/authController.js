@@ -172,13 +172,14 @@ function getDeviceName(req) {
     return "Unknown device";
 }
 
-function generateAccessToken(user) {
+function generateAccessToken(user, familyId) {
     return jwt.sign(
         {
             id: user.id || user.user_id,
             worker_id: user.worker_id || null,
             worker_code: user.worker_code || null,
             username: user.username,
+            sid: familyId,
             // super_admin is presented as admin + is_super_admin; authorization re-reads the DB row anyway.
             ...publicRoleFields(user.role)
         },
@@ -221,7 +222,7 @@ async function issueLoginSession(req, res, user) {
             : null;
 
     // Persist family root before exposing any usable refresh credential.
-    const rootSession = await refreshSessionService.createFamilyRoot({
+    const rootSession = await refreshSessionService.createExclusiveFamilyRoot({
         user_id: user.id,
         device_id: crypto.randomUUID(),
         device_name: getDeviceName(req),
@@ -230,7 +231,7 @@ async function issueLoginSession(req, res, user) {
         expires_at: expiresAt
     });
     const refreshToken = rootSession.refreshToken;
-    const accessToken = generateAccessToken(user);
+    const accessToken = generateAccessToken(user, rootSession.familyId);
 
     // Làm nóng cache xác thực để các API ngay sau đăng nhập không phải
     // truy vấn lại users/workers qua TiDB cho từng request.
@@ -457,7 +458,7 @@ exports.refresh = async (req, res) => {
             ipAddress: getClientIp(req),
         });
         const session = rotated.user;
-        const accessToken = generateAccessToken(session);
+        const accessToken = generateAccessToken(session, rotated.familyId);
 
         setCachedAuthUser({
             id: session.user_id,
