@@ -33,6 +33,9 @@ on:
       - frontend/playwright.phase3.config.ts
       - frontend/src/pages/manager/**
       - frontend/src/pages/worker/WorkerReportEditV2.tsx
+      - frontend/src/pages/admin/MasterData.tsx
+      - frontend/src/pages/admin/masterDataConfig.ts
+      - frontend/tests/master-data-config.test.cjs
       - frontend/src/layouts/AdminLayout.tsx
       - frontend/tests/e2e/role-navigation.spec.ts
       - frontend/playwright.config.ts
@@ -132,6 +135,7 @@ jobs:
             tests/offline-any-network.contract.test.cjs \
             tests/worker-single-click-submit.test.cjs \
             tests/master-control-center.test.cjs \
+            tests/master-data-config.test.cjs \
             tests/permissions-ui.test.cjs \
             tests/master-tabs-mobile.test.cjs \
             tests/admin-permission-responsive.contract.test.cjs
