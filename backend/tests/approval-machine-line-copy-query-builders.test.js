@@ -36,7 +36,7 @@ test('approved machine lines read preserves ordered selection and report id',()=
  assert.deepEqual(Array.from(result.params),['0009']);
 });
 test('copy flow keeps insert, ordered read, verification, defect insert in sequence',()=>{
- const flow=source.slice(source.indexOf('async function copyMachineLinesToApproved('),source.indexOf('function getExtraDataObject('));
+ const flow=source.slice(source.indexOf('async function copyMachineLinesToApproved('),source.indexOf('// Keep standard resolver warm-up input aligned'));
  const markers=['buildApprovedMachineLinesInsert(tempLines, approvedReportId)','await query(connection, machineInsertSql, machineInsertParams)','buildApprovedMachineLinesRead(approvedReportId)','await qRows(connection, approvedLinesSql, approvedLinesParams)','verifyApprovedMachineLineCopy(approvedRows, tempLines, tempReportId, approvedReportId)','buildApprovedMachineDefectRows(tempLines, byInsertOrder)','buildApprovedMachineDefectsInsert(pendingDefects)','await query(connection, defectInsertSql, defectInsertParams)'];
  const positions=markers.map(x=>flow.indexOf(x));
  assert.ok(positions.every(x=>x>=0));
