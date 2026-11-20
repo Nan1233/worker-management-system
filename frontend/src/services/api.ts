@@ -597,7 +597,7 @@ function scheduleConnectionRestore(): void {
 
 if (typeof window !== "undefined") {
     window.addEventListener("storage", (event) => {
-        if (event.key === ACTIVE_AUTH_TAB_KEY && getAccessToken() && !isActiveBrowserTab()) {
+        if (event.key?.startsWith(ACTIVE_AUTH_TAB_KEY) && getAccessToken() && !isActiveBrowserTab()) {
             crossTabAuthInvalidated = true;
             refreshAbortController?.abort();
             refreshAbortController = null;
