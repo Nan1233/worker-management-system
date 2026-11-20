@@ -3,14 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
-const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-const start = source.indexOf('function attachMachineLineDefects(');
-const end = source.indexOf('function buildTempMachineLinesRead(', start);
-assert.ok(start >= 0 && end > start);
-const context = {};
-vm.runInNewContext(source.slice(start, end), context);
-const attach = vm.runInNewContext('attachMachineLineDefects', context);
+// Test the extracted domain function through its real module export.
+const { attachMachineLineDefects: attach } = require('../modules/production/domain/machineDefectLineage');
 
 test('defects remain attached to correct machine and retain per-line order', () => {
   const lines = [{ id: 8, machine_code: 'A' }, { id: '9', machine_code: 'B' }];
