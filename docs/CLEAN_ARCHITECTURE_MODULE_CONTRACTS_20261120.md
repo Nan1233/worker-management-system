@@ -105,3 +105,13 @@ cd ../backend && npm run check && npm test
 ```
 
 Các lỗi do source-extraction khác phải được xử lý trước merge. Test chỉ được đánh dấu PASS khi có log chạy tại đúng commit.
+
+## Lượt cải tiến tiếp — manager rejection và ổn định test cấu trúc
+
+- `frontend/src/pages/manager/pendingReportBatchRejection.ts`: chuyển workflow từ chối từng báo cáo ra khỏi page, vẫn tuần tự, gom danh sách ID lỗi và thông báo lỗi từng báo cáo. `Reports.tsx` chỉ thực hiện xác nhận từ người dùng, giữ selection/filter/detail scope và refresh.
+- `backend/services/productionTempSubmissionService.js`: dùng `findSubmissionProcessCode(processId, executor)` ở bước kiểm tra tổng giờ; giữ executor/transaction do caller truyền, fallback process code và feature toggle.
+- `frontend/src/pages/worker/processSubmitDraftCompletion.ts`: loại bỏ React type import không dùng.
+- `frontend/tests/manager-pending-detail-race.contract.test.cjs`: vẫn kiểm tra close invalidates detail request, nhưng kiểm tra button close ở `PendingReportDetail.tsx` là nơi UI được tách tới.
+- `frontend/tests/phase5-approval-outcome-refresh.test.cjs`: cập nhật end marker `const detailKpi =` đã không còn tồn tại thành comment thực tế trước phần report code; giữ nguyên các assertion success-before-refresh.
+
+**Kiểm tra đã làm:** đối chiếu nội dung module và 9/9 điều kiện cấu trúc bằng GitHub fetch; **không** phải node test/typecheck/build. Thiếu checkout và môi trường CI runtime trong lượt này nên chưa ghi PASS nghiệm thu. Chưa merge/deploy.
