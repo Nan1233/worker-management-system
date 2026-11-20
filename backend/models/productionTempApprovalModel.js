@@ -1,5 +1,6 @@
 const { buildApprovalScopeQuery, buildRejectionScopeQuery, buildApprovedDetailCopyQuery, buildApprovedDetailReadQuery, buildApprovedTempTransitionQuery } = require('./productionTempApprovalQueries');
 const AuditService = require("../services/auditService");
+const { buildTempMachineLineDefectsQuery, buildApprovedMachineDefectsInsert, buildApprovedMachineLinesRead } = require('./productionApprovalMachineQueries');
 const {
   getApprovedWorkDate,
   buildApprovedVersionPreloaded,
@@ -419,45 +420,6 @@ async function deliverApprovedPostCommitNotifications(notifications) {
 
 
 
-function buildTempMachineLineDefectsQuery(lines) {
-  const ids = lines.map((line) => {
-    const rawId = line?.id;
-    const id = Number(rawId);
-    if ((typeof rawId !== "number" && (typeof rawId !== "string" || !/^[0-9]+$/.test(rawId)))
-      || !Number.isSafeInteger(id) || id <= 0) {
-      const error = new Error("Dòng máy tạm có ID không hợp lệ; đã hủy duyệt để bảo vệ dữ liệu");
-      error.status = 500;
-      error.code = "TEMP_MACHINE_LINE_INVALID_ID";
-      error.isPublic = true;
-      throw error;
-    }
-    return id;
-  });
-  if (new Set(ids).size !== ids.length) {
-    const error = new Error("Dòng máy tạm có ID trùng lặp; đã hủy duyệt để bảo vệ dữ liệu");
-    error.status = 500;
-    error.code = "TEMP_MACHINE_LINE_DUPLICATE_ID";
-    error.isPublic = true;
-    throw error;
-  }
-  return {
-    sql: `SELECT *
-       FROM production_temp_machine_defects
-      WHERE machine_line_id IN (${ids.map(() => "?").join(",")})
-      ORDER BY machine_line_id ASC, id ASC`,
-    params: ids,
-  };
-}
-
-function buildApprovedMachineDefectsInsert(pendingDefects) {
-  return {
-    sql: `INSERT INTO production_report_machine_defects
-       (machine_line_id,defect_type_id,defect_code,defect_name,quantity)
-       VALUES ${pendingDefects.map(() => "(?,?,?,?,?)").join(",")}`,
-    params: pendingDefects.flat(),
-  };
-}
-
 function buildApprovedMachineLinesInsert(tempLines, approvedReportId) {
   const columns = `report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
         machine_time_hours,standard_output,standard_time_seconds,standard_source,ok_quantity,ng_quantity,
@@ -468,17 +430,6 @@ function buildApprovedMachineLinesInsert(tempLines, approvedReportId) {
     params: buildApprovedMachineLineValues(tempLines, approvedReportId),
   };
 }
-
-function buildApprovedMachineLinesRead(approvedReportId) {
-  return {
-    sql: `SELECT * FROM production_report_machine_lines WHERE report_id=? ORDER BY sort_order ASC, id ASC`,
-    params: [approvedReportId],
-  };
-}
-
-
-
-
 
 function buildApprovedVersionRequest(item, approvedReportId, reviewerId, machineLines, defects, deductions) {
   return {
