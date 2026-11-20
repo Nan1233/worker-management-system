@@ -12,7 +12,7 @@ const ctx={};
 vm.runInNewContext(source.slice(begin,end),ctx);
 const read=vm.runInNewContext('buildApprovedMachineLinesRead',ctx);
 test('legacy and copy paths share one ordered approved machine line read builder',()=>{
- const copy=source.slice(source.indexOf('async function copyMachineLinesToApproved('),source.indexOf('function getExtraDataObject('));
+ const copy=source.slice(source.indexOf('async function copyMachineLinesToApproved('),source.indexOf('// Keep standard resolver warm-up input aligned'));
  const legacy=source.slice(source.indexOf('async function createLegacyApprovedSnapshot('),source.indexOf('// Preserve the positional values'));
  assert.match(copy,/buildApprovedMachineLinesRead\(approvedReportId\)/);
  assert.match(legacy,/readLegacySnapshotRows\(connection, buildApprovedMachineLinesRead\(approvedReportId\)\)/);
