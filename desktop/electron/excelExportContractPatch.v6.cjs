@@ -12,45 +12,6 @@ if (typeof buildOriginalProcessWorkbookLocal !== 'function') {
 const ORIGINAL_COMPANY_CODES = new Set(['GC', 'MAI', 'DO', 'K1', 'K2', 'CAN', 'EP', 'XLBV']);
 const WORKBOOK1_CODES = new Set(['GC', 'MAI', 'DO', 'CAN', 'EP', 'XLBV']);
 
-if (typeof global.findDataStartRow !== 'function') {
-  global.findDataStartRow = function findDataStartRow(sheet, headerRow) {
-    for (let r = headerRow + 1; r <= Math.min(sheet.rowCount, headerRow + 20); r += 1) {
-      const row = sheet.getRow(r);
-      let nonEmpty = false;
-      for (let c = 1; c <= sheet.columnCount; c += 1) {
-        if (String(row.getCell(c)?.value ?? '').trim()) {
-          nonEmpty = true;
-          break;
-        }
-      }
-      if (!nonEmpty) return r;
-      const first = String(row.getCell(1)?.value ?? '').trim().toLowerCase();
-      if (first === '1' || first === 'stt') return r;
-    }
-    return headerRow + 1;
-  };
-}
-
-if (typeof global.cloneRowStyle !== 'function') {
-  global.cloneRowStyle = function cloneRowStyle(sheet, sourceRow, targetRow) {
-    if (!sourceRow || !targetRow) return;
-    targetRow.height = sourceRow.height;
-    targetRow.hidden = sourceRow.hidden;
-    targetRow.outlineLevel = sourceRow.outlineLevel;
-    const maxColumns = Math.max(sheet.columnCount, sourceRow.cellCount);
-    for (let c = 1; c <= maxColumns; c += 1) {
-      const source = sourceRow.getCell(c);
-      const target = targetRow.getCell(c);
-      if (source.font) target.font = source.font;
-      if (source.fill) target.fill = source.fill;
-      if (source.border) target.border = source.border;
-      if (source.alignment) target.alignment = source.alignment;
-      if (source.protection) target.protection = source.protection;
-      if (source.numFmt) target.numFmt = source.numFmt;
-    }
-  };
-}
-
 const { buildWorkerProcessWorkbook, PROCESS_CODES, PROCESS_FILE_PREFIXES } = require('./workerReportTemplateLocal.v2.cjs');
 
 const norm = (value) => String(value ?? '')
