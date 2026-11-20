@@ -528,7 +528,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       } else {
         cell.value = null;
       }
-      cell.numFmt = '#,##0.00';
+      cell.numFmt = '#,##0';
     }
     if (achievementColumn && outputColumn && targetColumn) {
       const cell = row.getCell(toNumber(achievementColumn));
@@ -541,7 +541,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
           outputColumn + r + '/' + targetColumn + r + ',""),"")',
         result: ratio ?? ''
       };
-      cell.numFmt = '0.00%';
+      cell.numFmt = '0%';
     }
     // Every process with a productivity column uses its own visible hour
     // column, even when the original form has only one time column (K1/XLBV).
@@ -556,7 +556,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         "<=0," + outputColumn + r + "=\"\"),\"\"," +
         outputColumn + r + "/" + visibleHoursColumn + r + "),\"\")";
       target.value = { formula, result: preview };
-      target.numFmt = "#,##0.00";
+      target.numFmt = "#,##0";
     }
     const deductionDetails=helpers.detailMap(helpers.reportDetailItems(report,code,"deduction"),"deduction");
     for(const d of detailCols){
@@ -577,7 +577,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       if (missingHours > 0.000001) {
         const cell = row.getCell(unmatchedMaiDeductionCol);
         cell.value = missingHours;
-        cell.numFmt = "0.##";
+        cell.numFmt = "#,##0.00";
         cell.note = "Có khoản trừ giờ trong báo cáo đã duyệt chưa xác định được cột của mẫu Mài. Kiểm tra loại trừ trong dữ liệu nguồn; không tự gán sang loại khác.";
       } else if (missingHours < -0.000001) {
         // A source/detail mapping collision is an integrity problem, not an
@@ -699,7 +699,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       const row = sheet.getRow(rowNumber);
       for (const {col,field} of percentageColumns) {
         const cell = row.getCell(col);
-        cell.numFmt = "0.00%";
+        cell.numFmt = "0%";
         const displayRatio = cell.value && typeof cell.value === "object"
           && Object.prototype.hasOwnProperty.call(cell.value, "result")
           ? cell.value.result : cell.value;
@@ -743,7 +743,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         }
       }
     }
-    // Time and deduction amounts retain source column widths. Display at
+    // Time and deduction amounts use two decimals. Display at
     // most two decimals, without modifying underlying numeric precision.
     const timeColumns=new Set(Object.entries(config.fields)
       .filter(([,field])=>/(?:time|hours|minutes|duration)/i.test(field))
@@ -770,12 +770,26 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       if (v instanceof Date) return "00/00/0000";
       if (typeof v === "number") {
         if (cell.numFmt && cell.numFmt.includes("%"))
-          return (v*100).toLocaleString("en-US",{maximumFractionDigits:2})+"%";
-        return String(v);
+          return (v*100).toFixed(0)+"%";
+        if (String(cell.numFmt||"").includes(".00"))
+          return v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+        return v.toLocaleString("en-US",{maximumFractionDigits:0});
       }
-      if (typeof v === "object")
-        return String(v.result ?? v.text ?? (Array.isArray(v.richText)
-          ? v.richText.map(item=>item.text).join("") : v.formula ?? ""));
+      if (typeof v === "object") {
+        if (v.result !== undefined && v.result !== null && v.result !== "") {
+          const result=Number(v.result);
+          if(Number.isFinite(result)){
+            if(String(cell.numFmt||"").includes("%"))
+              return (result*100).toFixed(0)+"%";
+            if(String(cell.numFmt||"").includes(".00"))
+              return result.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+            return result.toLocaleString("en-US",{maximumFractionDigits:0});
+          }
+          return String(v.result);
+        }
+        return String(v.text ?? (Array.isArray(v.richText)
+          ? v.richText.map(item=>item.text).join("") : ""));
+      }
       return String(v);
     };
     for (let col=1;col<=lastDataCol;col++) {
@@ -796,7 +810,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         }
       }
       const sourceWidth=Number(column.width)||0;
-      if (timeColumns.has(col)) continue; // Keep company time column width.
+      // Time columns also need content-based sizing; source widths can clip 12.00.
       if (col>=8) {
         // H onward: preserve the company's width. Only enlarge when an
         // ACTUAL report value will be clipped. Ignore the pink day separator,
@@ -811,12 +825,35 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         const minimum=dateColumns.has(col)?16:0;
         const required=longestActual ? longestActual+3 : 0;
         if (required>sourceWidth || minimum>sourceWidth)
-          column.width=Math.min(255,Math.ceil(Math.max(sourceWidth,required,minimum)));
+          column.width=Math.min(80,Math.ceil(Math.max(sourceWidth,required,minimum)));
       } else {
         // A-G: allow normal content-based fitting, including header words.
         const requested=Math.max(sourceWidth,longestData+4,
           Math.min(longestHeaderWord+4,36),dateColumns.has(col)?16:0,12);
-        column.width=Math.min(255,Math.ceil(requested));
+        column.width=Math.min(80,Math.ceil(requested));
+      }
+    }
+    // Final formats MUST run after copying the original template's cell styles;
+    // otherwise 100.00% and fractional quantities return on exported rows.
+    // Only time/deduction columns show decimals; all quantities, rates and
+    // percentages use zero decimal places (without rounding the stored value).
+    const ratioKeys = new Set(["training","achievement","ngRate"]);
+    const ratioCols = new Set(Object.entries(config.fields)
+      .filter(([,field])=>ratioKeys.has(field)).map(([letter])=>toNumber(letter)));
+    const nonNumericKeys = new Set(["workerCode","workerName","product","machine","shift","date","entryDate"]);
+    const sourceMappedTimeCols = new Set(timeColumns);
+    for (const rowNumber of workbook1DataRows) {
+      const row=sheet.getRow(rowNumber);
+      for(let col=1;col<=lastDataCol;col++) {
+        const cell=row.getCell(col);
+        const raw=cell.value;
+        if (raw == null || raw instanceof Date) continue;
+        const isNumeric=typeof raw==="number" ||
+          (typeof raw==="object" && typeof raw.formula==="string");
+        if (!isNumeric) continue;
+        if (ratioCols.has(col)) cell.numFmt="0%";
+        else if (sourceMappedTimeCols.has(col)) cell.numFmt="#,##0.00";
+        else cell.numFmt="#,##0";
       }
     }
     // Header alignment applies to every retained column and every header row.
