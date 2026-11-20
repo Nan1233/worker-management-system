@@ -398,6 +398,20 @@ async function reconcileMaiWorkbookDeductions(buffer) {
     const displayedHours = detailNumbers
       .reduce((sum, n) => sum + (Number.isFinite(n) && n > 0 ? n : 0), 0);
     const recorded = Number(row.getCell(12).value);
+    // A nonzero approved total can disagree with the rendered detail columns.
+    // Keep it intact: the source may contain an unresolved legacy deduction ID.
+    // Attach a visible Excel note so the operator can correct the mapping.
+    if (displayedHours > 0 && Number.isFinite(recorded) && recorded > 0
+        && Math.abs(recorded - displayedHours) > 0.01) {
+      const totalCell = row.getCell(12);
+      const note = 'CẦN ĐỐI SOÁT: Tổng giờ trừ (' + recorded.toFixed(4)
+        + ') khác tổng các cột chi tiết (' + displayedHours.toFixed(4)
+        + '). Kiểm tra loại trừ giờ trong báo cáo đã duyệt; không tự điều chỉnh.';
+      if (String(totalCell.note || '') !== note) {
+        totalCell.note = note;
+        changed += 1;
+      }
+    }
     if (displayedHours > 0 && (!Number.isFinite(recorded) || Math.abs(recorded) < 0.000001)) {
       row.getCell(12).value = displayedHours;
       changed += 1;
@@ -426,6 +440,17 @@ async function reconcileMaiWorkbookDeductions(buffer) {
       actualHours = totalHours - deductionHours;
       row.getCell(11).value = actualHours;
       changed += 1;
+    }
+    if ((actualHours === null || actualHours <= 0) && output !== null && output > 0
+      && totalHours !== null && deductionHours !== null && totalHours <= deductionHours) {
+      const actualCell = row.getCell(11);
+      const note = 'CẦN ĐỐI SOÁT GIỜ: Tổng thời gian (' + totalHours.toFixed(4)
+        + ') không lớn hơn thời gian trừ (' + deductionHours.toFixed(4)
+        + '). Có sản lượng nhưng thiếu thời gian thực tế hợp lệ; không thể tính SL/H và % thực tích.';
+      if (String(actualCell.note || '') !== note) {
+        actualCell.note = note;
+        changed += 1;
+      }
     }
     if (actualHours !== null && actualHours > 0 && output !== null && output >= 0) {
       const perHourCell = row.getCell(38); // AL, SL/H
