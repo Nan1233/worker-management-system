@@ -4,7 +4,7 @@
 
 The canonical production workbook in this source package is:
 
-`backend/templates/file mẫu.xlsx`
+`backend/templates/KTC-Bao-cao-9-cong-doan.xlsx`
 
 It contains the production sheets:
 
@@ -65,3 +65,8 @@ The new edge-to-edge shell removes the outer mobile worker/page frame and side g
 - Every configured data block is inside the actual worksheet bounds.
 - New JavaScript services pass `node --check`.
 - No Git commit or GitHub modification was performed for this ZIP.
+
+
+## Repository deduplication note — 2026-11-20
+
+The historical `file mẫu.xlsx` alias and exact-byte duplicate legacy filenames were consolidated into `KTC-Bao-cao-9-cong-doan.xlsx` on the refactor branch. The canonical workbook content was not modified. This section updates file-location guidance; it does not imply that the historical August export contract remains the active runtime path.
