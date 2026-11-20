@@ -232,7 +232,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   const separatorStyle = separatorTemplate ? {
     height: separatorTemplate.height,
     fill: separatorTemplate.getCell(1).fill
-      ? JSON.parse(JSON.stringify(separatorTemplate.getCell(1).fill)) : null,
+      ? cloneExcelStyle(separatorTemplate.getCell(1).fill) : null,
     cells: Array.from({length:sheet.columnCount},(_,i)=>{
       const cell=separatorTemplate.getCell(i+1);
       return cell.hasStyle ? cloneExcelStyle(cell.style) : null;
