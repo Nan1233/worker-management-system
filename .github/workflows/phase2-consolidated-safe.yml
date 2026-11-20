@@ -36,6 +36,9 @@ on:
       - desktop/tests/windows-artifact-inventory.test.cjs
       - desktop/tests/workbook1-process-export.test.cjs
       - desktop/electron/excelDbSync.cjs
+      - desktop/electron/excelDbSyncValues.cjs
+      - desktop/scripts/checkExcelDbSync.cjs
+      - desktop/tests/excel-sync-values-refactor.test.cjs
       - desktop/electron/monthlyWorkbookLocal.cjs
       - frontend/tests/e2e/phase3-public-security.spec.ts
       - frontend/playwright.phase3.config.ts
@@ -228,6 +231,7 @@ jobs:
             tests/company-excel-shared-machine.test.cjs \
             tests/desktop-web-export-parity.test.cjs \
             tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs \
+            tests/excel-sync-values-refactor.test.cjs \
             tests/workbook1-process-export.test.cjs \
             tests/mai-do-export-parity.test.cjs \
             tests/monthly-workbook-physical-event-metadata.test.cjs \
@@ -244,6 +248,7 @@ jobs:
           node --check electron/monthlyWorkbookLocal.cjs
           node --check electron/companyExcelLocal.cjs
           node --check electron/excelDbSync.cjs
+          node --check electron/excelDbSyncValues.cjs
 
   windows:
     name: Windows Desktop synthetic Excel and packaging source compatibility

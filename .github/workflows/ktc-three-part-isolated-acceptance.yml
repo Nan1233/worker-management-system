@@ -25,6 +25,10 @@ on:
       - backend/controllers/managerApprovedReportsController.js
       - frontend/playwright.config.ts
       - desktop/tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs
+      - desktop/electron/excelDbSync.cjs
+      - desktop/electron/excelDbSyncValues.cjs
+      - desktop/scripts/checkExcelDbSync.cjs
+      - desktop/tests/excel-sync-values-refactor.test.cjs
       - desktop/scripts/deviceSmoke.cjs
       - desktop/scripts/windowsArtifactInventory.cjs
       - desktop/tests/windows-artifact-inventory.test.cjs

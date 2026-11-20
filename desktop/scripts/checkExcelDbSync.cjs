@@ -5,6 +5,8 @@ const main=fs.readFileSync(path.join(root,'main.cjs'),'utf8');
 const preload=fs.readFileSync(path.join(root,'preload.cjs'),'utf8');
 const workbook=fs.readFileSync(path.join(root,'monthlyWorkbookLocal.cjs'),'utf8');
 const sync=fs.readFileSync(path.join(root,'excelDbSync.cjs'),'utf8');
+const values=fs.readFileSync(path.join(root,'excelDbSyncValues.cjs'),'utf8');
+if(!/require\(['"]\.\/excelDbSyncValues\.cjs['"]\)/.test(sync)) throw new Error('Excel sync phải dùng cùng chuẩn hóa dữ liệu ở module độc lập');
 if(!/_KTC_SYNC/.test(workbook)) throw new Error('Thiếu metadata sheet _KTC_SYNC');
 if(!/veryHidden/.test(workbook)) throw new Error('_KTC_SYNC phải veryHidden');
 if(!/production\/excel-sync/.test(main)) throw new Error('Desktop chưa gọi API Excel->DB');
@@ -15,7 +17,7 @@ if(/setInterval\(\(\) => void syncEditedExcelFilesToDb/.test(main)) throw new Er
 if(!/EXCEL_DB_PRECHECK_SKIPPED_FOR_DB_EXPORT/.test(main) || !/DB_IS_AUTHORITATIVE_FOR_EXCEL_EXPORT/.test(main)) throw new Error('Thiếu guard xác nhận DB là nguồn dữ liệu duy nhất khi xuất Excel');
 if(!/preview/.test(sync) || !/SL OK/.test(sync)) throw new Error('Thiếu diff preview trước -> sau');
 
-if(!/Missing Excel columns mean/.test(sync) || !/preserved/.test(sync)) throw new Error('Thiếu guard giữ nguyên detail DB không có cột trong Excel');
+if(!/Missing Excel columns mean/.test(values) || !/preserved/.test(values)) throw new Error('Thiếu guard giữ nguyên detail DB không có cột trong Excel');
 if(!/if \(!preview\.length\) continue/.test(sync)) throw new Error('Preview phải bỏ report không có field thay đổi thật');
 if(!/changedPatch/.test(sync) || !/patch: changedPatch/.test(sync)) throw new Error('Excel sync phải chỉ gửi field thực sự thay đổi');
 if(!/stableValue/.test(sync)) throw new Error('Thiếu canonical deep comparison chống false diff do thứ tự key');
@@ -29,6 +31,6 @@ if(!/parseGcHelperSheet/.test(sync) || !/gcMissingFields/.test(sync)) throw new 
 if(!/Dòng mới CẮT\/LỒNG thiếu/.test(sync)) throw new Error('Thiếu cảnh báo chi tiết metadata dòng mới Cắt/Lồng');
 
 if(!/MAX_AUTO_SOURCE_ROW/.test(workbook) || !/fullCalcOnLoad/.test(workbook)) throw new Error('Sheet TAY MÁY CẮT LỒNG chưa tự liên kết công thức với sheet chính');
-if(!/value && typeof value === 'object' && value.result !== undefined/.test(sync)) throw new Error('Excel sync chưa đọc cached result của ô công thức sheet phụ');
+if(!/value && typeof value === 'object' && value.result !== undefined/.test(values)) throw new Error('Excel sync chưa đọc cached result của ô công thức sheet phụ');
 
 console.log('[KTC] Excel <-> DB manual preview/apply contract OK');
