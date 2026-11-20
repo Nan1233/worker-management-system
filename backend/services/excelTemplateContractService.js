@@ -31,7 +31,7 @@ function normalizeLabel(value) {
 
 function getTemplatePath() {
   // CommonJS `__dirname` is not available in Cloudflare's Worker module scope.
-  // Node/Render keeps the original filesystem behavior; Cloudflare callers
+  // Node-based template consumers keep filesystem access; Cloudflare callers
   // should not invoke Excel template file resolution because Workers do not
   // provide a local Node filesystem.
   if (typeof __dirname === 'string') {
