@@ -157,8 +157,8 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
       assert.equal(typeof standardCell.value.formula, 'string',code+' target standard is a formula');
       assert.ok(standardCell.value.formula.includes('*'+visibleTime+dataRow),
         code+' total target standard multiplies hourly DB standard by visible hours');
-      assert.equal(standardCell.value.result, 500*12,
-        code+' standard target is 500 SP/h x 12h');
+      assert.equal(standardCell.value.result, 500*(workingField ? 12 : 10),
+        code+' standard target is 500 SP/h x the visible time');
     }
     const timeFields=Object.entries(form.fields).filter(([,key])=>/(?:time|hours|minutes|duration)/i.test(key));
     assert.ok(timeFields.length,code+' has time columns');
@@ -177,7 +177,8 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
       const cell=sheet.getCell(column+dataRow);
       assert.equal(cell.numFmt,'0.00%',code+' '+key+' is displayed as percent');
       if (key === 'achievement') {
-        assert.equal(cell.value.result, 100/(500*12),code+' achievement uses output / total standard');
+        assert.equal(cell.value.result, 100/(500*(workingField ? 12 : 10)),
+          code+' achievement uses output / total standard');
         assert.match(cell.value.formula,/\//,code+' achievement stays a native Excel formula');
       } else assert.equal(cell.value,0.01,code+' NG percentage remains a numeric ratio');
       assert.equal(cell.fill?.fgColor?.argb,key==='achievement' ? 'FFFF5252' : 'FFC6E0B4',
@@ -264,7 +265,7 @@ test('ĐO: only day separators are pink, all report rows use original per-column
   const createReport=(id,date)=>({
     id,work_date:date,created_at:date+'T09:00:00',worker_code:'4093',full_name:'Kiểm thử',
     dataSource:'production_reports',isApprovedDatabaseRecord:true,shift:'A',
-    calculationSnapshot:{trainingFactor:1,standard:100,workingTime:8,actualTime:6,
+    calculationSnapshot:{trainingFactor:1,standard:12.5,workingTime:8,actualTime:6,
       deductionTime:2,ok:100,allNg:0,countedNg:0,enteredOutput:100,
       adjustedOutput:100,outputPerHour:16.67,achievement:1,ngRate:0},
     defects:[],deductions:[]
