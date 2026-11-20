@@ -36,6 +36,8 @@ on:
       - frontend/playwright.phase3.config.ts
       - frontend/src/pages/manager/**
       - frontend/src/pages/worker/ProcessPage.tsx
+      - frontend/src/pages/worker/processFormValidationRules.ts
+      - frontend/tests/process-form-validation-rules.test.cjs
       - frontend/src/pages/worker/processDeductionLogic.ts
       - frontend/src/pages/worker/processFormResetGuard.ts
       - frontend/tests/process-page-reset-deduction-refactor.test.cjs
@@ -140,6 +142,7 @@ jobs:
             tests/manager-pending-native-table.contract.test.cjs \
             tests/f02-process-form-extracted-hooks.test.cjs \
             tests/process-page-reset-deduction-refactor.test.cjs \
+            tests/process-form-validation-rules.test.cjs \
             tests/permission-cache-invalidation-race.test.cjs \
             tests/f02-draft-storage-regression.test.cjs \
             tests/phase5-split-submit-resume.test.cjs \

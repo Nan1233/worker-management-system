@@ -69,7 +69,6 @@ import {
     MAX_TOTAL_WORK_MINUTES,
     calculateActualOutput as calculateActualOutputValue,
     formatIntegerDisplay,
-    parseFlexibleTime,
     parseIntegerDisplay,
 } from "./processFormUtils";
 import {
@@ -78,6 +77,14 @@ import {
     getMaxMachineCount,
 } from "./processMachineLines";
 import { validateMachineLines, validateSharedReportNumbers } from "./processPageValidation";
+import {
+    validateWorkerShift,
+    validateCustomReasonNames,
+    validateManualMachineData,
+    validateReportTime,
+    validateReportTotals,
+    validateRequiredExtraFields,
+} from "./processFormValidationRules";
 import { focusProcessValidationTarget } from "./processValidationFocus";
 import {
     calculateDeductionTimeSummary,
@@ -91,7 +98,6 @@ import {
     applyNgToggleToForm,
     applyNgValueToForm,
     applyTtOkToForm,
-    calculateNgTotal,
     isValidIntegerInput,
 } from "./processQualityLogic";
 
@@ -860,9 +866,9 @@ const updateDeductionValue = (
         if (workDateError) return workDateError;
 
 
-        if (!["A", "B", "C", "D"].includes(String(form.shift || "").trim().toUpperCase())) {
-            return "Ca làm việc phải thuộc A, B, C hoặc D";
-        }
+        const shiftError = validateWorkerShift(form.shift);
+        if (shiftError) return shiftError;
+
         const sharedError = validateSharedReportNumbers({
             form,
             deductions,
@@ -873,13 +879,8 @@ const updateDeductionValue = (
             isCvkMode,
         });
         if (sharedError) return sharedError;
-        if (selectedNg.includes("__otherNg") && !String(form.otherNgName || "").trim()) return "Vui lòng nhập tên NG khác trước khi nhập số lượng";
-        if (selectedDeduction.includes("__otherDeduction") && !String(form.otherDeductionName || "").trim()) return "Vui lòng nhập lý do trừ giờ khác trước khi nhập số phút";
-        for (const [index, line] of machineLines.entries()) {
-            if (line.selectedDefects?.includes("__otherNg") && !String(line.otherNgName || "").trim()) return `Dòng máy ${index + 1}: vui lòng nhập tên NG khác`;
-            if (line.selectedDeductions?.includes("__otherDeduction") && !String(line.otherDeductionName || "").trim()) return `Dòng máy ${index + 1}: vui lòng nhập lý do trừ giờ khác`;
-        }
-
+        const detailNamesError = validateCustomReasonNames(form, selectedNg, selectedDeduction, machineLines);
+        if (detailNamesError) return detailNamesError;
 
         if (!isCvkMode && !usesMultiMachineLines) {
             if (!form.productName.trim()) {
@@ -919,94 +920,17 @@ const updateDeductionValue = (
             if (form.machineNo.trim() && !matchedMachine) return "Máy không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
         }
 
-        if (isManualOnlyProcess && (form.machineNo.trim() || machineLines.some((line) => line.machineCode.trim()))) {
-            return "Công đoạn làm tay không được chứa dữ liệu máy";
-        }
+        const manualError = validateManualMachineData(form, machineLines, isManualOnlyProcess);
+        if (manualError) return manualError;
 
+        const timeError = validateReportTime(form, usesMachineLineAccounting);
+        if (timeError) return timeError;
 
-        if (!usesMachineLineAccounting) {
-            if (!Number.isFinite(parseFlexibleTime(form.actualTime)) || parseFlexibleTime(form.actualTime) <= 0) {
-                return "Thời gian làm việc thực tế phải là số hợp lệ lớn hơn 0";
-            }
+        const totalsError = validateReportTotals(form, activeNgOptions, isCvkMode, usesMachineLineAccounting, calculateActualOutput);
+        if (totalsError) return totalsError;
 
-            if (Number(form.actualMinutes || 0) > 59) {
-                return "Số phút làm thực tế phải từ 0 đến 59";
-            }
-
-            const actualMinutes = Math.round(parseFlexibleTime(form.actualTime) * 60);
-            const deductionMinutes = Math.round(parseFlexibleTime(form.deductionTime) * 60);
-            if (!Number.isFinite(deductionMinutes) || deductionMinutes < 0) {
-                return "Thời gian trừ không hợp lệ";
-            }
-            if (actualMinutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) {
-                return "Thời gian thực tế + thời gian trừ không được vượt quá 12 giờ";
-            }
-            if (!Number.isFinite(parseFlexibleTime(form.totalTime)) || parseFlexibleTime(form.totalTime) < 0 || parseFlexibleTime(form.totalTime) > 12) {
-                return "Tổng thời gian phải từ 0 đến 12 giờ";
-            }
-        }
-
-
-
-        if (!isCvkMode && (
-            Number(
-                form.standardOutput
-                ||
-                0
-            ) <= 0
-        )) {
-
-            return "Định mức phải lớn hơn 0";
-
-        }
-
-
-        if (
-            Number(
-                form.actualOutput
-                ||
-                0
-            )
-            <
-            0
-        ) {
-
-            return "Sản lượng thực tế không hợp lệ";
-
-        }
-
-
-        const totalDefects = calculateNgTotal(form, activeNgOptions);
-
-
-        if (
-            totalDefects
-            !==
-            Number(
-                form.ttNg
-                ||
-                0
-            )
-        ) {
-
-            return "TT NG phải bằng tổng số lượng các lỗi NG";
-
-        }
-
-
-        // GC machine-line reports calculate actual output independently for each
-        // machine/product line. The parent form's aggregate must not be checked
-        // against the single-product formula used by manual reports.
-        if (!usesMachineLineAccounting && Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
-            return "Thực tế phải bằng TT OK cộng TT NG";
-        }
-
-        const missingExtraField = currentExtraFields.find(
-            (field) => field.required && !String(extraData[field.key] || "").trim()
-        );
-        if (missingExtraField) {
-            return `Vui lòng nhập ${missingExtraField.label}`;
-        }
+        const extraError = validateRequiredExtraFields(currentExtraFields, extraData);
+        if (extraError) return extraError;
 
         return "";
 
