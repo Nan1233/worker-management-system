@@ -123,7 +123,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
     await page.goto(route('/manager/reports'));
     await page.getByRole('button', { name: 'Tháng này' }).click();
-    const targetRow = page.locator('main table tbody tr').filter({ hasText: workerCode }).first();
+    const targetRow = page.locator('main table tbody tr').filter({ hasText: state.workerCode }).first();
     await expect(targetRow).toBeVisible({ timeout: 15_000 });
     await targetRow.click();
     await expect(page.locator('button.review-btn.approve')).toBeEnabled();
