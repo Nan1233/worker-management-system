@@ -73,6 +73,7 @@ import { useProcessDuplicateActions } from "./useProcessDuplicateActions";
 import { useProcessSubmission } from "./useProcessSubmission";
 import { useProcessReset } from "./useProcessReset";
 import { useProcessInputActions } from "./useProcessInputActions";
+import { useProcessModeResets } from "./useProcessModeResets";
 import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
@@ -220,38 +221,11 @@ const machineAutocompleteOptions =
         usesAnyMachine,
         usesSingleMachine,
     });
-    useEffect(() => {
-        if (isRestoringDraftRef.current) return;
-        if (!isCutLongProcess) return;
-        setForm((current) => current.productName ? { ...current, productName: "", standardOutput: "" } : current);
-        setMachineLines((current) => current.map((line) => line.productCode
-            ? { ...line, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" }
-            : line));
-    }, [operationType, isCutLongProcess]);
-
-    useEffect(() => {
-        if (isRestoringDraftRef.current) return;
-        if (!isCutLongProcess && !isInspectionProcess) return;
-        setForm((current) => ({ ...current, productName: "", standardOutput: "", machineNo: "" }));
-        setMachineLines([createEmptyMachineLine()]);
-        setMachineCount(1);
-    }, [operationMode, isCutLongProcess, isInspectionProcess]);
-
-    useEffect(() => {
-        if (isRestoringDraftRef.current) return;
-        setExtraData({});
-        setMachineLines([createEmptyMachineLine()]);
-        setMachineCount(1);
-        setOperationMode(
-            ["MAI", "DO", "EP", "CAN"].includes(processCode) ? "MACHINE" : "MANUAL"
-        );
-    }, [process, processCode]);
-
-    useEffect(() => {
-        if (!usesSingleMachine) {
-            setForm((current) => current.machineNo ? { ...current, machineNo: "" } : current);
-        }
-    }, [usesSingleMachine]);
+    useProcessModeResets({
+        process, processCode, isCutLongProcess, isInspectionProcess,
+        operationType, operationMode, usesSingleMachine, isRestoringDraftRef,
+        setForm, setMachineLines, setMachineCount, setExtraData, setOperationMode,
+    });
 
     // The machine-lines coordinator owns count limits and machine/NG mutations.
     const {
