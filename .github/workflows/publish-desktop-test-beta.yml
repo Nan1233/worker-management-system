@@ -66,7 +66,7 @@ jobs:
           npm run smoke:excel
 
       - name: Build Setup and beta update metadata
-        run: npx electron-builder --win nsis --x64 --config.asar=true --config.extraMetadata.ktcBundledFrontend=true --config.publish.channel=beta --publish never
+        run: npx electron-builder --config electron-builder.test-beta.json --win nsis --x64 --config.asar=true --config.extraMetadata.ktcBundledFrontend=true --publish never
 
       - name: Check all assets needed by electron-updater
         shell: pwsh
