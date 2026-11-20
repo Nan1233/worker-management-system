@@ -126,17 +126,6 @@ async function ensureCanonicalDeductionTypes(processId) {
         );
 
         if (existingRows.length) {
-            // Preserve historical IDs, but never expose duplicate active rows.
-            // The selected canonical ID remains active; other IDs are only
-            // deactivated, so existing report joins still resolve normally.
-            await db.promise().query(
-                `UPDATE deduction_types
-                    SET status = 'inactive'
-                  WHERE process_id = ?
-                    AND LOWER(TRIM(COALESCE(deduction_name, ''))) = LOWER(TRIM(?))
-                    AND id <> ? AND status = 'active'`,
-                [process.id, item.name, existingRows[0].id],
-            );
             if (item.keepCode) {
                 await db.promise().query(
                     `UPDATE deduction_types SET sort_order = ?, status = 'active' WHERE id = ?`,
