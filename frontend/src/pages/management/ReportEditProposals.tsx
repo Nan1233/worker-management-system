@@ -64,7 +64,6 @@ function compareRows(original: any, proposed: any): CompareRow[] {
   addCompare(rows, "Thông tin chung", "Sản phẩm", original?.product_name || "---", proposed?.product_name || "---");
   addCompare(rows, "Sản xuất", "Giờ làm thực tế", `${n(original?.actual_time)} giờ`, `${n(proposed?.actual_time)} giờ`);
   addCompare(rows, "Sản xuất", "Sản lượng OK", n(original?.tt_ok), n(proposed?.tt_ok));
-  addCompare(rows, "Sản xuất", "Ghi chú", original?.note || "---", proposed?.note || "---");
 
   const beforeDed = new Map((original?.deductions || []).map((x: any) => [String(x.deduction_type_id || x.id || x.deduction_name), x]));
   const afterDed = new Map((proposed?.deductions || []).map((x: any) => [String(x.deduction_type_id || x.id || x.deduction_name), x]));
@@ -348,7 +347,6 @@ export default function ReportEditProposals() {
                 <section>
                   <h3>Nội dung đề xuất sửa</h3>
                   <textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Ghi rõ nội dung cần sửa và lý do..." />
-                  <label className="proposal-note">Ghi chú<input value={draft.note || ""} onChange={e => updateDraft({ note: e.target.value })} /></label>
                 </section>
               </div>
 
