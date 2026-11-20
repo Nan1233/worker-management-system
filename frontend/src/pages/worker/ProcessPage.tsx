@@ -75,7 +75,6 @@ import {
 import {
     aggregateMachineLines,
     getMachineNgTotal,
-    getMaxMachineCount,
 } from "./processMachineLines";
 import { validateMachineLines, validateSharedReportNumbers } from "./processPageValidation";
 import {
@@ -124,12 +123,7 @@ import { useProcessSingleStandardLookup } from "./useProcessSingleStandardLookup
 import { useProcessDraftSaveWarning } from "./useProcessDraftSaveWarning";
 import { useProcessDraftAutosave } from "./useProcessDraftAutosave";
 import { useProcessDraftRestore } from "./useProcessDraftRestore";
-import {
-    patchMachineLineItem,
-    resizeMachineLineItems,
-    toggleMachineLineDefect,
-    updateMachineLineDefectValue,
-} from "./processMachineLineState";
+import { useProcessMachineLineActions } from "./useProcessMachineLineActions";
 import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
 import { hasProcessReportInput } from "./processFormResetGuard";
 import { filterProductsForSelection } from "./productSuggestionRules";
@@ -300,25 +294,21 @@ const machineAutocompleteOptions =
         }
     }, [usesSingleMachine]);
 
-    // Machine-count limits are enforced by the shared domain helper.
-    const maxMachineCount = getMaxMachineCount(processCode, machineLines, machineOptions);
-
-    useEffect(() => {
-        if (machineCount > maxMachineCount) {
-            setMachineCount(maxMachineCount);
-            setMachineLines((current) => current.slice(0, maxMachineCount));
-        }
-    }, [machineCount, maxMachineCount]);
-
-    const resizeMachineLines = (count: number) => {
-        const normalizedCount = Math.min(maxMachineCount, Math.max(1, count));
-        setMachineCount(normalizedCount);
-        setMachineLines((current) => resizeMachineLineItems(current, count, maxMachineCount));
-    };
-
-    const updateMachineLine = (index: number, patch: Partial<MachineLineState>) => {
-        setMachineLines((current) => patchMachineLineItem(current, index, patch));
-    };
+    // The machine-lines coordinator owns count limits and machine/NG mutations.
+    const {
+        maxMachineCount,
+        resizeMachineLines,
+        updateMachineLine,
+        toggleMachineDefect,
+        updateMachineDefectValue,
+    } = useProcessMachineLineActions({
+        processCode,
+        machineOptions,
+        machineCount,
+        machineLines,
+        setMachineCount,
+        setMachineLines,
+    });
 
     const { refreshMachineLineStandard } = useMachineLineStandardLookup({
         processCode,
@@ -326,14 +316,6 @@ const machineAutocompleteOptions =
         workDate: form.workDate,
         updateMachineLine,
     });
-
-    const toggleMachineDefect = (lineIndex: number, key: string) => {
-        setMachineLines((current) => toggleMachineLineDefect(current, lineIndex, key));
-    };
-
-    const updateMachineDefectValue = (lineIndex: number, key: string, value: string) => {
-        setMachineLines((current) => updateMachineLineDefectValue(current, lineIndex, key, value));
-    };
 
     useEffect(() => {
         if (!usesMultiMachineLines) return;
