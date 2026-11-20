@@ -33,7 +33,7 @@ function boundWorkbook1ConditionalFormats(sheet, firstDataRow, dataRows) {
   }
   for (const [column,original] of byColumn) {
     for (const range of ranges) {
-      const rules = JSON.parse(JSON.stringify(original.rules));
+      const rules = structuredClone(original.rules);
       const offset = range.start-original.startRow;
       for (const rule of rules) {
         if (rule.type !== "expression" || !Array.isArray(rule.formulae)) continue;
@@ -76,7 +76,7 @@ const defaultGridBorder = () => ({
   right:{style:"thin",color:{argb:"FF333333"}}
 });
 const completeBorder = source => {
-  const border=source ? JSON.parse(JSON.stringify(source)) : {};
+  const border=source ? structuredClone(source) : {};
   const fallback=defaultGridBorder();
   for (const edge of ["top","bottom","left","right"]) {
     if (!border[edge] || !border[edge].style) border[edge]=fallback[edge];
