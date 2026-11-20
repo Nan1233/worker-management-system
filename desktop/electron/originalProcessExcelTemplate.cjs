@@ -588,7 +588,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     }
     // Trim the source form's unused right-hand styled columns as well as its
     // unused bottom rows. Preserve any genuinely appended NG columns.
-    const lastDataCol = Math.max(lastMappedCol,...extraDefects.map(d=>d.col));
+    const lastDataCol = Math.max(lastMappedCol,...extraDefects.map(d=>d.col),unmatchedMaiDeductionCol || 0);
     for (const row of sheet._rows) {
       if (row && row._cells && row._cells.length > lastDataCol) {
         row._cells.length=lastDataCol;
