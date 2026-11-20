@@ -117,13 +117,19 @@ function WorkerReportEditV2() {
 
   const editDeductionOptions = useMemo(() => {
     const result = [...activeDeductionOptions] as any[];
-    const seen = new Set(result.map((x: any) => String(x.key || x.code || x.label).toUpperCase()));
+    const normalizeLabel = (value: unknown) => s(value).trim().normalize("NFD")
+      .replace(/[\\u0300-\\u036f]/g, "").replace(/đ/gi, "d")
+      .toLowerCase().replace(/[^a-z0-9]/g, "");
+    const seenLabels = new Set(result.map((option: any) => normalizeLabel(option.label)));
     sourceDeductions.forEach((d: any, index: number) => {
       if (/^CUSTOM_DED_/i.test(s(d.deduction_code))) return;
       const code = s(d.deduction_code).trim();
       const label = s(d.deduction_name || d.deduction_label || code || `Trừ giờ ${index + 1}`).trim();
-      const key = code ? `legacy_deduction_${code.toUpperCase()}` : `legacy_deduction_${label.toUpperCase().replace(/\W+/g, "_")}`;
-      if (!seen.has(key.toUpperCase())) result.push({ key, id: d.deduction_type_id, code: code || key, label });
+      const normalized = normalizeLabel(label);
+      if (seenLabels.has(normalized)) return;
+      const key = code ? `legacy_deduction_${code.toUpperCase()}` : `legacy_deduction_${normalized || index}`;
+      result.push({ key, id: d.deduction_type_id, code: code || key, label });
+      seenLabels.add(normalized);
     });
     return result;
   }, [activeDeductionOptions, sourceDeductions]);
