@@ -68,14 +68,11 @@ import { useProcessDeductionActions } from "./useProcessDeductionActions";
 import { validateProcessForm } from "./processFullFormValidation";
 
 
-import {
-    applyProcessFormChange,
-    clearZeroNumberField,
-} from "./processInputLogic";
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { useProcessDuplicateActions } from "./useProcessDuplicateActions";
 import { useProcessSubmission } from "./useProcessSubmission";
 import { useProcessReset } from "./useProcessReset";
+import { useProcessInputActions } from "./useProcessInputActions";
 import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
@@ -448,46 +445,7 @@ const machineAutocompleteOptions =
     // INPUT THÔNG THƯỜNG
     // =====================================================
 
-    const handleChange = (
-        event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-    ) => {
-        const { name, value } = event.target;
-        setForm((prev) => applyProcessFormChange(prev, name, value, calculateActualOutput));
-    };
-
-    // =====================================================
-    // CHỈ CHO PHÉP NHẬP SỐ THẬP PHÂN
-    // =====================================================
-
-// =====================================================
-// KIỂM TRA SỐ THẬP PHÂN
-// Cho phép:
-// ""
-// 1
-// 1.5
-// 0.25
-// =====================================================
-
-
-
-
-
-
-    // =====================================================
-    // INPUT SỐ THỜI GIAN
-    // =====================================================
-
-
-
-
-    // =====================================================
-    // INPUT SẢN LƯỢNG / ĐỊNH MỨC
-    // =====================================================
-
-   
-    // =====================================================
-    // TÍNH TỔNG THỜI GIAN TRỪ
-    // =====================================================
+    const { handleChange, handleNumberBlur } = useProcessInputActions(setForm, calculateActualOutput);
 
     const {
         normalizeDeductionValue,
@@ -511,40 +469,6 @@ const machineAutocompleteOptions =
     // =====================================================
     // BLUR Ô SỐ:
     // NẾU GIÁ TRỊ LÀ 0 THÌ CHUYỂN VỀ RỖNG
-    // =====================================================
-
-    const handleNumberBlur = (
-
-        event:
-            React.FocusEvent<
-                HTMLInputElement
-            >
-
-    ) => {
-
-        const {
-            name,
-            value
-        } = event.target;
-
-
-        if (
-            value !==
-            "0"
-        ) {
-
-            return;
-
-        }
-
-
-        setForm((prev) => clearZeroNumberField(prev, name, value));
-
-    };
-
-
-    // =====================================================
-    // KIỂM TRA FORM
     // =====================================================
 
     const validateForm = (): string => validateProcessForm({
