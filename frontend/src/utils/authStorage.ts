@@ -17,16 +17,24 @@ const REFRESH_TOKEN_KEY = "refreshToken";
 // Normal web sessions never persist a JS-readable refresh token; refresh uses the HttpOnly cookie.
 const USER_KEY = "user";
 const AUTH_EPOCH_KEY = "ktcAuthEpoch";
-const ACTIVE_TAB_OWNER_KEY = "ktcActiveAuthTab";
+const ACTIVE_TAB_OWNER_PREFIX = "ktcActiveAuthTab:";
 const runtimeTabId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 
+function activeTabOwnerKey(): string | null {
+    const userId = Number(getStoredUser()?.id);
+    return Number.isInteger(userId) && userId > 0 ? ACTIVE_TAB_OWNER_PREFIX + userId : null;
+}
 export function claimActiveBrowserTab(): void {
-    if (!supportsElectronRefreshTokenBody()) localStorage.setItem(ACTIVE_TAB_OWNER_KEY, runtimeTabId);
+    if (supportsElectronRefreshTokenBody()) return;
+    const key = activeTabOwnerKey();
+    if (key) localStorage.setItem(key, runtimeTabId);
 }
 export function isActiveBrowserTab(): boolean {
-    return supportsElectronRefreshTokenBody() || localStorage.getItem(ACTIVE_TAB_OWNER_KEY) === runtimeTabId;
+    if (supportsElectronRefreshTokenBody()) return true;
+    const key = activeTabOwnerKey();
+    return !key || localStorage.getItem(key) === runtimeTabId;
 }
-export const ACTIVE_AUTH_TAB_KEY = ACTIVE_TAB_OWNER_KEY;
+export const ACTIVE_AUTH_TAB_KEY = ACTIVE_TAB_OWNER_PREFIX;
 const AUTH_SESSION_ID_KEY = "ktcAuthSessionId";
 const REFRESH_SESSION_HINT_KEY = "ktcRefreshSessionHint";
 
