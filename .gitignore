@@ -87,3 +87,7 @@ frontend/android/capacitor-cordova-android-plugins/build/
 
 # Local-only Excel conversion scratch files
 /desktop/worker-management-system/
+
+# Generated Playwright reports and run metadata
+**/playwright-report/
+**/test-results/
