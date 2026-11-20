@@ -5,26 +5,14 @@ import { getStoredUser } from "../../utils/authStorage";
 import { approveSelectedTempReports, approveTempReport, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
-import { num, text, processLabel, fmt, pct, dateText, rangeFor, kpi, metricStyle } from "./managerReportsPresentation";
+import { dateText, rangeFor } from "./managerReportsPresentation";
+import { pendingReportCode } from "./pendingReportPresentation";
+import PendingReportTable from "./components/PendingReportTable";
+import PendingReportDetail from "./components/PendingReportDetail";
+import PendingRejectDialog from "./components/PendingRejectDialog";
 import "./ReportsSplitReference.css";
 import "./ReportTableSimplified.css";
 import "./ReportsDetailCompact.css";
-
-// The manager table must display the immutable training snapshot first.
-function pendingTrainingPercent(report: ProductionReport): unknown {
-    const values = report as ProductionReport & Record<string, unknown>;
-    return values.training_percent_snapshot ?? values.training_percent ?? values.hv_percent
-        ?? values.learning_percent ?? values.hoc_viec_percent ?? 0;
-}
-
-// Preserve the manager report-code display, including duplicate disambiguation.
-function pendingReportCode(report: ProductionReport, index = 0, duplicate = false) {
-    const data = report as ProductionReport & Record<string, unknown>;
-    const explicit = data.report_code || data.reportCode || data.code;
-    if (explicit) return String(explicit);
-    const fallback = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || String(report.id || index + 1).padStart(4, "0")}`;
-    return duplicate ? `${fallback}-${report.id ?? index + 1}` : fallback;
-}
 
 export default function Reports({ onOpenPendingReport }: { onOpenPendingReport?: (report: ProductionReport) => void } = {}) {
     const [date, setDate] = useState(getToday());
@@ -353,11 +341,6 @@ export default function Reports({ onOpenPendingReport }: { onOpenPendingReport?:
         void openDetail(report);
     };
 
-    const detailKpi = detail ? kpi(detail) : null;
-    const detailAny = detail as (ProductionReport & Record<string, unknown>) | null;
-    const detailDeductions = Array.isArray(detailAny?.deductions) ? (detailAny?.deductions as any[]).filter(x => num(x.hours) > 0) : [];
-    const detailDefects = Array.isArray(detailAny?.defects) ? (detailAny?.defects as any[]).filter(x => num(x.quantity) > 0) : [];
-
     return (
         <div className="pending-reference-page pending-review-screen">
             <div className="pending-page-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -411,107 +394,34 @@ export default function Reports({ onOpenPendingReport }: { onOpenPendingReport?:
                         Đang duyệt báo cáo {bulkProgress.completed}/{bulkProgress.total}
                         <progress value={bulkProgress.completed} max={Math.max(1, bulkProgress.total)} />
                     </div>}
-                    <div className={`pending-table-wrap ${reports.length === 0 ? "pending-table-empty" : ""}`} role="region" aria-label="Bảng báo cáo chờ duyệt, có thể cuộn ngang" tabIndex={0} style={{ overflowX: "auto" }}>
-                        <table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}><caption className="pending-table-caption">Danh sách báo cáo sản xuất chờ duyệt</caption>
-                            <thead><tr>
-                                <th className="select-col"><input type="checkbox" aria-label="Chọn tất cả báo cáo trên trang này" checked={allVisibleSelected} ref={node => { if (node) node.indeterminate = selectedVisibleCount > 0 && !allVisibleSelected; }} onChange={toggleVisibleSelection} disabled={loading || approving || bulkApproving || rejecting || reports.length === 0} /></th>
-                                {["Mã báo cáo", "Công nhân", "Công đoạn", "Ca", "Ngày báo cáo", "Thời gian", "% HV", "TT OK", "NG", "% năng suất", "% đạt", "% PP", "Trạng thái"].map(label => <th key={label} className={["% HV", "TT OK", "NG", "% năng suất", "% đạt", "% PP"].includes(label) ? "pending-full-metric" : ""}>{label}</th>)}
-                            </tr></thead>
-                            <tbody>
-                                {loading ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr> : error ? <tr><td colSpan={14} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}><div role="alert">{error}</div><button type="button" onClick={() => void load()} disabled={loading} style={{ marginTop: 12, minHeight: 40, padding: "8px 16px", border: "1px solid #c24141", borderRadius: 8, background: "#fff", color: "#9f2828", fontWeight: 700, cursor: "pointer" }}>Thử tải lại</button></td></tr> : reports.length === 0 ? <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr> : reports.map((r, i) => {
-                                    const x = kpi(r);
-                                    const code = pendingReportCode(r, i);
-                                    return <tr key={r.id ?? i} data-report-id={r.id} tabIndex={0} aria-selected={detail?.id === r.id} className={detail?.id === r.id ? "pending-row-active" : ""} onClick={() => openRow(r)} onKeyDown={e => {
-                                        if (e.target !== e.currentTarget) return;
-                                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRow(r); }
-                                    }} style={{ cursor: "pointer" }}>
-                                        <td className="select-col"><input type="checkbox" aria-label={`Chọn báo cáo ${r.id}`} checked={selectedIds.includes(Number(r.id))} disabled={loading || approving || bulkApproving || rejecting} onChange={() => toggleSelected(Number(r.id))} onClick={e => e.stopPropagation()} /></td>
-                                        <td className="report-code">{pendingReportCode(r, i, (duplicateReportCodes.get(code) || 0) > 1)}</td>
-                                        <td>{`${text(r.full_name || r.worker_name)} (${text(r.worker_code)})`}</td>
-                                        <td>{processLabel(r)}</td>
-                                        <td><span className="shift-chip">{text(r.shift)}</span></td>
-                                        <td>{dateText(r.work_date)}</td>
-                                        <td>{`${fmt(r.total_time || r.actual_time)} giờ`}</td>
-                                        <td className="pending-full-metric">{pct(pendingTrainingPercent(r))}</td>
-                                        <td className="pending-full-metric">{fmt(x.ok)}</td>
-                                        <td className="pending-full-metric">{fmt(x.ng)}</td>
-                                        <td className={`pending-full-metric ${x.nangSuat <= 75 || x.nangSuat > 100 ? "pending-full-productivity" : ""}`}>{x.standardMissing ? "Thiếu định mức" : pct(x.nangSuat)}</td>
-                                        <td className="pending-full-metric">{pct(x.dat)}</td>
-                                        <td className={`pending-full-metric ${x.pp === 0 || x.ngTypeCount === 1 ? "pending-full-pp" : ""}`}>{pct(x.pp)}</td>
-                                        <td>Chờ duyệt</td>
-                                    </tr>;
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="pending-table-footer" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 13 }}>
+                    <PendingReportTable
+                        reports={reports} loading={loading} error={error} onRetry={() => void load()}
+                        detail={detail} onOpenRow={openRow} selectedIds={selectedIds}
+                        onToggleSelected={toggleSelected} onToggleVisibleSelection={toggleVisibleSelection}
+                        selectedVisibleCount={selectedVisibleCount} allVisibleSelected={allVisibleSelected}
+                        duplicateReportCodes={duplicateReportCodes}
+                        approving={approving} bulkApproving={bulkApproving} rejecting={rejecting}
+                    />
+                                        <div className="pending-table-footer" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 13 }}>
                         <span role="status" aria-live="polite">Trang {page}/{pages} · {total} báo cáo</span>
                         <nav className="management-pagination" aria-label="Phân trang báo cáo"><button type="button" aria-label="Trang trước" disabled={loading || approving || bulkApproving || rejecting || page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button><button type="button" aria-label="Trang sau" disabled={loading || approving || bulkApproving || rejecting || page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button></nav>
                     </div>
                 </section>
-                {detail && <aside className="pending-detail-card pending-detail-card-compact" aria-label={`Chi tiết báo cáo #${detail.id}`}>
-                    <div className="pending-detail-head">
-                        <div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span><span className="pending-detail-code">#{detail.id}</span></div>
-                        <button type="button" className="pending-detail-close" onClick={closeDetail} disabled={actionBusy} aria-label="Đóng">×</button>
-                    </div>
-                    {detailLoading ? <div className="pending-detail-loading" role="status">Đang tải chi tiết...</div> : detailError ? <div role="alert" className="pending-detail-loading" style={{ padding: 16, color: "#a32929" }}>{detailError}<button type="button" onClick={() => void openDetail(detail)} style={{ minHeight: 40, marginTop: 12, padding: "8px 12px", border: "1px solid #d99", borderRadius: 8, background: "#fff", color: "#a32929" }}>Thử tải lại</button></div> : detailKpi && <div className="pending-detail-body">
-                        <section className="pending-detail-section"><h3>Thông tin chung</h3><div className="pending-detail-grid">
-                            {[
-                                ["Công nhân", `${text(detail.full_name || detail.worker_name)} (${text(detail.worker_code)})`],
-                                ["Ngày báo cáo", dateText(detail.work_date)],
-                                ["Công đoạn", processLabel(detail)],
-                                ["Ca làm việc", text(detail.shift)],
-                                ["Máy móc", text(detail.machine_no)],
-                                ["Sản phẩm", text(detail.product_name)],
-                                ["Thời gian", `${fmt(detail.total_time || detail.actual_time)} giờ`],
-                                ["Học việc", pct(detailKpi.hv)]
-                            ].map(([label, value]) => <div className="pending-detail-field" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}
-                        </div></section>
-                        <section className="pending-detail-section"><h3>Kết quả sản xuất</h3><div className="pending-result-grid">
-                            <div className="pending-result-item"><span>Sản lượng OK</span><strong>{fmt(detailKpi.ok)}</strong></div>
-                            <div className="pending-result-item ng"><span>Sản lượng NG</span><strong>{fmt(detailKpi.ng)}</strong></div>
-                            <div className="pending-result-item total"><span>Tổng sản lượng</span><strong>{fmt(detailKpi.actual)}</strong></div>
-                            <div className="pending-result-item rate"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div>
-                        </div></section>
-                        <section className="pending-detail-section"><h3>Chỉ số KPI</h3><div className="pending-detail-info-grid">
-                            <div className="pending-detail-field"><span>TT định mức</span><strong>{detailKpi.standardMissing ? "Thiếu định mức" : fmt(detailKpi.ttDinhMuc)}</strong></div>
-                            <div className="pending-detail-field" style={metricStyle("productivity", detailKpi.nangSuat, detailKpi.ngTypeCount)}><span>% năng suất</span><strong>{detailKpi.standardMissing ? "Thiếu định mức" : pct(detailKpi.nangSuat)}</strong></div>
-                            <div className="pending-detail-field"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div>
-                            <div className="pending-detail-field" style={metricStyle("pp", detailKpi.pp, detailKpi.ngTypeCount)}><span>% PP (NG)</span><strong>{pct(detailKpi.pp)}{detailKpi.pp === 0 || detailKpi.ngTypeCount === 1 ? "" : ""}</strong></div>
-                        </div></section>
-                        <section className="pending-detail-section"><h3>Chi tiết thời gian trừ</h3>{detailDeductions.length ? <div className="pending-defect-list">{detailDeductions.map((x: any, i: number) => <span className="pending-defect" key={i}>{text(x.deduction_name, x.deduction_code)}: {fmt(num(x.hours) * 60)} phút</span>)}</div> : <div className="pending-history-empty">Không có thời gian trừ.</div>}</section>
-                        <section className="pending-detail-section"><h3>Chi tiết lỗi NG</h3>{detailDefects.length ? <div className="pending-defect-list">{detailDefects.map((x: any, i: number) => <span className="pending-defect" key={i}>{text(x.defect_name, x.defect_code)}: {fmt(x.quantity)} sản phẩm</span>)}</div> : detailKpi.ng > 0 ? <div className="pending-history-empty" style={{ background: "#fff8e1", border: "1px solid #f0c36d", color: "#7a5b00" }}>NG {fmt(detailKpi.ng)} sản phẩm — chưa phân loại lỗi.</div> : <div className="pending-history-empty">Không có lỗi NG.</div>}</section>
-                        <section className="pending-detail-section"><h3>Ghi chú</h3><div className="pending-detail-field"><span>Ghi chú</span><strong>{text(detail.note || (detail as any).notes, "Không có ghi chú")}</strong></div></section>
-                    </div>}
-                    <div className="pending-detail-actions pending-detail-actions-compact">
-                        <button type="button" className="pending-detail-cancel" onClick={closeDetail} disabled={actionBusy}>Đóng</button>
-                        <button type="button" onClick={() => openRejectDialog([Number(detail.id)])} disabled={rejecting || approving || bulkApproving || rejectDialogOpen || detailLoading || Boolean(detailError) || loading || Boolean(error)} style={{ border: "1px solid #dc5656", background: "#fff1f1", color: "#b42323", borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: rejecting || detailLoading ? "not-allowed" : "pointer" }}>{rejecting ? "Đang từ chối..." : "Từ chối báo cáo"}</button>
-                        <button type="button" className="pending-detail-approve" onClick={() => void approveDetail()} disabled={approving || rejectDialogOpen || detailLoading || Boolean(detailError) || bulkApproving || rejecting || loading || Boolean(error)}>{approving ? "Đang duyệt..." : "Duyệt báo cáo"}</button>
-                    </div>
-                </aside>}
+                <PendingReportDetail
+                    detail={detail} detailLoading={detailLoading} detailError={detailError}
+                    actionBusy={actionBusy} approving={approving} rejecting={rejecting}
+                    bulkApproving={bulkApproving} rejectDialogOpen={rejectDialogOpen}
+                    loading={loading} error={error}
+                    closeDetail={closeDetail} openDetail={openDetail}
+                    openRejectDialog={openRejectDialog} approveDetail={approveDetail}
+                />
             </div>
-        {rejectDialogOpen && <div role="presentation" onClick={e => { if (e.target === e.currentTarget) closeRejectDialog(); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,35,60,.42)", display: "grid", placeItems: "center", padding: 16 }}>
-            <section className="pending-reject-dialog" role="dialog" aria-modal="true" aria-labelledby="reject-dialog-title" aria-describedby="reject-dialog-description" style={{ width: "min(100%, 480px)", background: "#fff", borderRadius: 14, boxShadow: "0 20px 60px rgba(15,35,60,.25)", padding: 22 }}>
-                <h2 id="reject-dialog-title" style={{ margin: "0 0 6px", color: "#12385f", fontSize: 20 }}>Từ chối báo cáo</h2>
-                <p id="reject-dialog-description" style={{ margin: "0 0 16px", color: "#526b88", fontSize: 13 }}>Đang chọn <strong>{rejectTargetIds.length}</strong> báo cáo. Chọn lý do trước khi xác nhận.</p>
-                <label htmlFor="pending-reject-reason" style={{ display: "block", fontSize: 13, color: "#244564", marginBottom: 6, fontWeight: 700 }}>Lý do từ chối <span style={{ color: "#b42323" }}>*</span></label>
-                <select id="pending-reject-reason" value={rejectReason} onChange={e => setRejectReason(e.target.value)} disabled={rejecting} style={{ width: "100%", minHeight: 40, border: "1px solid #cbd9e8", borderRadius: 8, padding: "8px 10px", background: "#fff", color: "#244564" }}>
-                    <option value="">-- Chọn lý do --</option>
-                    <option value="Thiếu công đoạn hoặc sản phẩm để tra định mức">Thiếu công đoạn hoặc sản phẩm để tra định mức</option>
-                    <option value="Sai công đoạn hoặc sản phẩm">Sai công đoạn hoặc sản phẩm</option>
-                    <option value="Sai số lượng OK/NG">Sai số lượng OK/NG</option>
-                    <option value="Thiếu thông tin báo cáo">Thiếu thông tin báo cáo</option>
-                    <option value="Sai ngày báo cáo hoặc ca làm việc">Sai ngày báo cáo hoặc ca làm việc</option>
-                    <option value="Báo cáo bị trùng">Báo cáo bị trùng</option>
-                    <option value="Khác">Khác</option>
-                </select>
-                {rejectReason === "Khác" && <textarea aria-label="Lý do từ chối cụ thể" value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Nhập lý do từ chối cụ thể..." rows={3} disabled={rejecting} style={{ width: "100%", boxSizing: "border-box", marginTop: 10, border: "1px solid #cbd9e8", borderRadius: 8, padding: 10, resize: "vertical" }} />}
-                <div className="pending-reject-actions" style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
-                    <button type="button" onClick={closeRejectDialog} disabled={rejecting} style={{ border: "1px solid #cbd9e8", borderRadius: 8, padding: "9px 14px", background: "#fff", color: "#526b88" }}>Hủy</button>
-                    <button type="button" onClick={() => void rejectTargets()} disabled={rejecting || loading || Boolean(error) || !rejectReason || (rejectReason === "Khác" && !rejectNote.trim())} style={{ border: 0, borderRadius: 8, padding: "9px 14px", background: rejecting || !rejectReason || (rejectReason === "Khác" && !rejectNote.trim()) ? "#cbd5e1" : "#b42323", color: "#fff", fontWeight: 700 }}>{rejecting ? "Đang từ chối..." : `Xác nhận từ chối ${rejectTargetIds.length} báo cáo`}</button>
-                </div>
-            </section>
-        </div>}
+        <PendingRejectDialog
+            rejectDialogOpen={rejectDialogOpen} rejectTargetIds={rejectTargetIds}
+            rejectReason={rejectReason} rejectNote={rejectNote} rejecting={rejecting}
+            loading={loading} error={error} closeRejectDialog={closeRejectDialog}
+            setRejectReason={setRejectReason} setRejectNote={setRejectNote} rejectTargets={rejectTargets}
+        />
         </div>
     );
 }
