@@ -218,6 +218,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   const workingTimeColumn = Object.entries(config.fields).find(([, key]) => key === "workingTime")?.[0] || null;
   const actualTimeColumn = Object.entries(config.fields).find(([, key]) => key === "actualTime")?.[0] || null;
   const outputColumn = Object.entries(config.fields).find(([, key]) => key === "output")?.[0] || null;
+  const standardColumn = Object.entries(config.fields).find(([, key]) => key === "standard")?.[0] || null;
+  const expectedOutputColumn = Object.entries(config.fields).find(([, key]) => key === "expectedOutput")?.[0] || null;
+  const achievementColumn = Object.entries(config.fields).find(([, key]) => key === "achievement")?.[0] || null;
   const outputPerHourColumn = Object.entries(config.fields).find(([, key]) => key === "outputPerHour")?.[0] || null;
   const unifiedTimeColumns = Boolean(workingTimeColumn && actualTimeColumn);
   const mapping = [];
@@ -475,7 +478,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     const [dayYear,dayMonth,dayNumber]=day.split("-").map(Number);
     const excelWorkDate=new Date(Date.UTC(dayYear,dayMonth-1,dayNumber));
     const values={...snapshot,stt:++dayStt, date:excelWorkDate,
-      expectedOutput:(asNumeric(snapshot.standard)||0)*(asNumeric(snapshot.actualTime)||0)};
+      expectedOutput:asNumeric(snapshot.standard) !== null
+        && asNumeric(snapshot.actualTime) !== null
+        ? asNumeric(snapshot.standard) * asNumeric(snapshot.actualTime) : null};
     if (unifiedTimeColumns) {
       // Export presentation only: J=K in MAI, H=I in GC, I=J in DO,
       // V=W in K2, etc. Do not modify approved records in TiDB.
@@ -500,12 +505,46 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         // reportSnapshot.training is already a 0..1 factor (100% = 1).
         // Format only; dividing again would incorrectly turn 100% into 1%.
         // Applies to every process template that maps a training column.
-        if(key==="training") cell.numFmt="0.00%";
+        if(key==="training") cell.numFmt="0%";
       }
+    }
+    // The approved DB standard is a per-hour rate. Excel's "Định mức"
+    // column is the target for this report's hours, not the hourly rate.
+    // Keep it editable as a native formula so recalculation follows edits.
+    const visibleHoursColumn = workingTimeColumn || actualTimeColumn;
+    const visibleHours = asNumeric(unifiedTimeColumns ? values.workingTime : values.actualTime);
+    const standardRate = asNumeric(snapshot.standard);
+    const expectedQuantity = visibleHours !== null && visibleHours >= 0 && standardRate !== null
+      ? visibleHours * standardRate : null;
+    const targetColumn = standardColumn || expectedOutputColumn;
+    if (targetColumn && visibleHoursColumn) {
+      const cell = row.getCell(toNumber(targetColumn));
+      const r = row.number;
+      if (standardRate !== null) {
+        cell.value = {
+          formula: 'IFERROR(' + String(standardRate) + '*' + visibleHoursColumn + r + ',"")',
+          result: expectedQuantity ?? ''
+        };
+      } else {
+        cell.value = null;
+      }
+      cell.numFmt = '#,##0.00';
+    }
+    if (achievementColumn && outputColumn && targetColumn) {
+      const cell = row.getCell(toNumber(achievementColumn));
+      const r = row.number;
+      const output = asNumeric(values.output);
+      const ratio = expectedQuantity !== null && expectedQuantity > 0 && output !== null
+        ? output / expectedQuantity : null;
+      cell.value = {
+        formula: 'IFERROR(IF(' + targetColumn + r + '>0,' +
+          outputColumn + r + '/' + targetColumn + r + ',""),"")',
+        result: ratio ?? ''
+      };
+      cell.numFmt = '0.00%';
     }
     // Every process with a productivity column uses its own visible hour
     // column, even when the original form has only one time column (K1/XLBV).
-    const visibleHoursColumn = workingTimeColumn || actualTimeColumn;
     if (visibleHoursColumn && outputColumn && outputPerHourColumn) {
       const time = asNumeric(unifiedTimeColumns ? values.workingTime : values.actualTime);
       const quantity = asNumeric(values.output);
@@ -858,7 +897,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     for(const rowNumber of trainingRows){
       const cell=sheet.getRow(rowNumber).getCell(col);
       if(typeof cell.value==="number" && Number.isFinite(cell.value))
-        cell.numFmt="0.00%";
+        cell.numFmt="0%";
     }
   }
   // Keep the company template print header/footer untouched. Some source sheets
