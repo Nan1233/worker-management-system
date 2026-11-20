@@ -304,6 +304,17 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     extraDefects.push({col,header:label,type});
     mapping.push({index:col,key:"defect:"+key,header:label});
   }
+  // Workbook1 MAI has fixed 20 deduction headers. Legacy approved rows can
+  // carry a deduction type ID with no matching template header (e.g. id 115).
+  // Keep those hours visible in a clearly named overflow column rather than
+  // silently dropping them or guessing the wrong deduction category.
+  const unmatchedMaiDeductionCol = workbook1 && code === "MAI" ? nextDefectCol : null;
+  if (unmatchedMaiDeductionCol !== null) {
+    const header = "Trừ giờ chưa ghép loại (giờ)";
+    sheet.getCell(config.header, unmatchedMaiDeductionCol).value = header;
+    sheet.getColumn(unmatchedMaiDeductionCol).width = 24;
+    sheet.getColumn(unmatchedMaiDeductionCol).hidden = false;
+  }
   // Hide obsolete right-hand daily OK/NG/% statistics and sample columns.
   // The original left-hand headings, their colors and date separator rows stay.
   if (!workbook1) for(let col=lastMappedCol+1;col<=originalColumnCount;col++){
@@ -465,6 +476,29 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       const value=matchMasterValue(d.header,deductionTypes,deductionDetails);
       if(value!==null)row.getCell(d.col).value=value;
     }
+    if (unmatchedMaiDeductionCol !== null) {
+      const sourceDeductionHours = helpers.reportDetailItems(report, code, "deduction")
+        .reduce((sum, item) => {
+          const n = Number(item?.deduction_hours ?? item?.duration_hours ?? item?.time_hours ?? item?.hours ?? item?.value);
+          return sum + (Number.isFinite(n) && n > 0 ? n : 0);
+        }, 0);
+      const mappedDeductionHours = detailCols.reduce((sum, item) => {
+        const n = Number(row.getCell(item.col).value);
+        return sum + (Number.isFinite(n) && n > 0 ? n : 0);
+      }, 0);
+      const missingHours = sourceDeductionHours - mappedDeductionHours;
+      if (missingHours > 0.000001) {
+        const cell = row.getCell(unmatchedMaiDeductionCol);
+        cell.value = missingHours;
+        cell.numFmt = "0.##";
+        cell.note = "Có khoản trừ giờ trong báo cáo đã duyệt chưa xác định được cột của mẫu Mài. Kiểm tra loại trừ trong dữ liệu nguồn; không tự gán sang loại khác.";
+      } else if (missingHours < -0.000001) {
+        // A source/detail mapping collision is an integrity problem, not an
+        // opportunity to silently subtract reported hours from a category.
+        throw new Error("MAI báo cáo " + (report.id ?? "?") +
+          ": tổng giờ trừ chi tiết hiển thị lớn hơn dữ liệu nguồn; kiểm tra ánh xạ.");
+      }
+    }
     // The approved parent deduction snapshot can be zero for legacy rows even
     // when the stored deduction details are present. For Workbook1, reconcile
     // the exported total against the actual mapped detail cells (not raw
@@ -474,7 +508,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     if(workbook1 && totalColumn && code!=="GC") {
       const totalCell=row.getCell(toNumber(totalColumn));
       const originalTotal=Number(totalCell.value);
-      const displayedDetail=detailCols.reduce((sum,item)=>{
+      const displayedDetail=detailCols.concat(unmatchedMaiDeductionCol !== null ? [{col: unmatchedMaiDeductionCol}] : []).reduce((sum,item)=>{
         const value=Number(row.getCell(item.col).value);
         return sum+(Number.isFinite(value)&&value>0?value:0);
       },0);
