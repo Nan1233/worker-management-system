@@ -21,6 +21,7 @@ const { createDesktopExcelIpcHandlers } = require('./desktopExcelIpcHandlers.cjs
 const { createDesktopSyncCoordinator } = require('./desktopSyncCoordinator.cjs');
 const { resolveDesktopDeploymentProfile } = require('./deploymentProfile.cjs');
 const { createDesktopRendererMonitoring } = require('./desktopRendererMonitoring.cjs');
+const { createDeferredDesktopServices } = require('./deferredDesktopServices.cjs');
 const { getDesktopDataRoot, getDocumentsRoot } = require('./platformPaths.cjs');
 const { readExcelChanges } = require('./excelDbSync.cjs');
 const { createExcelBackupRetention } = require('./excelBackupRetention.cjs');
@@ -89,11 +90,16 @@ process.on('uncaughtException', (error) => void writeLog('ERROR', 'UNCAUGHT_EXCE
 process.on('unhandledRejection', (error) => void writeLog('ERROR', 'UNHANDLED_REJECTION', normalizeError(error)));
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const deferred = createDeferredDesktopServices([
+  'authenticatedFetch', 'waitForUsableRendererToken',
+  'enqueueManualExcelSync', 'isSyncRunning',
+]);
+
 const {
   fetchWithTimeout, fetchCompanyData,
 } = createExcelApiClient({
   API_BASE_URL, REQUEST_TIMEOUT_MS, DOWNLOAD_RETRY_COUNT, RETRY_DELAY_MS,
-  authenticatedFetch: (...args) => authenticatedFetch(...args), writeLog, normalizeError, parseDownloadFileName,
+  authenticatedFetch: (...args) => deferred.call('authenticatedFetch', ...args), writeLog, normalizeError, parseDownloadFileName,
   normalizeProcessInfo, getExportRoot, safeFileName, safeFolderName,
   getCompanyMonthTarget, buildCompanyExcelLocal, getProcessExportPath,
   getAppPath: () => app.getAppPath(), wait,
@@ -112,9 +118,9 @@ const { logPendingFiles, listExcelFiles } = createExcelFileDiscovery({ writeLog,
 
 
 const { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb } = createExcelDbSyncController({
-  authenticatedFetch: (...args) => authenticatedFetch(...args), API_BASE_URL, listExcelFiles, getExportRoot, readExcelChanges,
-  writeLog, normalizeError, waitForUsableRendererToken: (...args) => waitForUsableRendererToken(...args), sendRenderer,
-  enqueueManualExcelSync: (...args) => enqueueManualExcelSync(...args), isQuitting: () => quitting, isSyncRunning: () => isSyncRunning(),
+  authenticatedFetch: (...args) => deferred.call('authenticatedFetch', ...args), API_BASE_URL, listExcelFiles, getExportRoot, readExcelChanges,
+  writeLog, normalizeError, waitForUsableRendererToken: (...args) => deferred.call('waitForUsableRendererToken', ...args), sendRenderer,
+  enqueueManualExcelSync: (...args) => deferred.call('enqueueManualExcelSync', ...args), isQuitting: () => quitting, isSyncRunning: () => deferred.call('isSyncRunning'),
 });
 
 function startExcelDbSyncWatcher() {
@@ -126,7 +132,7 @@ function startExcelDbSyncWatcher() {
 
 const { performSyncSingleMonth } = createMonthlyDesktopExport({
   writeLog, getExportRoot, logPendingFiles,
-  waitForUsableRendererToken: (...args) => waitForUsableRendererToken(...args),
+  waitForUsableRendererToken: (...args) => deferred.call('waitForUsableRendererToken', ...args),
   getCurrentToken: () => currentToken, setCurrentToken: (value) => { currentToken = value; },
   fetchCompanyData, buildSplitMonthlyWorkbooksLocal, getAppPath: () => app.getAppPath(),
   PROCESS_SHEETS, safeFileName, atomicOverwrite, normalizeError, cleanupLegacyMonthlyLayout,
@@ -136,7 +142,7 @@ const {
   enqueueManualExcelSync, configureAutomaticSync, stopAutomaticSync, isSyncRunning,
 } = createDesktopSyncCoordinator({
   assertDate, getExportRoot, writeLog, normalizeError, performSyncSingleMonth,
-  waitForUsableRendererToken: (...args) => waitForUsableRendererToken(...args),
+  waitForUsableRendererToken: (...args) => deferred.call('waitForUsableRendererToken', ...args),
   getCurrentToken: () => currentToken, setCurrentToken: (value) => { currentToken = value; },
   isQuitting: () => quitting, normalizeAccessToken, SYNC_INTERVAL_MS,
   AUTO_EXCEL_SYNC_ENABLED, getDateParts, sendRenderer,
@@ -164,6 +170,13 @@ const {
   isUsableAccessToken, isRetrySafeMethod, fetchWithTimeout, writeLog, normalizeError,
   sendRenderer, wait, RETRY_COUNT, RETRY_DELAY_MS,
 });
+
+// Bind every cross-factory dependency before starting the Electron window or IPC callbacks.
+deferred.bind('authenticatedFetch', authenticatedFetch);
+deferred.bind('waitForUsableRendererToken', waitForUsableRendererToken);
+deferred.bind('enqueueManualExcelSync', enqueueManualExcelSync);
+deferred.bind('isSyncRunning', isSyncRunning);
+deferred.assertReady();
 
 const { startTokenDiscovery, stopTokenDiscovery, scheduleSyncAfterApprovedMutation } =
   createDesktopRendererMonitoring({
