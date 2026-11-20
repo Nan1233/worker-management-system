@@ -503,16 +503,19 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         if(key==="training") cell.numFmt="0.00%";
       }
     }
-    if (unifiedTimeColumns && outputColumn && outputPerHourColumn) {
-      const time = asNumeric(values.workingTime);
+    // Every process with a productivity column uses its own visible hour
+    // column, even when the original form has only one time column (K1/XLBV).
+    const visibleHoursColumn = workingTimeColumn || actualTimeColumn;
+    if (visibleHoursColumn && outputColumn && outputPerHourColumn) {
+      const time = asNumeric(unifiedTimeColumns ? values.workingTime : values.actualTime);
       const quantity = asNumeric(values.output);
       const preview = time !== null && time > 0 && quantity !== null
         ? quantity / time : "";
       const target = row.getCell(toNumber(outputPerHourColumn));
       const r = row.number;
-      const formula = "IFERROR(IF(OR(" + workingTimeColumn + r +
+      const formula = "IFERROR(IF(OR(" + visibleHoursColumn + r +
         "<=0," + outputColumn + r + "=\"\"),\"\"," +
-        outputColumn + r + "/" + workingTimeColumn + r + "),\"\")";
+        outputColumn + r + "/" + visibleHoursColumn + r + "),\"\")";
       target.value = { formula, result: preview };
       target.numFmt = "#,##0.00";
     }
