@@ -1330,7 +1330,7 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
     }
     return {buffer, result:original.result, processCode:code, processName:config.title,
       fileName:processWorkbookFileName(code,date,payload), formulaReplacementCount:0,
-      templateKind:WORKBOOK1_FORMS[code] ? "workbook1-sheet" : "original-company", columnContract:{cols:originalCols}};
+      templateKind:WORKBOOK1_FORMS[code] ? "workbook1-sheet" : "original-company", columnContract:{cols:originalCols}, maiOriginalFormulas:original.maiOriginalFormulas || {}};
   }
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'KTC Production Control';
