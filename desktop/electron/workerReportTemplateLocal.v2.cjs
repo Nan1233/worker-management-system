@@ -198,7 +198,7 @@ function insertContractColumn(sheet, headerRow, contract, afterColumn, header, o
   const column = anchor + 1;
   sheet.spliceColumns(column, 0, []);
   const cell = sheet.getRow(headerRow).getCell(column);
-  cell.style = JSON.parse(JSON.stringify(sheet.getRow(headerRow).getCell(anchor).style || {}));
+  cell.style = structuredClone(sheet.getRow(headerRow).getCell(anchor).style || {});
   cell.value = header;
   sheet.getColumn(column).width = options.width || 14;
   if (options.hidden) sheet.getColumn(column).hidden = true;
@@ -372,7 +372,7 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
       const preserveEncodedCode = kind === 'defect' && Boolean(encodedGcDefectCode(type));
       const cell = sheet.getRow(headerRow).getCell(next);
       cell.value = `${prefix}: ${label}${(duplicate || preserveEncodedCode) && code ? ` (${code})` : ''}`;
-      if (headerSource.style) cell.style = JSON.parse(JSON.stringify(headerSource.style));
+      if (headerSource.style) cell.style = structuredClone(headerSource.style);
       sheet.getColumn(next).width = Math.max(10, Math.min(24, String(cell.value).length + 2));
       target.push({ type, column: next });
       next += 1;
