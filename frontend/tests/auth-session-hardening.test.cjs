@@ -213,3 +213,20 @@ test('request guard checks shared auth epoch before storage event delivery', () 
   assert.match(api, /currentEpoch !== crossTabObservedEpoch && !requestUrl\.includes\("\/auth\/login"\)/);
   assert.match(api, /crossTabObservedEpoch = authGeneration/);
 });
+
+test('quota-exceeded login recovers expired KTC refresh metadata but does not erase production drafts or other tab ownership', () => {
+  const storage = read('src/utils/authStorage.ts');
+  const claim = storage.slice(
+    storage.indexOf('function reclaimStaleAuthCoordinationKeys('),
+    storage.indexOf('export function isActiveBrowserTab()')
+  );
+  assert.match(claim, /QuotaExceededError/);
+  assert.match(claim, /ktcAuthRefreshIntent:/);
+  assert.match(claim, /ktcAuthRefreshLock/);
+  assert.match(claim, /expiresAt <= now/);
+  assert.match(claim, /if \(key === activeKey\) continue|key === activeKey\) continue/);
+  assert.match(claim, /localStorage\.setItem\(key, runtimeTabId\)/);
+  assert.match(claim, /không xóa dữ liệu các trang khác/);
+  assert.doesNotMatch(claim, /localStorage\.clear\(/);
+  assert.doesNotMatch(claim, /sessionStorage\.clear\(/);
+});
