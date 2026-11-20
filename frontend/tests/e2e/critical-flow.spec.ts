@@ -13,10 +13,10 @@ import { ACCOUNTS, API, apiToken, hashPath, loginManagement, loginWorker, phoneC
 
 const state: { reportId: number; approvableId: number; managerToken: string; workerToken: string; workerCode: string } = { reportId: 0, approvableId: 0, managerToken: '', workerToken: '', workerCode: '' };
 
-async function openFirstPendingReport(page: Page, workerCode: string) {
+async function openFirstPendingReport(page: Page, reportId: number) {
   await page.goto(route('/manager/reports'));
   await page.getByRole('button', { name: 'Tháng này' }).click();
-  const row = page.locator('main table tbody tr').filter({ hasText: workerCode }).first();
+  const row = page.locator(`main table tbody tr[data-report-id="${reportId}"]`);
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.click();
   // ManagerReportWorkspace routes row clicks to ReportReviewDetail, not the old inline panel.
@@ -60,7 +60,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
-    await openFirstPendingReport(page, state.workerCode);
+    await openFirstPendingReport(page, state.reportId);
 
     // The native review-detail page uses its own reason/details modal, not the list bulk dialog.
     await page.locator('button.review-btn.reject').click();
@@ -123,7 +123,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
     await page.goto(route('/manager/reports'));
     await page.getByRole('button', { name: 'Tháng này' }).click();
-    const targetRow = page.locator('main table tbody tr').filter({ hasText: state.workerCode }).first();
+    const targetRow = page.locator(`main table tbody tr[data-report-id="${state.approvableId}"]`);
     await expect(targetRow).toBeVisible({ timeout: 15_000 });
     await targetRow.click();
     // Approve the exact report created by this scenario, never a nearby row
