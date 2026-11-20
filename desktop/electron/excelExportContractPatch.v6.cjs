@@ -365,6 +365,36 @@ function filterVerifiedGcSplitParents(reports) {
   });
 }
 
+// Final export boundary for Workbook1 Mài. Historical MACHINE-mode reports
+// can contain 0 in their approved parent deduction snapshot while the detail
+// columns (M:AF) are nonzero. Reconcile the written workbook itself, after
+// template mapping, without modifying DB time/productivity or GC accounting.
+async function reconcileMaiWorkbookDeductions(buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const sheet = workbook.getWorksheet('Mài');
+  if (!sheet) throw new Error('MAI Workbook1 export missing expected Mài sheet.');
+  if (norm(sheet.getCell('L1').value) !== norm('Tổng TG trừ giờ')
+    || norm(sheet.getCell('C1').value) !== norm('Mã số')) {
+    throw new Error('MAI deduction column contract changed; refusing an unsafe rewrite.');
+  }
+  let changed = 0;
+  for (let r = 3; r <= sheet.rowCount; r += 1) {
+    const row = sheet.getRow(r);
+    // Date separators and empty template rows are not production records.
+    if (!Number.isFinite(Number(row.getCell(1).value))
+      || !String(row.getCell(3).value ?? '').trim()) continue;
+    const displayedHours = Array.from({ length: 20 }, (_, i) => Number(row.getCell(13 + i).value))
+      .reduce((sum, n) => sum + (Number.isFinite(n) && n > 0 ? n : 0), 0);
+    const recorded = Number(row.getCell(12).value);
+    if (displayedHours > 0 && (!Number.isFinite(recorded) || Math.abs(recorded) < 0.000001)) {
+      row.getCell(12).value = displayedHours;
+      changed += 1;
+    }
+  }
+  return { buffer: changed ? Buffer.from(await workbook.xlsx.writeBuffer()) : buffer, changed };
+}
+
 async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
   if (!payload || payload.dataSource !== 'tidb.production_reports.approved') {
     throw new Error('Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
@@ -416,6 +446,11 @@ async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
     const expectedTemplateKind = WORKBOOK1_CODES.has(item.processCode) ? 'workbook1-sheet' : 'original-company';
     if (ORIGINAL_COMPANY_CODES.has(item.processCode) && built.templateKind !== expectedTemplateKind) {
       throw new Error('Không thể xuất ' + item.processCode + ': không dùng đúng mẫu ' + expectedTemplateKind + '.');
+    }
+    if (item.processCode === 'MAI') {
+      const reconciled = await reconcileMaiWorkbookDeductions(built.buffer);
+      built.buffer = reconciled.buffer;
+      built.deductionTotalsReconciled = reconciled.changed;
     }
     built.processCode = item.processCode;
     built.processName = processData.processName || processData.process_name || item.processCode;
@@ -550,4 +585,4 @@ if (!global.__KTC_WORKER_TEMPLATE_MAIN_PATCH__) {
   };
 }
 
-module.exports = { buildWorkerSplit, PROCESS_CODES, PROCESS_FILE_PREFIXES };
+module.exports = { buildWorkerSplit, reconcileMaiWorkbookDeductions, PROCESS_CODES, PROCESS_FILE_PREFIXES };
