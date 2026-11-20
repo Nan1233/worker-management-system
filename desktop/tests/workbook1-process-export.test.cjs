@@ -160,12 +160,22 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
       assert.equal(standardCell.value.result, 500*(workingField ? 12 : 10),
         code+' standard target is 500 SP/h x the visible time');
     }
+    // The company's data presentation rule keeps fractions only for hours.
+    const outputCol=Object.entries(form.fields).find(([,key])=>key==='output')?.[0];
+    const hourlyCol=Object.entries(form.fields).find(([,key])=>key==='outputPerHour')?.[0];
+    if(stdCol) assert.equal(sheet.getCell(stdCol+dataRow).numFmt,'#,##0',
+      code+' total standard is whole pieces, never decimal SP/h');
+    if(outputCol) assert.equal(sheet.getCell(outputCol+dataRow).numFmt,'#,##0',
+      code+' output quantity is a whole number');
+    if(hourlyCol) assert.equal(sheet.getCell(hourlyCol+dataRow).numFmt,'#,##0',
+      code+' output/hour displays without decimal digits');
     const timeFields=Object.entries(form.fields).filter(([,key])=>/(?:time|hours|minutes|duration)/i.test(key));
     assert.ok(timeFields.length,code+' has time columns');
     for(const [letter] of timeFields){
       const originalWidth=originalSheet.getColumn(letter).width;
       if (!sheet.getColumn(letter).hidden) {
-        assert.equal(sheet.getColumn(letter).width,originalWidth,code+' visible time width unchanged: '+letter);
+        assert.ok(sheet.getColumn(letter).width >= originalWidth,
+          code+' visible time column expands as needed: '+letter);
       }
       const cell=sheet.getCell(letter+dataRow);
       if(typeof cell.value==='number')
@@ -175,7 +185,7 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     for (const [column,key] of Object.entries(form.fields)) {
       if (key !== 'achievement' && key !== 'ngRate') continue;
       const cell=sheet.getCell(column+dataRow);
-      assert.equal(cell.numFmt,'0.00%',code+' '+key+' is displayed as percent');
+      assert.equal(cell.numFmt,'0%',code+' '+key+' is displayed as whole percent');
       if (key === 'achievement') {
         assert.equal(cell.value.result, 100/(500*(workingField ? 12 : 10)),
           code+' achievement uses output / total standard');
@@ -337,7 +347,7 @@ test('All six Workbook1 forms use Gia công percentage bands at thresholds',asyn
       for (const [index,scenario] of scenarios.entries()) {
         const row=form.first+index;
         const cell=sheet.getCell(letter+row);
-        assert.equal(cell.numFmt,'0.00%',code+' '+field+' percent format');
+        assert.equal(cell.numFmt,'0%',code+' '+field+' whole percent format');
         assert.equal(cell.fill?.fgColor?.argb,field==='achievement'
           ?scenario.achievementColor:scenario.ngColor,code+' '+field+' color band '+index);
       }
