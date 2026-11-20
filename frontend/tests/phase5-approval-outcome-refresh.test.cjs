@@ -23,7 +23,7 @@ test('single approval reports server success before optional refresh', () => {
 test('bulk approval and rejection report results before optional refresh', () => {
   for (const [start, end, marker] of [
     ['const rejectTargets = async () => {', 'const visibleIds =', 'setActionFeedback({'],
-    ['const approveBulk = async () => {', 'const detailKpi =', 'setActionFeedback({'],
+    ['const approveBulk = async () => {', '// Stable report identifiers', 'setActionFeedback({'],
   ]) {
     const action = body(start, end);
     const success = action.indexOf(marker);
