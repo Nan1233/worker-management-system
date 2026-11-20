@@ -151,3 +151,27 @@ test('MAI MACHINE: numeric zero SL/H and achievement are repaired, not treated a
   assert.ok(Math.abs(row.getCell(36).value - (709 / 5.6667) / 120) < 1e-9);
   assert.equal((await reconcileMaiWorkbookDeductions(result.buffer)).changed, 0);
 });
+
+test('MAI: re-computes stale nonzero SL/H and percent using K and hourly standard', async () => {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Mài');
+  sheet.getCell('L1').value = 'Tổng TG trừ giờ';
+  sheet.getCell('C1').value = 'Mã số';
+  sheet.getCell('A3').value = 1;
+  sheet.getCell('C3').value = '4381';
+  sheet.getCell('J3').value = 5;
+  sheet.getCell('K3').value = 5;
+  sheet.getCell('L3').value = 7; // source inconsistency: never subtract again from K
+  sheet.getCell('AH3').value = 85;
+  sheet.getCell('AI3').value = 350;
+  sheet.getCell('AL3').value = 999;
+  sheet.getCell('AJ3').value = 3;
+  const fixed = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
+  const out = new ExcelJS.Workbook();
+  await out.xlsx.load(fixed.buffer);
+  const row = out.getWorksheet('Mài').getRow(3);
+  assert.equal(row.getCell(11).value, 5, 'must preserve an existing positive actual hour snapshot');
+  assert.equal(row.getCell(38).value, 70);
+  assert.ok(Math.abs(row.getCell(36).value - 70/85) < 1e-10);
+  assert.equal((await reconcileMaiWorkbookDeductions(fixed.buffer)).changed, 0);
+});
