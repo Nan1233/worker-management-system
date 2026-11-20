@@ -513,6 +513,13 @@ api.interceptors.response.use(
             requestUrl.includes("/auth/refresh") ||
             requestUrl.includes("/auth/logout");
 
+        const denialCode = (error.response?.data as { code?: string } | undefined)?.code;
+        if (status === 401 && denialCode === "SESSION_REPLACED" && !loginTransitionActive && !isAuthRequest) {
+            sessionStorage.setItem("ktcSessionReplacedMessage", "Tài khoản đã đăng nhập ở tab hoặc thiết bị khác.");
+            invalidateSessionAndRedirect();
+            return Promise.reject(error);
+        }
+
         if (
             status !== 401 ||
             originalRequest._retry ||
@@ -546,6 +553,19 @@ api.interceptors.response.use(
     }
 );
 
+
+// Heartbeat checks session ownership even while the UI is idle. API mutation
+// endpoints already reject superseded JWTs immediately on the server.
+const SESSION_HEARTBEAT_MS = 10_000;
+if (typeof window !== "undefined") {
+    window.setInterval(() => {
+        if (loginTransitionActive || crossTabAuthInvalidated) return;
+        const route = window.location.hash.replace(/^#/, "") || "/";
+        if (/^\\/login(?:\\/|$)/.test(route) || !getAccessToken()) return;
+        void api.get("/auth/session", { timeout: 8000, _skipProactiveRefresh: true } as any)
+            .catch(() => { /* Network failures are not evidence of revocation. */ });
+    }, SESSION_HEARTBEAT_MS);
+}
 
 // Khi PWA chuyển Wi-Fi/4G, trình duyệt có thể báo online trước khi
 // đường truyền thật sự ổn định. Đợi ngắn rồi làm mới token một lần,
