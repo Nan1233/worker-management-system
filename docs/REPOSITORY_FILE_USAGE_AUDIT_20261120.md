@@ -1,51 +1,39 @@
-# KTC file usage, naming and duplication audit — 20/11/2026
+# KTC repository file usage and duplication audit — 20/11/2026
 
-Scope: `refactor/ktc-local-cleanup`. GitHub tree inventory covered 1,686 tracked files across 13 top-level directories before this cleanup. This is a static audit, **not** a complete runtime import graph; dynamic `require`, generated references, packaged resources and database migrations require separate checks.
+Branch: `refactor/ktc-local-cleanup`. **Source audit only**: no build/test, packaged desktop execution, merge/deploy or production DB changes.
 
-## Confirmed active, do not delete
-- `desktop/electron/excelExportContractPatch.v5.cjs`: `launcher.cjs` loads it before v6.
-- `desktop/electron/excelExportContractPatch.v6.cjs`: loaded by launcher; imports `workerReportTemplateLocal.v2.cjs`.
-- `desktop/electron/workerReportTemplateLocal.v2.cjs`: active via v6, smoke scripts and CI.
-- `desktop/electron/excelReportDateSubmissionPatch.cjs`: loaded by launcher before v6; patches module behavior. Requires removal by refactor, not deletion.
-- `backend/models/productionTemp*.js`: `Temp` is a workflow entity, not proof of temporary/obsolete files.
-- `backend/migrations`: applied migrations are historical schema records; do not delete.
+## Current template inventory
+GitHub content listings on this branch show **19 entries** under `backend/templates/` (18 XLSX files + README) and **7 entries** under `desktop/assets/templates/` before the desktop duplicate removal (6 XLSX + other entry). One byte-identical Desktop XLSX alias was subsequently removed.
 
-## Candidates needing reference and runtime verification
-- `desktop/electron/workerReportTemplateLocal.cjs`: no exact-name search hits, while v2 is actively imported; inspect dynamic imports and packaging before deletion.
-- `frontend/src/pages/worker/ProcessPage.layout-legacy.css`: verify stylesheet imports and visual regression.
-- `backend/controllers/legacyExcelExportCompatController.js`: legacy name may reflect a supported API; inspect route and external consumers.
-- `desktop/copy`: tracked zero-byte file; check tooling/scripts before removal.
+- **Backend canonical 9-process workbook:** `backend/templates/KTC-Bao-cao-9-cong-doan.xlsx` (blob `42318b324715fa68df7ef8f298b5788b9282a36b`). Eleven identical filenames were removed in an earlier refactor, leaving one canonical copy.
+- **Desktop canonical template:** `desktop/assets/templates/file-mau.xlsx` (blob `482c503a9630610b972e006e07baaf7a6a8550e6`). `process-report-template.xlsx` was an exact-byte duplicate without a current exact-name code-search reference and has been removed.
+- **Preserved as required runtime inputs:** Backend `Workbook1.xlsx`, seven `NN_MAU_*.xlsx` templates, `Mau_Bao_Cao_Cong_Nhan_DB_day_du_chi_tiet_STT_FIX.xlsx`, `TT_MAI_TEMPLATE.xlsx`, `TT_DO_TEMPLATE.xlsx`, and other company-specific workbook sources.
+- **Intentionally duplicated across deployment boundaries:** `bao-cao-mai-do-export.xlsx` and `bao-cao-cat-long-export.xlsx` exist in both backend and desktop asset folders. Both have code references/fallback lookups; do not deduplicate them across separately packaged applications without testing packaging.
+- **APK:** `frontend/public/downloads/ktc-production-control.apk` and `public/downloads/ktc-production-control.apk` share a blob, but may be published by different build roots. Both remain until deployment ownership is confirmed.
 
-## Confirmed byte-for-byte duplicate groups (Git blob SHA)
-- 12 paths in `backend/templates/` share one 4,590,283-byte blob: `KTC-Bao-cao-9-cong-doan.xlsx`, multiple mojibake `file m...` names, `file mẫu.xlsx`, `ktc-machine-master-source.xlsx`, `template_legacy_001.xlsx`, `template_legacy_002.xlsx`. These are **identical bytes**, but filename references may differ.
-- `desktop/assets/templates/file-mau.xlsx` and `desktop/assets/templates/process-report-template.xlsx` are identical (4,592,907 bytes).
-- Backend and Desktop each contain identical `bao-cao-mai-do-export.xlsx` (6,949,782 bytes) and `bao-cao-cat-long-export.xlsx` (1,690,538 bytes).
-- `frontend/public/downloads/ktc-production-control.apk` and `public/downloads/ktc-production-control.apk` are identical (4,382,221 bytes); verify publishing paths before choosing one canonical asset.
+## Legacy/versioned source modules
 
-## Removed generated files in this audit
-- 27 tracked files from `frontend/android/capacitor-cordova-android-plugins/build/` (Gradle intermediates), already ignored by root `.gitignore`.
-- 2 tracked files from `frontend/playwright-report/` and `frontend/test-results/` removed earlier; added explicit ignore rules to prevent reintroduction.
+- `desktop/electron/excelExportContractPatch.v5.cjs` was removed: startup no longer loads it, the direct v6 builder is used, and its explicit adapter function names had no indexed consumers.
+- `desktop/electron/compactGcExcelPatch.cjs` **remains** because `desktop/scripts/smokeCompactExcel.cjs` uses it explicitly.
+- `desktop/electron/excelExportContractPatch.v6.cjs` **remains active** via `main.cjs` and smoke/integration scripts.
+- `desktop/electron/workerReportTemplateLocal.v2.cjs` **remains active** via v6, Electron packaging, smoke scripts, tests and CI. Renaming it requires migrating all consumers, not just changing the filename.
+- `desktop/electron/launcher.cjs` no longer imports the v5/Compact GC startup patches. Source that was previously loaded through `excelReportDateSubmissionPatch.cjs` should not be assumed active.
 
-## Naming assessment
-**Not yet standardized.** `excelExportContractPatch.v5.cjs`, `.v6.cjs` and `workerReportTemplateLocal.v2.cjs` embed implementation versions in filenames; `excelReportDateSubmissionPatch.cjs` uses runtime patching; Excel fixtures include mojibake names, ambiguous `Book2.xlsx`/`Workbook1.xlsx` and `template_legacy_*.xlsx`. Avoid mass renames without updating template lookups, packaging scripts and CI.
+Do not delete `backend/models/productionTemp*.js`: “Temp” is a valid pending-report data state, not a disposable file. Applied DB migrations are historical schema records.
 
-Proposed canonical naming:
-- `desktop/electron/excel/workbookExporter.cjs` (single stable export entry point)
-- `desktop/electron/excel/workerReportTemplate.cjs`
-- `desktop/electron/excel/processTemplateRegistry.cjs`
-- `desktop/electron/excel/workbookCompatibility.cjs` (only while compatibility truly required)
-- `backend/templates/<process-code>/<purpose>.xlsx` with a registry mapping stable process codes to paths; no filename guessing.
+## Static safety guard
 
-## Deletion acceptance gate
-1. Search static + dynamic import/require, package scripts, CI, template paths and runtime entrypoints.
-2. Determine which implementation is canonical; compare output and compatibility.
-3. Migrate references to canonical path; run backend tests, frontend build, desktop Excel smoke and packaging.
-4. Remove obsolete module/asset only after passing gates; keep Git history.
-5. Never delete a file solely because its name contains `vN`, `legacy`, `Temp` or `backup`.
+`npm run check:repository` uses `scripts/checkRepositoryLayout.cjs` to verify canonical templates, identical workbook copies within each template directory, names referenced by `originalProcessExcelTemplate.cjs`, explicit `desktop/package.json` packaged resource lists, approval compatibility exports, and known removed aliases.
 
-No production DB, merge or deployment touched. **Full automated test suite and Windows packaging have not been run.**
+`node scripts/auditRepositoryFiles.cjs --json` is an additional *diagnostic* for source imports, duplicate hashes, dynamically resolved candidates and versioned filenames. A file with no static inbound imports is **not automatically unused**.
 
-## Follow-up cleanup
-- Removed `desktop/copy` (empty tracked placeholder).
-- Removed `desktop/electron/workerReportTemplateLocal.cjs` (superseded by the actively imported `.v2.cjs`; GitHub exact-name code search returned no references). Dynamic lookup and full packaged-runtime verification remain outstanding.
-- Confirmed export patches modify `monthlyWorkbookLocal` exports in sequence: v5, compact GC patch, then v6. Both `excelReportDateSubmissionPatch.cjs` and v6 override CommonJS module loaders. These are architectural debt; **do not delete or reorder until replacing their behavior with explicit module APIs and regression testing**.
+`scripts/finalReleaseAudit.cjs` has been adapted to inspect the extracted approval/rejection implementation rather than searching for old code inside the now eight-line facade. It also no longer treats the mere existence of GitHub workflows as a release failure.
+
+## Safe deletion rule
+1. Inspect exact contents and compare blob hashes.
+2. Search current branch references in runtime code, package lists, publishing paths, scripts and CI. Search indexes can lag the branch: inspect live files before changing them.
+3. If a file is loaded by name, migrate its consumers first; preserve compatibility exports and packaged resources.
+4. Record retained canonical path and deletion reason.
+5. Validate by building, running workbook smoke tests, checking Cloudflare interfaces and packaging before merging.
+
+**Known limitation:** no executable regression/build/Windows-package run has been performed on these changes. Full absence of dynamic references cannot be proven by the static audit.
