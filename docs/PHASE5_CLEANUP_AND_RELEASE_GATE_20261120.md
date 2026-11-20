@@ -2,6 +2,14 @@
 
 **Ngày:** 20/11/2026 · **Nhánh kiểm thử:** `refactor/ktc-local-cleanup`
 
+## Bằng chứng nghiệm thu CI cuối cùng
+
+**Source commit đã kiểm thử:** `246b63dbcab69e90d27e01c2136280d6d4c1d607`.
+
+- [KTC three-part isolated acceptance — run 44660709647](https://github.com/Nan1233/worker-management-system/actions/runs/44660709647): **3/3 jobs SUCCESS**; browser authenticated **22 passed, 0 flaky**, Backend/TiDB cô lập PASS, Windows NSIS/Portable staging PASS.
+- [Phase 2 consolidated isolated verification — run 44660709537](https://github.com/Nan1233/worker-management-system/actions/runs/44660709537): **6/6 jobs SUCCESS**; gồm frontend lint/typecheck/build, backend, responsive/browser smoke, Excel parity, Windows source checks.
+- Commit tài liệu sau SHA trên chỉ sửa nội dung runbook, không thay đổi runtime. Đây **không phải** bằng chứng kiểm thử PC thực địa hoặc sẵn sàng production.
+
 ## 1. Phạm vi mã nguồn và kết quả đã xác nhận
 
 Đây là nhánh thử nghiệm. Không merge, không deploy FE/BE/Desktop, không chỉnh sửa TiDB production trong quá trình refactor.
