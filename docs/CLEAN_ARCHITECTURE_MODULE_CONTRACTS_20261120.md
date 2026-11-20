@@ -71,3 +71,37 @@ Test source-regex hiện tại có thể fail vì chuyển hàm sang module khá
 3. **Backend submission:** `productionSubmissionProcessRepository.js` nhận hai truy vấn xác định `process_code` authoritative, giữ nguyên thứ tự kết quả và fallback use case. Transaction, lock, duplicate, training snapshot và audit vẫn ở service cũ. Chưa hoàn thành chuyển toàn bộ truy cập SQL sang repository.
 
 **Đánh giá hoàn thành:** ba lát cắt đã commit, **không phải** tuyên bố 3 nhóm refactor lớn đã hoàn tất. Chưa chạy typecheck/build/regression ở commit mới trong môi trường hiện tại. Không merge/deploy.
+
+## Lượt xử lý nhóm 4–9: thay đổi đã ghi vào repository
+
+| Nhóm | Lát cắt đã thực hiện | Phạm vi còn lại |
+|---|---|---|
+| 4. Approval backend | `productionApprovalReadRepository.js` giữ SQL timing/error log; `modules/production/domain/machineDefectLineage.js` giữ phép gắn NG theo machine_line_id và lỗi fail-closed | Các transaction/snapshot copy/notify còn ở `productionTempApprovalModel.js` |
+| 5. Feature boundaries | Domain production tách riêng, approval model nhập hàm domain, repository chuyên dụng phục vụ approval | Các feature còn dùng paths legacy; chưa chuyển toàn bộ sang feature-first |
+| 6. Excel | `monthlyWorkbookSchemas.cjs` sở hữu `PROCESS_SHEETS` và `PROCESS_TEMPLATE_SCHEMAS`; `monthlyWorkbookLocal.cjs` import và giữ nguyên public exports | Render/metric/writer còn nằm trong module lớn; chưa tách toàn bộ |
+| 7. Electron | `ipc/folderIpc.cjs` đăng ký ba folder IPC actions qua `protectedDesktopIpc` được truyền từ bootstrap | Phần lớn IPC/sync/bootstrap còn trong `main.cjs` |
+| 8. Hợp đồng/test | Chỉnh 4 test hiện có để đọc module mới, vẫn giữ assertion nghiệp vụ, cập nhật tài liệu ranh giới | Cần xem lại các source-regex test khác qua full test run |
+| 9. Regression | Đối chiếu 13/13 tiêu chí cấu trúc với nội dung GitHub ở HEAD | **Chưa chạy** runtime tests, typecheck/lint/build, desktop Excel smoke; không tuyên bố regression PASS |
+
+### Những điểm xác nhận bằng kiểm tra cấu trúc
+
+- Approval giữ cách begin/commit transaction, domain lineage không import DB, SQL diagnostic giữ mã log cũ.
+- Excel sheet mapping còn đủ 10 mã công đoạn, writer giữ `_private` và public exports.
+- Electron vẫn bọc `protectedDesktopIpc` cho ba handler được tách, `isTrustedIpcSender` ở main giữ nguyên.
+- Các test NG còn assertion orphan lineage, invalid IDs, per-machine ordering; các test Excel giữ cột/schema.
+- Không kết luận 6 hạng mục **đã hoàn tất toàn bộ**; các bước này là refactor tăng dần và chưa được nghiệm thu chạy thực tế.
+
+### Bắt buộc thực hiện trước khi merge
+
+```sh
+# repo root
+node --test backend/tests/approval-machine-defect-grouping-refactor.test.js backend/tests/temp-machine-defect-lineage-validation-regression.test.js backend/tests/approval-temp-machine-line-read-refactor.test.js backend/tests/excel-process-template-schema.test.js backend/tests/source-integrity.test.js
+# frontend
+cd frontend && npm run typecheck && npm run lint && npm test && npm run build
+# backend
+cd ../backend && npm run check && npm test
+# desktop: chạy các smokeExcel/validateExcelFolder scripts có sẵn trên fixture an toàn,
+# đối chiếu bytes/worksheet/sync metadata với baseline; không động vào dữ liệu production.
+```
+
+Các lỗi do source-extraction khác phải được xử lý trước merge. Test chỉ được đánh dấu PASS khi có log chạy tại đúng commit.
