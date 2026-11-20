@@ -372,7 +372,10 @@ function filterVerifiedGcSplitParents(reports) {
 function relocateExcelFormula(formula, sourceRow, targetRow) {
   const delta = targetRow - sourceRow;
   return String(formula).replace(/(\$?[A-Z]{1,3})(\$?)(\d+)/g, (full, column, absolute, rowText) =>
-    absolute === '
+    absolute === '$' ? full : column + String(Number(rowText) + delta));
+}
+
+async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } = {}) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const sheet = workbook.getWorksheet('Mài');
