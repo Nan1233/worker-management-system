@@ -76,6 +76,43 @@ async function createFamilyRoot(data, options = {}) {
   };
 }
 
+// Serialize logins per user and atomically retire every older session.
+async function createExclusiveFamilyRoot(data, options = {}) {
+  const pool = options.pool || getDefaultPool();
+  const connection = await pool.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+    const users = await query(connection, 'SELECT id FROM users WHERE id=? FOR UPDATE', [data.user_id]);
+    if (!users.length) throw new RefreshSessionError('SESSION_USER_DISABLED', 'Account not found');
+    await connection.query(
+      'UPDATE user_sessions SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND revoked_at IS NULL',
+      [data.user_id]
+    );
+    const created = await createFamilyRoot(data, { executor: connection });
+    await connection.commit();
+    return created;
+  } catch (error) {
+    try { await connection.rollback(); } catch (_) {}
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+async function assertActiveAccessSession(userId, familyId, options = {}) {
+  if (!Number.isInteger(Number(userId)) || Number(userId) <= 0 || typeof familyId !== 'string' || !/^[0-9a-f-]{36}$/i.test(familyId)) {
+    return false;
+  }
+  const executor = options.executor || getDefaultPool().promise();
+  const rows = await query(executor, `
+    SELECT id FROM user_sessions
+    WHERE user_id=? AND family_id=? AND revoked_at IS NULL
+      AND consumed_at IS NULL AND expires_at>NOW()
+    LIMIT 1
+  `, [userId, familyId]);
+  return rows.length > 0;
+}
+
 async function findGenerationForUpdate(connection, refreshToken) {
   const tokenHash = hashRefreshToken(refreshToken);
   const rows = await query(connection, `
@@ -261,6 +298,8 @@ module.exports = {
   generateFamilyId,
   isExpired,
   createFamilyRoot,
+  createExclusiveFamilyRoot,
+  assertActiveAccessSession,
   rotateRefreshToken,
   revokeFamilyByRefreshToken,
   revokeAllUserFamilies,
