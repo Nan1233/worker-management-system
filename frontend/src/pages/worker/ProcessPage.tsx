@@ -6,34 +6,21 @@ import {
     useState
 } from "react";
 
-import axios from "axios";
-
 import {
     useNavigate,
     useParams
 } from "react-router-dom";
 
 
-import {
-    createTempReport,
-    updateTempReport,
-} from "../../services/productionService";
-
+import type { ProductionReport } from "../../types/production";
 
 import type { ProductStandardOption } from "../../services/masterDataService";
 
 import { useToast } from "../../components/feedback/toastContext";
-import { getApiError } from "../../utils/apiError";
 import {
     clearProcessDraftAsync,
 } from "./processDraftStorage";
-import { createClientRequestId } from "../../utils/workerSubmitGuard";
-import { clearSubmittedProcessDraft } from "./processSubmitDraftCompletion";
 import { useProcessOnlineStatus } from "./useProcessOnlineStatus";
-import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
-import { isTransientNetworkFailure } from "../../services/offlineReportQueue";
-import { queueRemainingMachineReports, shouldQueuePendingMachineReports } from "./processMachineReportQueue";
-import { reportsAwaitingDuplicateConfirmation, reportsUnsentAfterNetworkFailure } from "./processSubmitBatchSlices";
 
 import type {
     AutocompleteOption
@@ -85,9 +72,6 @@ import {
     applyProcessFormChange,
     clearZeroNumberField,
 } from "./processInputLogic";
-import {
-    toDuplicatePrompt,
-} from "./processDuplicateReportLogic";
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { useProcessDuplicateActions } from "./useProcessDuplicateActions";
 import { useProcessSubmission } from "./useProcessSubmission";
@@ -119,7 +103,7 @@ function ProcessPage() {
     const { showToast } = useToast();
     const submitLockRef = useRef(false);
     const clientRequestIdRef = useRef<string | null>(null);
-    const pendingSplitPayloadsRef = useRef<any[]>([]);
+    const pendingSplitPayloadsRef = useRef<ProductionReport[]>([]);
     // A confirmed primary report must not be submitted again when a later split fails.
     const duplicatePrimaryCompletedRef = useRef(false);
     // Reuse the same idempotency key if the server accepted a forced duplicate but its response was lost.
