@@ -10,28 +10,7 @@ const EXCEL_CONTRACT_VERSION = EXCEL_SYNC_CONTRACT_VERSION;
 
 // KTC Excel color contract: bám hệ màu file tháng 07/2026.
 // Tất cả mã màu được quản lý tập trung tại đây; không rải mã màu trực tiếp trong code.
-const COLORS = Object.freeze({
-  navy: 'FF17365D',
-  blue: 'FF1F4E78',
-  blue2: 'FF5B9BD5',
-  blueLight: 'FFDDEBF7',
-  orange: 'FFD6B656',
-  orangeLight: 'FFFFF2CC',
-  green: 'FF70AD47',
-  greenLight: 'FFE2F0D9',
-  red: 'FFC65911',
-  redLight: 'FFFCE4D6',
-  gray: 'FF7F8C9A',
-  grayLight: 'FFF2F2F2',
-  white: 'FFFFFFFF',
-  black: 'FF1F2937',
-  border: 'FFD7DEE7',
-  warning: 'FFFFF2CC',
-  actualOutput: 'FFE4DFEC',
-  rateGood: 'FFC6E0B4',
-  rateWarning: 'FFFFE699',
-  rateBad: 'FFFF5252'
-});
+const { COLORS } = require('./monthlyWorkbookStyles.cjs');
 
 const asText = (value) => String(value ?? '').trim();
 const asNumber = (value) => {
