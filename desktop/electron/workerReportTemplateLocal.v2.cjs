@@ -620,6 +620,12 @@ function applyReportRow(row, report, contract, processData, index) {
     : report;
   set(contract.cols.stt, index + 1);
   set(contract.cols.entryDate, asDate(report.entry_date || report.created_at));
+  // Write the audit timestamp explicitly instead of relying on a loader patch.
+  // The template's hidden submittedAt column is distinct from the work date.
+  if (contract.cols.submittedAt) {
+    set(contract.cols.submittedAt, asDateTime(report.submitted_at));
+    row.getCell(contract.cols.submittedAt).numFmt = 'dd/mm/yyyy hh:mm:ss';
+  }
   set(contract.cols.date, asDate(report.work_date || report.entry_date));
   set(contract.cols.workerCode, report.worker_code);
   set(contract.cols.workerName, report.full_name || report.worker_name || report.name);
