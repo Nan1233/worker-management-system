@@ -58,6 +58,24 @@ assert.ok(workerRegistry.includes("require('./monthlyWorkbookNaming.cjs')"),
 for (const file of ['workerReportWorkbook.cjs', 'productionExcelExport.cjs', 'deferredDesktopServices.cjs']) {
   assert.ok(exists('desktop', 'electron', file), `Stable desktop entry missing: ${file}`);
 }
+// No automatic Excel -> DB watcher: all imports must be manager-confirmed.
+const mainSource = fs.readFileSync(at('desktop', 'electron', 'main.cjs'), 'utf8');
+const rendererSource = fs.readFileSync(at('desktop', 'electron', 'desktopRendererMonitoring.cjs'), 'utf8');
+for (const [name, source] of [['main', mainSource], ['renderer monitor', rendererSource]]) {
+  assert.ok(!source.includes('startExcelDbSyncWatcher'),
+    `Obsolete automatic Excel DB watcher reference in ${name}`);
+  assert.ok(!source.includes('stopExcelDbSyncWatcher'),
+    `Obsolete automatic Excel DB watcher reference in ${name}`);
+}
+for (const [file, dependency] of [
+  ['main.cjs', "require('./productionExcelExport.cjs')"],
+  ['productionExcelExport.cjs', "require('./excelExportContractPatch.v6.cjs')"],
+  ['excelExportContractPatch.v6.cjs', "require('./workerReportWorkbook.cjs')"],
+  ['workerReportWorkbook.cjs', "require('./workerReportTemplateLocal.v2.cjs')"],
+]) {
+  assert.ok(fs.readFileSync(at('desktop', 'electron', file), 'utf8').includes(dependency),
+    `Stable Excel export chain is broken: ${file}`);
+}
 // Retain the exported workflow facade so existing backend routes resolve.
 const approvalFacade = fs.readFileSync(at('backend', 'models', 'productionTempApprovalModel.js'), 'utf8');
 for (const moduleName of ['productionApprovalWorkflow', 'productionRejectionWorkflow']) {
