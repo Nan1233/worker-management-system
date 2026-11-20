@@ -66,7 +66,7 @@ test('frontend rejects skipped Desktop sync results', () => {
 });
 
 test('monthly workbook contains all ten production processes', () => {
-  const monthly = read('../desktop/electron/monthlyWorkbookLocal.cjs');
+  const monthly = read('../desktop/electron/monthlyWorkbookSchemas.cjs');
   const companyData = read('controllers/companyExcelDataController.js');
   for (const code of ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3','CVK']) {
     assert.match(monthly, new RegExp(`\\b${code}:\\s*\\{`));
