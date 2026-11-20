@@ -66,18 +66,26 @@ for (const file of files) {
   hashes.get(hash).push(relative(file));
 }
 const duplicates = [...hashes.values()].filter(group => group.length > 1).sort((a,b) => b.length-a.length);
+// Separate same-folder copies (actionable) from independently packaged deployment assets.
+const withinDirectoryDuplicates = duplicates.filter(group => {
+  const dirs = group.map(file => path.posix.dirname(file));
+  return new Set(dirs).size < dirs.length;
+});
+const crossDirectoryDuplicates = duplicates.filter(group => new Set(group.map(file => path.posix.dirname(file))).size > 1);
 const versioned = files.map(relative).filter(f => /(?:^|[._-])v\d+(?:[._-]|$)/i.test(path.basename(f)));
 const noStaticInbound = [...imports.keys()].filter(f => !(inbound.get(f) || []).length).sort();
 const result = {
   note: 'Static analysis only. No-static-inbound does NOT imply unused: entrypoints, dynamic imports, scripts, package.json, native assets and runtime lookup are not resolved.',
   files: files.length, analyzedSourceFiles: imports.size,
-  versioned, duplicates, unresolved, dynamic,
+  versioned, duplicates, withinDirectoryDuplicates, crossDirectoryDuplicates, unresolved, dynamic,
   noStaticInbound,
 };
 if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
 else {
   console.log('Files:', result.files, 'Source files:', result.analyzedSourceFiles);
   console.log('Versioned filenames:', versioned.length, 'Exact duplicate groups:', duplicates.length);
+  console.log('Same-directory duplicate groups:', withinDirectoryDuplicates.length,
+    'Cross-directory duplicate groups:', crossDirectoryDuplicates.length, '(verify deployment ownership)');
   console.log('Unresolved relative imports:', unresolved.length, 'Dynamic import candidates:', dynamic.length);
   console.log('Files without static inbound references:', noStaticInbound.length, '(NOT safe-to-delete list)');
   console.log('Run with --json for details.');
