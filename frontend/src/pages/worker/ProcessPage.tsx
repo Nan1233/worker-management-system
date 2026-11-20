@@ -69,7 +69,6 @@ import {
     usesSingleMachine as resolveUsesSingleMachine,
 } from "./processPageDomain";
 import {
-    MAX_TOTAL_WORK_MINUTES,
     calculateActualOutput as calculateActualOutputValue,
     formatIntegerDisplay,
     parseIntegerDisplay,
