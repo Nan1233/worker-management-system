@@ -43,3 +43,9 @@ ALTER TABLE production_reports_temp
   ADD COLUMN IF NOT EXISTS updated_by BIGINT NULL;
 CREATE INDEX IF NOT EXISTS idx_prt_updated_by
   ON production_reports_temp (updated_by, updated_at);
+
+-- Historical approved-report list projection expects a stored standard-time
+-- target. The canonical 2026-08-17 snapshot predates this column.
+-- Restricted strictly to the disposable ktc_it_* acceptance database.
+ALTER TABLE production_reports
+  ADD COLUMN IF NOT EXISTS tt_dinh_muc DECIMAL(18,6) NULL;
