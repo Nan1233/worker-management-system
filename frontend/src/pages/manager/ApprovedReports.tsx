@@ -5,7 +5,7 @@ import { getAccessToken } from "../../utils/authStorage";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import { getAllReportDefects } from "../../utils/reportDetails";
-import { reportCodes, text, fmt, pct, dateText, rangeFor, kpi, metricStyle, parseMachineDefects } from "./approvedReportsPresentation";
+import { reportCodes, num, text, fmt, pct, dateText, rangeFor, kpi, metricStyle, parseMachineDefects } from "./approvedReportsPresentation";
 import "./ReportsSplitReference.css";
 import "./ReportTableSimplified.css";
 import "./ApprovedReviewScreen.css";
