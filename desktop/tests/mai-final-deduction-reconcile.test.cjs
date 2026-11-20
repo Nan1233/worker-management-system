@@ -66,7 +66,7 @@ test('MAI final reconciliation fails closed on unexpected workbook column layout
   await assert.rejects(reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer())), /column contract/);
 });
 
-test('MAI: preserve zero DB actual_time and retain editable blank formulas for invalid MACHINE rows', async () => {
+test('MAI: export mirrors J to K and calculates hourly rates without subtracting L', async () => {
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet('Mài');
   sheet.getCell('L1').value = 'Tổng TG trừ giờ';
@@ -103,15 +103,14 @@ test('MAI: preserve zero DB actual_time and retain editable blank formulas for i
     [3, 6.6667, 1, 120, 709],
     [4, 12, 0.5833, 180, 2054]
   ]) {
-    assert.equal(corrected.getCell('K' + row).value, 0, 'actual_time must remain the approved DB value');
-    assert.equal(calculated(corrected.getCell('AL' + row)), '');
-    assert.equal(calculated(corrected.getCell('AJ' + row)), '');
-    assert.ok(corrected.getCell('AL' + row).value.formula.includes('/K' + row));
+    assert.equal(corrected.getCell('K' + row).value, total, 'K must equal visible J');
+    assert.ok(Math.abs(calculated(corrected.getCell('AL' + row)) - quantity / total) < 1e-8);
+    assert.ok(Math.abs(calculated(corrected.getCell('AJ' + row)) - (quantity / total) / standard) < 1e-8);
+    assert.ok(corrected.getCell('AL' + row).value.formula.includes('/J' + row));
   }
-  assert.equal(corrected.getCell('K5').value, 0);
-  assert.equal(calculated(corrected.getCell('AL5')), '');
-  assert.equal(calculated(corrected.getCell('AJ5')), '');
-  assert.match(String(corrected.getCell('K5').note), /CẦN ĐỐI SOÁT GIỜ/);
+  assert.equal(corrected.getCell('K5').value, 5, 'time deduction 7 must not alter time J=5');
+  assert.equal(calculated(corrected.getCell('AL5')), 70);
+  assert.ok(Math.abs(calculated(corrected.getCell('AJ5')) - 70 / 85) < 1e-9);
   const second = await reconcileMaiWorkbookDeductions(result.buffer);
   assert.equal(second.changed, 0, 'reconciliation is idempotent');
 });
@@ -153,13 +152,13 @@ test('MAI MACHINE: numeric zero SL/H and achievement are repaired, not treated a
   const fixed = new ExcelJS.Workbook();
   await fixed.xlsx.load(result.buffer);
   const row = fixed.getWorksheet('Mài').getRow(3);
-  assert.equal(row.getCell(11).value, 0, 'database zero may not be replaced by inferred hours');
-  assert.equal(calculated(row.getCell(38)), '');
-  assert.equal(calculated(row.getCell(36)), '');
+  assert.equal(row.getCell(11).value, 6.6667, 'K is a mirror of J');
+  assert.ok(Math.abs(calculated(row.getCell(38)) - 709 / 6.6667) < 1e-9);
+  assert.ok(Math.abs(calculated(row.getCell(36)) - (709 / 6.6667) / 120) < 1e-9);
   assert.equal((await reconcileMaiWorkbookDeductions(result.buffer)).changed, 0);
 });
 
-test('MAI: re-computes stale nonzero SL/H and percent using K and hourly standard', async () => {
+test('MAI: re-computes stale nonzero SL/H and percent using J and hourly standard', async () => {
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet('Mài');
   sheet.getCell('L1').value = 'Tổng TG trừ giờ';
@@ -250,13 +249,14 @@ test('MAI: numeric DB inputs remain values while calculated cells retain editabl
   const row = wb.getWorksheet('Mài').getRow(3);
   assert.equal(row.getCell(35).value, 709, 'quantity is the approved database input');
   assert.equal(row.getCell(34).value, 120, 'standard is per hour');
-  assert.match(row.getCell(38).value.formula, /AI3\/K3/);
+  assert.match(row.getCell(38).value.formula, /AI3\/J3/);
   assert.match(row.getCell(36).value.formula, /AL3\/AH3/);
   assert.match(row.getCell(41).value.formula, /AN3\/AI3/);
   assert.equal(row.getCell(36).numFmt, '0.00%');
   assert.equal(row.getCell(38).numFmt, '#,##0.00');
-  assert.equal(calculated(row.getCell(38)), 709 / 5.6667);
-  assert.equal(calculated(row.getCell(36)), (709 / 5.6667) / 120);
+  assert.equal(row.getCell(11).value, 6.6667, 'K mirrors J');
+  assert.equal(calculated(row.getCell(38)), 709 / 6.6667);
+  assert.equal(calculated(row.getCell(36)), (709 / 6.6667) / 120);
   assert.equal((await reconcileMaiWorkbookDeductions(result.buffer)).changed, 0);
 });
 
@@ -267,6 +267,7 @@ test('MAI: uses preserved source formula when template supplies one', async () =
   sheet.getCell('C1').value = 'Mã số';
   sheet.getCell('A3').value = 1;
   sheet.getCell('C3').value = '3922';
+  sheet.getCell('J3').value = 4;
   sheet.getCell('K3').value = 4;
   sheet.getCell('AH3').value = 180;
   sheet.getCell('AI3').value = 720;
@@ -275,5 +276,5 @@ test('MAI: uses preserved source formula when template supplies one', async () =
   });
   const out = new ExcelJS.Workbook();
   await out.xlsx.load(result.buffer);
-  assert.equal(out.getWorksheet('Mài').getCell('AL3').value.formula, 'IFERROR(AI3/K3,0)');
+  assert.match(out.getWorksheet('Mài').getCell('AL3').value.formula, /AI3\/J3/);
 });
