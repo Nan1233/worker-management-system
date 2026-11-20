@@ -7,6 +7,7 @@ const { buildProcessWorkbookLocal, _private: { reportSnapshot } } = require('../
 function fixture(overrides = {}) {
   return {
     process_code: 'MAI',
+    operation_mode: 'MACHINE',
     worker_code: '4333',
     total_time: 10.6667,
     actual_time: 10.6667,
