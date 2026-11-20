@@ -660,8 +660,11 @@ function applyReportRow(row, report, contract, processData, index) {
     cell.numFmt = '0%';
   }
   set(contract.cols.standard, planned);
-  set(contract.cols.time, contract.timeKind === 'TOTAL' ? exportTimes.totalHours : exportTimes.actualHours);
-  if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, exportTimes.actualHours);
+  // All exported process sheets use the visible working-time column as the
+  // denominator. The duplicate actual-time cell mirrors it for legacy formulas.
+  set(contract.cols.time, exportTimes.totalHours);
+  if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time)
+    set(contract.cols.actualTime, exportTimes.totalHours);
   set(contract.cols.deductionTotal, exportTimes.deductionHours);
   if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
     if (contract.timeKind === 'TOTAL') {
@@ -679,7 +682,23 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.ng, number(report.tt_ng));
   set(contract.cols.output, number(report.actual_output ?? report.tt_ok));
   set(contract.cols.achievement, number(report.calculationSnapshot?.achievement_rate ?? report.achievement_rate));
-  set(contract.cols.outputPerHour, number(report.calculationSnapshot?.actual_per_hour ?? report.actual_output_per_hour));
+  const hourlyTimeCol = contract.cols.time || contract.cols.actualTime;
+  if (contract.cols.outputPerHour && contract.cols.output && hourlyTimeCol) {
+    const cachedOutput = number(report.actual_output ?? report.tt_ok);
+    const visibleHours = exportTimes.totalHours;
+    const cachedRate = Number.isFinite(cachedOutput) && Number.isFinite(visibleHours) && visibleHours > 0
+      ? cachedOutput / visibleHours : '';
+    const outputRef = columnLetter(contract.cols.output) + row.number;
+    const timeRef = columnLetter(hourlyTimeCol) + row.number;
+    const cell = row.getCell(contract.cols.outputPerHour);
+    cell.value = {
+      formula: 'IFERROR(IF(OR(' + timeRef + '<=0,' + outputRef + '=""),"",' + outputRef + '/' + timeRef + '),"")',
+      result: cachedRate
+    };
+    cell.numFmt = '#,##0.00';
+  } else {
+    set(contract.cols.outputPerHour, number(report.calculationSnapshot?.actual_per_hour ?? report.actual_output_per_hour));
+  }
   set(contract.cols.ngRate, number(report.calculationSnapshot?.ng_rate ?? report.ng_rate));
   set(contract.cols.status, report.status);
   // Ghi chú báo cáo không còn là cột xuất; dữ liệu lịch sử vẫn lưu trong DB.
@@ -964,6 +983,9 @@ contract.cols.workTime = workTimeColumn;
     const clearCount = Math.max(0, sheet.rowCount - (dataStartRow + reports.length) + 1);
     clearDataRows(sheet, dataStartRow + reports.length, clearCount, sheet.columnCount);
   }
+  // Hide only a true duplicate actual-time column; never hide K by letter.
+  if (contract.cols.time && contract.cols.actualTime && contract.cols.time !== contract.cols.actualTime)
+    sheet.getColumn(contract.cols.actualTime).hidden = true;
   // Giữ vị trí cột template để tránh dịch công thức Excel; ẩn hoàn toàn Ghi chú.
   for (let c = 1; c <= sheet.columnCount; c += 1) {
     const heading = String(sheet.getRow(headerRow).getCell(c).value ?? '').trim().toLowerCase();
