@@ -833,6 +833,12 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         column.width=Math.min(80,Math.ceil(requested));
       }
     }
+    // Every visible time/deduction cell must fit at least 12.00 plus padding,
+    // even when this month's value is zero and the original source was narrow.
+    for (const col of timeColumns) {
+      const target=sheet.getColumn(col);
+      if (!target.hidden) target.width=Math.max(Number(target.width)||0,12);
+    }
     // Final formats MUST run after copying the original template's cell styles;
     // otherwise 100.00% and fractional quantities return on exported rows.
     // Only time/deduction columns show decimals; all quantities, rates and
