@@ -48,8 +48,6 @@ import {
     createEmptyMachineLine,
     getCurrentLocalDate,
     getWorkerAllowedWorkDates,
-    getWorkerMaxWorkDate,
-    getWorkerMinWorkDate,
     initialDeduction,
     initialForm,
     processMap,
@@ -77,23 +75,11 @@ import {
     aggregateMachineLines,
     getMachineNgTotal,
 } from "./processMachineLines";
-import { validateMachineLines, validateSharedReportNumbers } from "./processPageValidation";
-import {
-    validateWorkerShift,
-    validateCustomReasonNames,
-    validateManualMachineData,
-    validateReportTime,
-    validateReportTotals,
-    validateRequiredExtraFields,
-} from "./processFormValidationRules";
 import { focusProcessValidationTarget } from "./processValidationFocus";
 import { useProcessQualityActions } from "./useProcessQualityActions";
 import { useProcessDeductionActions } from "./useProcessDeductionActions";
 import { validateProcessForm } from "./processFullFormValidation";
 
-import {
-    validateWorkerWorkDate,
-} from "./processWorkDateLogic";
 
 import {
     applyProcessFormChange,
@@ -116,7 +102,6 @@ import { useProcessDraftRestore } from "./useProcessDraftRestore";
 import { useProcessMachineLineActions } from "./useProcessMachineLineActions";
 import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
 import { hasProcessReportInput, resetProcessFormRetainingWorker } from "./processFormResetGuard";
-import { filterProductsForSelection } from "./productSuggestionRules";
 
 import type {
     DeductionKey,
