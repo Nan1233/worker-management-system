@@ -71,11 +71,11 @@ test('date ranges and warning highlighting preserve existing UI rules', () => {
   assert.deepEqual(p.metricStyle('productivity', 90), {});
 });
 
-test('machine NG parser accepts JSON and object historical formats', () => {
+test('machine NG parser accepts array JSON and object-form defects_json', () => {
   const actual = p.parseMachineDefects({
     machine_lines: [
       { machine_code: 'M1', defects_json: JSON.stringify([{ defect_name: 'Rách', quantity: 2 }]) },
-      { machine_code: 'M2', defects: { 'Bavia': 3, selectedNg: true, total: 3 } },
+      { machine_code: 'M2', defects_json: JSON.stringify({ 'Bavia': 3, selectedNg: true, total: 3 }) },
       { machine_code: 'M3', defects: 'corrupt-json' },
     ],
   });
@@ -83,4 +83,9 @@ test('machine NG parser accepts JSON and object historical formats', () => {
     { name: 'Rách', quantity: 2, machine: 'M1' },
     { name: 'Bavia', quantity: 3, machine: 'M2' },
   ]);
+  // Preserve legacy behavior: when defects is not an array the parser
+  // falls back to defects_json (an object in defects alone is not read).
+  assert.deepEqual(p.parseMachineDefects({
+    machine_lines: [{ machine_code: 'M4', defects: { Bavia: 5 } }],
+  }), []);
 });
