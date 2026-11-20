@@ -1,4 +1,4 @@
-import { clearSessionCache, setSessionCacheScope } from "../services/sessionCache";
+import { clearSessionCache, pruneSessionCacheStorage, setSessionCacheScope } from "../services/sessionCache";
 
 export interface AuthUser {
     id: number;
@@ -57,6 +57,8 @@ function reclaimStaleAuthCoordinationKeys(activeKey: string): void {
 
 export function claimActiveBrowserTab(): void {
     if (supportsElectronRefreshTokenBody()) return;
+    // Keep disposable per-tab caches bounded before auth coordination writes.
+    pruneSessionCacheStorage();
     const key = activeTabOwnerKey();
     if (!key) return;
     try {
@@ -172,7 +174,13 @@ export function getAccessToken(): string | null {
 export function setAccessToken(token: string): void {
     const store = authStorage();
     store.setItem(ACCESS_TOKEN_KEY, token);
-    store.setItem(LEGACY_TOKEN_KEY, token);
+    if (supportsElectronRefreshTokenBody()) {
+        store.setItem(LEGACY_TOKEN_KEY, token);
+    } else {
+        // Read still supports old "token" sessions. New browser logins only
+        // persist one access token; duplicating JWTs wastes storage.
+        sessionStorage.removeItem(LEGACY_TOKEN_KEY);
+    }
     if (store !== sessionStorage) {
         sessionStorage.removeItem(ACCESS_TOKEN_KEY);
         sessionStorage.removeItem(LEGACY_TOKEN_KEY);
