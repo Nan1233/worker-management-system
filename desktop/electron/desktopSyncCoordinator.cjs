@@ -130,11 +130,6 @@ function enqueueManualExcelSync(request) {
   return task;
 }
 
-function sendRenderer(channel, payload) {
-  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
-  mainWindow.webContents.send(channel, payload);
-}
-
 async function runAutomaticSync() {
   if (!getCurrentToken() || isQuitting()) return;
   if (Date.now() - lastSuccessfulSyncAt < SYNC_INTERVAL_MS - 5_000) return;
