@@ -24,10 +24,57 @@ function activeTabOwnerKey(): string | null {
     const userId = Number(getStoredUser()?.id);
     return Number.isInteger(userId) && userId > 0 ? ACTIVE_TAB_OWNER_PREFIX + userId : null;
 }
+/**
+ * Only reclaim expired/abandoned KTC authentication coordination metadata
+ * when quota is exhausted. Never clear user drafts, app settings, or another
+ * tab's currently selected account, and never silently bypass tab ownership.
+ */
+function reclaimStaleAuthCoordinationKeys(activeKey: string): void {
+    try {
+        const staleKeys: string[] = [];
+        const now = Date.now();
+        for (let index = 0; index < localStorage.length; index += 1) {
+            const key = localStorage.key(index);
+            if (!key || key === activeKey) continue;
+            if (key.startsWith("ktcAuthRefreshIntent:")) {
+                const raw = localStorage.getItem(key);
+                let expiresAt = 0;
+                try { expiresAt = Number(JSON.parse(raw || "{}").expiresAt); } catch { /* stale */ }
+                if (!Number.isFinite(expiresAt) || expiresAt <= now) staleKeys.push(key);
+            } else if (key === "ktcAuthRefreshLock") {
+                const raw = localStorage.getItem(key);
+                let expiresAt = 0;
+                try { expiresAt = Number(JSON.parse(raw || "{}").expiresAt); } catch { /* stale */ }
+                if (!Number.isFinite(expiresAt) || expiresAt <= now) staleKeys.push(key);
+            } else if (key.startsWith(ACTIVE_TAB_OWNER_PREFIX)) {
+                // A different employee/account can be logged in elsewhere.
+                // Do not erase its ownership marker just to make space.
+            }
+        }
+        for (const key of staleKeys) localStorage.removeItem(key);
+    } catch { /* No destructive fallback when storage enumeration is blocked. */ }
+}
+
 export function claimActiveBrowserTab(): void {
     if (supportsElectronRefreshTokenBody()) return;
     const key = activeTabOwnerKey();
-    if (key) localStorage.setItem(key, runtimeTabId);
+    if (!key) return;
+    try {
+        localStorage.setItem(key, runtimeTabId);
+        return;
+    } catch (error) {
+        if (!(error instanceof DOMException) || (error.name !== "QuotaExceededError"
+            && error.name !== "NS_ERROR_DOM_QUOTA_REACHED")) throw error;
+    }
+
+    reclaimStaleAuthCoordinationKeys(key);
+    try {
+        localStorage.setItem(key, runtimeTabId);
+    } catch {
+        // Explicitly fail closed instead of allowing an untracked browser tab
+        // to bypass the project's single-active-tab protection.
+        throw new Error("Bộ nhớ trang KTC TEST đã đầy. Hãy xóa dữ liệu trang web KTC TEST (không xóa dữ liệu các trang khác), tải lại và đăng nhập. Tài khoản không bị khóa.");
+    }
 }
 export function isActiveBrowserTab(): boolean {
     if (supportsElectronRefreshTokenBody()) return true;
