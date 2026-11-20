@@ -23,6 +23,11 @@ const {
 async function approveSelected(targets, reviewerId, isAdmin = false, options = {}) {
     assertReviewBatchSize(targets);
     const { reportIds, expectedById } = buildApprovalSelection(targets);
+    // Fail before any writes when an external caller owns the transaction.
+    // Otherwise a missing callback list would throw after writing approved data.
+    if (options.connection && !Array.isArray(options.postCommitCallbacks)) {
+      throw new Error('Shared approval transaction requires postCommitCallbacks');
+    }
     const connection = options.connection || await getConnection();
     const ownsTransaction = !options.connection;
     const postCommitNotifications = [];
