@@ -465,6 +465,23 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       const value=matchMasterValue(d.header,deductionTypes,deductionDetails);
       if(value!==null)row.getCell(d.col).value=value;
     }
+    // The approved parent deduction snapshot can be zero for legacy rows even
+    // when the stored deduction details are present. For Workbook1, reconcile
+    // the exported total against the actual mapped detail cells (not raw
+    // unrendered categories). Do not alter the approved time/productivity
+    // snapshots or GC MACHINE's separate worker-credit accounting.
+    const totalColumn=Object.entries(config.fields).find(([,field])=>field==="deductionTime")?.[0];
+    if(workbook1 && totalColumn && code!=="GC") {
+      const totalCell=row.getCell(toNumber(totalColumn));
+      const originalTotal=Number(totalCell.value);
+      const displayedDetail=detailCols.reduce((sum,item)=>{
+        const value=Number(row.getCell(item.col).value);
+        return sum+(Number.isFinite(value)&&value>0?value:0);
+      },0);
+      if(displayedDetail>0 && (!Number.isFinite(originalTotal)||Math.abs(originalTotal)<0.000001)) {
+        totalCell.value=displayedDetail;
+      }
+    }
     const defectDetails=helpers.detailMap(helpers.reportDetailItems(report,code,"defect"),"defect");
     for(const d of [...mappedDefects,...extraDefects]){
       const value=d.type ? [d.type.key,...(d.type.aliases||[])].map(key=>defectDetails.get(key)).find(v=>v!==undefined) ?? null : matchMasterValue(d.header,defectTypes,defectDetails);
