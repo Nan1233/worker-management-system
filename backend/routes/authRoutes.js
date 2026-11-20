@@ -20,6 +20,7 @@ router.post(
 );
 router.post("/refresh", refreshLimiter, authController.refresh);
 router.post("/logout", authController.logout);
+router.get("/session", authMiddleware, (req, res) => res.json({ success: true, active: true }));
 router.put("/password", authMiddleware, passwordChangeLimiter, authController.changePassword);
 
 module.exports = router;
