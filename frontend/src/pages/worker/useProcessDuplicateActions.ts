@@ -151,5 +151,17 @@ export function useProcessDuplicateActions({
 
 
 
-    return { handleCreateDuplicateAnyway, handleUpdateExistingReport };
+    const handleCancelDuplicate = () => {
+        if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
+            showToast("Một phần báo cáo đã gửi thành công. Vui lòng thử lại để gửi nốt các báo cáo còn lại trước khi thoát.", "warning");
+            return;
+        }
+        setDuplicatePrompt(null);
+        pendingSplitPayloadsRef.current = [];
+        duplicatePrimaryCompletedRef.current = false;
+        duplicateForceRequestIdRef.current = null;
+        submitLockRef.current = false;
+    };
+
+    return { handleCreateDuplicateAnyway, handleUpdateExistingReport, handleCancelDuplicate };
 }
