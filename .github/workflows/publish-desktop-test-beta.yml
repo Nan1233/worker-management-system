@@ -30,6 +30,9 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
+      - name: Verify automatic beta version calculation
+        run: node --test tests/test-beta-version-resolution.test.cjs
+
       - name: Select next beta release version automatically
         shell: pwsh
         env:
