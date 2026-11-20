@@ -51,6 +51,8 @@ for (const name of new Set(sourceNames)) {
 const naming = fs.readFileSync(at('desktop', 'electron', 'monthlyWorkbookNaming.cjs'), 'utf8');
 const workerRegistry = fs.readFileSync(at('desktop', 'electron', 'workerReportTemplateRegistry.cjs'), 'utf8');
 assert.ok(naming.includes('PROCESS_FILE_PREFIXES'), 'Canonical process naming registry missing');
+assert.ok(workerRegistry.includes("require('./monthlyWorkbookSchemas.cjs')"),
+  'Worker process codes must derive from canonical process schemas');
 assert.ok(workerRegistry.includes("require('./monthlyWorkbookNaming.cjs')"),
   'Worker template registry must reuse canonical file prefixes');
 for (const file of ['workerReportWorkbook.cjs', 'productionExcelExport.cjs', 'deferredDesktopServices.cjs']) {
