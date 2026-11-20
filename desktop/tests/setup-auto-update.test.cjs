@@ -22,3 +22,13 @@ test('updater starts after launch and does not silently install on quit', () => 
   assert.match(source, /isPortableBuild\(\)/);
   assert.match(launcher, /AUTO_UPDATER_LOADED_AFTER_STARTUP/);
 });
+
+test('TEST Setup release workflow pins GitHub beta channel and requires beta manifest', () => {
+  const profile = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../electron-builder.test-beta.json'), 'utf8'));
+  const workflow = fs.readFileSync(path.resolve(__dirname, '../../.github/workflows/publish-desktop-test-beta.yml'), 'utf8');
+  assert.equal(profile.publish[0].provider, 'github');
+  assert.equal(profile.publish[0].channel, 'beta');
+  assert.match(workflow, /--config electron-builder\.test-beta\.json/);
+  assert.match(workflow, /release\/beta\.yml/);
+  assert.match(workflow, /--prerelease --latest=false/);
+});
