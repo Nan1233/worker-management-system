@@ -16,17 +16,30 @@ const frontendPackage = JSON.parse(read('frontend/package.json'));
 assert.equal(packageJson.version, frontendPackage.version, 'Root/frontend version mismatch');
 assert.ok(backendPackage.version, 'Backend version missing');
 assert.ok(fs.existsSync(path.join(root, 'backend', 'templates', 'KTC-Bao-cao-9-cong-doan.xlsx')), 'Canonical Excel template missing');
-assert.ok(!fs.existsSync(path.join(root, '.github', 'workflows')), 'GitHub Actions directory must remain absent/disabled');
-const approvalModel = read('backend/models/productionTempApprovalModel.js');
+// Existing workflows are checked by CI policy separately; they are not an error by existence.
+const contract = read('backend/models/productionTempApprovalModel.js');
+for (const marker of ["require('./productionApprovalWorkflow')", "require('./productionRejectionWorkflow')"]) {
+  assert.ok(contract.includes(marker), `Approval compatibility export missing: ${marker}`);
+}
+const approvalWorkflow = read('backend/models/productionApprovalWorkflow.js');
+const rejectionWorkflow = read('backend/models/productionRejectionWorkflow.js');
+const approvalMachineCopy = read('backend/models/productionApprovalMachineCopy.js');
+const approvalPersistence = read('backend/models/productionApprovalPersistence.js');
+const approvalAudit = read('backend/models/productionApprovalReviewSideEffects.js');
+const approvalScopeQueries = read('backend/models/productionTempApprovalQueries.js');
 assert.ok(fs.existsSync(path.join(root, 'backend', 'services', 'productionApprovalService.js')), 'Approval serialization service missing');
-for (const marker of [
-  'JOIN manager_processes mp ON mp.process_id = temp.process_id',
-  'copyMachineLinesToApproved(item.id, approvedReportId, connection)',
-  'createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection)',
-  'await createApprovedReportVersion(',
-  'AuditService.createReportVersion({',
+for (const [source, markers] of [
+  [approvalWorkflow, [
+    'assertApprovalSelectionVersions(', 'copyMachineLinesToApproved(', 'createLegacyApprovedSnapshot(',
+    'await createApprovedReportVersion(', 'assertApprovedTempTransition(', 'postCommitCallbacks',
+  ]],
+  [rejectionWorkflow, ['assertApprovalSelectionVersions(', 'assertRejectedTempTransition(', 'recordRejectedTempVersion(']],
+  [approvalMachineCopy, ['verifyApprovedMachineLineCopy(', 'buildApprovedMachineDefectsInsert(']],
+  [approvalPersistence, ['buildApprovedParentInsertQuery(', 'buildLegacySnapshotInsert(']],
+  [approvalAudit, ['AuditService.createReportVersion(', 'deliverApprovedPostCommitNotifications(']],
+  [approvalScopeQueries, ['manager_processes', 'FOR UPDATE', 'updated_at=?']],
 ]) {
-  assert.ok(approvalModel.includes(marker), `Approval release contract missing: ${marker}`);
+  for (const marker of markers) assert.ok(source.includes(marker), `Approval release contract missing: ${marker}`);
 }
 
 const forbidden = [];
