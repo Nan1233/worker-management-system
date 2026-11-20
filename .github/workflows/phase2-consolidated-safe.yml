@@ -70,6 +70,7 @@ jobs:
       - name: Review, submission, idempotency, historical time and contract tests (mocked / pure)
         run: |
           node --test \
+            tests/manager-report-list-utils.test.js \
             tests/report-edit-proposal-read-normalization.test.js \
             tests/proposalReviewTransaction.contract.test.js \
             tests/proposalReviewRollback.behavior.test.js \
