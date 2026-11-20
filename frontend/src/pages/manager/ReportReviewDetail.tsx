@@ -398,8 +398,6 @@ export default function ReportReviewDetail() {
             {!nonStandard && <section className="review-card"><div className="review-card-title"><h2>Chi tiết lỗi NG</h2><span>{defects.length} loại · {fmt(defects.reduce((s, x) => s + n(x.quantity), 0))}</span></div>{defects.length ? <div className="review-list">{defects.map((d, i) => <div className="review-list-row" key={`${d.defect_type_id || d.id}-${i}`}><span>{d.defect_name || d.defect_code || "Lỗi"}</span><strong>{fmt(d.quantity)}</strong></div>)}</div> : <div className="empty">Không có lỗi NG.</div>}</section>}
             <section className="review-card"><div className="review-card-title"><h2>Thời gian trừ</h2><span>{deductions.length} mục</span></div>{deductions.length ? <div className="review-list">{deductions.map((d, i) => <div className="review-list-row" key={`${d.deduction_type_id || d.id}-${i}`}><span>{d.deduction_name || d.deduction_code || "Mục trừ"}</span><strong>{formatMinutes(d.hours)}</strong></div>)}</div> : <div className="empty">Không có thời gian trừ.</div>}<div className="review-total">Tổng trừ: <strong>{sumDeductionMinutes(deductions)} phút</strong></div></section>
           </div>
-
-          {report.note && <section className="review-card"><div className="review-card-title"><h2>Ghi chú</h2></div><div className="review-note">{report.note}</div></section>}
         </>
       )}
     </main>
