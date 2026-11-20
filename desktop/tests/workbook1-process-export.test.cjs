@@ -98,6 +98,26 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     assert.equal(sheet.getCell(firstNgColumns[code]+dataRow).value,1,code+' coded NG');
     assert.equal(sheet.getCell('A'+(form.first-1)).value,'10/11/2026',code+' date separator');
     assert.equal(sheet.getColumn(2).hidden,true,code+' submission-time column hidden');
+    const workingField = Object.entries(form.fields).find(([,key]) => key === 'workingTime')?.[0];
+    const actualField = Object.entries(form.fields).find(([,key]) => key === 'actualTime')?.[0];
+    const outputField = Object.entries(form.fields).find(([,key]) => key === 'output')?.[0];
+    const hourlyField = Object.entries(form.fields).find(([,key]) => key === 'outputPerHour')?.[0];
+    if (workingField && actualField) {
+      assert.equal(sheet.getCell(actualField+dataRow).value, 12,
+        code+' duplicate actual time must equal visible working time, not the old approved actual_time');
+      assert.equal(sheet.getCell(workingField+dataRow).value, 12,
+        code+' source working time remains unchanged');
+      assert.equal(sheet.getColumn(actualField).hidden, true,
+        code+' secondary time column is hidden');
+      if (hourlyField && outputField) {
+        const rate = sheet.getCell(hourlyField+dataRow).value;
+        assert.equal(typeof rate.formula, 'string', code+' hourly productivity must be an Excel formula');
+        assert.ok(rate.formula.includes(outputField+dataRow+'/'+workingField+dataRow),
+          code+' productivity uses visible working-time column '+workingField);
+        assert.ok(Math.abs(rate.result - 100/12) < 1e-9,
+          code+' cached productivity uses 100 output divided by 12 visible hours');
+      }
+    }
     const columnNumber = (letters) => letters.split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0);
     // The last NG column is not always the rightmost valid column:
     // ÉP keeps working time/note at AG:AH; CÁN keeps working time at AA.
