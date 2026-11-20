@@ -5,7 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'New TEST version, e.g. 1.9.18-beta.1 (must increase each release)'
+        description: 'Chỉ nhập số phiên bản, ví dụ 1.9.18-beta.1 (không nhập e.g.)'
+        default: '1.9.18-beta.1'
         required: true
         type: string
 
@@ -41,12 +42,60 @@ jobs:
           RELEASE_VERSION: ${{ inputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+-beta\.\d+$') {
-            throw 'TEST releases require a semver beta version, e.g. 1.9.18-beta.1'
+          # Accept accidental example prefix, but never accept an invalid release tag.
+          $rawVersion = $env:RELEASE_VERSION.Trim()
+          $normalized = ($rawVersion -replace '^(?i:e\.g\.)\s*', '').Trim()
+          if ($normalized -notmatch '^\d+\.\d+\.\d+-beta\.\d+
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Stamp release version in package metadata (no repository commit)
+        shell: pwsh
+        run: npm version $env:RELEASE_VERSION --no-git-tag-version
+
+      - name: Build bundled TEST frontend
+        run: node scripts/buildBundledFrontend.cjs
+
+      - name: Validate app and Excel exports
+        run: |
+          npm run check
+          npm run smoke:excel
+
+      - name: Build Setup and beta update metadata
+        run: npx electron-builder --config electron-builder.test-beta.json --win nsis --x64 --config.asar=true --config.extraMetadata.ktcBundledFrontend=true --publish never
+
+      - name: Generate and verify TEST beta update manifest
+        shell: pwsh
+        run: node scripts/ensureBetaUpdateManifest.cjs --version $env:RELEASE_VERSION --directory release
+
+      - name: Publish GitHub prerelease with beta.yml
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$env:RELEASE_VERSION" `
+            "release/KTC-Production-Control-Setup.exe" `
+            "release/KTC-Production-Control-Setup.exe.blockmap" `
+            "release/beta.yml" `
+            --repo "${{ github.repository }}" `
+            --prerelease --latest=false `
+            --title "KTC TEST $env:RELEASE_VERSION" `
+            --notes "TEST desktop installer auto-update. Does not target production clients."
+
+      - name: Archive installed-version Setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTC-TEST-Setup-${{ env.RELEASE_VERSION }}
+          path: desktop/release/KTC-Production-Control-Setup.exe
+          retention-days: 30
+) {
+            throw "Giá trị version không hợp lệ: '$rawVersion'. Chỉ nhập dạng 1.9.18-beta.1, không có chữ e.g."
           }
-          $existing = gh release view "v$env:RELEASE_VERSION" --repo "${{ github.repository }}" --json tagName 2>$null
-          if ($LASTEXITCODE -eq 0) { throw 'This release tag already exists; choose a new higher version.' }
-          exit 0
+          $existing = gh release view "v$normalized" --repo "${{ github.repository }}" --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "Đã có release v$normalized; hãy chọn phiên bản beta cao hơn." }
+          "RELEASE_VERSION=$normalized" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Validated release version: $normalized"
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
