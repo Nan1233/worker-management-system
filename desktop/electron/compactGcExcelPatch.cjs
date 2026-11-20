@@ -285,10 +285,9 @@ async function buildCompactGc({ appPath, date, payload }) {
   };
 }
 
-const originalSplit = monthly.buildSplitMonthlyWorkbooksLocal;
-monthly.buildProcessWorkbookLocal = buildCompactGc;
-monthly.buildSplitMonthlyWorkbooksLocal = async (args) => {
-  const result = typeof originalSplit === 'function' ? await originalSplit(args) : { processes: [] };
+// Explicit opt-in adapter; importing this module never overrides monthly exports.
+async function buildSplitWithCompactGc(args) {
+  const result = await monthly.buildSplitMonthlyWorkbooksLocal(args);
   if (Array.isArray(result?.processes)) {
     for (const item of result.processes) {
       if (String(item?.processCode || '').toUpperCase() !== 'GC') continue;
@@ -301,6 +300,6 @@ monthly.buildSplitMonthlyWorkbooksLocal = async (args) => {
     }
   }
   return result;
-};
+}
 
-module.exports = monthly;
+module.exports = { buildCompactGc, buildSplitWithCompactGc };
