@@ -175,3 +175,29 @@ test('MAI: re-computes stale nonzero SL/H and percent using K and hourly standar
   assert.ok(Math.abs(row.getCell(36).value - 70/85) < 1e-10);
   assert.equal((await reconcileMaiWorkbookDeductions(fixed.buffer)).changed, 0);
 });
+
+test('MAI: unmapped approved deduction is counted in total instead of silently disappearing', async () => {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Mài');
+  sheet.getCell('L1').value = 'Tổng TG trừ giờ';
+  sheet.getCell('C1').value = 'Mã số';
+  sheet.getCell('AW1').value = 'Trừ giờ chưa ghép loại (giờ)';
+  sheet.getCell('A3').value = 1;
+  sheet.getCell('C3').value = '3888';
+  sheet.getCell('J3').value = 9.3333;
+  sheet.getCell('K3').value = 9.3333;
+  sheet.getCell('L3').value = 0;
+  sheet.getCell('P3').value = 1 / 3;
+  sheet.getCell('W3').value = 7 / 6;
+  sheet.getCell('Z3').value = 0.15;
+  sheet.getCell('AW3').value = 1; // legacy deduction type id 115
+  sheet.getCell('AH3').value = 125;
+  sheet.getCell('AI3').value = 1123;
+  const out = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
+  const fixed = new ExcelJS.Workbook();
+  await fixed.xlsx.load(out.buffer);
+  const result = fixed.getWorksheet('Mài');
+  assert.ok(Math.abs(result.getCell('L3').value - 2.65) < 1e-9);
+  assert.ok(Math.abs(result.getCell('AL3').value - 1123 / 9.3333) < 1e-7);
+  assert.ok(Math.abs(result.getCell('AJ3').value - (1123 / 9.3333) / 125) < 1e-7);
+});
