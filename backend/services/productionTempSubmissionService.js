@@ -2,6 +2,7 @@
 const db = require("../config/db");
 const { findExistingClientRequest } = require("../repositories/productionSubmissionRequestRepository");
 const { findSubmissionProcessCode } = require("../repositories/productionSubmissionProcessRepository");
+const { rollbackOrThrow } = require("./productionSubmissionRollback");
 const createModel = require("../models/productionTempCreateModel");
 const nonProductWorkModel = require("../models/nonProductWorkCreateModel");
 const AuditService = require("./auditService");
@@ -26,36 +27,6 @@ const { submissionQueueKey, runSerializedSubmission } = require('./productionSub
 const { incomingDailyWorkHours } = require('./productionDailyHoursCalculation');
 const { validateChildTotals } = require('./productionChildTotalsValidation');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const rollbackOrThrow = async (connection, originalError) => {
-    const result = await rollback(connection);
-    if (result?.ok === false) {
-        const diagnostic = (value) => ({
-            name: value?.name || null,
-            message: String(value?.message || value || "Unknown error").slice(0, 500),
-            code: value?.code || null,
-            errno: value?.errno ?? null,
-            sqlState: value?.sqlState || null,
-            status: value?.status ?? value?.statusCode ?? null,
-        });
-        // Preserve both failures in logs. The rollback error is secondary and must
-        // not erase the SQL/transaction error that caused the rollback in the first place.
-        console.error("[KTC][REPORT] transaction rollback failed", JSON.stringify({
-            originalError: originalError ? diagnostic(originalError) : null,
-            rollbackError: diagnostic(result.error),
-        }));
-        // Rollback is secondary: retain the actual SQL/transaction failure so
-        // callers can distinguish a TiDB query error from a rollback transport error.
-        // The rollback failure remains attached for diagnostics and is never hidden.
-        if (originalError && typeof originalError === "object") {
-            originalError.rollbackFailed = true;
-            originalError.rollbackError = result.error;
-        }
-        return result;
-    }
-    return result;
-};
-
 
 const idempotent = (row) => ({
     id: Number(row.id),
