@@ -620,12 +620,6 @@ function applyReportRow(row, report, contract, processData, index) {
     : report;
   set(contract.cols.stt, index + 1);
   set(contract.cols.entryDate, asDate(report.entry_date || report.created_at));
-  // Write the audit timestamp explicitly instead of relying on a loader patch.
-  // The template's hidden submittedAt column is distinct from the work date.
-  if (contract.cols.submittedAt) {
-    set(contract.cols.submittedAt, asDateTime(report.submitted_at));
-    row.getCell(contract.cols.submittedAt).numFmt = 'dd/mm/yyyy hh:mm:ss';
-  }
   set(contract.cols.date, asDate(report.work_date || report.entry_date));
   set(contract.cols.workerCode, report.worker_code);
   set(contract.cols.workerName, report.full_name || report.worker_name || report.name);
@@ -656,8 +650,8 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.product, directProduct || [...new Set(lineProducts)].join(', '));
   if (contract.cols.submittedAt) {
     const cell = row.getCell(contract.cols.submittedAt);
-    cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date);
-    cell.numFmt = 'dd/mm/yyyy hh:mm';
+    cell.value = asDateTime(report.submitted_at);
+    cell.numFmt = 'dd/mm/yyyy hh:mm:ss';
   }
   const { planned, trainingPercent } = plannedOutputFor(report);
   if (contract.cols.training) {
