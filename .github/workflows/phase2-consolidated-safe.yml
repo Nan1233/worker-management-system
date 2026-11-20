@@ -26,6 +26,9 @@ on:
       - desktop/tests/setup-auto-update.test.cjs
       - desktop/tests/portable-upgrade-safety.test.cjs
       - desktop/tests/deployment-profile.test.cjs
+      - desktop/scripts/deviceSmoke.cjs
+      - desktop/scripts/windowsArtifactInventory.cjs
+      - desktop/tests/windows-artifact-inventory.test.cjs
       - desktop/tests/workbook1-process-export.test.cjs
       - desktop/electron/excelDbSync.cjs
       - desktop/electron/monthlyWorkbookLocal.cjs
@@ -204,6 +207,7 @@ jobs:
             tests/mai-do-export-parity.test.cjs \
             tests/monthly-workbook-physical-event-metadata.test.cjs \
             tests/packaging-sync.test.cjs \
+            tests/windows-artifact-inventory.test.cjs \
             tests/excel-backup-retention.test.cjs
       - name: Execute existing worker Excel smoke in an isolated temporary directory
         run: node scripts/smokeExcel.cjs
