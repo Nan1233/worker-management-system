@@ -174,8 +174,10 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     for(const [letter] of timeFields){
       const originalWidth=originalSheet.getColumn(letter).width;
       if (!sheet.getColumn(letter).hidden) {
-        assert.ok(sheet.getColumn(letter).width >= originalWidth,
-          code+' visible time column expands as needed: '+letter);
+        assert.ok(sheet.getColumn(letter).width >= 10,
+          code+' visible time column shows 12.00 and padding: '+letter);
+        assert.ok(sheet.getColumn(letter).width <= 80,
+          code+' column width is bounded for readable export: '+letter);
       }
       const cell=sheet.getCell(letter+dataRow);
       if(typeof cell.value==='number')
