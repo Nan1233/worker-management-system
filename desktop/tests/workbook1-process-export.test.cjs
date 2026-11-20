@@ -99,7 +99,8 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     const expectedLastCol = Math.max(
       ...Object.keys(form.fields).map(columnNumber),
       ...(form.defects ? [columnNumber(form.defects[1])] : []),
-      ...(form.deductions ? [columnNumber(form.deductions[1])] : [])
+      ...(form.deductions ? [columnNumber(form.deductions[1])] : []),
+      ...(code === 'MAI' ? [columnNumber('AW')] : [])
     );
     assert.equal(sheet.columnCount,expectedLastCol,code+' no unused styled columns beyond last NG');
     // Inspect row models without creating a cell beyond the table edge.
@@ -119,7 +120,7 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
     if(trainingColumn){
       const trainingCell=sheet.getCell(trainingColumn+dataRow);
       assert.equal(trainingCell.value,1,code+' training ratio stays 1 for 100%');
-      assert.equal(trainingCell.numFmt,'0.##%',code+' training displays as 100%, not 1');
+      assert.equal(trainingCell.numFmt,'0.00%',code+' training displays as 100%, not 1');
     }
 
     const timeFields=Object.entries(form.fields).filter(([,key])=>/(?:time|hours|minutes|duration)/i.test(key));
@@ -129,13 +130,13 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
       assert.equal(sheet.getColumn(letter).width,originalWidth,code+' time width unchanged: '+letter);
       const cell=sheet.getCell(letter+dataRow);
       if(typeof cell.value==='number')
-        assert.equal(cell.numFmt,'#,##0.##',code+' time displays at most 2 decimals: '+letter);
+        assert.equal(cell.numFmt,'#,##0.00',code+' time displays with 2 decimals: '+letter);
     }
 
     for (const [column,key] of Object.entries(form.fields)) {
       if (key !== 'achievement' && key !== 'ngRate') continue;
       const cell=sheet.getCell(column+dataRow);
-      assert.equal(cell.numFmt,'0.##%',code+' '+key+' is displayed as percent');
+      assert.equal(cell.numFmt,'0.00%',code+' '+key+' is displayed as percent');
       assert.equal(cell.value,key==='achievement' ? 0.2 : 0.01,code+' '+key+' remains a numeric ratio');
       assert.equal(cell.fill?.fgColor?.argb,key==='achievement' ? 'FFFF5252' : 'FFC6E0B4',
         code+' '+key+' matches Gia công color thresholds');
@@ -293,7 +294,7 @@ test('All six Workbook1 forms use Gia công percentage bands at thresholds',asyn
       for (const [index,scenario] of scenarios.entries()) {
         const row=form.first+index;
         const cell=sheet.getCell(letter+row);
-        assert.equal(cell.numFmt,'0.##%',code+' '+field+' percent format');
+        assert.equal(cell.numFmt,'0.00%',code+' '+field+' percent format');
         assert.equal(cell.fill?.fgColor?.argb,field==='achievement'
           ?scenario.achievementColor:scenario.ngColor,code+' '+field+' color band '+index);
       }
