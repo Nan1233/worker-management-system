@@ -855,6 +855,12 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
   sheet.getRow(5).height = 38;
   sheet.getRow(5).hidden = false;
   sheet.getRow(5).outlineLevel = 0;
+  const workingColumnIndex = columns.findIndex(column => column.key === 'workingTime');
+  const actualColumnIndex = columns.findIndex(column => column.key === 'actualTime');
+  const outputColumnIndex = columns.findIndex(column => column.key === 'output');
+  const mirrorTime = workingColumnIndex >= 0 && actualColumnIndex >= 0
+    && workingColumnIndex !== actualColumnIndex;
+  if (mirrorTime) sheet.getColumn(actualColumnIndex + 1).hidden = true;
 
   const dataStartRow = 6;
   const numericTotals = new Array(columns.length).fill(0);
@@ -913,11 +919,28 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
     const reportSettings = settingsForReport(report, settings, processData?.formulaSettingsByDate || {});
     const values = rowValues(code, report, deductionTypes, defectTypes, reportSettings);
     values.stt = sequenceInDate;
+    if (mirrorTime) values.actualTime = values.workingTime;
 
     columns.forEach((column, columnIndex) => {
       const cell = sheet.getCell(rowNumber, columnIndex + 1);
       const value = values[column.key];
-      cell.value = value === undefined ? null : value;
+      if (column.key === 'outputPerHour' && outputColumnIndex >= 0
+        && (workingColumnIndex >= 0 || actualColumnIndex >= 0)) {
+        const hoursIndex = workingColumnIndex >= 0 ? workingColumnIndex : actualColumnIndex;
+        const hours = Number(workingColumnIndex >= 0 ? values.workingTime : values.actualTime);
+        const output = Number(values.output);
+        const preview = Number.isFinite(hours) && hours > 0 && Number.isFinite(output)
+          ? output / hours : '';
+        const outputRef = sheet.getColumn(outputColumnIndex + 1).letter + rowNumber;
+        const hoursRef = sheet.getColumn(hoursIndex + 1).letter + rowNumber;
+        cell.value = {
+          formula: 'IFERROR(IF(OR(' + hoursRef + '<=0,' + outputRef + '=""),"",' +
+            outputRef + '/' + hoursRef + '),"")',
+          result: preview
+        };
+      } else {
+        cell.value = value === undefined ? null : value;
+      }
       if (column.format) cell.numFmt = resolvedNumberFormat(value, column.format);
       const numericValue = typeof value === 'number' && Number.isFinite(value) ? value : null;
       // Rule tháng 07/2026: nền dữ liệu mặc định trắng, không zebra/rainbow.
