@@ -73,7 +73,7 @@ jobs:
 
       - name: Generate and verify TEST beta update manifest
         shell: pwsh
-        run: node scripts/ensureBetaUpdateManifest.cjs --version $env:RELEASE_VERSION --directory release
+        run: node scripts/ensureBetaUpdateManifest.cjs --version $env:RELEASE_VERSION --directory release --verify-packaged
 
       - name: Publish GitHub prerelease with beta.yml
         shell: pwsh
