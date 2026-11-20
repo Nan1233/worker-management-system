@@ -120,3 +120,35 @@ test('no manager may approve an out-of-scope shift/report and no source row chan
     assert.equal(Number(count.c),0,'no approved report may be created');
   }
 });
+
+for (const code of CODES) for (const shift of SHIFTS) {
+  test(`real TiDB ${code}/ca ${shift}: in-scope rejection commits once, keeps approved output empty`,opts,async()=>{
+    const id=state.ids.get(code+':'+shift);
+    const token=state.tokens.get(code);
+    const response=await h.request('POST','/api/production-temp/reject-selected',{
+      token,body:{ids:[id],reason:`Sai dữ liệu kiểm thử ${code} ca ${shift}`}
+    });
+    assert.equal(response.status,200,code+'/'+shift+' '+JSON.stringify(response.body));
+    const [[row]]=await state.db.query(
+      'SELECT status,review_note,reviewed_by FROM production_reports_temp WHERE id=?',[id]
+    );
+    assert.equal(row.status,'rejected',code+'/'+shift);
+    assert.match(row.review_note,/Sai dữ liệu kiểm thử/);
+    assert.ok(Number(row.reviewed_by)>0);
+    const [[approved]]=await state.db.query(
+      'SELECT COUNT(*) AS c FROM production_reports WHERE source_temp_id=?',[id]
+    );
+    assert.equal(Number(approved.c),0,'reject must not create approved output');
+    const replay=await h.request('POST','/api/production-temp/reject-selected',{
+      token,body:{ids:[id],reason:'Gửi lại thao tác từ chối'}
+    });
+    // Idempotency/mutation guard: a second rejection never changes the recorded reason.
+    assert.ok([200,409].includes(replay.status),
+      code+'/'+shift+' retry '+replay.status);
+    const [[after]]=await state.db.query(
+      'SELECT status,review_note FROM production_reports_temp WHERE id=?',[id]
+    );
+    assert.equal(after.status,'rejected');
+    assert.equal(after.review_note,row.review_note);
+  });
+}
