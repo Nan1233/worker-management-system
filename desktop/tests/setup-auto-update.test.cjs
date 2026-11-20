@@ -32,3 +32,14 @@ test('TEST Setup release workflow pins GitHub beta channel and requires beta man
   assert.match(workflow, /release\/beta\.yml/);
   assert.match(workflow, /--prerelease --latest=false/);
 });
+
+test('TEST release version validation explicitly clears missing gh release exit code', () => {
+  const workflow = fs.readFileSync(path.resolve(__dirname, '../../.github/workflows/publish-desktop-test-beta.yml'), 'utf8');
+  const start = workflow.indexOf('      - name: Validate release version and uniqueness');
+  const end = workflow.indexOf('      - name: Install dependencies', start);
+  assert.ok(start >= 0 && end > start, 'version validation step must exist');
+  const validation = workflow.slice(start, end);
+  assert.match(validation, /gh release view/);
+  assert.match(validation, /if \(\$LASTEXITCODE -eq 0\)/);
+  assert.match(validation, /Write-Host "Validated beta release: \$normalized"[\s\S]*?exit 0/, 'PowerShell must exit success after gh returns 1 for missing prerelease');
+});
