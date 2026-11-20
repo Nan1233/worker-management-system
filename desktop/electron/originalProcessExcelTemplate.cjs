@@ -700,7 +700,10 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       for (const {col,field} of percentageColumns) {
         const cell = row.getCell(col);
         cell.numFmt = "0.00%";
-        const fillColor = workbook1RateFill(field,cell.value);
+        const displayRatio = cell.value && typeof cell.value === "object"
+          && Object.prototype.hasOwnProperty.call(cell.value, "result")
+          ? cell.value.result : cell.value;
+        const fillColor = workbook1RateFill(field,displayRatio);
         if (fillColor) {
           cell.fill = workbook1SolidFill(fillColor);
           cell.font = {...(cell.font || {}),bold:true,
