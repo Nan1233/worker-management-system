@@ -523,6 +523,39 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
   return { buffer: changed ? Buffer.from(await workbook.xlsx.writeBuffer()) : buffer, changed };
 }
 
+/**
+ * Final exported-XLSX formatting contract. This runs after all template clones,
+ * styling and MAI reconciliations, so no older sample style can restore ".00".
+ * Only presentation is changed; formula, DB values and time precision remain.
+ */
+async function enforceFinalQuantityNumberFormats(buffer, columnContract = {}) {
+  const indexes = Object.entries(columnContract.cols || {})
+    .filter(([key]) => ['standard', 'expectedOutput', 'outputPerHour', 'ok', 'ng'].includes(key))
+    .map(([, index]) => Number(index)).filter(n => Number.isInteger(n) && n > 0);
+  if (!indexes.length) return { buffer, changed: 0 };
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const sheet = workbook.worksheets.find(item => item.state !== 'veryHidden' && item.state !== 'hidden');
+  if (!sheet) return { buffer, changed: 0 };
+  let changed = 0;
+  for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber++) {
+    const row = sheet.getRow(rowNumber);
+    // Only approved report rows have a numeric sequence in column A.
+    if (!Number.isFinite(Number(row.getCell(1).value)) || Number(row.getCell(1).value) < 1) continue;
+    for (const col of indexes) {
+      const cell = row.getCell(col);
+      const value = cell.value;
+      const isNumber = typeof value === 'number' && Number.isFinite(value);
+      const isFormula = Boolean(value && typeof value === 'object' && typeof value.formula === 'string');
+      if ((isNumber || isFormula) && cell.numFmt !== '#,##0') {
+        cell.numFmt = '#,##0';
+        changed++;
+      }
+    }
+  }
+  return { buffer: changed ? Buffer.from(await workbook.xlsx.writeBuffer()) : buffer, changed };
+}
+
 async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
   if (!payload || payload.dataSource !== 'tidb.production_reports.approved') {
     throw new Error('Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
@@ -580,6 +613,11 @@ async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
       built.buffer = reconciled.buffer;
       built.deductionTotalsReconciled = reconciled.changed;
     }
+    // Last operation before writing: guarantees the explicit quantities are
+    // integer-formatted even when the company template contains 0.00 styles.
+    const finalized = await enforceFinalQuantityNumberFormats(built.buffer, built.columnContract);
+    built.buffer = finalized.buffer;
+    built.integerFormatsReconciled = finalized.changed;
     built.processCode = item.processCode;
     built.processName = processData.processName || processData.process_name || item.processCode;
     built.reportCount = reports.length;
@@ -713,4 +751,4 @@ if (!global.__KTC_WORKER_TEMPLATE_MAIN_PATCH__) {
   };
 }
 
-module.exports = { buildWorkerSplit, reconcileMaiWorkbookDeductions, PROCESS_CODES, PROCESS_FILE_PREFIXES };
+module.exports = { buildWorkerSplit, reconcileMaiWorkbookDeductions, enforceFinalQuantityNumberFormats, PROCESS_CODES, PROCESS_FILE_PREFIXES };
