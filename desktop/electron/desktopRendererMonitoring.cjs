@@ -4,7 +4,6 @@
 function createDesktopRendererMonitoring({
   readRendererAccessToken, isUsableAccessToken, getCurrentToken,
   configureAutomaticSync, writeLog, normalizeError, getMainWindow,
-  stopExcelDbSyncWatcher,
 }) {
   let tokenDiscoveryTimer = null;
   let lastApprovedMutationAt = 0;
@@ -29,7 +28,6 @@ async function discoverRendererToken() {
 
 function startTokenDiscovery() {
   if (tokenDiscoveryTimer) clearInterval(tokenDiscoveryTimer);
-  stopExcelDbSyncWatcher();
   void discoverRendererToken();
   // Avoid continuously executing JavaScript against the renderer while it is
   // loading or the user is interacting with the application.
