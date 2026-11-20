@@ -53,7 +53,7 @@ test('approved defect rows preserve empty and missing defects', () => {
 
 test('approval copy calls extracted row builder and keeps single bulk defect insert', () => {
   const start = source.indexOf('async function copyMachineLinesToApproved(');
-  const endCopy = source.indexOf('function getExtraDataObject(', start);
+  const endCopy = source.indexOf('// Keep standard resolver warm-up input aligned', start);
   const copy = source.slice(start, endCopy);
   assert.match(copy, /buildApprovedMachineDefectRows\(tempLines, byInsertOrder\)/);
   const builder = source.slice(source.indexOf('function buildApprovedMachineDefectsInsert('), source.indexOf('module.exports = {'));
