@@ -8,6 +8,40 @@ const entries = new Map<string, CacheEntry<unknown>>();
 const STORAGE_PREFIX = "ktc-session-cache:";
 const CACHE_SCOPE_KEY = "ktc-session-cache-scope";
 let cacheGeneration = 0;
+const MAX_PERSISTED_CACHE_ENTRY_CHARS = 96_000; // Large responses stay in RAM.
+const MAX_PERSISTED_CACHE_TOTAL_CHARS = 320_000; // Bound this disposable cache.
+
+/** Remove only disposable KTC session caches. Never inspect or erase offline drafts. */
+export function pruneSessionCacheStorage(): void {
+  try {
+    const now = Date.now();
+    const caches: Array<{ key: string; size: number; expiresAt: number }> = [];
+    const remove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const key = sessionStorage.key(i);
+      if (!key?.startsWith(STORAGE_PREFIX)) continue;
+      const raw = sessionStorage.getItem(key);
+      if (!raw) { remove.push(key); continue; }
+      try {
+        const parsed = JSON.parse(raw) as { expiresAt?: number };
+        const expiresAt = Number(parsed?.expiresAt);
+        if (!Number.isFinite(expiresAt) || expiresAt <= now ||
+            raw.length > MAX_PERSISTED_CACHE_ENTRY_CHARS) remove.push(key);
+        else caches.push({ key, size: raw.length + key.length, expiresAt });
+      } catch { remove.push(key); }
+    }
+    for (const key of remove) sessionStorage.removeItem(key);
+    // Evict entries nearest expiry, retaining at most ~320K characters.
+    let total = caches.reduce((sum, item) => sum + item.size, 0);
+    caches.sort((a, b) => a.expiresAt - b.expiresAt);
+    for (const item of caches) {
+      if (total <= MAX_PERSISTED_CACHE_TOTAL_CHARS) break;
+      sessionStorage.removeItem(item.key);
+      total -= item.size;
+    }
+  } catch { /* Cache cleanup is best-effort, never blocks authenticated work. */ }
+}
+
 
 function normalizeScope(scope?: string | null): string {
   const value = String(scope || "").trim();
@@ -47,12 +81,13 @@ function readStored<T>(key: string): CacheEntry<T> | undefined {
 
 function writeStored<T>(key: string, value: T, expiresAt: number): void {
   try {
-    sessionStorage.setItem(
-      storedKey(key),
-      JSON.stringify({ value, expiresAt }),
-    );
+    const serialized = JSON.stringify({ value, expiresAt });
+    if (serialized.length > MAX_PERSISTED_CACHE_ENTRY_CHARS) return;
+    pruneSessionCacheStorage();
+    sessionStorage.setItem(storedKey(key), serialized);
+    pruneSessionCacheStorage();
   } catch {
-    // Safari private mode hoặc thiết bị hết quota: cache RAM vẫn hoạt động.
+    // A cache write is optional. Never delete offline drafts to make room.
   }
 }
 
