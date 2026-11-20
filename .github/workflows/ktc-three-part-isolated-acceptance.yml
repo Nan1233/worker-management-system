@@ -13,6 +13,8 @@ on:
       - backend/tests/integration/**
       - backend/tests/fixtures/isolated-*.sql
       - frontend/tests/e2e/**
+      - frontend/src/**
+      - backend/controllers/managerApprovedReportsController.js
       - frontend/playwright.config.ts
       - desktop/tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs
   workflow_dispatch:

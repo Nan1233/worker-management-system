@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import axios from "axios";
+import DesktopExcelNotice from "../../components/system/DesktopExcelNotice";
 import { getApprovedReports, getReportById, invalidateApprovedReportCache } from "../../services/productionService";
 import { getAccessToken } from "../../utils/authStorage";
 import type { ProductionReport } from "../../types/production";
@@ -287,6 +288,7 @@ export default function ApprovedReports({ onOpenReport }: { onOpenReport?: (repo
 
     return (
         <div className="pending-reference-page approved-review-screen">
+             <DesktopExcelNotice compact />
             <div className="pending-page-title"><h1 style={{ margin: 0, color: "#12385f", fontSize: 26, fontWeight: 800 }}>Báo cáo đã duyệt</h1><div style={{ marginTop: 5, color: "#6f89a8", fontSize: 13 }}>Xem lại các báo cáo sản xuất đã được duyệt.</div></div>
             <div className="approved-review-toolbar">
                 <span role="status" aria-live="polite">{range ? `Từ ${dateText(range.dateFrom)} đến ${dateText(range.dateTo)}` : `Ngày ${dateText(date)}`}</span>
