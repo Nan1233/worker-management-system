@@ -1,0 +1,135 @@
+'use strict';
+const fs = require('node:fs/promises');
+const path = require('node:path');
+
+function createExcelDbSyncController({
+  authenticatedFetch, API_BASE_URL, listExcelFiles, getExportRoot, readExcelChanges,
+  writeLog, normalizeError, waitForUsableRendererToken, sendRenderer,
+  enqueueManualExcelSync, isQuitting, isSyncRunning,
+}) {
+  let excelDbSyncRunning = false;
+  const excelDbSyncState = new Map();
+async function postExcelChanges(changes) {
+  const response = await authenticatedFetch(`${API_BASE_URL}/production/excel-sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ changes })
+  });
+  if (response.status === 401 || response.status === 403) {
+    const error = new Error('Tài khoản hiện tại không có quyền đồng bộ chỉnh sửa Excel về DB.');
+    error.code = 'EXCEL_DB_SYNC_FORBIDDEN';
+    throw error;
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (![200, 207].includes(response.status)) throw new Error(payload.message || `Đồng bộ Excel về DB lỗi HTTP ${response.status}`);
+  return payload;
+}
+
+
+async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
+  const files = await listExcelFiles(getExportRoot());
+  const changes = [];
+  const helperUpdatedFiles = [];
+  const helperUpdateErrors = [];
+  for (const filePath of files) {
+    let parsed;
+    try {
+      parsed = await readExcelChanges(filePath);
+    } catch (error) {
+      await writeLog('WARN', 'EXCEL_DB_PREVIEW_READ_SKIPPED', { filePath, ...normalizeError(error) });
+      continue;
+    }
+    if (!parsed?.managed) continue;
+    if (parsed.helperUpdated) helperUpdatedFiles.push(path.basename(filePath));
+    if (parsed.helperUpdateError) helperUpdateErrors.push({ file: path.basename(filePath), message: parsed.helperUpdateError });
+    if (!parsed.changes?.length) continue;
+    if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
+    for (const change of parsed.changes) {
+      changes.push({
+        ...change,
+        filePath,
+        yearMonth: parsed.yearMonth || null
+      });
+    }
+  }
+  return {
+    detected: changes.length,
+    changes,
+    yearMonth: yearMonth || null,
+    helperUpdatedFiles,
+    helperUpdateErrors
+  };
+}
+
+async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } = {}) {
+  if (excelDbSyncRunning || isQuitting()) return { skipped: true };
+  const token = await waitForUsableRendererToken('', 2_000);
+  if (!token) return { skipped: true, reason: 'no-token' };
+  excelDbSyncRunning = true;
+  try {
+    const files = await listExcelFiles(getExportRoot());
+    let detected = 0;
+    let succeeded = 0;
+    let failed = 0;
+    const changedMonths = new Set();
+    for (const filePath of files) {
+      let stat;
+      try { stat = await fs.stat(filePath); } catch { continue; }
+      const state = excelDbSyncState.get(filePath) || { mtimeMs: 0, versions: new Map() };
+      if (Math.abs(Number(state.mtimeMs || 0) - Number(stat.mtimeMs || 0)) < 1) continue;
+      let parsed;
+      try {
+        parsed = await readExcelChanges(filePath);
+      } catch (error) {
+        // File đang mở/đang save có thể tạm thời không đọc được; vòng sau sẽ thử lại.
+        await writeLog('WARN', 'EXCEL_DB_SYNC_READ_SKIPPED', { filePath, source, ...normalizeError(error) });
+        continue;
+      }
+      if (!parsed.managed) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs }); continue; }
+      if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
+      if (!parsed.changes.length) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs }); continue; }
+      for (const change of parsed.changes) {
+        if (state.versions?.has(change.id)) change.expected_updated_at = state.versions.get(change.id);
+      }
+      detected += parsed.changes.length;
+      if (/^\d{4}-\d{2}$/.test(String(parsed.yearMonth || ''))) changedMonths.add(parsed.yearMonth);
+      for (let index = 0; index < parsed.changes.length; index += 100) {
+        const chunk = parsed.changes.slice(index, index + 100);
+        try {
+          const result = await postExcelChanges(chunk);
+          succeeded += Number(result.succeeded || 0);
+          failed += Number(result.failed || 0);
+          for (const item of result.results || []) {
+            if (item.success && item.updated_at) state.versions.set(Number(item.id), item.updated_at);
+            if (!item.success) await writeLog('WARN', 'EXCEL_DB_SYNC_ROW_FAILED', { filePath, reportId: item.id, code: item.code, message: item.message });
+          }
+        } catch (error) {
+          failed += chunk.length;
+          await writeLog('ERROR', 'EXCEL_DB_SYNC_BATCH_FAILED', { filePath, source, count: chunk.length, ...normalizeError(error) });
+          if (error.code === 'EXCEL_DB_SYNC_FORBIDDEN') return { detected, succeeded, failed, forbidden: true };
+        }
+      }
+      excelDbSyncState.set(filePath, { mtimeMs: stat.mtimeMs, versions: state.versions });
+    }
+    if (detected > 0) {
+      await writeLog('INFO', 'EXCEL_DB_SYNC_FINISH', { source, detected, succeeded, failed, changedMonths: [...changedMonths] });
+      if (source === 'watcher') sendRenderer('ktc-excel-db-sync-result', { detected, succeeded, failed });
+      if (succeeded > 0 && !isSyncRunning() && source === 'watcher') {
+        for (const yearMonth of changedMonths) {
+          void enqueueManualExcelSync({ date: `${yearMonth}-01`, source: 'excel-db-rebuild' }).catch((error) =>
+            writeLog('ERROR', 'EXCEL_DB_REBUILD_FAILED', { yearMonth, ...normalizeError(error) })
+          );
+        }
+      }
+    }
+    return { detected, succeeded, failed, changedMonths: [...changedMonths] };
+  } finally {
+    excelDbSyncRunning = false;
+  }
+}
+
+
+  return { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb };
+}
+
+module.exports = { createExcelDbSyncController };
