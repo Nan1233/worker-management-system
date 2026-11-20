@@ -1,46 +1,31 @@
-# KTC repository consolidation — one authoritative implementation
+# KTC repository consolidation — implementation and remaining gates
 
-## Scope and safety
-Branch: `refactor/ktc-local-cleanup` only. No merge, deployment or production DB changes.
-Delete only generated artifacts immediately; retain active versioned modules until their runtime entrypoints, tests and packaging references are migrated and verified.
+Branch: `refactor/ktc-local-cleanup`. No merges, Cloudflare deployments or production DB operations.
 
-## Verified inventory
-- `frontend/playwright-report/index.html`: committed Playwright-generated HTML report — removed.
-- `frontend/test-results/.last-run.json`: committed Playwright run state — removed.
-- `desktop/electron/excelExportContractPatch.v5.cjs`: **active**: required by `desktop/electron/launcher.cjs`; do not delete.
-- `desktop/electron/excelExportContractPatch.v6.cjs`: **active**: required by launcher, Excel integration and tests; do not delete.
-- `desktop/electron/workerReportTemplateLocal.v2.cjs`: **active**: required by launcher, v6, scripts, package metadata and CI; do not delete.
-- `desktop/electron/workerReportTemplateLocal.cjs`: no indexed exact-name references found; **candidate only**, requires dynamic import/package/runtime check before deletion.
-- `backend/controllers/legacyExcelExportCompatController.js`: name says legacy but route/API compatibility may still depend on it; inspect routes before removal.
-- `backend/templates`: multiple Excel fixtures/templates with similar or encoding-damaged names, some multi-MB. Preserve until template loader, deployment packaging and smoke tests identify canonical files.
-- `backend/migrations`: historical migrations are not redundant source files; never delete applied migrations.
+## Implemented on the refactor branch
 
-## Target boundaries
-```
-backend/
-  modules/
-    production/{domain,application,infrastructure,api}
-    approval/{domain,application,infrastructure,api}
-    standards/{domain,application,infrastructure,api}
-    reporting/{domain,application,infrastructure,api}
-  shared/
-frontend/src/
-  features/{worker-reports,manager-reviews,master-data}
-  shared/{api,ui,utils}
-desktop/electron/
-  bootstrap/
-  ipc/
-  excel/{templates,mapping,rendering,sync}
-```
-This is a target design, not a claim that these directories already exist. Prefer small migrations with compatibility exports and tests, not a one-shot rename.
+1. `desktop/electron/main.cjs`, `monthlyWorkbookLocal.cjs` and `backend/models/productionTempApprovalModel.js` are small compatibility/orchestration entry points. Excel export, authentication, IPC, approval SQL, snapshots and transaction workflows are split into dedicated modules.
+2. `frontend/src/pages/worker/ProcessPage.tsx` delegates submission, duplicate reports, offline retries, form mode resets and draft lifecycle to specialized hooks.
+3. Eleven exact duplicate aliases in `backend/templates` were removed, retaining `KTC-Bao-cao-9-cong-doan.xlsx`.
+4. The unreferenced exact copy `desktop/assets/templates/process-report-template.xlsx` was removed, retaining `desktop/assets/templates/file-mau.xlsx`.
+5. The unused v5 Excel adapter was removed. The current v6 builder, Compact GC smoke helper and worker-report v2 template remain where scripts/package manifests still refer to them.
+6. `scripts/finalReleaseAudit.cjs` now checks the extracted approval workflow sources. `npm run check:repository` adds a read-only template/package integrity gate.
+7. README and audit documents list canonical paths and ownership; filenames carrying `v2`, `v6` or `legacy` are not deleted solely for their names.
 
-## Required removal gate per candidate
-1. Identify runtime import graph (including dynamic requires), scripts, CI, package entrypoints and Electron-builder inclusion.
-2. Determine canonical implementation; compare behavior and exported contracts.
-3. Move active behavior into one unversioned module, update all import sites, keep temporary re-export shims only if needed.
-4. Run Node unit, frontend typecheck/build, Desktop smoke Excel with real fixture templates, and Windows packaging checks.
-5. Delete unused modules, duplicate fixtures and temporary shims only after passing gates; retain Git history.
-6. Record a deletion manifest with reason and evidence. Never treat name pattern `vN` alone as proof of obsolescence.
+## Intentional separations
 
-## Current blockers
-Full Node/Electron runtime and Windows packaging regression not yet executed in this environment. The three versioned Desktop modules are demonstrably active and **must not be deleted blindly**.
+- Backend/desktop company template copies support separate binaries and fallback paths.
+- Public APK copies may be needed by different publishing roots.
+- `productionTemp` model names describe pending business data, not disposable files.
+- Existing migrations, `_KTC_SYNC`, and historical standard snapshots must be preserved.
+- Cloudflare Workers is the current web backend; Desktop Excel rendering requires Node/Electron or other supported filesystem/ExcelJS runtime.
+
+## Still blocked from being called production-ready
+
+- TypeScript checks and frontend build;
+- Backend approval/rejection transaction and concurrency checks against a safe TiDB test database;
+- Desktop Excel smoke/round-trip, worker report and shared-machine accounting;
+- Electron packaged-resource validation, Windows packaging;
+- Cloudflare deployment and endpoint contract checks.
+
+The structural cleanup **is implemented** but its runtime reliability **has not been verified**. Retain the branch until validation succeeds. Do not merge or deploy based only on file-count reductions or static reference searches.
