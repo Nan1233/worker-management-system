@@ -94,12 +94,7 @@ import {
     toggleSelectedDeductionKeys,
     transitionSelectedDeduction,
 } from "./processDeductionLogic";
-import {
-    applyNgToggleToForm,
-    applyNgValueToForm,
-    applyTtOkToForm,
-    isValidIntegerInput,
-} from "./processQualityLogic";
+import { useProcessQualityActions } from "./useProcessQualityActions";
 
 import {
     validateWorkerWorkDate,
@@ -738,41 +733,12 @@ const updateDeductionValue = (
     // CẬP NHẬT GIÁ TRỊ LỖI NG
     // =====================================================
 
-    const handleNgValue = (key: NgKey, value: string) => {
-        if (!isValidIntegerInput(value)) return;
-        setForm((prev) =>
-            applyNgValueToForm(prev, key, value, activeNgOptions, calculateActualOutput)
-        );
-    };
-
-    // =====================================================
-    // CHỌN / BỎ CHỌN LỖI NG
-    // =====================================================
-
-    const handleToggleNg = (key: NgKey, checked: boolean) => {
-        setSelectedNg((prev) => {
-            if (checked) return prev.includes(key) ? prev : [...prev, key];
-            return prev.filter((item) => item !== key);
-        });
-
-        setForm((prev) =>
-            applyNgToggleToForm(prev, key, checked, activeNgOptions, calculateActualOutput)
-        );
-    };
-
-    // =====================================================
-    // CẬP NHẬT TT OK
-    // =====================================================
-
-
-    const handleTtOkChange = (
-        event: React.ChangeEvent<HTMLInputElement>
-    ) => {
-        const value = parseIntegerDisplay(event.target.value);
-        if (!isValidIntegerInput(value)) return;
-        setForm((prev) => applyTtOkToForm(prev, value, calculateActualOutput));
-    };
-
+    const { handleNgValue, handleToggleNg, handleTtOkChange } = useProcessQualityActions({
+        setForm,
+        setSelectedNg,
+        activeNgOptions,
+        calculateActualOutput,
+    });
 
     // =====================================================
     // BLUR Ô SỐ:
