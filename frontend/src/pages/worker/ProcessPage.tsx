@@ -31,7 +31,6 @@ import {
     clampWorkerWorkDate,
     createEmptyMachineLine,
     getWorkerAllowedWorkDates,
-    initialDeduction,
     initialForm,
     processMap,
 } from "./processPageConfig";
@@ -69,6 +68,7 @@ import { useProcessSubmission } from "./useProcessSubmission";
 import { useProcessReset } from "./useProcessReset";
 import { useProcessInputActions } from "./useProcessInputActions";
 import { useProcessModeResets } from "./useProcessModeResets";
+import { useProcessEntryState } from "./useProcessEntryState";
 import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
@@ -255,70 +255,12 @@ const machineAutocompleteOptions =
     const calculateActualOutput = (values: FormState): number =>
         calculateActualOutputValue(values, activeNgOptions);
 
-// CHI TIẾT TRỪ GIỜ
-    // =================================================
-
-    const [
-        deductions,
-        setDeductions
-    ] = useState<DeductionState>(
-        initialDeduction
-    );
-
-
-    // =================================================
-    // DANH SÁCH LOẠI TRỪ GIỜ ĐÃ CHỌN
-    // =================================================
-
-    const [
-        selectedDeduction,
-        setSelectedDeduction
-    ] = useState<DeductionKey[]>([]);
-
-
-    // =================================================
-    // DANH SÁCH LỖI NG ĐÃ CHỌN
-    // =================================================
-
-    const [
-        selectedNg,
-        setSelectedNg
-    ] = useState<NgKey[]>([]);
-
-
-    // =================================================
-    // MỞ / ĐÓNG DANH SÁCH TRỪ GIỜ
-    // =================================================
-
-    const [
-        showDeduction,
-        setShowDeduction
-    ] = useState(false);
-
-
-    // =================================================
-    // MỞ / ĐÓNG DANH SÁCH LỖI NG
-    // =================================================
-
-    const [
-        showNg,
-        setShowNg
-    ] = useState(false);
-
-
-    // =================================================
-    // LÝ DO DỪNG MÁY
-    // =================================================
-
-    // =================================================
-    // TRẠNG THÁI GỬI FORM
-    // =================================================
-
-    const [
-        submitting,
-        setSubmitting
-    ] = useState(false);
-    const [submitValidationError, setSubmitValidationError] = useState("");
+    const {
+        deductions, setDeductions, selectedDeduction, setSelectedDeduction,
+        selectedNg, setSelectedNg, showDeduction, setShowDeduction,
+        showNg, setShowNg, submitting, setSubmitting,
+        submitValidationError, setSubmitValidationError,
+    } = useProcessEntryState();
 
     const {
         duplicatePrompt,
