@@ -7,7 +7,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 function parseCore(value) {
-  const match = /^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(String(value || '').trim());
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(value || '').trim());
   if (!match) throw new Error('Desktop package version must be x.y.z');
   return match.slice(1).map(Number);
 }
@@ -25,7 +25,7 @@ function nextBetaVersion(packageVersion, gitTagRefs) {
   let maxBeta = 0;
   for (const item of gitTagRefs || []) {
     const ref = typeof item === 'string' ? item : String(item?.ref || item?.tag_name || '');
-    const match = /(?:^|\\/)v?(\\d+)\\.(\\d+)\\.(\\d+)-beta\\.(\\d+)$/.exec(ref);
+    const match = /(?:^|\/)v?(\d+)\.(\d+)\.(\d+)-beta\.(\d+)$/.exec(ref);
     if (!match) continue;
     const base = match.slice(1, 4).map(Number);
     const beta = Number(match[4]);
@@ -41,7 +41,7 @@ function nextBetaVersion(packageVersion, gitTagRefs) {
 }
 
 function resolveFromGitHub({ repository, packageVersion, envFile }) {
-  if (!/^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/.test(repository || '')) {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository || '')) {
     throw new Error('Missing or invalid GITHUB_REPOSITORY');
   }
   if (!envFile) throw new Error('Missing GITHUB_ENV');
@@ -55,7 +55,7 @@ function resolveFromGitHub({ repository, packageVersion, envFile }) {
   });
   // --paginate emits one JSON array per page, not one combined JSON document.
   const refs = [];
-  for (const chunk of text.match(/\\[[\\s\\S]*?\\](?=\\s*\\[|\\s*$)/g) || []) {
+  for (const chunk of text.match(/\[[\s\S]*?\](?=\s*\[|\s*$)/g) || []) {
     refs.push(...JSON.parse(chunk));
   }
   if (!refs.length && text.trim()) throw new Error('Could not parse GitHub tags');
@@ -64,7 +64,7 @@ function resolveFromGitHub({ repository, packageVersion, envFile }) {
   if (compareCore([major, minor, patch], stableCore) <= 0) {
     throw new Error('Refusing a downgrade or equal stable-version release');
   }
-  fs.appendFileSync(envFile, 'RELEASE_VERSION=' + version + '\\n', 'utf8');
+  fs.appendFileSync(envFile, 'RELEASE_VERSION=' + version + '\n', 'utf8');
   console.log('Selected unique TEST version: ' + version);
   return version;
 }
