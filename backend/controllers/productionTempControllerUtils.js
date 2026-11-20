@@ -5,23 +5,7 @@ const toPositiveInteger = (value) => {
     return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null;
 };
 
-const normalizeOperationType = (value) => {
-    const normalized = String(value ?? '').trim().toUpperCase();
-    const aliases = {
-        CUT: 'CUT', CAT: 'CUT', 'CẮT': 'CUT',
-        NEST: 'NEST', NESTING: 'NEST', LONG: 'NEST', 'LỒNG': 'NEST',
-    };
-    return aliases[normalized] || null;
-};
-
-const normalizeOperationMode = (value) => {
-    const normalized = String(value ?? '').trim().toUpperCase();
-    const aliases = {
-        MANUAL: 'MANUAL', TAY: 'MANUAL',
-        MACHINE: 'MACHINE', MAY: 'MACHINE', 'MÁY': 'MACHINE',
-    };
-    return aliases[normalized] || null;
-};
+const { normalizeOperationType, normalizeOperationMode } = require('../domain/operationNormalization');
 
 const getVietnamDateKey = () => {
     const parts = new Intl.DateTimeFormat('en-CA', {

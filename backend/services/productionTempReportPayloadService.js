@@ -1,6 +1,6 @@
 const { calculateProductionOutput } = require("../../shared/productionOutput.cjs");
 const { buildLogicalDuplicateKey } = require("./logicalDuplicateReportService");
-const { normalizeOperationType, normalizeOperationMode } = require("../controllers/productionTempControllerUtils");
+const { normalizeOperationType, normalizeOperationMode } = require("../domain/operationNormalization");
 
 /** Builds the persisted payload after business and master-data validation. */
 function buildProductionTempReportPayload({ requestBody, validation, machineValidation, masterValidation, extraDataInput, workerId, processId, operationMode, clientRequestId }) {

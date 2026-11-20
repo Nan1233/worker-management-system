@@ -9,6 +9,9 @@ on:
       - backend/tests/authorization-f09-scope.test.js
       - backend/models/productionTempApprovalQueries.js
       - backend/models/productionTempApprovalModel.js
+      - backend/domain/operationNormalization.js
+      - backend/controllers/productionTempControllerUtils.js
+      - backend/services/productionTempReportPayloadService.js
       - backend/models/productionTempRejectionBuilders.js
       - backend/tests/rejection-builders-batch-refactor.test.js
       - backend/tests/review-locking-and-cas-regression.test.js

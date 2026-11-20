@@ -18,6 +18,9 @@ on:
       - backend/tests/approved-edit-concurrency.test.js
       - backend/controllers/productionTempManagementController.js
       - backend/models/productionTempApprovalModel.js
+      - backend/domain/operationNormalization.js
+      - backend/controllers/productionTempControllerUtils.js
+      - backend/services/productionTempReportPayloadService.js
       - backend/models/productionTempRejectionBuilders.js
       - backend/tests/rejection-builders-batch-refactor.test.js
       - backend/tests/review-locking-and-cas-regression.test.js
