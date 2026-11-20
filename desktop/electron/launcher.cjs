@@ -150,16 +150,10 @@ app.on('browser-window-created', (_event, window) => {
   });
 });
 
-// v5 is the single active GC Excel contract. Older contract patches are no longer loaded.
-require('./excelExportContractPatch.v5.cjs');
-void writeLauncherLog('INFO', 'STARTUP_EXCEL_PATCH_V5_READY', { elapsedMs: startupElapsedMs() });
-// Compact one-sheet GC template is layered after v5 and remains DB-first.
-require('./compactGcExcelPatch.cjs');
-// Worker template handles submitted_at and work_date directly; no loader hook needed.
-// v6 replaces the legacy split/monthly layout with the worker-report template.
-require('./excelExportContractPatch.v6.cjs');
-global.__KTC_STARTUP_MARK__('excel_patches_ready');
-void writeLauncherLog('INFO', 'STARTUP_EXCEL_PATCHES_READY', { elapsedMs: startupElapsedMs() });
+// The desktop main process imports its Excel builder explicitly.
+// Avoid loading legacy modules that mutate monthlyWorkbookLocal exports at startup.
+global.__KTC_STARTUP_MARK__('excel_builder_ready');
+void writeLauncherLog('INFO', 'STARTUP_EXCEL_BUILDER_READY', { elapsedMs: startupElapsedMs() });
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
