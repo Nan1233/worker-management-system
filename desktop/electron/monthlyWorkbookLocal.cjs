@@ -113,7 +113,7 @@ function achievementColor(value, settings) {
 }
 
 const {
-  detailKey, reportDetailItems, processDetailTypes, detailValue, detailMap,
+  detailId, detailKey, reportDetailItems, processDetailTypes, detailValue, detailMap,
 } = require('./monthlyWorkbookDetails.cjs');
 
 function thinBorder() {
