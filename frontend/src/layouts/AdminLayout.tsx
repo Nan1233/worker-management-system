@@ -36,6 +36,9 @@ export default function AdminLayout(){
  const [mobileMoreOpen,setMobileMoreOpen]=useState(false),[mobileSidebarOpen,setMobileSidebarOpen]=useState(false);
  // Master Control Center is Super Admin only; the backend enforces it, the menu only mirrors it.
  const visible=items.filter(item=>can(item.permission)&&(item.path!=="master-control"||user?.is_super_admin===true));
+ // Primary mobile slots must never shift while permissions are loading.
+ const mobilePrimary=visible.filter(item=>item.path===""||item.path==="reports");
+ const mobileOverflow=visible.filter(item=>item.path!==""&&item.path!=="reports");
  const active=(path:string)=>path===""?location.pathname==="/admin":location.pathname===`/admin/${path}`||location.pathname.startsWith(`/admin/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel;
  const avatarText=displayName.trim().charAt(0).toUpperCase()||"A";
@@ -69,8 +72,8 @@ export default function AdminLayout(){
   </section>
   {mobileMoreOpen&&<button className="admin-mobile-overflow-dismiss" type="button" aria-label="Đóng menu điều hướng" onClick={()=>setMobileMoreOpen(false)}/>}
   <nav className="admin-mobile-nav" aria-label="Điều hướng quản trị trên di động">
-   {mobileMoreOpen&&<div id="admin-mobile-overflow" className="admin-mobile-overflow" role="group" aria-label="Các trang quản trị khác">{visible.slice(2).map(item=>{const Icon=item.icon;return <button key={`more-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label}</span></button>;})}<button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button></div>}
-   {visible.slice(0,2).map(item=>{const Icon=item.icon;return <button key={`primary-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label.replace(" hệ thống","")}</span></button>;})}
+   {mobileMoreOpen&&<div id="admin-mobile-overflow" className="admin-mobile-overflow" role="group" aria-label="Các trang quản trị khác">{mobileOverflow.map(item=>{const Icon=item.icon;return <button key={`more-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label}</span></button>;})}<button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button></div>}
+   {mobilePrimary.map(item=>{const Icon=item.icon;return <button key={`primary-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label.replace(" hệ thống","")}</span></button>;})}
    {can("NOTIFICATION_VIEW")&&<button type="button" className={location.pathname.startsWith("/admin/notifications")?"active":""} onClick={()=>go("notifications")}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="admin-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>}
    <button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button>
    <button type="button" className={mobileMoreOpen?"active":""} aria-label={mobileMoreOpen?"Đóng danh sách trang khác":"Mở danh sách trang khác"} aria-expanded={mobileMoreOpen} aria-controls={mobileMoreOpen?"admin-mobile-overflow":undefined} onClick={()=>setMobileMoreOpen(open=>!open)}>{mobileMoreOpen?<X size={18}/>:<MoreHorizontal size={18}/>}<span>Thêm</span></button>

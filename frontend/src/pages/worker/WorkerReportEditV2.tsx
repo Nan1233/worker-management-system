@@ -59,6 +59,8 @@ function WorkerReportEditV2() {
   const [cutExecutionMode, setCutExecutionMode] = useState<"AUTO" | "NON_AUTO">("AUTO");
   const [operationMode, setOperationMode] = useState<"MANUAL" | "MACHINE">("MANUAL");
   const [loading, setLoading] = useState(true);
+  // Prevent editing a form while master options and saved data are being restored.
+  const [formReady, setFormReady] = useState(false);
   const [loadingMasterData, setLoadingMasterData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -158,6 +160,8 @@ function WorkerReportEditV2() {
   useEffect(() => {
     let alive = true;
     const load = async () => {
+      setFormReady(false);
+      hydratedReportRef.current = null;
       try {
         const reportId = Number(id);
         if (!Number.isInteger(reportId) || reportId <= 0) throw new Error("ID báo cáo không hợp lệ.");
@@ -276,6 +280,8 @@ function WorkerReportEditV2() {
       setSelectedDeduction(selected);
       return next;
     });
+    // Restored defect/deduction values and the ready flag are batched together.
+    setFormReady(true);
   }, [report, loading, loadingMasterData, sourceDefects, sourceDeductions, sourceLines, editNgOptions, editDeductionOptions]);
 
   // Preserve the persisted per-line standard snapshot on initial edit load.
@@ -326,7 +332,7 @@ function WorkerReportEditV2() {
 
   const approvedMachineNoteOnly = isApprovedMachineReport(source, operationMode) && managerRoute;
   const save = async () => {
-    if (!report || readOnly) return;
+    if (!report || readOnly || !formReady) return;
     if (!managerRoute && !getWorkerEditWindow(report).editable) { setError("Báo cáo không còn ở trạng thái được phép sửa."); return; }
     if (!managerRoute && !report.updated_at) { setError("Thiếu phiên bản báo cáo. Vui lòng tải lại trước khi sửa."); return; }
     setError("");
@@ -430,7 +436,7 @@ function WorkerReportEditV2() {
   const timeText = managerRoute || !WORKER_EDIT_TIME_LIMIT_ENABLED ? "Không giới hạn" : formatRemaining(remaining);
   const processTitle = readOnly ? `Chi tiết báo cáo · ${report.process_name || capabilities.processCode}` : `Sửa báo cáo · ${report.process_name || capabilities.processCode}`;
 
-  return <div className={`ktc-page worker-form-page ${managerRoute ? "manager-worker-report-form" : ""} ${readOnly ? "manager-worker-report-readonly" : ""}`}>
+  return <div data-form-ready={formReady ? "true" : "false"} className={`ktc-page worker-form-page ${managerRoute ? "manager-worker-report-form" : ""} ${readOnly ? "manager-worker-report-readonly" : ""}`}>
     <ProcessWorkerHeader processTitle={processTitle} workerName={form.workerName} workerCode={form.workerCode} trainingPercent={form.trainingPercent} workDate={form.workDate} dateOptions={getWorkerAllowedWorkDates()} onBack={() => navigate(-1)} onDateChange={(e) => updateForm("workDate", e.target.value)} />
     <main className="worker-form-container">
       {error && <div className="worker-form-card" style={{ color: "#b42318", marginBottom: 12 }}>{error}</div>}
@@ -444,14 +450,15 @@ function WorkerReportEditV2() {
         <textarea id="approved-machine-note" name="note" className="worker-text-input" value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} maxLength={500} rows={3} disabled={saving} />
         <p className="worker-field-hint">Báo cáo nhiều máy đã duyệt: số liệu từng máy được giữ nguyên, chỉ sửa được ghi chú.</p>
       </section>}
-      <fieldset disabled={approvedMachineNoteOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      {!formReady && <div role="status" className="worker-field-hint">Đang nạp dữ liệu báo cáo và danh mục…</div>}
+      <fieldset disabled={approvedMachineNoteOnly || !formReady} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <ProcessBasicInfoSection processCode={String(report?.process_code || capabilities.processCode)} form={form} setForm={setForm} onFormChange={onFormChange} isCutLongProcess={capabilities.isCutLongProcess} isInspectionProcess={capabilities.isInspectionProcess} isCvkMode={isCvkMode} setIsCvkMode={setIsCvkMode} operationType={operationType} setOperationType={setOperationType} cutExecutionMode={cutExecutionMode} setCutExecutionMode={setCutExecutionMode} operationMode={operationMode} setOperationMode={setOperationMode} usesMultiMachineLines={usesMultiMachineLines} usesSingleMachine={usesSingleMachine} productAutocompleteOptions={toProductAutocompleteOptions(editProductOptions)} getMachineProductAutocompleteOptions={getMachineProductAutocompleteOptions} productOptions={editProductOptions as any} machineAutocompleteOptions={machineAutocompleteOptions} machineOptions={editMachineOptions} loadingMasterData={loadingMasterData} machineCount={machineCount} maxMachineCount={maxMachineCount} machineLines={machineLines} resizeMachineLines={resizeMachineLines} updateMachineLine={updateLine} refreshMachineLineStandard={refreshMachineLineStandard} getMachineNgTotal={getMachineNgTotal} activeNgOptions={editNgOptions as any} activeDeductionOptions={editDeductionOptions as any} toggleMachineDefect={toggleMachineDefect} updateMachineDefectValue={updateMachineDefectValue} />
       {report.process_code === "CVK" && <section className="worker-form-card"><h2 className="worker-card-title">Thông tin công việc</h2><div className="worker-basic-grid"><div className="worker-field-block"><label className="worker-field-label">Loại công việc</label><select className="worker-text-input" value={workType} onChange={(e) => { setWorkType(e.target.value); setForm((current) => ({ ...current, workType: e.target.value })); }}><option>Xuất nhập</option><option>Hỗ trợ</option><option>Kho</option><option>Vệ sinh</option><option>Công việc khác</option></select></div></div></section>}
       {usesMultiMachineLines && <section className="worker-form-card worker-quality-section" aria-label="Tổng sản lượng OK NG của các máy"><h2 className="worker-card-title">Tổng sản lượng OK / NG</h2><div className="worker-quality-summary"><div className="worker-quality-card ok"><label>TT OK (tổng các máy)</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.okQuantity) || 0), 0)))} readOnly aria-label="Tổng OK các máy" /></div><div className="worker-quality-card ng"><label>TT NG (tổng các máy)</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.ngQuantity) || 0), 0)))} readOnly aria-label="Tổng NG các máy" /></div><div className="worker-quality-card total-output"><label>Tổng sản lượng</label><input value={formatIntegerDisplay(String(machineLines.reduce((sum, line) => sum + (Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0), 0)))} readOnly aria-label="Tổng sản lượng các máy" /></div></div><p className="worker-field-hint">Số liệu tổng hợp tự động từ từng máy; chỉnh sửa OK/NG tại từng máy.</p></section>}
       {!report.process_code || report.process_code !== "CVK" ? <ProcessQualitySection form={form} activeNgOptions={editNgOptions as any} selectedNg={selectedNg} showNg={showNg} setShowNg={setShowNg} usesMultiMachineLines={usesMultiMachineLines} operationMode={operationMode} formatIntegerDisplay={formatIntegerDisplay} onTtOkChange={onTtOkChange} onNumberBlur={onNumberBlur} onToggleNg={toggleNg} onNgValue={updateNg} onOtherNgName={(value) => setForm((prev) => ({ ...prev, otherNgName: value }))} /> : null}
       {!usesMultiMachineLines && <ProcessTimeDeductionSection processCode={String(report?.process_code || (Number(report?.process_id) === 4 ? "K1" : ""))} form={form} setForm={setForm} deductions={deductions} activeDeductionOptions={editDeductionOptions as any} selectedDeduction={selectedDeduction} showDeduction={showDeduction} setShowDeduction={setShowDeduction} onToggleDeduction={toggleDeduction} onUpdateDeduction={updateDeduction} onNormalizeDeduction={normalizeDeduction} onWarning={warning} onOtherDeductionName={(value) => setForm((prev) => ({ ...prev, otherDeductionName: value }))} />}
       </fieldset>
-      {!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : WORKER_EDIT_TIME_LIMIT_ENABLED ? `Còn ${timeText} để sửa báo cáo.` : "Có thể sửa báo cáo không giới hạn thời gian khi còn chờ xử lý."}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || (!managerRoute && WORKER_EDIT_TIME_LIMIT_ENABLED && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && WORKER_EDIT_TIME_LIMIT_ENABLED && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
+      {!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : WORKER_EDIT_TIME_LIMIT_ENABLED ? `Còn ${timeText} để sửa báo cáo.` : "Có thể sửa báo cáo không giới hạn thời gian khi còn chờ xử lý."}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || !formReady || (!managerRoute && WORKER_EDIT_TIME_LIMIT_ENABLED && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && WORKER_EDIT_TIME_LIMIT_ENABLED && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
     </main>
   </div>;
 }

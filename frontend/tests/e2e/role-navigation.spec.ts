@@ -13,13 +13,11 @@ async function clickManagementNav(page: Page, label: string) {
 }
 async function clickAdminNav(page: Page, label: string) {
   if ((page.viewportSize()?.width || 1440) <= 800) {
-    const nav = page.getByRole('navigation', { name: 'Điều hướng quản trị trên di động' });
-    if (label === 'Chờ duyệt') {
-      await nav.getByRole('button', { name: label, exact: true }).click();
-    } else {
-      await nav.getByRole('button', { name: 'Mở danh sách trang khác' }).click();
-      await page.locator('#admin-mobile-overflow').getByRole('button', { name: label, exact: true }).click();
-    }
+    // Use the accessible mobile drawer, which remains independent of the
+    // temporary overflow popover during route transitions.
+    await page.getByRole('button', { name: 'Mở menu', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Điều hướng quản trị viên' })
+      .getByRole('button', { name: label, exact: true }).click();
   } else {
     await page.getByRole('navigation', { name: 'Điều hướng quản trị viên' }).getByRole('button', { name: label, exact: true }).click();
   }
@@ -123,6 +121,7 @@ test.describe('Role navigation (real browser)', () => {
     await expect.poll(() => hashPath(page)).toBe(`/lead/report/${approvedId}/edit`);
 
     await expect(page.locator('#ttOk')).toHaveValue('40');
+    await expect(page.locator('[data-form-ready="true"]')).toBeVisible();
     await page.locator('#ttOk').fill('35');
     await page.locator('#approved-change-reason').fill('Kiểm tra cập nhật sản lượng E2E');
     await expect(page.locator('#ttOk')).toHaveValue('35');
