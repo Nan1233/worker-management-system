@@ -63,3 +63,11 @@ Test source-regex hiện tại có thể fail vì chuyển hàm sang module khá
 - [ ] Không chạm production DB, merge, deploy hay các template workbook production
 
 **Lưu ý:** các lần tách module ở đây chưa được chứng minh PASS bằng CI hoặc local runtime cho đến khi có kết quả kiểm thử tương ứng.
+
+## Lượt tiếp theo — 3 lát cắt của 3 ưu tiên
+
+1. **Worker submit:** `processSubmitDraftCompletion.ts` gom ba đoạn invalidation draft lặp lại khi offline, lỗi mạng và submit thành công. `handleSubmit`, tạo payload, duplicate challenge, retry và lock vẫn ở `ProcessPage.tsx` để tránh thay đổi timing/idempotency. Chưa hoàn thành việc tách toàn bộ submit/duplicate/offline workflow.
+2. **Manager approve:** `pendingReportBatchApproval.ts` tách use case phê duyệt nhiều báo cáo, giữ concurrency tối đa 2, tiếp tục xử lý từng lỗi và báo tiến độ. `Reports.tsx` vẫn giữ selection scope, detail navigation, rejection và refresh. Chưa hoàn thành toàn bộ approval/rejection workflow.
+3. **Backend submission:** `productionSubmissionProcessRepository.js` nhận hai truy vấn xác định `process_code` authoritative, giữ nguyên thứ tự kết quả và fallback use case. Transaction, lock, duplicate, training snapshot và audit vẫn ở service cũ. Chưa hoàn thành chuyển toàn bộ truy cập SQL sang repository.
+
+**Đánh giá hoàn thành:** ba lát cắt đã commit, **không phải** tuyên bố 3 nhóm refactor lớn đã hoàn tất. Chưa chạy typecheck/build/regression ở commit mới trong môi trường hiện tại. Không merge/deploy.
