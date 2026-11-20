@@ -1,5 +1,6 @@
 'use strict';
 const { COLORS } = require('./monthlyWorkbookStyles.cjs');
+const { PROCESS_SHEETS } = require('./monthlyWorkbookSchemas.cjs');
 const { applyCellStyle } = require('./monthlyWorkbookCellStyles.cjs');
 
 function addCover(workbook, yearMonth, diagnostics) {
@@ -18,7 +19,7 @@ function addCover(workbook, yearMonth, diagnostics) {
   const info = [
     ['Nguồn dữ liệu', 'TiDB - production_reports đã duyệt'],
     ['Số báo cáo', totalReports],
-    ['Công đoạn có dữ liệu', `${activeProcesses}/9`],
+    ['Công đoạn có dữ liệu', `${activeProcesses}/${Object.keys(PROCESS_SHEETS).length}`],
     ['Ngày tạo file', new Date()]
   ];
   info.forEach(([label, value], index) => {
