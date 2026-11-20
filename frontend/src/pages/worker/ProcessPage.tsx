@@ -75,6 +75,7 @@ import {
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { useProcessDuplicateActions } from "./useProcessDuplicateActions";
 import { useProcessSubmission } from "./useProcessSubmission";
+import { useProcessReset } from "./useProcessReset";
 import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
@@ -592,65 +593,15 @@ const machineAutocompleteOptions =
     // LÀM MỚI FORM
     // =====================================================
 
-    const handleReset = () => {
-        if (duplicatePrimaryCompletedRef.current && pendingSplitPayloadsRef.current.length) {
-            showToast("Một phần báo cáo đã gửi thành công. Hãy gửi nốt phần còn lại trước khi làm mới biểu mẫu.", "warning");
-            return;
-        }
-        if (submitLockRef.current || submitting) return;
-        const hasEnteredData = hasProcessReportInput(form, selectedNg, selectedDeduction, machineLines);
+    const { handleReset } = useProcessReset({
+        process, showToast, submitting, form, selectedNg, selectedDeduction, machineLines,
+        submitLockRef, clientRequestIdRef, pendingSplitPayloadsRef,
+        duplicatePrimaryCompletedRef, duplicateForceRequestIdRef, isRestoringDraftRef,
+        draftSaveTimerRef, resetVersionRef, setForm, setSubmitValidationError,
+        setDeductions, setSelectedDeduction, setSelectedNg, setOperationType,
+        setOperationMode, setMachineCount, setMachineLines, setShowDeduction, setShowNg,
+    });
 
-        if (hasEnteredData && !window.confirm("Làm mới sẽ xóa dữ liệu bạn đang nhập. Bạn có chắc muốn tiếp tục?")) {
-            return;
-        }
-
-        // Invalidate any pending draft autosave before clearing the form.
-        resetVersionRef.current += 1;
-        isRestoringDraftRef.current = false;
-        if (draftSaveTimerRef.current !== null) {
-            window.clearTimeout(draftSaveTimerRef.current);
-            draftSaveTimerRef.current = null;
-        }
-        void clearProcessDraftAsync(process);
-
-        setForm((prev) => resetProcessFormRetainingWorker(prev, getCurrentLocalDate()));
-
-
-        setSubmitValidationError("");
-        clientRequestIdRef.current = null;
-        duplicateForceRequestIdRef.current = null;
-        setDeductions(
-            initialDeduction
-        );
-
-
-        setSelectedDeduction(
-            []
-        );
-
-
-        setSelectedNg(
-            []
-        );
-
-        setOperationType("CUT");
-        setOperationMode("MANUAL");
-        setMachineCount(1);
-        setMachineLines([createEmptyMachineLine()]);
-
-
-
-
-        setShowDeduction(
-            false
-        );
-
-
-        setShowNg(
-            false
-        );
-
-    };
         return (
 
         <main className="worker-form-page">
