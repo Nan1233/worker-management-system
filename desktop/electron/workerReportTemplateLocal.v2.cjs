@@ -661,7 +661,7 @@ function applyReportRow(row, report, contract, processData, index) {
       cell.value = { formula: 'IFERROR(' + String(perHour) + '*' + hoursRef + ',"")',
         result: planned ?? '' };
     } else cell.value = planned;
-    cell.numFmt = '#,##0.00';
+    cell.numFmt = '#,##0';
   }
   // All exported process sheets use the visible working-time column as the
   // denominator. The duplicate actual-time cell mirrors it for legacy formulas.
@@ -695,7 +695,7 @@ function applyReportRow(row, report, contract, processData, index) {
       formula: 'IFERROR(IF(' + standardRef + '>0,' + outputRef + '/' + standardRef + ',""),"")',
       result: cached
     };
-    cell.numFmt = '0.00%';
+    cell.numFmt = '0%';
   } else {
     set(contract.cols.achievement, number(report.calculationSnapshot?.achievement_rate ?? report.achievement_rate));
   }
@@ -712,7 +712,7 @@ function applyReportRow(row, report, contract, processData, index) {
       formula: 'IFERROR(IF(OR(' + timeRef + '<=0,' + outputRef + '=""),"",' + outputRef + '/' + timeRef + '),"")',
       result: cachedRate
     };
-    cell.numFmt = '#,##0.00';
+    cell.numFmt = '#,##0';
   } else {
     set(contract.cols.outputPerHour, number(report.calculationSnapshot?.actual_per_hour ?? report.actual_output_per_hour));
   }
@@ -1010,6 +1010,52 @@ contract.cols.workTime = workTimeColumn;
       sheet.getColumn(c).hidden = true;
       for (let r = dataStartRow; r <= sheet.rowCount; r += 1) sheet.getRow(r).getCell(c).value = null;
     }
+  }
+  // Format after restoring sample row styles, which may contain 100.00%
+  // and fraction formats. Keep decimals only on time and deduction columns.
+  const timeCols = new Set([
+    contract.cols.time,contract.cols.actualTime,contract.cols.workTime,contract.cols.deductionTotal
+  ].filter(Boolean));
+  for(const deduction of contract.deductions) timeCols.add(deduction.column);
+  const percentCols = new Set([
+    contract.cols.training,contract.cols.achievement,contract.cols.ngRate
+  ].filter(Boolean));
+  for(let r=dataStartRow;r<=sheet.rowCount;r++) {
+    const row=sheet.getRow(r);
+    // Dates/separators have no numeric production values.
+    for(let col=1;col<=sheet.columnCount;col++) {
+      const cell=row.getCell(col);
+      const v=cell.value;
+      if(typeof v!=='number' && !(v&&typeof v==='object'&&typeof v.formula==='string'))continue;
+      if(percentCols.has(col))cell.numFmt='0%';
+      else if(timeCols.has(col))cell.numFmt='#,##0.00';
+      else if(!(v instanceof Date))cell.numFmt='#,##0';
+    }
+  }
+  // Automatically size visible columns for the actual report values.
+  const cellText=(cell)=>{
+    const raw=cell.value;
+    const v=raw&&typeof raw==='object'&&'result' in raw?raw.result:raw;
+    if(v==null||v==='')return '';
+    if(v instanceof Date)return '00/00/0000';
+    if(typeof v==='number'){
+      if(String(cell.numFmt||'').includes('%'))return Math.round(v*100)+'%';
+      if(String(cell.numFmt||'').includes('.00'))return v.toFixed(2);
+      return v.toLocaleString('en-US',{maximumFractionDigits:0});
+    }
+    return typeof v==='object'?'':String(v);
+  };
+  for(let col=1;col<=sheet.columnCount;col++){
+    const column=sheet.getColumn(col);
+    if(column.hidden)continue;
+    let required=Number(column.width)||12;
+    for(let r=headerRow;r<=sheet.rowCount;r++){
+      const cell=sheet.getRow(r).getCell(col);
+      if(cell.type===ExcelJS.ValueType.Merge)continue;
+      for(const line of cellText(cell).split(/\n/))
+        required=Math.max(required,line.length+3);
+    }
+    column.width=Math.min(80,Math.ceil(required));
   }
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const outputBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
