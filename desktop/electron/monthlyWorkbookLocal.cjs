@@ -289,6 +289,19 @@ function excelOperationModeLabel(value) {
 
 function reportSnapshot(report, settings = {}) {
   const metrics = report.calculationSnapshot || calculateProductionMetrics(report, settings);
+  // Some approved legacy reports have deduction_time=0 even though their
+  // persisted deduction details contain hours. Keep the approved DB snapshot
+  // unchanged, but make the exported total agree with those detail columns.
+  // GC MACHINE has its own per-machine accounting; never substitute the
+  // parent/physical-event hours for worker credits.
+  const isGcMachine = normalize(report.process_code) === 'GC'
+    && normalize(report.operation_mode) === 'MACHINE';
+  const detailDeductionHours = isGcMachine ? 0 : reportDetailItems(report, report.process_code, 'deduction')
+    .reduce((sum, item) => sum + Math.max(0, detailValue(item, 'deduction') || 0), 0);
+  const reportedDeductionHours = asNumber(metrics.deductionTime);
+  const exportDeductionHours = !isGcMachine && detailDeductionHours > 0
+    && (reportedDeductionHours === null || Math.abs(reportedDeductionHours) < 0.000001)
+    ? detailDeductionHours : reportedDeductionHours;
   return {
     id: asNumber(report.id),
     date: asDate(report.work_date),
@@ -304,7 +317,7 @@ function reportSnapshot(report, settings = {}) {
     standard: metrics.standard,
     workingTime: metrics.workingTime,
     actualTime: metrics.actualTime,
-    deductionTime: metrics.deductionTime,
+    deductionTime: exportDeductionHours,
     ok: metrics.ok,
     ng: metrics.allNg,
     countedNg: metrics.countedNg,
