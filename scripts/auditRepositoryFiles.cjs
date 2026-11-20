@@ -22,6 +22,7 @@ function walk(dir) {
 walk(root);
 const relative = file => path.relative(root, file).replace(/\\/g, '/');
 const all = new Set(files.map(relative));
+// Static import analysis is a review aid, not a deletion oracle.
 const imports = new Map();
 const inbound = new Map();
 const unresolved = [];
@@ -29,7 +30,7 @@ const dynamic = [];
 const extensions = ['', '.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx', '.json', '.css', '/index.js', '/index.ts', '/index.tsx', '/index.cjs'];
 const patterns = [
   /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-  /\bimport\s*(?:[\s\S]*?\s+from\s*)?['"]([^'"]+)['"]/g,
+  /\bimport\s+(?:[^;\n]*?\s+from\s+)?['"]([^'"\n]+)['"]/g,
   /\bexport\s+(?:\*|\{[^}]*\})\s+from\s+['"]([^'"]+)['"]/g,
   /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
 ];
