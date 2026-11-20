@@ -3,15 +3,8 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'../models/productionTempApprovalModel.js'),'utf8');
-const start=source.indexOf('function hasNonProductSnapshotMismatch(');
-const end=source.indexOf('// Keep standard resolver warm-up input',start);
-assert.ok(start>=0&&end>start);
-const ctx={};
-vm.runInNewContext(source.slice(start,end),ctx);
-const create=vm.runInNewContext('createNonProductSnapshotMismatchError',ctx);
-const assertSnapshot=vm.runInNewContext('assertNonProductWorkSnapshot',ctx);
+const { createNonProductSnapshotMismatchError: create, assertNonProductWorkSnapshot: assertSnapshot } = require('../modules/production/domain/nonProductSnapshot');
 test('shared nonproduct mismatch error retains 422 public contract',()=>{
  const error=create('custom');
  assert.equal(error.message,'custom');
