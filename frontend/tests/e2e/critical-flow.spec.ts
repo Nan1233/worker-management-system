@@ -11,7 +11,7 @@ import { ACCOUNTS, API, apiToken, loginManagement, loginWorker, phoneContext, pr
 // Excel: workbooks are produced by the Desktop app only, so on the web the
 // export page must say so (and link to the Desktop download).
 
-const state: { reportId: number; approvableId: number; managerToken: string; workerToken: string; workerCode: string } = { reportId: 0, approvableId: 0, managerToken: '', workerToken: '', workerCode: '' };
+const state: { reportId: number; approvableId: number; approvableDate: string; managerToken: string; workerToken: string; workerCode: string } = { reportId: 0, approvableId: 0, approvableDate: '', managerToken: '', workerToken: '', workerCode: '' };
 
 async function openFirstPendingReport(page: Page, reportId: number) {
   await page.goto(route('/manager/reports'));
@@ -114,6 +114,7 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     });
     expect(created.status(), await created.text()).toBe(201);
     state.approvableId = (await created.json()).id;
+    state.approvableDate = date;
     expect(state.approvableId).toBeGreaterThan(0);
   });
 
@@ -121,17 +122,16 @@ test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
-    await page.goto(route('/manager/reports'));
-    await page.getByRole('button', { name: 'Tháng này' }).click();
-    const targetRow = page.locator(`main table tbody tr[data-report-id="${state.approvableId}"]`);
-    await expect(targetRow).toBeVisible({ timeout: 15_000 });
-    await targetRow.click();
-    // Approve the exact report created by this scenario, never a nearby row
-    // with the same worker/process/date selected by a fallback heuristic.
-    await expect.poll(() => {
-      const hashQuery = page.url().split('?')[1] || '';
-      return new URLSearchParams(hashQuery).get('id');
-    }).toBe(String(state.approvableId));
+    // The first scenario already covers choosing a row in the pending table.
+    // The independently seeded approval smoke checks a deep link to its exact
+    // report ID; the list is paginated and need not show this report on page 1.
+    const pending = await request.get(`${API}/api/production-temp/${state.approvableId}`, {
+      headers: { Authorization: `Bearer ${state.managerToken}` }
+    });
+    expect(pending.status(), await pending.text()).toBe(200);
+    expect((await pending.json()).data.status).toBe('pending');
+    await page.goto(route(`/manager/report/review?source=pending&date=${state.approvableDate}&id=${state.approvableId}`));
+    await expect(page.locator('.review-title')).toContainText(state.workerCode);
     await expect(page.locator('button.review-btn.approve')).toBeEnabled();
 
     const approved = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/production-temp/approve-selected');
