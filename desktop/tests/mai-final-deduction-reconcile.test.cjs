@@ -65,7 +65,7 @@ test('MAI final reconciliation fails closed on unexpected workbook column layout
   await assert.rejects(reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer())), /column contract/);
 });
 
-test('MAI: restore actual hours and SL/H + achievement for MACHINE-mode rows with zero approved time', async () => {
+test('MAI: preserve zero DB actual_time and retain editable blank formulas for invalid MACHINE rows', async () => {
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet('Mài');
   sheet.getCell('L1').value = 'Tổng TG trừ giờ';
@@ -102,11 +102,10 @@ test('MAI: restore actual hours and SL/H + achievement for MACHINE-mode rows wit
     [3, 6.6667, 1, 120, 709],
     [4, 12, 0.5833, 180, 2054]
   ]) {
-    const hours = total - deduction;
-    const slh = quantity / hours;
-    assert.ok(Math.abs(corrected.getCell('K' + row).value - hours) < 1e-9);
-    assert.ok(Math.abs(calculated(corrected.getCell('AL' + row)) - slh) < 1e-8);
-    assert.ok(Math.abs(calculated(corrected.getCell('AJ' + row)) - slh / standard) < 1e-8);
+    assert.equal(corrected.getCell('K' + row).value, 0, 'actual_time must remain the approved DB value');
+    assert.equal(calculated(corrected.getCell('AL' + row)), '');
+    assert.equal(calculated(corrected.getCell('AJ' + row)), '');
+    assert.ok(corrected.getCell('AL' + row).value.formula.includes('/K' + row));
   }
   assert.equal(corrected.getCell('K5').value, 0);
   assert.equal(calculated(corrected.getCell('AL5')), '');
@@ -153,9 +152,9 @@ test('MAI MACHINE: numeric zero SL/H and achievement are repaired, not treated a
   const fixed = new ExcelJS.Workbook();
   await fixed.xlsx.load(result.buffer);
   const row = fixed.getWorksheet('Mài').getRow(3);
-  assert.ok(Math.abs(row.getCell(11).value - 5.6667) < 1e-9);
-  assert.ok(Math.abs(calculated(row.getCell(38)) - 709 / 5.6667) < 1e-9);
-  assert.ok(Math.abs(calculated(row.getCell(36)) - (709 / 5.6667) / 120) < 1e-9);
+  assert.equal(row.getCell(11).value, 0, 'database zero may not be replaced by inferred hours');
+  assert.equal(calculated(row.getCell(38)), '');
+  assert.equal(calculated(row.getCell(36)), '');
   assert.equal((await reconcileMaiWorkbookDeductions(result.buffer)).changed, 0);
 });
 
