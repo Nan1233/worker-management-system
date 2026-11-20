@@ -82,11 +82,8 @@ import { useProcessMachineLineActions } from "./useProcessMachineLineActions";
 import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
 
 import type {
-    DeductionKey,
-    DeductionState,
     FormState,
     MachineLineState,
-    NgKey,
     OperationMode,
     OperationType,
 } from "./processPageConfig";
