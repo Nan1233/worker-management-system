@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { describeApprovalError } from "../../utils/approvalError";
 import { getStoredUser } from "../../utils/authStorage";
-import { approveSelectedTempReports, getPendingReports, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
+import { approveSelectedTempReports, getPendingReports, getTempReportDetail } from "../../services/productionService";
+import { rejectPendingReportBatch } from "./pendingReportBatchRejection";
 import { approvePendingReportBatch } from "./pendingReportBatchApproval";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
@@ -238,13 +239,7 @@ export default function Reports({ onOpenPendingReport }: { onOpenPendingReport?:
         managerActionLockRef.current = true;
         setRejecting(true);
         try {
-            const failedIds: number[] = [];
-            const failures: string[] = [];
-            let succeeded = 0;
-            for (const report of targets) {
-                try { await rejectSelectedTempReports([Number(report.id)], reason); succeeded += 1; }
-                catch (e: any) { failedIds.push(Number(report.id)); failures.push(`#${report.id}: ${e?.response?.data?.message || e?.message || "Không thể từ chối"}`); }
-            }
+            const { failedIds, failures, succeeded } = await rejectPendingReportBatch(targets, reason);
             if (selectionScopeRef.current === selectionScope) {
                 setSelectedIds(previous => [...new Set([...previous.filter(id => !rejectedIds.includes(id)), ...failedIds])]);
             }
