@@ -90,6 +90,7 @@ import {
 } from "./processDuplicateReportLogic";
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { useProcessDuplicateActions } from "./useProcessDuplicateActions";
+import { useProcessSubmission } from "./useProcessSubmission";
 import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
@@ -576,133 +577,32 @@ const machineAutocompleteOptions =
     const focusValidationTarget = (message: string) =>
         focusProcessValidationTarget(message, usesMultiMachineLines, setShowNg, setShowDeduction);
 
-    const handleSubmit =
-        async () => {
-
-            // UX: kiểm tra dữ liệu tại chỗ trước, tránh bắt công nhân chờ một request
-            // kiểm tra mạng rồi mới biết form đang thiếu trường bắt buộc.
-            const validationMessage = validateForm();
-
-            if (validationMessage) {
-                setSubmitValidationError(validationMessage);
-                showToast(validationMessage, "warning");
-                focusValidationTarget(validationMessage);
-                return;
-            }
-
-
-            if (submitLockRef.current) return;
-            setSubmitValidationError("");
-            submitLockRef.current = true;
-            clientRequestIdRef.current ||= createClientRequestId();
-
-            try {
-                setSubmitting(true);
-
-                const payloads = buildProductionReportPayloads({
-                    clientRequestId: clientRequestIdRef.current,
-                    processId: processInfo.id,
-                    form,
-                    extraData,
-                    operationType,
-                    isCutLongProcess,
-                    isCvkMode,
-                    processCode,
-                    usesAnyMachine,
-                    usesMultiMachineLines,
-                    usesSingleMachine,
-                    machineLines,
-                    machineOptions,
-                    productOptions: scopedProductOptions,
-                    activeNgOptions,
-                    deductions,
-                    activeDeductionOptions,
-                });
-
-                if (!navigator.onLine) {
-                    queueRemainingMachineReports(payloads);
-                    showToast("Đang mất mạng. Các báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
-                    clearSubmittedProcessDraft({ process, isRestoringDraftRef, resetVersionRef, draftSaveTimerRef, clientRequestIdRef });
-                    window.setTimeout(() => navigate("/worker", { replace: true }), 900);
-                    return;
-                }
-
-                for (let index = 0; index < payloads.length; index += 1) {
-                    const payload = payloads[index];
-                    let response;
-                    try {
-                        response = await createTempReport(payload);
-                    } catch (error: any) {
-                        if (axios.isAxiosError(error) && error.response?.status === 429) {
-                            showToast("Bạn thao tác quá nhanh. Dữ liệu trên form vẫn được giữ, vui lòng thử lại sau ít phút.", "warning");
-                            return;
-                        }
-                        if (axios.isAxiosError(error) && error.response?.status === 409 && ["DUPLICATE_PRODUCTION_REPORT", "DUPLICATE_CONFIRMATION_REQUIRED"].includes(String(error.response?.data?.code || ""))) {
-                            const duplicateResponse = error.response;
-                            const challengeToken = String(duplicateResponse.data?.duplicate_confirmation_token || "").trim();
-                            if (challengeToken) {
-                                const prompt = toDuplicatePrompt(duplicateResponse.data, payload);
-                                if (prompt) {
-                                    duplicatePrimaryCompletedRef.current = false;
-                                    duplicateForceRequestIdRef.current = null;
-                                    pendingSplitPayloadsRef.current = reportsAwaitingDuplicateConfirmation(payloads, index);
-                                    const reportType = duplicateResponse.data?.report_type === "approved" ? "approved" : "temp";
-                                    setDuplicatePrompt({ ...prompt, reportType, formSignature: getDuplicateFormSignature() });
-                                    return;
-                                }
-                            }
-                        }
-                        if (isTransientNetworkFailure(error)) {
-                            queueRemainingMachineReports(reportsUnsentAfterNetworkFailure(payloads, index));
-                            showToast("Kết nối Internet bị gián đoạn. Các báo cáo còn lại đã được lưu trên thiết bị và sẽ tự gửi khi có mạng.", "warning");
-                            clearSubmittedProcessDraft({ process, isRestoringDraftRef, resetVersionRef, draftSaveTimerRef, clientRequestIdRef });
-                            window.setTimeout(() => navigate("/worker", { replace: true }), 900);
-                            return;
-                        }
-                        throw error;
-                    }
-
-                    const submitOutcome = classifyProcessSubmitResponse(response);
-                    if (submitOutcome === "similar_report" && response?.data?.id) {
-                        const prompt = toDuplicatePrompt(response, payload);
-                        if (prompt) {
-                            duplicatePrimaryCompletedRef.current = false;
-                            duplicateForceRequestIdRef.current = null;
-                            pendingSplitPayloadsRef.current = reportsAwaitingDuplicateConfirmation(payloads, index);
-                            setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
-                            return;
-                        }
-                    }
-                }
-
-                pendingSplitPayloadsRef.current = [];
-                showToast("Lưu báo cáo thành công. Các báo cáo đã được gửi chờ duyệt.", "success");
-                clearSubmittedProcessDraft({ process, isRestoringDraftRef, resetVersionRef, draftSaveTimerRef, clientRequestIdRef });
-                window.setTimeout(() => navigate("/worker", { replace: true }), 900);
-
-            }
-            catch (error: unknown) {
-
-                console.error(
-                    "CREATE TEMP REPORT ERROR:",
-                    error
-                );
-
-
-                const { message, errors } = getApiError(error, "Lưu báo cáo thất bại");
-                const firstFieldError = Object.values(errors)[0];
-                showToast(firstFieldError || message, "error");
-
-            }
-            finally {
-
-                submitLockRef.current = false;
-                setSubmitting(false);
-
-            }
-
-        };
-
+    const { handleSubmit } = useProcessSubmission({
+        process, navigate, showToast, validateForm, focusValidationTarget,
+        buildPayloads: (clientRequestId) => buildProductionReportPayloads({
+            clientRequestId,
+            processId: processInfo.id,
+            form,
+            extraData,
+            operationType,
+            isCutLongProcess,
+            isCvkMode,
+            processCode,
+            usesAnyMachine,
+            usesMultiMachineLines,
+            usesSingleMachine,
+            machineLines,
+            machineOptions,
+            productOptions: scopedProductOptions,
+            activeNgOptions,
+            deductions,
+            activeDeductionOptions,
+        }),
+        setSubmitting, setSubmitValidationError, setDuplicatePrompt,
+        getDuplicateFormSignature, submitLockRef, clientRequestIdRef,
+        pendingSplitPayloadsRef, duplicatePrimaryCompletedRef, duplicateForceRequestIdRef,
+        isRestoringDraftRef, draftSaveTimerRef, resetVersionRef,
+    });
 
     // =====================================================
     // LÀM MỚI FORM
