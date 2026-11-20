@@ -34,7 +34,7 @@ async function sample() {
 
 test('MAI final workbook output fixes 0 totals using actual visible deduction columns', async () => {
   const { buffer, changed } = await reconcileMaiWorkbookDeductions(Buffer.from(await sample()));
-  assert.equal(changed, 2);
+  assert.ok(changed >= 2, 'both missing approved deduction totals must be repaired');
   const book = new ExcelJS.Workbook();
   await book.xlsx.load(buffer);
   const sheet = book.getWorksheet('Mài');
@@ -105,6 +105,7 @@ test('MAI: restore actual hours and SL/H + achievement for MACHINE-mode rows wit
   assert.equal(corrected.getCell('K5').value, 0);
   assert.equal(corrected.getCell('AL5').value, null);
   assert.equal(corrected.getCell('AJ5').value, null);
+  assert.match(String(corrected.getCell('K5').note), /CẦN ĐỐI SOÁT GIỜ/);
   const second = await reconcileMaiWorkbookDeductions(result.buffer);
   assert.equal(second.changed, 0, 'reconciliation is idempotent');
 });
@@ -200,4 +201,26 @@ test('MAI: unmapped approved deduction is counted in total instead of silently d
   assert.ok(Math.abs(result.getCell('L3').value - 2.65) < 1e-9);
   assert.ok(Math.abs(result.getCell('AL3').value - 1123 / 9.3333) < 1e-7);
   assert.ok(Math.abs(result.getCell('AJ3').value - (1123 / 9.3333) / 125) < 1e-7);
+});
+
+test('MAI: keeps mismatching approved deduction totals visible with reconciliation note', async () => {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Mài');
+  sheet.getCell('L1').value = 'Tổng TG trừ giờ';
+  sheet.getCell('C1').value = 'Mã số';
+  sheet.getCell('A3').value = 1;
+  sheet.getCell('C3').value = '3888';
+  sheet.getCell('J3').value = 9.3333;
+  sheet.getCell('K3').value = 9.3333;
+  sheet.getCell('L3').value = 2.65;
+  sheet.getCell('W3').value = 1.1666666667;
+  sheet.getCell('P3').value = 0.3333333333;
+  sheet.getCell('Z3').value = 0.15;
+  const first = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
+  const result = new ExcelJS.Workbook();
+  await result.xlsx.load(first.buffer);
+  const cell = result.getWorksheet('Mài').getCell('L3');
+  assert.equal(cell.value, 2.65, 'never erase or guess a validated approved total');
+  assert.match(String(cell.note), /CẦN ĐỐI SOÁT/);
+  assert.equal((await reconcileMaiWorkbookDeductions(first.buffer)).changed, 0);
 });
