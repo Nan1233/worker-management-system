@@ -423,16 +423,19 @@ async function reconcileMaiWorkbookDeductions(buffer) {
       // Do not mistake a zero cached rate for a valid measurement when
       // positive output and positive machine time establish the true rate.
       const existingPerHour = numberAt(38);
-      if (existingPerHour === null || (existingPerHour <= 0 && output > 0)) {
+      // Reconcile nonzero stale values too. The previous fix only filled blanks
+      // or zeros, leaving incorrect SL/H and percent untouched.
+      if (existingPerHour === null || Math.abs(existingPerHour - hourlyValue) > 0.000001) {
         perHourCell.value = hourlyValue;
         perHourCell.numFmt = '#,##0.##';
         changed += 1;
       }
       if (hourlyStandard !== null && hourlyStandard > 0) {
         const achievementCell = row.getCell(36); // AJ, % Thực tích
+        const expectedAchievement = hourlyValue / hourlyStandard;
         const existingAchievement = numberAt(36);
-        if (existingAchievement === null || (existingAchievement <= 0 && output > 0)) {
-          achievementCell.value = hourlyValue / hourlyStandard;
+        if (existingAchievement === null || Math.abs(existingAchievement - expectedAchievement) > 0.000001) {
+          achievementCell.value = expectedAchievement;
           achievementCell.numFmt = '0.##%';
           changed += 1;
         }
