@@ -440,19 +440,24 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
       const n = Number(raw);
       return Number.isFinite(n) ? n : null;
     };
-    const totalHours = numberAt(10); // J
-    const deductionHours = numberAt(12); // L, already reconciled
-    let actualHours = numberAt(11); // K
+    const totalHours = numberAt(10); // J (visible work hours)
+    const deductionHours = numberAt(12); // L, recorded separately
+    let actualHours = numberAt(11); // K (hidden duplicate)
+    // Ensure both export paths implement the same company rule.
+    // Never subtract L: deductions are an independent report measure.
+    if (totalHours !== null && (actualHours === null || Math.abs(actualHours - totalHours) > 0.000001)) {
+      row.getCell(11).value = totalHours;
+      actualHours = totalHours;
+      changed += 1;
+    }
     const output = numberAt(35); // AI, KQSX
     const hourlyStandard = numberAt(34); // AH, SP/h
     // K is the approved TiDB actual_time snapshot. It must not be inferred
     // from J-L: historical MAI MACHINE rows have different time semantics.
-    if ((actualHours === null || actualHours <= 0) && output !== null && output > 0
-      && totalHours !== null && deductionHours !== null && totalHours <= deductionHours) {
+    if ((actualHours === null || actualHours <= 0) && output !== null && output > 0) {
       const actualCell = row.getCell(11);
-      const note = 'CẦN ĐỐI SOÁT GIỜ: Tổng thời gian (' + totalHours.toFixed(4)
-        + ') không lớn hơn thời gian trừ (' + deductionHours.toFixed(4)
-        + '). Có sản lượng nhưng thiếu thời gian thực tế hợp lệ; không thể tính SL/H và % thực tích.';
+      const note = 'CẦN ĐỐI SOÁT GIỜ: J không có thời gian làm việc dương nhưng có sản lượng. '
+        + 'Không thể tính SL/H và % thực tích từ thời gian J.';
       if (noteText(actualCell) !== note) {
         actualCell.note = note;
         changed += 1;
