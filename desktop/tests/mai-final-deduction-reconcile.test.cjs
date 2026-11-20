@@ -6,7 +6,8 @@ const { reconcileMaiWorkbookDeductions } = require('../electron/excelExportContr
 
 function calculated(cell) {
   const value = cell.value;
-  return value && typeof value === 'object' && 'result' in value ? value.result : value;
+  if (value && typeof value === 'object' && typeof value.formula === 'string') return value.result ?? '';
+  return value;
 }
 
 
