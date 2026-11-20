@@ -1,10 +1,8 @@
 const { app, BrowserWindow, ipcMain, shell, session, powerMonitor, dialog } = require('electron');
 const { registerFolderIpc } = require('./ipc/folderIpc.cjs');
 const fs = require('node:fs/promises');
-const fsSync = require('node:fs');
 const path = require('node:path');
-const os = require('node:os');
-const { buildCompanyExcelLocal, buildProcessExcelLocal } = require('./companyExcelLocal.cjs');
+const { buildCompanyExcelLocal } = require('./companyExcelLocal.cjs');
 const { parseDownloadFileName, normalizeProcessInfo } = require('./excelDownloadMetadata.cjs');
 const { createDesktopLogger, normalizeError } = require('./desktopLog.cjs');
 const { normalizeAccessToken, isUsableAccessToken } = require('./authToken.cjs');
@@ -14,7 +12,6 @@ const { getCompanyMonthTarget } = require('./excelDualLayout.cjs');
 const { cleanupLegacyMonthlyLayout } = require('./excelLegacyCleanup.cjs');
 const { createExcelAtomicWriter } = require('./excelAtomicFileWriter.cjs');
 const { createExcelFileDiscovery } = require('./excelFileDiscovery.cjs');
-const { createProcessReportExport } = require('./processReportExport.cjs');
 const { createExcelDbSyncController } = require('./excelDbSyncController.cjs');
 const { createMonthlyDesktopExport } = require('./monthlyDesktopExport.cjs');
 const { createExcelApiClient } = require('./excelApiClient.cjs');
@@ -43,7 +40,6 @@ const {
   safeFileName,
   getExportRoot,
   getProcessExportPath,
-  cleanupMisplacedCompanyFiles,
 } = require('./excelPaths.cjs');
 
 
@@ -104,7 +100,7 @@ const {
 });
 
 
-const { compactCompletedBackupMonths, pruneExcelBackupRetention } = createExcelBackupRetention({ writeLog });
+const { pruneExcelBackupRetention } = createExcelBackupRetention({ writeLog });
 
 const { atomicOverwrite } = createExcelAtomicWriter({
   writeLog, getExportRoot, getDocumentsRoot, safeFolderName,
@@ -113,10 +109,7 @@ const { atomicOverwrite } = createExcelAtomicWriter({
 
 const { logPendingFiles, listExcelFiles } = createExcelFileDiscovery({ writeLog, normalizeError });
 
-const { syncProcessReportsFirst } = createProcessReportExport({
-  normalizeProcessInfo, writeLog, buildProcessExcelLocal, getProcessExportPath,
-  atomicOverwrite, normalizeError, getAppPath: () => app.getAppPath(),
-});
+
 
 const { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb } = createExcelDbSyncController({
   authenticatedFetch: (...args) => authenticatedFetch(...args), API_BASE_URL, listExcelFiles, getExportRoot, readExcelChanges,
