@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { initializeAuthSession } from "../services/api";
 import {
   getAccessToken,
+  claimActiveBrowserTab,
   getStoredUser,
   hasRefreshSessionHint,
   recoverUserFromAccessToken,
@@ -40,6 +41,7 @@ export default function AuthBootstrap({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    if (getAccessToken() && !isLoginRoute()) claimActiveBrowserTab();
 
     const authStartMs = performance.now();
     const refreshOnly = !getAccessToken() && hasRefreshSessionHint() && supportsElectronRefreshTokenBody() && !isLoginRoute();
