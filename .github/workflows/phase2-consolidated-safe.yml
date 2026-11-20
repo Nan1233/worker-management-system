@@ -22,6 +22,11 @@ on:
       - backend/tests/rejection-builders-batch-refactor.test.js
       - backend/tests/review-locking-and-cas-regression.test.js
       - backend/tests/review-rejection-row-lock.contract.test.js
+      - backend/tests/business-matrix-nine-process-four-shifts.test.js
+      - backend/services/processMachinePolicy.js
+      - backend/utils/reportValidation.js
+      - backend/services/processAuthorizationService.js
+      - backend/services/productionMachineReportGrouping.js
       - backend/controllers/managerReportListUtils.js
       - backend/tests/manager-report-list-utils.test.js
       - backend/tests/approved-machine-copy-real-mapping-integration.test.js
@@ -119,6 +124,12 @@ jobs:
             tests/rejection-builders-batch-refactor.test.js \
             tests/review-locking-and-cas-regression.test.js \
             tests/review-rejection-row-lock.contract.test.js \
+            tests/business-matrix-nine-process-four-shifts.test.js \
+            tests/process-machine-policy.test.js \
+            tests/production-calculation-engine.test.js \
+            tests/production-machine-report-grouping.test.js \
+            tests/report-validation-deduction-minutes.test.js \
+            tests/worker-process-access.test.js \
             tests/approved-edit-preserves-machine-data.test.js \
             tests/logical-duplicate-transaction.test.js \
             tests/production-submission-lock.contract.test.js \
