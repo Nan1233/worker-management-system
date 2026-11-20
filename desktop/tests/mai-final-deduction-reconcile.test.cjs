@@ -58,3 +58,72 @@ test('MAI final reconciliation fails closed on unexpected workbook column layout
   book.addWorksheet('Mài').getCell('L1').value = 'Unrelated field';
   await assert.rejects(reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer())), /column contract/);
 });
+
+test('MAI: restore actual hours and SL/H + achievement for MACHINE-mode rows with zero approved time', async () => {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Mài');
+  sheet.getCell('L1').value = 'Tổng TG trừ giờ';
+  sheet.getCell('C1').value = 'Mã số';
+  // Real uploaded case: Bùi Văn Phúc 11/11, J=6.6667, L=1, 709 output, 120 SP/h.
+  sheet.getCell('A3').value = 1;
+  sheet.getCell('C3').value = '4174';
+  sheet.getCell('J3').value = 6.6667;
+  sheet.getCell('K3').value = 0;
+  sheet.getCell('L3').value = 1;
+  sheet.getCell('AH3').value = 120;
+  sheet.getCell('AI3').value = 709;
+  // Real 15/11 machine 1 case: J=12; L=0.5833; output 2054; standard 180/h.
+  sheet.getCell('A4').value = 2;
+  sheet.getCell('C4').value = '3888';
+  sheet.getCell('J4').value = 12;
+  sheet.getCell('K4').value = 0;
+  sheet.getCell('L4').value = 0.5833;
+  sheet.getCell('AH4').value = 180;
+  sheet.getCell('AI4').value = 2054;
+  // Invalid effective hours: no SL/H or percentage may be fabricated.
+  sheet.getCell('A5').value = 3;
+  sheet.getCell('C5').value = '4381';
+  sheet.getCell('J5').value = 5;
+  sheet.getCell('K5').value = 0;
+  sheet.getCell('L5').value = 7;
+  sheet.getCell('AH5').value = 85;
+  sheet.getCell('AI5').value = 350;
+  const result = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
+  const output = new ExcelJS.Workbook();
+  await output.xlsx.load(result.buffer);
+  const corrected = output.getWorksheet('Mài');
+  for (const [row, total, deduction, standard, quantity] of [
+    [3, 6.6667, 1, 120, 709],
+    [4, 12, 0.5833, 180, 2054]
+  ]) {
+    const hours = total - deduction;
+    const slh = quantity / hours;
+    assert.ok(Math.abs(corrected.getCell('K' + row).value - hours) < 1e-9);
+    assert.ok(Math.abs(corrected.getCell('AL' + row).value - slh) < 1e-8);
+    assert.ok(Math.abs(corrected.getCell('AJ' + row).value - slh / standard) < 1e-8);
+  }
+  assert.equal(corrected.getCell('K5').value, 0);
+  assert.equal(corrected.getCell('AL5').value, null);
+  assert.equal(corrected.getCell('AJ5').value, null);
+  const second = await reconcileMaiWorkbookDeductions(result.buffer);
+  assert.equal(second.changed, 0, 'reconciliation is idempotent');
+});
+
+test('MAI: standard already represents pieces/hour and must not be multiplied by hours', async () => {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Mài');
+  sheet.getCell('L1').value = 'Tổng TG trừ giờ';
+  sheet.getCell('C1').value = 'Mã số';
+  sheet.getCell('A3').value = 1;
+  sheet.getCell('C3').value = '3922';
+  sheet.getCell('J3').value = 4;
+  sheet.getCell('K3').value = 4;
+  sheet.getCell('L3').value = 0;
+  sheet.getCell('AH3').value = 180;
+  sheet.getCell('AI3').value = 720;
+  const result = await reconcileMaiWorkbookDeductions(Buffer.from(await book.xlsx.writeBuffer()));
+  const output = new ExcelJS.Workbook();
+  await output.xlsx.load(result.buffer);
+  assert.equal(output.getWorksheet('Mài').getCell('AL3').value, 180);
+  assert.equal(output.getWorksheet('Mài').getCell('AJ3').value, 1);
+});
