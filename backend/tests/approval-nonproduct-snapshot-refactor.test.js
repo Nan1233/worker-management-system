@@ -3,14 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
-
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-const start = source.indexOf('function hasNonProductSnapshotMismatch(');
-const end = source.indexOf('async function validateApprovalSnapshot(', start);
-assert.ok(start >= 0 && end > start, 'non-product snapshot helpers exist');
-const helpers = vm.runInNewContext(source.slice(start, end) + '\n({hasNonProductSnapshotMismatch, assertNonProductWorkSnapshot});', {});
-const { hasNonProductSnapshotMismatch, assertNonProductWorkSnapshot } = helpers;
+const domainSource = fs.readFileSync(path.join(__dirname, '../modules/production/domain/nonProductSnapshot.js'), 'utf8');
+const { hasNonProductSnapshotMismatch, assertNonProductWorkSnapshot } = require('../modules/production/domain/nonProductSnapshot');
 
 function previousMismatch(item) {
   const output = Number(item?.standard_output || 0);
@@ -43,6 +38,5 @@ test('CVK non-product branch reuses predicate and keeps distinct error message',
   assert.match(validate, /if \(hasNonProductSnapshotMismatch\(item\)\)/);
   assert.match(validate, /Ảnh chụp công việc khác không hợp lệ/);
   assert.match(validate, /createNonProductSnapshotMismatchError\(/);
-  const helper = source.slice(source.indexOf('function createNonProductSnapshotMismatchError('), source.indexOf('function assertNonProductWorkSnapshot('));
-  assert.match(helper, /NON_PRODUCT_WORK_SNAPSHOT_MISMATCH/);
+  assert.match(domainSource, /NON_PRODUCT_WORK_SNAPSHOT_MISMATCH/);
 });
