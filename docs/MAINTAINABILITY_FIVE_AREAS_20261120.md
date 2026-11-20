@@ -43,3 +43,15 @@ Then run Frontend typecheck/build and backend approval/rejection integration tes
 Checks have been **added** to the Desktop package scripts, but no command has been run within this GitHub-only editing session. The sandbox cannot access the repository's network remote, so no passing test result or runtime verification is claimed.
 
 A static scan or lower line count alone does not prove correctness. Do not merge/deploy until these checks have produced passing results.
+
+
+## Final watcher cleanup and static review
+
+- Removed the misleading `startExcelDbSyncWatcher()` function, its unused `excelDbSyncTimer` state, its lifecycle invocations and its injected renderer-monitor callback. This was an inert timer-clear function, **not** a working watcher; manual Excel -> DB confirmation remains the intended behavior.
+- Added a static repository guard to reject reintroduction of the watcher name and broken stable Excel export import chain.
+- Parsed 13 selected JavaScript/CommonJS files (including the main process, worker/date/detail adapters, registry, regression test and repository guard) with the JavaScript parser; no syntax errors in that inspected subset. This is **not** Node/Electron execution or a full test/build.
+- Retained v2/v6 implementations behind stable entry points because external scripts and Electron packaging still depend on those names; deleting them without migration would be unsafe.
+
+### Unverified release gates
+
+The remaining blocker is **execution**, not another unbounded file-splitting pass. The repository must be checked out with dependencies installed and validated using `npm run check:repository`, `cd desktop && npm run check && npm run smoke:excel`, plus frontend typechecks, backend transaction integration and packaged Windows/Electron tests. Compare generated workbooks with approved baseline files and run against a **test** TiDB/Cloudflare environment only. No claim of passing end-to-end validation is made.
