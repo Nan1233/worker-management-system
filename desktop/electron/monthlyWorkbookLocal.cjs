@@ -1074,10 +1074,15 @@ function addReconciliationSheet(workbook, payload) {
         .reduce((sum, value) => sum + (detailValue(value, 'deduction') || 0), 0);
       const detailNg = reportDetailItems(report, code, 'defect')
         .reduce((sum, value) => sum + (detailValue(value, 'defect') || 0), 0);
-      const deductionDiff = (item.deductionTime || 0) - detailDeduction;
+      // The reconciliation sheet audits approved DB snapshots, not the
+      // corrected display total in the process sheet. Surface legacy
+      // inconsistencies so they can be repaired at their source.
+      const approvedDeduction = asNumber(report.calculationSnapshot?.deductionTime
+        ?? calculateProductionMetrics(report, itemSettings).deductionTime) || 0;
+      const deductionDiff = approvedDeduction - detailDeduction;
       const ngDiff = (item.ng || 0) - detailNg;
       const ok = Math.abs(deductionDiff) < 0.0001 && Math.abs(ngDiff) < 0.0001;
-      const values = [config.title,item.id,item.date,item.workerCode,item.workerName,item.deductionTime,detailDeduction,deductionDiff,item.ng,detailNg,ngDiff,ok?'OK':'LỆCH'];
+      const values = [config.title,item.id,item.date,item.workerCode,item.workerName,approvedDeduction,detailDeduction,deductionDiff,item.ng,detailNg,ngDiff,ok?'OK':'LỆCH'];
       values.forEach((value, index) => {
         const cell = sheet.getCell(rowNumber, index + 1);
         cell.value = value;
