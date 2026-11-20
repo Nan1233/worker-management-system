@@ -230,3 +230,19 @@ test('quota-exceeded login recovers expired KTC refresh metadata but does not er
   assert.doesNotMatch(claim, /localStorage\.clear\(/);
   assert.doesNotMatch(claim, /sessionStorage\.clear\(/);
 });
+
+test('disposable login cache is size-bounded and never evicts offline reports', () => {
+  const cache = read('src/services/sessionCache.ts');
+  const auth = read('src/utils/authStorage.ts');
+  assert.match(cache, /MAX_PERSISTED_CACHE_ENTRY_CHARS = 96_000/);
+  assert.match(cache, /MAX_PERSISTED_CACHE_TOTAL_CHARS = 320_000/);
+  assert.match(cache, /export function pruneSessionCacheStorage/);
+  assert.match(cache, /key\.startsWith\(STORAGE_PREFIX\)/);
+  assert.match(cache, /expiresAt <= now/);
+  assert.match(cache, /if \(serialized\.length > MAX_PERSISTED_CACHE_ENTRY_CHARS\) return/);
+  assert.doesNotMatch(cache, /localStorage\.clear\(/);
+  assert.doesNotMatch(cache, /sessionStorage\.clear\(/);
+  assert.match(auth, /pruneSessionCacheStorage\(\)/);
+  assert.match(auth, /if \(supportsElectronRefreshTokenBody\(\)\) \{\s*store\.setItem\(LEGACY_TOKEN_KEY, token\)/);
+  assert.match(auth, /sessionStorage\.removeItem\(LEGACY_TOKEN_KEY\)/);
+});
