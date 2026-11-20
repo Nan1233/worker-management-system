@@ -1,6 +1,7 @@
 // Coordinates production-report submission. Data access remains in the focused model modules.
 const db = require("../config/db");
 const { findExistingClientRequest } = require("../repositories/productionSubmissionRequestRepository");
+const { findSubmissionProcessCode } = require("../repositories/productionSubmissionProcessRepository");
 const createModel = require("../models/productionTempCreateModel");
 const nonProductWorkModel = require("../models/nonProductWorkCreateModel");
 const AuditService = require("./auditService");
@@ -345,8 +346,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
     // be disabled, and clients commonly send process_id without process_code.
     // Resolving only later in the transaction silently saved all MAI lines under
     // one parent. Reuse this lookup in the existing transaction preflight.
-    const authoritativeProcess = await query(db,
-        `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
+    const authoritativeProcess = await findSubmissionProcessCode(data.process_id);
     const authoritativeCode = String(authoritativeProcess?.[0]?.process_code || "").trim().toUpperCase();
     if (!authoritativeCode) {
         const error = new Error("Không xác định được công đoạn báo cáo");
@@ -374,7 +374,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         const resolvedProcessCode = String(data._resolved_process_code || "").trim().toUpperCase();
         const processRows = resolvedProcessCode
             ? [{ process_code: resolvedProcessCode }]
-            : await query(db, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
+            : await findSubmissionProcessCode(data.process_id);
         data.process_code = processRows[0]?.process_code || data.process_code || null;
         if (processRows[0]?.process_code) data._resolved_process_code = String(processRows[0].process_code).trim().toUpperCase();
 
