@@ -60,7 +60,6 @@ const DOWNLOAD_RETRY_COUNT = 2;
 let mainWindow = null;
 let currentToken = '';
 let quitting = false;
-let excelDbSyncTimer = null;
 const reportImportPreviewGuard = new ReportImportPreviewGuard();
 
 const appDataRoot = getDesktopDataRoot();
@@ -123,12 +122,6 @@ const { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb 
   enqueueManualExcelSync: (...args) => deferred.call('enqueueManualExcelSync', ...args), isQuitting: () => quitting, isSyncRunning: () => deferred.call('isSyncRunning'),
 });
 
-function startExcelDbSyncWatcher() {
-  // Excel -> DB chỉ chạy khi người quản lý bấm nút và xác nhận.
-  // Không tự đẩy dữ liệu khi người dùng đang sửa dở workbook.
-  if (excelDbSyncTimer) clearInterval(excelDbSyncTimer);
-  excelDbSyncTimer = null;
-}
 
 const { performSyncSingleMonth } = createMonthlyDesktopExport({
   writeLog, getExportRoot, logPendingFiles,
@@ -183,7 +176,6 @@ const { startTokenDiscovery, stopTokenDiscovery, scheduleSyncAfterApprovedMutati
     readRendererAccessToken, isUsableAccessToken,
     getCurrentToken: () => currentToken, configureAutomaticSync,
     writeLog, normalizeError, getMainWindow: () => mainWindow,
-    stopExcelDbSyncWatcher: startExcelDbSyncWatcher,
   });
 
 const { createWindow } = createDesktopWindowFactory({
@@ -273,7 +265,6 @@ app.whenReady().then(async () => {
     userData: app.getPath('userData'),
     api: API_BASE_URL
   });
-  startExcelDbSyncWatcher();
   powerMonitor.on('resume', () => {
     void writeLog('INFO', 'SYSTEM_RESUME_AUTO_SYNC_SKIPPED');
   });
