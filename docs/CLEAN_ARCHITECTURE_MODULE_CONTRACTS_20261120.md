@@ -115,3 +115,35 @@ Các lỗi do source-extraction khác phải được xử lý trước merge. T
 - `frontend/tests/phase5-approval-outcome-refresh.test.cjs`: cập nhật end marker `const detailKpi =` đã không còn tồn tại thành comment thực tế trước phần report code; giữ nguyên các assertion success-before-refresh.
 
 **Kiểm tra đã làm:** đối chiếu nội dung module và 9/9 điều kiện cấu trúc bằng GitHub fetch; **không** phải node test/typecheck/build. Thiếu checkout và môi trường CI runtime trong lượt này nên chưa ghi PASS nghiệm thu. Chưa merge/deploy.
+
+## Lượt nâng chất lượng tiếp theo (20/11/2026) — domain thuần và kiểm thử hợp đồng
+
+### Thay đổi đã commit
+
+- `backend/modules/production/domain/submissionIdempotency.js` giữ duy nhất hình dạng response retry đơn và grouped (Mài/GC), không phụ thuộc SQL.
+- `backend/modules/production/domain/nonProductSnapshot.js` giữ phân loại non-product work, snapshot zero-standard và lỗi public 422, độc lập với approval model và DB.
+- `backend/services/productionSubmissionRollback.js` chịu trách nhiệm log và gắn rollback error vào SQL error gốc; cho phép tiêm rollback operation/logger khi test, vẫn dùng rollback cũ ở runtime.
+- `desktop/electron/excelDownloadMetadata.cjs` chịu trách nhiệm đọc Content-Disposition và chuẩn hóa process fields; main chỉ tải/lưu file Excel.
+- `frontend/src/pages/worker/useProcessOnlineStatus.ts` tách lắng nghe online/offline khỏi page, **không đổi** `navigator.onLine` guard trong xử lý submit.
+- Chuyển 9 test machine-copy sang marker ổn định sau khi tách domain, chuyển 2 test non-product snapshot sang import domain thật. Không đổi assertions bảo toàn dòng máy, thông báo lỗi, snapshot.
+
+### Kiểm chứng hiện có
+
+- **14/14 tình huống độc lập** được chạy bằng runtime JavaScript cô lập từ nội dung module GitHub: retry đơn/nhóm, ưu tiên group, snapshot 422, phân loại CVK, tên file UTF-8/fallback, normalize ID, rollback failure diagnostics. Đây là smoke theo module, không phải backend `npm test`.
+- **12/12 tệp JS/CJS** được parser kiểm tra cú pháp bằng JavaScript runtime cô lập; không thay cho Node environment hoặc TypeScript compiler.
+- Đã bổ sung test `backend/tests/production-module-boundaries.test.js` ngăn production domain import DB/HTTP/UI và bảo vệ transaction entrypoints.
+- Đã thêm test `backend/tests/production-submission-rollback.test.js`, `backend/tests/production-submission-idempotency.test.js`, `desktop/tests/excel-download-metadata.test.cjs`. **Chưa chạy chính thức** bằng Node trên checkout repo.
+
+### Cổng còn bắt buộc trước merge
+
+```sh
+# Trong root, sau khi checkout HEAD refactor
+node --test backend/tests/production-module-boundaries.test.js backend/tests/production-submission-rollback.test.js backend/tests/production-submission-idempotency.test.js backend/tests/approval-nonproduct-snapshot-refactor.test.js backend/tests/approval-nonproduct-snapshot-error-refactor.test.js
+node --test desktop/tests/excel-download-metadata.test.cjs
+
+cd backend && npm run check && npm test
+cd ../frontend && npm run typecheck && npm run lint && npm test && npm run build
+# Trong desktop, chạy smoke Compact/Excel và Electron IPC guard trên fixtures không-production
+```
+
+Không merge, không deploy, không động DB production; mọi kết luận “clean tối đa” phải dựa thêm trên kết quả đầy đủ và review phụ thuộc thực tế.
