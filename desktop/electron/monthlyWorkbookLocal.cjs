@@ -13,7 +13,7 @@ const EXCEL_CONTRACT_VERSION = EXCEL_SYNC_CONTRACT_VERSION;
 const { COLORS } = require('./monthlyWorkbookStyles.cjs');
 
 const { asText, asNumber, asInteger, NUMBER_FORMATS, resolvedNumberFormat,
-  asDate, asDateTime, normalize, dateKey } = require('./monthlyWorkbookValues.cjs');
+  asDate, asDateTime, normalize, pad2, dateKey } = require('./monthlyWorkbookValues.cjs');
 
 function assertApprovedDatabasePayload(payload) {
   if (!payload || payload.dataSource !== 'tidb.production_reports.approved') {
