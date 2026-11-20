@@ -268,24 +268,23 @@ async function patch(buffer, payload) {
   }
 }
 
-const originalBuildProcess = monthly.buildProcessWorkbookLocal;
-// Preserve the original company-template builder before GC-specific wrappers replace it.
-monthly.buildCompanyOriginalProcessWorkbookLocal = originalBuildProcess;
-const originalBuildSplit = monthly.buildSplitMonthlyWorkbooksLocal;
-if (typeof originalBuildProcess === 'function') {
-  monthly.buildProcessWorkbookLocal = async (args) => {
-    const result = await originalBuildProcess(args);
-    if (String(args?.processCode || '').toUpperCase() === 'GC' && result?.buffer) result.buffer = await patch(result.buffer, args?.payload || {});
-    return result;
-  };
+// Explicit opt-in adapters. Importing this module must not mutate monthlyWorkbookLocal.
+async function buildGcWithMappedDetails(args) {
+  const result = await monthly.buildCompanyOriginalProcessWorkbookLocal(args);
+  if (String(args?.processCode || '').toUpperCase() === 'GC' && result?.buffer) {
+    result.buffer = await patch(result.buffer, args?.payload || {});
+  }
+  return result;
 }
-if (typeof originalBuildSplit === 'function') {
-  monthly.buildSplitMonthlyWorkbooksLocal = async (args) => {
-    const result = await originalBuildSplit(args);
-    for (const item of result?.processes || []) {
-      if (String(item?.processCode || '').toUpperCase() === 'GC' && item?.buffer) item.buffer = await patch(item.buffer, args?.payload || {});
+
+async function buildSplitWithGcMappedDetails(args) {
+  const result = await monthly.buildSplitMonthlyWorkbooksLocal(args);
+  for (const item of result?.processes || []) {
+    if (String(item?.processCode || '').toUpperCase() === 'GC' && item?.buffer) {
+      item.buffer = await patch(item.buffer, args?.payload || {});
     }
-    return result;
-  };
+  }
+  return result;
 }
-module.exports = monthly;
+
+module.exports = { buildGcWithMappedDetails, buildSplitWithGcMappedDetails };
