@@ -2,7 +2,8 @@
 
 // Worker workbook process naming and defect/deduction catalogue aliases.
 const TEMPLATE_NAME = 'Mau_Bao_Cao_Cong_Nhan_DB_day_du_chi_tiet_STT_FIX.xlsx';
-const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);
+const { PROCESS_SHEETS } = require('./monthlyWorkbookSchemas.cjs');
+const PROCESS_CODES = Object.freeze(Object.keys(PROCESS_SHEETS));
 const { PROCESS_FILE_PREFIXES } = require('./monthlyWorkbookNaming.cjs');
 
 const DETAIL_ALIASES = Object.freeze({
