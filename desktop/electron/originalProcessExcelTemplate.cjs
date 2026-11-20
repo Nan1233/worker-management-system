@@ -824,7 +824,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     for(const rowNumber of trainingRows){
       const cell=sheet.getRow(rowNumber).getCell(col);
       if(typeof cell.value==="number" && Number.isFinite(cell.value))
-        cell.numFmt="0.##%";
+        cell.numFmt="0.00%";
     }
   }
   // Keep the company template print header/footer untouched. Some source sheets
