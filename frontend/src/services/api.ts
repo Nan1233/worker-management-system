@@ -346,7 +346,7 @@ export async function initializeAuthSession(): Promise<void> {
     const canRestoreSession = Boolean(
         accessToken ||
         refreshToken ||
-        hasRefreshSessionHint()
+        (supportsElectronRefreshTokenBody() && hasRefreshSessionHint())
     );
 
     // May chua tung co phien dang nhap: khong probe /auth/refresh.
