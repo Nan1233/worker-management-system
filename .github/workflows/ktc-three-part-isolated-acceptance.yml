@@ -32,6 +32,10 @@ on:
       - desktop/scripts/deviceSmoke.cjs
       - desktop/scripts/windowsArtifactInventory.cjs
       - desktop/tests/windows-artifact-inventory.test.cjs
+      - desktop/electron/desktopLog.cjs
+      - desktop/electron/launcher.cjs
+      - desktop/electron/preload.cjs
+      - desktop/tests/electron-startup-ipc-privacy.test.cjs
   workflow_dispatch:
 
 permissions:
@@ -143,7 +147,7 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci --no-audit --no-fund
       - name: Windows Excel, version and upgrade contracts
-        run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/release-signing.test.cjs tests/setup-auto-update.test.cjs tests/portable-upgrade-safety.test.cjs tests/deployment-profile.test.cjs tests/windows-artifact-inventory.test.cjs
+        run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/release-signing.test.cjs tests/setup-auto-update.test.cjs tests/portable-upgrade-safety.test.cjs tests/deployment-profile.test.cjs tests/windows-artifact-inventory.test.cjs tests/electron-startup-ipc-privacy.test.cjs tests/desktop-log-privacy.test.cjs tests/startup-crash-diagnostics.test.cjs
       - name: Build unsigned STAGING NSIS and Portable artifacts (no distribution)
         run: npx electron-builder --win nsis portable --x64 --publish never
       - name: Verify actual staging executable presence

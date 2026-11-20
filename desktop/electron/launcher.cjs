@@ -20,6 +20,7 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
+const { sanitizeLogDetails } = require('./desktopLog.cjs');
 
 // Excel export: use the company NAS when reachable; otherwise save locally
 // under the current Windows user's Documents\KTC\Bao cao san xuat folder.
@@ -66,7 +67,7 @@ function writeLauncherLog(level, event, payload = {}) {
       timestamp: new Date().toISOString(),
       level,
       event,
-      ...payload,
+      ...sanitizeLogDetails(payload),
     }) + '\n';
     launcherLogWriter = (launcherLogWriter || Promise.resolve())
       .then(() => fsp.mkdir(userData, { recursive: true }))
@@ -85,10 +86,14 @@ void writeLauncherLog('INFO', 'STARTUP_PROCESS_BEGIN', { elapsedMs: startupElaps
 
 function safeCrashSummary(reason) {
   const error = reason instanceof Error ? reason : new Error(String(reason));
-  const sanitize = (value) => String(value || '')
-    .replace(/(authorization|bearer|token|password|cookie|secret)\\s*[:=]\\s*[^\\s,;]+/gi, '$1=[REDACTED]')
-    .slice(0, 1500);
-  return { name: sanitize(error.name), message: sanitize(error.message), code: sanitize(error.code || '') };
+  // Use the same redaction as the desktop logger before recording startup
+  // errors. Never persist a stack, raw URL, auth header or private file path.
+  const details = sanitizeLogDetails({
+    name: error.name,
+    message: error.message,
+    code: error.code || ''
+  });
+  return { name: details.name, message: details.message, code: details.code };
 }
 
 process.on('uncaughtExceptionMonitor', (error, origin) => {

@@ -14,13 +14,26 @@ function safeUrlForLog(value) {
   }
 }
 
+// Sanitize unstructured renderer messages, crash stacks and backend errors as
+// well as structured fields. The old key-only filtering leaked secrets when
+// they appeared inside a message, stack or plain-string log payload.
+function redactSensitiveText(value) {
+  return String(value ?? '')
+    .replace(/https?:\/\/[^\s"'<>]+/gi, (url) => safeUrlForLog(url))
+    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+/gi, 'Bearer [REDACTED]')
+    .replace(/\b(authorization|access[_-]?token|refresh[_-]?token|password|cookie|secret|credential|api[_-]?key)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;&]+)/gi, '$1=[REDACTED]')
+    .replace(/\b[A-Za-z]:\\[^\s,"'<>]+/g, '[PATH_REDACTED]')
+    .replace(/\/(?:home|Users)\/[^\s,"'<>]+/g, '[PATH_REDACTED]')
+    .slice(0, 1500);
+}
+
 function sanitizeLogDetails(value, key = '', seen = new WeakSet()) {
   if (value === null || value === undefined) return value;
   if (SECRET_KEY_PATTERN.test(key)) return '[REDACTED]';
   if (typeof value === 'string') {
-    if (URL_KEY_PATTERN.test(key)) return safeUrlForLog(value);
-    if (PATH_KEY_PATTERN.test(key)) return value.includes('\\') ? path.win32.basename(value) : path.basename(value);
-    return value;
+    if (URL_KEY_PATTERN.test(key)) return redactSensitiveText(safeUrlForLog(value));
+    if (PATH_KEY_PATTERN.test(key)) return redactSensitiveText(value.includes('\\') ? path.win32.basename(value) : path.basename(value));
+    return redactSensitiveText(value);
   }
   if (typeof value !== 'object') return value;
   if (seen.has(value)) return '[CIRCULAR]';
@@ -65,7 +78,7 @@ function createDesktopLogger(getUserDataPath) {
   return async function writeLog(level, message, details) {
     const serialized = details === undefined
       ? ''
-      : ` ${typeof details === 'string' ? details : JSON.stringify(sanitizeLogDetails(details))}`;
+      : ` ${typeof details === 'string' ? redactSensitiveText(details) : JSON.stringify(sanitizeLogDetails(details))}`;
     const line = `[${nowText()}] [${level}] ${message}${serialized}\n`;
 
     try {
@@ -88,4 +101,5 @@ module.exports = {
   normalizeError,
   sanitizeLogDetails,
   safeUrlForLog,
+  redactSensitiveText,
 };

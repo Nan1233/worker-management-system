@@ -1,5 +1,16 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Only fixed, explicitly exposed notification channels can be subscribed to.
+// Do not expose the ipcRenderer object or an arbitrary channel name to pages.
+function subscribeDesktopEvent(channel, callback) {
+  if (typeof callback !== 'function') {
+    throw new TypeError('KTC Desktop IPC subscription requires a callback function');
+  }
+  const handler = (_event, value) => callback(value);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+}
+
 contextBridge.exposeInMainWorld('ktcDesktop', {
   isDesktop: true,
   getStartupDiagnostics: () => ipcRenderer.invoke('ktc-startup-diagnostics'),
@@ -18,21 +29,10 @@ contextBridge.exposeInMainWorld('ktcDesktop', {
   resetExportRoot: () => ipcRenderer.invoke('ktc-reset-export-root'),
   saveStatisticsExcel: (content, fileName, year) => ipcRenderer.invoke('ktc-save-statistics-excel', { content, fileName, year }),
   openLogFolder: () => ipcRenderer.invoke('ktc-open-log-folder'),
-  onSyncResult: (callback) => {
-    const handler = (_event, value) => callback(value);
-    ipcRenderer.on('ktc-excel-sync-result', handler);
-    return () => ipcRenderer.removeListener('ktc-excel-sync-result', handler);
-  },
-  onExcelDbSyncResult: (callback) => {
-    const handler = (_event, value) => callback(value);
-    ipcRenderer.on('ktc-excel-db-sync-result', handler);
-    return () => ipcRenderer.removeListener('ktc-excel-db-sync-result', handler);
-  },
-  onSyncError: (callback) => {
-    const handler = (_event, value) => callback(value);
-    ipcRenderer.on('ktc-excel-sync-error', handler);
-    return () => ipcRenderer.removeListener('ktc-excel-sync-error', handler);
-  }
+  onSyncResult: (callback) => subscribeDesktopEvent('ktc-excel-sync-result', callback),
+  onExcelDbSyncResult: (callback) => subscribeDesktopEvent('ktc-excel-db-sync-result', callback),
+  onSyncError: (callback) => subscribeDesktopEvent('ktc-excel-sync-error', callback)
+
 });
 
 window.addEventListener('online', () => ipcRenderer.send('ktc-network-online'));

@@ -40,6 +40,10 @@ on:
       - desktop/scripts/checkExcelDbSync.cjs
       - desktop/tests/excel-sync-values-refactor.test.cjs
       - desktop/electron/monthlyWorkbookLocal.cjs
+      - desktop/electron/desktopLog.cjs
+      - desktop/electron/launcher.cjs
+      - desktop/electron/preload.cjs
+      - desktop/tests/electron-startup-ipc-privacy.test.cjs
       - frontend/tests/e2e/phase3-public-security.spec.ts
       - frontend/playwright.phase3.config.ts
       - frontend/src/pages/manager/**
@@ -236,6 +240,10 @@ jobs:
             tests/mai-do-export-parity.test.cjs \
             tests/monthly-workbook-physical-event-metadata.test.cjs \
             tests/packaging-sync.test.cjs \
+            tests/electron-startup-ipc-privacy.test.cjs \
+            tests/desktop-log-privacy.test.cjs \
+            tests/startup-crash-diagnostics.test.cjs \
+            tests/startup-performance.test.cjs \
             tests/windows-artifact-inventory.test.cjs \
             tests/excel-backup-retention.test.cjs
       - name: Execute existing worker Excel smoke in an isolated temporary directory
@@ -250,7 +258,10 @@ jobs:
           node --check electron/monthlyWorkbookLocal.cjs
           node --check electron/companyExcelLocal.cjs
           node --check electron/excelDbSync.cjs
-          node --check electron/excelDbSyncValues.cjs
+          node --check electron/excelDbSyncValues.cjs 
+          node --check electron/desktopLog.cjs
+          node --check electron/launcher.cjs
+          node --check electron/preload.cjs
 
   windows:
     name: Windows Desktop synthetic Excel and packaging source compatibility
@@ -272,7 +283,7 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run real XLSX roundtrip and Windows source packaging contracts
-        run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/packaging-sync.test.cjs tests/monthly-workbook-naming-parity.test.cjs
+        run: node --test tests/phase2-batch4-xlsx-isolated-roundtrip.test.cjs tests/packaging-sync.test.cjs tests/monthly-workbook-naming-parity.test.cjs tests/electron-startup-ipc-privacy.test.cjs tests/desktop-log-privacy.test.cjs tests/startup-crash-diagnostics.test.cjs
       - run: node scripts/checkPackagedSharedContract.cjs
       - name: Windows release configuration, signing policy and update safety contracts
         run: node --test tests/release-signing.test.cjs tests/setup-auto-update.test.cjs tests/portable-upgrade-safety.test.cjs tests/deployment-profile.test.cjs
