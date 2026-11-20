@@ -593,23 +593,17 @@ function addDerivedColumns(sheet, headerRow, contract) {
   }
 }
 
-// Planned output of the shift = định mức 1h x thời gian thực tế x % học việc.
+// Total standard in exported reports = approved hourly standard × visible
+// working hours. Training % is a separate display field.
 function plannedOutputFor(report) {
   const has = (value) => value !== null && value !== undefined && String(value).trim() !== '';
   let trainingPercent = 100;
   if (has(report.training_percent_snapshot)) trainingPercent = number(report.training_percent_snapshot);
   else if (has(report.training_percent)) trainingPercent = number(report.training_percent);
   const exportTimes = resolveWorkerParticipationTimes(report);
-  const effectiveTime = exportTimes.hasMachine
-    ? exportTimes.actualHours
-    : (has(report.actual_time)
-      ? number(report.actual_time)
-      : (has(report.total_time) ? number(report.total_time) - number(report.deduction_time) : null));
   const perHour = has(report.standard_output) ? number(report.standard_output) : null;
-  const planned = perHour === null || effectiveTime === null
-    ? null
-    : Math.round(perHour * effectiveTime * (trainingPercent / 100) * 100) / 100;
-  return { planned, trainingPercent };
+  const planned = perHour === null ? null : perHour * exportTimes.totalHours;
+  return { planned, trainingPercent, perHour };
 }
 
 function applyReportRow(row, report, contract, processData, index) {
@@ -653,13 +647,22 @@ function applyReportRow(row, report, contract, processData, index) {
     cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date);
     cell.numFmt = 'dd/mm/yyyy hh:mm';
   }
-  const { planned, trainingPercent } = plannedOutputFor(report);
+  const { planned, trainingPercent, perHour } = plannedOutputFor(report);
   if (contract.cols.training) {
     const cell = row.getCell(contract.cols.training);
     cell.value = trainingPercent / 100;
     cell.numFmt = '0%';
   }
-  set(contract.cols.standard, planned);
+  if (contract.cols.standard) {
+    const cell = row.getCell(contract.cols.standard);
+    const hoursColumn = contract.cols.time || contract.cols.actualTime;
+    if (perHour !== null && hoursColumn) {
+      const hoursRef = columnLetter(hoursColumn) + row.number;
+      cell.value = { formula: 'IFERROR(' + String(perHour) + '*' + hoursRef + ',"")',
+        result: planned ?? '' };
+    } else cell.value = planned;
+    cell.numFmt = '#,##0.00';
+  }
   // All exported process sheets use the visible working-time column as the
   // denominator. The duplicate actual-time cell mirrors it for legacy formulas.
   set(contract.cols.time, exportTimes.totalHours);
@@ -681,7 +684,21 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.ok, number(report.tt_ok ?? report.actual_output));
   set(contract.cols.ng, number(report.tt_ng));
   set(contract.cols.output, number(report.actual_output ?? report.tt_ok));
-  set(contract.cols.achievement, number(report.calculationSnapshot?.achievement_rate ?? report.achievement_rate));
+  if (contract.cols.achievement && contract.cols.output && contract.cols.standard) {
+    const quantity = number(report.actual_output ?? report.tt_ok);
+    const cached = planned !== null && planned > 0 && Number.isFinite(quantity)
+      ? quantity / planned : '';
+    const outputRef = columnLetter(contract.cols.output) + row.number;
+    const standardRef = columnLetter(contract.cols.standard) + row.number;
+    const cell = row.getCell(contract.cols.achievement);
+    cell.value = {
+      formula: 'IFERROR(IF(' + standardRef + '>0,' + outputRef + '/' + standardRef + ',""),"")',
+      result: cached
+    };
+    cell.numFmt = '0.00%';
+  } else {
+    set(contract.cols.achievement, number(report.calculationSnapshot?.achievement_rate ?? report.achievement_rate));
+  }
   const hourlyTimeCol = contract.cols.time || contract.cols.actualTime;
   if (contract.cols.outputPerHour && contract.cols.output && hourlyTimeCol) {
     const cachedOutput = number(report.actual_output ?? report.tt_ok);
