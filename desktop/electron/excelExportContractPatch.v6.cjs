@@ -369,7 +369,351 @@ function filterVerifiedGcSplitParents(reports) {
 // can contain 0 in their approved parent deduction snapshot while the detail
 // columns (M:AF) are nonzero. Reconcile the written workbook itself, after
 // template mapping, without modifying DB time/productivity or GC accounting.
-async function reconcileMaiWorkbookDeductions(buffer) {
+function relocateExcelFormula(formula, sourceRow, targetRow) {
+  const delta = targetRow - sourceRow;
+  return String(formula).replace(/(\$?[A-Z]{1,3})(\$?)(\d+)/g, (full, column, absolute, rowText) =>
+    absolute === '
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const sheet = workbook.getWorksheet('Mài');
+  if (!sheet) throw new Error('MAI Workbook1 export missing expected Mài sheet.');
+  if (norm(sheet.getCell('L1').value) !== norm('Tổng TG trừ giờ')
+    || norm(sheet.getCell('C1').value) !== norm('Mã số')) {
+    throw new Error('MAI deduction column contract changed; refusing an unsafe rewrite.');
+  }
+  let changed = 0;
+  workbook.calcProperties.fullCalcOnLoad = true;
+  for (let r = 3; r <= sheet.rowCount; r += 1) {
+    const row = sheet.getRow(r);
+    // Date separators and empty template rows are not production records.
+    if (!Number.isFinite(Number(row.getCell(1).value))
+      || !String(row.getCell(3).value ?? '').trim()) continue;
+    // Include the explicit unmapped deduction overflow (after the defect block).
+    // Otherwise the total can still be zero when only an obsolete type ID
+    // was saved in the approved record.
+    const overflowCol = (() => {
+      for (let col = 49; col <= sheet.getRow(1).cellCount; col += 1) {
+        if (norm(sheet.getCell(1, col).value) === norm('Trừ giờ chưa ghép loại (giờ)')) return col;
+      }
+      return null;
+    })();
+    const detailNumbers = Array.from({ length: 20 }, (_, i) => Number(row.getCell(13 + i).value));
+    if (overflowCol !== null) detailNumbers.push(Number(row.getCell(overflowCol).value));
+    const displayedHours = detailNumbers
+      .reduce((sum, n) => sum + (Number.isFinite(n) && n > 0 ? n : 0), 0);
+    const recorded = Number(row.getCell(12).value);
+    // A nonzero approved total can disagree with the rendered detail columns.
+    // Keep it intact: the source may contain an unresolved legacy deduction ID.
+    // Attach a visible Excel note so the operator can correct the mapping.
+    if (displayedHours > 0 && Number.isFinite(recorded) && recorded > 0
+        && Math.abs(recorded - displayedHours) > 0.01) {
+      const totalCell = row.getCell(12);
+      const note = 'CẦN ĐỐI SOÁT: Tổng giờ trừ (' + recorded.toFixed(4)
+        + ') khác tổng các cột chi tiết (' + displayedHours.toFixed(4)
+        + '). Kiểm tra loại trừ giờ trong báo cáo đã duyệt; không tự điều chỉnh.';
+      if (String(totalCell.note || '') !== note) {
+        totalCell.note = note;
+        changed += 1;
+      }
+    }
+    if (displayedHours > 0 && (!Number.isFinite(recorded) || Math.abs(recorded) < 0.000001)) {
+      row.getCell(12).value = displayedHours;
+      changed += 1;
+    }
+    // Old MAI MACHINE snapshots can have actualTime=0 even though J (total
+    // worked hours) and L (deduction hours) are populated. The MAI standard
+    // in AH is already output/hour: rate = output/actualHours/standard.
+    // Work from the finalized Excel cells, never from a stale cached metric.
+    const numberAt = (column) => {
+      const raw = row.getCell(column).value;
+      if (raw === null || raw === undefined || raw === '') return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+    const totalHours = numberAt(10); // J
+    const deductionHours = numberAt(12); // L, already reconciled
+    let actualHours = numberAt(11); // K
+    const output = numberAt(35); // AI, KQSX
+    const hourlyStandard = numberAt(34); // AH, SP/h
+    if ((actualHours === null || actualHours <= 0)
+      && totalHours !== null && totalHours > 0
+      && deductionHours !== null && deductionHours >= 0
+      && totalHours > deductionHours) {
+      // No inferred negative/zero effective time; leave ambiguous rows for
+      // review rather than inventing a productivity measurement.
+      actualHours = totalHours - deductionHours;
+      row.getCell(11).value = actualHours;
+      changed += 1;
+    }
+    if ((actualHours === null || actualHours <= 0) && output !== null && output > 0
+      && totalHours !== null && deductionHours !== null && totalHours <= deductionHours) {
+      const actualCell = row.getCell(11);
+      const note = 'CẦN ĐỐI SOÁT GIỜ: Tổng thời gian (' + totalHours.toFixed(4)
+        + ') không lớn hơn thời gian trừ (' + deductionHours.toFixed(4)
+        + '). Có sản lượng nhưng thiếu thời gian thực tế hợp lệ; không thể tính SL/H và % thực tích.';
+      if (String(actualCell.note || '') !== note) {
+        actualCell.note = note;
+        changed += 1;
+      }
+    }
+    if (actualHours !== null && actualHours > 0 && output !== null && output >= 0) {
+      const perHourCell = row.getCell(38); // AL, SL/H
+      const hourlyValue = output / actualHours;
+      // A legacy calculation can serialize blank metrics as numeric 0.
+      // Do not mistake a zero cached rate for a valid measurement when
+      // positive output and positive machine time establish the true rate.
+      const existingPerHour = numberAt(38);
+      // Reconcile nonzero stale values too. The previous fix only filled blanks
+      // or zeros, leaving incorrect SL/H and percent untouched.
+      if (existingPerHour === null || Math.abs(existingPerHour - hourlyValue) > 0.000001) {
+        perHourCell.value = hourlyValue;
+        perHourCell.numFmt = '#,##0.##';
+        changed += 1;
+      }
+      if (hourlyStandard !== null && hourlyStandard > 0) {
+        const achievementCell = row.getCell(36); // AJ, % Thực tích
+        const expectedAchievement = hourlyValue / hourlyStandard;
+        const existingAchievement = numberAt(36);
+        if (existingAchievement === null || Math.abs(existingAchievement - expectedAchievement) > 0.000001) {
+          achievementCell.value = expectedAchievement;
+          achievementCell.numFmt = '0.##%';
+          changed += 1;
+        }
+      }
+    }
+    // Copy actual company template formulas where supplied, relocating only
+    // relative row references. If source sample cells have no formula, use the
+    // equivalent native Excel formula (never a hard-coded calculation result).
+    // The number in result is only an Excel cached preview; Excel recalculates
+    // these cells when any DB input changes after opening the workbook.
+    const setCalculated = (column, templateLetter, fallback, cached, format) => {
+      const source = templateFormulas[templateLetter];
+      const formula = typeof source?.formula === 'string'
+        ? relocateExcelFormula(source.formula, Number(source.sourceRow), r)
+        : fallback;
+      const cell = row.getCell(column);
+      const value = cached === null || cached === undefined || !Number.isFinite(cached) ? '' : cached;
+      const previous = cell.value;
+      if (!previous || typeof previous !== 'object' || previous.formula !== formula || previous.result !== value) {
+        cell.value = { formula, result: value };
+        changed += 1;
+      }
+      cell.numFmt = format;
+    };
+    const finalHours = numberAt(11);
+    const finalOutput = numberAt(35);
+    const finalStandard = numberAt(34);
+    const finalNg = numberAt(37);
+    const rate = finalHours !== null && finalHours > 0 && finalOutput !== null && finalOutput >= 0
+      ? finalOutput / finalHours : null;
+    const percent = rate !== null && finalStandard !== null && finalStandard > 0
+      ? rate / finalStandard : null;
+    const ngPercent = finalOutput !== null && finalOutput > 0 && finalNg !== null && finalNg >= 0
+      ? finalNg / finalOutput : (finalOutput === 0 ? 0 : null);
+    setCalculated(38, 'AL', 'IFERROR(IF(OR(K' + r + '<=0,AI' + r + '=""),"",AI' + r + '/K' + r + '),"")',
+      rate, '#,##0.00');
+    setCalculated(36, 'AJ', 'IFERROR(IF(OR(AH' + r + '<=0,AL' + r + '=""),"",AL' + r + '/AH' + r + '),"")',
+      percent, '0.00%');
+    setCalculated(41, 'AO', 'IFERROR(IF(AI' + r + '>0,AN' + r + '/AI' + r + ',0),0)',
+      ngPercent, '0.00%');
+  }
+  return { buffer: changed ? Buffer.from(await workbook.xlsx.writeBuffer()) : buffer, changed };
+}
+
+async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
+  if (!payload || payload.dataSource !== 'tidb.production_reports.approved') {
+    throw new Error('Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
+  }
+  const sourceRows = processRows(payload);
+  const processes = [];
+  for (const item of sourceRows) {
+    const processData = item.data || {};
+    hydrateReportDetails(processData);
+    if (item.processCode === 'GC' && Array.isArray(processData.reports)) {
+      processData.reports = filterVerifiedGcSplitParents(processData.reports);
+      // A multi-machine approved row has no trustworthy per-machine quantities.
+      // Refuse to export a combined-machine Excel row instead of inventing OK/NG.
+      for (const report of processData.reports) {
+        const machineNames = String(report.machine_no || '')
+          .split(/[,;\\n]+/).map((value) => value.trim()).filter(Boolean);
+        const lineNames = Array.isArray(report.machineLines)
+          ? [...new Set(report.machineLines.map((line) => String(line.machine_code || line.machine_no || line.machine_name || '').trim()).filter(Boolean))]
+          : [];
+        if (machineNames.length > 1 || lineNames.length > 1) {
+          throw new Error(
+            'Không thể xuất GC: báo cáo ' + report.id +
+            ' vẫn gộp nhiều máy (' + (machineNames.length > 1 ? machineNames : lineNames).join(', ') +
+            '). Cần tách và đối soát OK/NG theo từng máy trong TiDB trước khi xuất.'
+          );
+        }
+      }
+    }
+    const reports = Array.isArray(processData.reports) ? processData.reports : [];
+    for (const report of reports) {
+      if (report?.dataSource !== 'production_reports' || report?.isApprovedDatabaseRecord !== true) {
+        throw new Error(`Báo cáo ${report?.id || '?'} của ${item.processCode} không phải dữ liệu đã duyệt từ TiDB.`);
+      }
+      report.process_code = report.process_code || item.processCode;
+    }
+    // Six process files are populated from the corresponding Workbook1 sheet.
+    // K1 and K2 retain their established templates; SX3 and CVK are unchanged.
+    const built = ORIGINAL_COMPANY_CODES.has(item.processCode)
+      ? await buildOriginalProcessWorkbookLocal({
+          date, payload, processCode: item.processCode, onTemplateLoaded
+        })
+      : await buildWorkerProcessWorkbook({
+          appPath,
+          processCode: item.processCode,
+          processName: processData.processName || processData.process_name || item.processCode,
+          date,
+          processData
+        });
+    const expectedTemplateKind = WORKBOOK1_CODES.has(item.processCode) ? 'workbook1-sheet' : 'original-company';
+    if (ORIGINAL_COMPANY_CODES.has(item.processCode) && built.templateKind !== expectedTemplateKind) {
+      throw new Error('Không thể xuất ' + item.processCode + ': không dùng đúng mẫu ' + expectedTemplateKind + '.');
+    }
+    if (item.processCode === 'MAI') {
+      const reconciled = await reconcileMaiWorkbookDeductions(built.buffer, { templateFormulas: built.maiOriginalFormulas || {} });
+      built.buffer = reconciled.buffer;
+      built.deductionTotalsReconciled = reconciled.changed;
+    }
+    built.processCode = item.processCode;
+    built.processName = processData.processName || processData.process_name || item.processCode;
+    built.reportCount = reports.length;
+    processes.push(built);
+  }
+  const summary = await monthly.buildMonthlySummaryWorkbookLocal({ date, payload });
+  return { mode: 'PROCESS_WORKBOOKS', processes, summary, expectedFileCount: processes.length + 1 };
+}
+monthly.buildSplitMonthlyWorkbooksLocal = buildWorkerSplit;
+
+function cleanupLegacyMonthlyFilesSource() {
+  return `
+async function __ktcCleanupLegacyMonthlyLayout(root, date, keepFileNames = []) {
+  try {
+    const [year, month] = String(date).split('-');
+    const monthFolder = path.join(root, year, month);
+    const keep = new Set((keepFileNames || []).map((name) => String(name).toLowerCase()));
+    const processFileRe = new RegExp('^\\\\d{2}_[A-Z0-9_]+_' + month + '-' + year + '\\\\.xlsx$', 'i');
+    const entries = await fs.readdir(monthFolder, { withFileTypes: true }).catch(() => []);
+    const removed = [];
+    for (const entry of entries) {
+      const full = path.join(monthFolder, entry.name);
+      if (entry.isDirectory()) continue;
+      const lower = entry.name.toLowerCase();
+      if (keep.has(lower)) continue;
+      const legacySummary = /^00_TONG_HOP_SAN_XUAT_\\d{2}-\\d{4}\\.xlsx$/i.test(entry.name);
+      const staleProcessFile = processFileRe.test(entry.name);
+      const leftover = /\\.pending\\.xlsx$/i.test(entry.name) || /\\.tmp$/i.test(entry.name);
+      if (legacySummary || staleProcessFile || leftover) {
+        await fs.rm(full, { force: true });
+        removed.push(entry.name);
+      }
+    }
+    if (removed.length) await writeLog('INFO', 'EXCEL_MONTH_FOLDER_CLEANED', { monthFolder, removed });
+  } catch (error) {
+    await writeLog('WARN', 'EXCEL_LEGACY_LAYOUT_CLEANUP_FAILED', { root, date, message: error?.message || String(error) });
+  }
+}
+`;
+}
+
+function patchMainSource(source) {
+  let next = String(source);
+  if (!next.includes('const PROCESS_CODES = Object.freeze([')) {
+    next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3', 'CVK']);\n${next}`;
+  }
+
+  // Keep the legacy single-file branch for compatibility, while the active
+  // PROCESS_WORKBOOKS contract continues through the ten-workbook path.
+  const validationStart = next.indexOf('    const expectedProcessCodes = Object.keys(PROCESS_SHEETS);');
+  const summaryStart = next.indexOf('    const summaryFilePath = path.join(', validationStart);
+  const splitLogStart = next.indexOf("    await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', {", summaryStart);
+  if (validationStart < 0 || summaryStart < 0 || splitLogStart < 0) {
+    throw new Error('KTC monthly export patch could not locate the complete validation/write block; refusing to load main.cjs.');
+  }
+
+  const singleFileBlock = `    const isWorkerSingleFile = built?.mode === 'WORKER_REPORT_SINGLE_FILE';
+    if (isWorkerSingleFile) {
+      const actualCount = Array.isArray(built.processes) ? built.processes.length : 0;
+      const expectedCount = Number.isFinite(Number(built.expectedFileCount)) ? Number(built.expectedFileCount) : actualCount;
+      if (actualCount !== expectedCount) {
+        throw Object.assign(new Error('Số workbook không khớp: yêu cầu ' + expectedCount + ', tạo được ' + actualCount + '.'),
+          { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' });
+      }
+      for (const processBuilt of built.processes || []) {
+        const filePath = path.join(folder, safeFileName(processBuilt.fileName, 'BAO_CAO_CONG_NHAN_' + month + '-' + year + '.xlsx'));
+        const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date);
+        files.push({
+          category: 'MONTHLY_PROCESS',
+          processId: -1,
+          processCode: processBuilt.processCode || 'ALL',
+          processName: processBuilt.processName || 'Báo cáo công nhân',
+          fileName: path.basename(filePath),
+          filePath,
+          folder,
+          size: processBuilt.buffer.length,
+          saved: writeResult.saved,
+          pendingPath: writeResult.pendingPath,
+          backupPath: writeResult.backupPath,
+          success: writeResult.saved === true,
+          source: 'desktop-local',
+          reportCount: processBuilt.reportCount
+        });
+        await writeLog('INFO', 'MONTHLY_WORKER_TEMPLATE_UPDATED', {
+          date, filePath, saved: writeResult.saved, pendingPath: writeResult.pendingPath || null
+        });
+      }
+    } else {
+      const expectedProcessCodes = Object.keys(PROCESS_SHEETS);
+      const builtProcessCodes = (built.processes || []).map((item) => String(item.processCode || '').toUpperCase());
+      const missingProcessCodes = expectedProcessCodes.filter((code) => !builtProcessCodes.includes(code));
+      if (missingProcessCodes.length || builtProcessCodes.length !== expectedProcessCodes.length) {
+        throw Object.assign(
+          new Error('Thiếu workbook công đoạn: ' + (missingProcessCodes.join(', ') || 'danh sách công đoạn không khớp') + '.'),
+          { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' }
+        );
+      }
+
+`;
+  next = next.slice(0, validationStart) + singleFileBlock + next.slice(summaryStart, splitLogStart) +
+    '    } // end legacy multi-workbook branch.\n' + next.slice(splitLogStart);
+
+  next = next.replace(
+    'const expectedFileCount = Object.keys(PROCESS_SHEETS).length + 1;',
+    "const expectedFileCount = files.filter((file) => file.category === 'MONTHLY_PROCESS').length === 1 ? 1 : Object.keys(PROCESS_SHEETS).length + 1;"
+  );
+  next = next.replace(/mode: 'desktop-local-monthly-workbooks'/g, "mode: 'desktop-local-worker-template'");
+
+  const cleanupFn = cleanupLegacyMonthlyFilesSource();
+  const marker = '\nasync function syncAllProcessExcel';
+  if (!next.includes('__ktcCleanupLegacyMonthlyLayout')) {
+    next = next.replace(marker, () => `\n${cleanupFn}${marker}`);
+  }
+  const successMarker = 'const success = files.length === expectedFileCount && files.every((file) => file.success === true);';
+  if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) {
+    next = next.replace(successMarker, `${successMarker}\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean));`);
+  }
+  return next;
+}
+
+const originalCjsLoader = Module._extensions['.cjs'] || Module._extensions['.js'];
+if (typeof originalCjsLoader !== 'function') throw new TypeError('CommonJS loader is unavailable');
+if (!global.__KTC_WORKER_TEMPLATE_MAIN_PATCH__) {
+  global.__KTC_WORKER_TEMPLATE_MAIN_PATCH__ = true;
+  Module._extensions['.cjs'] = function patchedCjsLoader(module, filename) {
+    if (path.basename(filename).toLowerCase() === 'main.cjs' && filename.endsWith(path.join('electron', 'main.cjs'))) {
+      const source = fsSync.readFileSync(filename, 'utf8');
+      return module._compile(patchMainSource(source), filename);
+    }
+    return originalCjsLoader(module, filename);
+  };
+}
+
+module.exports = { buildWorkerSplit, reconcileMaiWorkbookDeductions, PROCESS_CODES, PROCESS_FILE_PREFIXES }; ? full : column + String(Number(rowText) + delta));
+}
+
+async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } = {}) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const sheet = workbook.getWorksheet('Mài');
