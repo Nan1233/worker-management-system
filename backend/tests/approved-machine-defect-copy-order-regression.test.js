@@ -6,7 +6,7 @@ const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
 const start = source.indexOf('async function copyMachineLinesToApproved(');
-const end = source.indexOf('function getExtraDataObject(', start);
+const end = source.indexOf('// Keep standard resolver warm-up input aligned', start);
 assert.ok(start >= 0 && end > start, 'approved machine copy function must exist');
 const copy = source.slice(start, end);
 
