@@ -79,3 +79,38 @@ test('MAI Workbook1 real export: L3 matches rendered W3 + Z3, while J3/K3 stay a
   assert.equal(sheet.getCell('J3').value, 10.6667);
   assert.equal(sheet.getCell('K3').value, 10.6667);
 });
+
+test('MAI MACHINE legacy snapshot: rebuild actual time, SL/H and percent from hourly standard', () => {
+  const report = fixture({
+    total_time: 6.6667,
+    actual_time: 0,
+    deduction_time: 1,
+    deductions: [{ deduction_type_name: 'Nghỉ giải lao', hours: 1 }],
+    calculationSnapshot: {
+      trainingFactor: 1, standard: 120, workingTime: 6.6667,
+      actualTime: 0, deductionTime: 1, ok: 709, allNg: 0,
+      countedNg: 0, enteredOutput: 709, adjustedOutput: 709,
+      outputPerHour: null, achievement: null, ngRate: 0
+    }
+  });
+  const snapshot = reportSnapshot(report);
+  const expectedTime = 6.6667 - 1;
+  assert.ok(Math.abs(snapshot.actualTime - expectedTime) < 1e-9);
+  assert.ok(Math.abs(snapshot.outputPerHour - 709 / expectedTime) < 1e-9);
+  assert.ok(Math.abs(snapshot.achievement - 709 / expectedTime / 120) < 1e-9);
+  assert.equal(report.calculationSnapshot.actualTime, 0, 'never mutate approved snapshot');
+});
+
+test('MAI MACHINE invalid effective time: do not infer productivity from negative hours', () => {
+  const snapshot = reportSnapshot(fixture({
+    calculationSnapshot: {
+      trainingFactor: 1, standard: 85, workingTime: 5, actualTime: 0,
+      deductionTime: 7, ok: 350, allNg: 0, countedNg: 0,
+      enteredOutput: 350, adjustedOutput: 350,
+      outputPerHour: null, achievement: null, ngRate: 0
+    }
+  }));
+  assert.equal(snapshot.actualTime, 0);
+  assert.equal(snapshot.outputPerHour, null);
+  assert.equal(snapshot.achievement, null);
+});
