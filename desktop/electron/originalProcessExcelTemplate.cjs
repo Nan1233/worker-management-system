@@ -9,6 +9,24 @@ const { FORMS, WORKBOOK1_FORMS } = require('./originalProcessTemplateRegistry.cj
 const norm = (value) => String(value == null ? "" : value)
   .normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D")
   .toLowerCase().replace(/[^a-z0-9]/g,"");
+// Clone ExcelJS style objects without JSON serialization, preserving dates and undefined fields.
+function cloneExcelStyle(value, seen = new WeakMap()) {
+  if (value === null || typeof value !== 'object') return value;
+  if (seen.has(value)) return seen.get(value);
+  if (value instanceof Date) return new Date(value.getTime());
+  if (Buffer.isBuffer(value)) return Buffer.from(value);
+  if (ArrayBuffer.isView(value)) return new value.constructor(value);
+  if (Array.isArray(value)) {
+    const copy = [];
+    seen.set(value, copy);
+    for (const item of value) copy.push(cloneExcelStyle(item, seen));
+    return copy;
+  }
+  const copy = {};
+  seen.set(value, copy);
+  for (const key of Object.keys(value)) copy[key] = cloneExcelStyle(value[key], seen);
+  return copy;
+}
 const asNumeric = (value) => value == null || value === "" ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
 const templateCellText = (cell) => {
   const value = cell?.value;
@@ -202,8 +220,8 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       // Capture effective colors separately: imported Excel cells may derive
       // their fills from row/column styles even when cell.style.fill is absent.
       return {
-        style:cell.hasStyle?JSON.parse(JSON.stringify(cell.style)):null,
-        fill:cell.fill?JSON.parse(JSON.stringify(cell.fill)):null
+        style:cell.hasStyle?cloneExcelStyle(cell.style):null,
+        fill:cell.fill?cloneExcelStyle(cell.fill):null
       };
     })
   };
@@ -217,7 +235,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       ? JSON.parse(JSON.stringify(separatorTemplate.getCell(1).fill)) : null,
     cells: Array.from({length:sheet.columnCount},(_,i)=>{
       const cell=separatorTemplate.getCell(i+1);
-      return cell.hasStyle ? JSON.parse(JSON.stringify(cell.style)) : null;
+      return cell.hasStyle ? cloneExcelStyle(cell.style) : null;
     })
   } : null;
   if (workbook1) sheet.getColumn(2).hidden = true; // Thời gian nộp báo cáo
@@ -243,14 +261,14 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         separator.height=separatorStyle.height;
         separatorStyle.cells.forEach((style,index)=>{
           const cell = separator.getCell(index+1);
-          if (style) cell.style=JSON.parse(JSON.stringify(style));
+          if (style) cell.style=cloneExcelStyle(style);
           // Source Workbook1 paints the entire date row pink. Applying only
           // per-cell styles lets previously styled data cells keep white fills
           // on later separators (e.g. the second MÀI day).
           if (separatorStyle.fill) {
             cell.style = {
-              ...JSON.parse(JSON.stringify(cell.style || {})),
-              fill: JSON.parse(JSON.stringify(separatorStyle.fill))
+              ...cloneExcelStyle(cell.style || {}),
+              fill: cloneExcelStyle(separatorStyle.fill)
             };
           }
         });
@@ -271,15 +289,15 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       row.height=baseStyle.height;
       for(let col=1;col<=sheet.columnCount;col++){
         const seed=baseStyle.getCell(col), cell=row.getCell(col);
-        if(seed.hasStyle) cell.style=JSON.parse(JSON.stringify(seed.style));
+        if(seed.hasStyle) cell.style=cloneExcelStyle(seed.style);
       }
     }
     if(originalBodyStyle){
       row.height=originalBodyStyle.height;
       for(let col=1;col<=lastMappedCol;col++){
         const snapshot=originalBodyStyle.cells[col-1];
-        if(snapshot?.style)row.getCell(col).style=JSON.parse(JSON.stringify(snapshot.style));
-        if(snapshot?.fill)row.getCell(col).fill=JSON.parse(JSON.stringify(snapshot.fill));
+        if(snapshot?.style)row.getCell(col).style=cloneExcelStyle(snapshot.style);
+        if(snapshot?.fill)row.getCell(col).fill=cloneExcelStyle(snapshot.fill);
       }
     }
     const snapshot=helpers.reportSnapshot(report,helpers.settingsForReport(report,settings,processData?.settingsByDate||{}));
@@ -338,9 +356,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         // cell.fill alone mutates a shared ExcelJS style and recolors adjacent
         // date/data rows on serialization.
         const independentStyle = original?.style
-          ? JSON.parse(JSON.stringify(original.style)) : {};
+          ? cloneExcelStyle(original.style) : {};
         independentStyle.fill = original?.fill
-          ? JSON.parse(JSON.stringify(original.fill))
+          ? cloneExcelStyle(original.fill)
           : { type:'pattern', pattern:'none' };
         cell.style = independentStyle;
       }
@@ -353,9 +371,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       for (let col = 1; col <= sheet.columnCount; col++) {
         const cell = row.getCell(col);
         const independentStyle = separatorStyle?.cells[col-1]
-          ? JSON.parse(JSON.stringify(separatorStyle.cells[col-1])) : {};
+          ? cloneExcelStyle(separatorStyle.cells[col-1]) : {};
         independentStyle.fill = separatorStyle?.fill
-          ? JSON.parse(JSON.stringify(separatorStyle.fill))
+          ? cloneExcelStyle(separatorStyle.fill)
           : { type:'pattern', pattern:'none' };
         cell.style = independentStyle;
       }
@@ -430,7 +448,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         const cell = row.getCell(col);
         if (cell.type === ExcelJS.ValueType.Merge) continue;
         cell.font = {
-          ...(cell.font ? JSON.parse(JSON.stringify(cell.font)) : {}),
+          ...(cell.font ? cloneExcelStyle(cell.font) : {}),
           name: "Times New Roman",
           size: 12
         };
