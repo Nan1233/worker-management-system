@@ -205,7 +205,7 @@ test('MAI: unmapped approved deduction is counted in total instead of silently d
   const result = fixed.getWorksheet('Mài');
   assert.ok(Math.abs(result.getCell('L3').value - 2.65) < 1e-9);
   assert.ok(Math.abs(calculated(result.getCell('AL3')) - 1123 / 9.3333) < 1e-7);
-  assert.ok(Math.abs(calculated(result.getCell('AJ3')) - (1123 / (125*9.3333)) < 1e-7);
+  assert.ok(Math.abs(calculated(result.getCell('AJ3')) - 1123 / (125*9.3333)) < 1e-7);
 });
 
 test('MAI: keeps mismatching approved deduction totals visible with reconciliation note', async () => {
