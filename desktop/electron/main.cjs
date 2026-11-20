@@ -276,7 +276,6 @@ app.on('activate', () => {
 app.on('before-quit', () => {
   quitting = true;
   stopTokenDiscovery();
-  startExcelDbSyncWatcher();
   currentToken = '';
   stopAutomaticSync();
 });
