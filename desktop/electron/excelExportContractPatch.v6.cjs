@@ -384,6 +384,11 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
     || norm(sheet.getCell('C1').value) !== norm('Mã số')) {
     throw new Error('MAI deduction column contract changed; refusing an unsafe rewrite.');
   }
+  const noteText = (cell) => {
+    if (typeof cell.note === 'string') return cell.note;
+    if (Array.isArray(cell.note?.texts)) return cell.note.texts.map(item => item.text || '').join('');
+    return '';
+  };
   let changed = 0;
   workbook.calcProperties.fullCalcOnLoad = true;
   for (let r = 3; r <= sheet.rowCount; r += 1) {
@@ -414,7 +419,7 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
       const note = 'CẦN ĐỐI SOÁT: Tổng giờ trừ (' + recorded.toFixed(4)
         + ') khác tổng các cột chi tiết (' + displayedHours.toFixed(4)
         + '). Kiểm tra loại trừ giờ trong báo cáo đã duyệt; không tự điều chỉnh.';
-      if (String(totalCell.note || '') !== note) {
+      if (noteText(totalCell) !== note) {
         totalCell.note = note;
         changed += 1;
       }
@@ -448,34 +453,9 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
       const note = 'CẦN ĐỐI SOÁT GIỜ: Tổng thời gian (' + totalHours.toFixed(4)
         + ') không lớn hơn thời gian trừ (' + deductionHours.toFixed(4)
         + '). Có sản lượng nhưng thiếu thời gian thực tế hợp lệ; không thể tính SL/H và % thực tích.';
-      if (String(actualCell.note || '') !== note) {
+      if (noteText(actualCell) !== note) {
         actualCell.note = note;
         changed += 1;
-      }
-    }
-    if (actualHours !== null && actualHours > 0 && output !== null && output >= 0) {
-      const perHourCell = row.getCell(38); // AL, SL/H
-      const hourlyValue = output / actualHours;
-      // A legacy calculation can serialize blank metrics as numeric 0.
-      // Do not mistake a zero cached rate for a valid measurement when
-      // positive output and positive machine time establish the true rate.
-      const existingPerHour = numberAt(38);
-      // Reconcile nonzero stale values too. The previous fix only filled blanks
-      // or zeros, leaving incorrect SL/H and percent untouched.
-      if (existingPerHour === null || Math.abs(existingPerHour - hourlyValue) > 0.000001) {
-        perHourCell.value = hourlyValue;
-        perHourCell.numFmt = '#,##0.##';
-        changed += 1;
-      }
-      if (hourlyStandard !== null && hourlyStandard > 0) {
-        const achievementCell = row.getCell(36); // AJ, % Thực tích
-        const expectedAchievement = hourlyValue / hourlyStandard;
-        const existingAchievement = numberAt(36);
-        if (existingAchievement === null || Math.abs(existingAchievement - expectedAchievement) > 0.000001) {
-          achievementCell.value = expectedAchievement;
-          achievementCell.numFmt = '0.##%';
-          changed += 1;
-        }
       }
     }
     // Copy actual company template formulas where supplied, relocating only
@@ -491,7 +471,7 @@ async function reconcileMaiWorkbookDeductions(buffer, { templateFormulas = {} } 
       const cell = row.getCell(column);
       const value = cached === null || cached === undefined || !Number.isFinite(cached) ? '' : cached;
       const previous = cell.value;
-      if (!previous || typeof previous !== 'object' || previous.formula !== formula || previous.result !== value) {
+      if (!previous || typeof previous !== 'object' || previous.formula !== formula || (previous.result ?? '') !== value) {
         cell.value = { formula, result: value };
         changed += 1;
       }
