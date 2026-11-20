@@ -66,13 +66,20 @@ jobs:
           npm run smoke:excel
 
       - name: Build Setup and beta update metadata
-        run: npx electron-builder --win nsis --x64 --config.asar=true --config.extraMetadata.ktcBundledFrontend=true --publish never
+        run: npx electron-builder --win nsis --x64 --config.asar=true --config.extraMetadata.ktcBundledFrontend=true --config.publish.channel=beta --publish never
 
       - name: Check all assets needed by electron-updater
         shell: pwsh
         run: |
           foreach ($path in @('release/KTC-Production-Control-Setup.exe', 'release/KTC-Production-Control-Setup.exe.blockmap', 'release/beta.yml')) {
             if (-not (Test-Path $path)) { throw "Update asset missing: $path. Refusing to publish incomplete release." }
+          }
+          $manifest = Get-Content 'release/beta.yml' -Raw
+          if ($manifest -notmatch "(?m)^version:\s*${{ inputs.version }}\s*$") {
+            throw "Update manifest version does not match requested release version."
+          }
+          if ($manifest -notmatch 'KTC-Production-Control-Setup\.exe') {
+            throw 'Update manifest does not reference KTC Setup; refusing to publish.'
           }
 
       - name: Publish GitHub prerelease with beta.yml
