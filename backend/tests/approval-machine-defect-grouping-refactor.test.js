@@ -3,16 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
-
+const { attachMachineLineDefects } = require('../modules/production/domain/machineDefectLineage');
 const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-const begin = source.indexOf('function attachMachineLineDefects(');
-const end = source.indexOf('async function getTempMachineLines(', begin);
-assert.ok(begin !== -1 && end > begin, 'grouping helper must exist');
-const attachMachineLineDefects = vm.runInNewContext(
-  source.slice(begin, end) + '\nattachMachineLineDefects;',
-  {},
-);
 
 function originalMapping(lines, defects) {
   const byLine = new Map();
