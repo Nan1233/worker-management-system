@@ -1,5 +1,6 @@
 'use strict';
 const { resolveWorkerParticipationTimes } = require('./exportMachineTime.cjs');
+const { cloneExcelStyle } = require('./excelStyleClone.cjs');
 
 // Group worker rows by production date while preserving template styling and formulas.
 function createWorkerReportDateGrouping({
@@ -18,7 +19,7 @@ function findDateSeparatorRow(sheet, headerRow, dataStartRow) {
 function snapshotRow(sheet, rowNumber, columnCount) {
   const row = sheet.getRow(rowNumber);
   const styles = [];
-  for (let c = 1; c <= columnCount; c += 1) styles[c] = JSON.parse(JSON.stringify(row.getCell(c).style || {}));
+  for (let c = 1; c <= columnCount; c += 1) styles[c] = cloneExcelStyle(row.getCell(c).style || {});
   return { height: row.height, styles };
 }
 
@@ -27,7 +28,7 @@ function applySnapshot(row, snapshot, columnCount) {
   for (let c = 1; c <= columnCount; c += 1) {
     const cell = row.getCell(c);
     cell.value = null;
-    cell.style = JSON.parse(JSON.stringify(snapshot.styles[c] || {}));
+    cell.style = cloneExcelStyle(snapshot.styles[c] || {});
   }
 }
 
