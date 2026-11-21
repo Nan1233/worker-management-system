@@ -1,5 +1,6 @@
 'use strict';
 const approvalModel = require('../models/productionTempApprovalModel');
+const { createStandardResolver } = require('./standardResolutionService');
 const {
   ensureLegacyMachineLines, repairMachineLineReferences,
   linkMatchingApprovedMachineEvents, loadAlreadyApproved,
@@ -71,7 +72,7 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
 module.exports = {
   ...approvalModel,
   async approveSelected(targets, reviewerId, isAdmin = false) {
-    await approvalStage("ensureLegacyMachineLines", () => ensureLegacyMachineLines(targets));
+    await approvalStage("ensureLegacyMachineLines", () => ensureLegacyMachineLines(targets, createStandardResolver));
     await approvalStage("repairMachineLineReferences", () => repairMachineLineReferences(targets));
     await approvalStage("linkMatchingApprovedMachineEvents", () => linkMatchingApprovedMachineEvents(targets));
     return approvalStage("approveSelectedSerialized", () => approveSelectedSerialized(targets, reviewerId, isAdmin));
