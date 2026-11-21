@@ -80,7 +80,7 @@ export function useProcessSubmission({
                     let response;
                     try {
                         response = await createTempReport(payload);
-                    } catch (error: any) {
+                    } catch (error: unknown) {
                         if (axios.isAxiosError(error) && error.response?.status === 429) {
                             showToast("Bạn thao tác quá nhanh. Dữ liệu trên form vẫn được giữ, vui lòng thử lại sau ít phút.", "warning");
                             return;
