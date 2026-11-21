@@ -34,6 +34,7 @@ async function approveSelected(targets, reviewerId, isAdmin = false, options = {
     const postCommitActivities = [];
     const approvedIds = [];
     const dates = new Set();
+    let transactionCommitted = false;
 
     try {
       if (ownsTransaction) await beginTransaction(connection);
@@ -96,6 +97,7 @@ async function approveSelected(targets, reviewerId, isAdmin = false, options = {
       await AuditService.logActivities(postCommitActivities, connection);
       if (ownsTransaction) {
         await commit(connection);
+        transactionCommitted = true;
         await deliverApprovedPostCommitNotifications(postCommitNotifications);
       } else if (Array.isArray(options.postCommitCallbacks)) {
         options.postCommitCallbacks.push(() => deliverApprovedPostCommitNotifications(postCommitNotifications));
@@ -104,7 +106,7 @@ async function approveSelected(targets, reviewerId, isAdmin = false, options = {
       }
       return buildApprovalBatchResult(rows, approvedIds, dates);
     } catch (error) {
-      if (ownsTransaction) await rollbackReviewTransaction(connection, error);
+      if (ownsTransaction && !transactionCommitted) await rollbackReviewTransaction(connection, error);
       throw error;
     } finally {
       if (ownsTransaction) connection.release();
