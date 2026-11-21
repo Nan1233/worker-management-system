@@ -50,3 +50,55 @@ test('canonical deduction hours still works', () => {
   assert.equal(result.valid, true);
   assert.equal(result.errors.deduction_time, undefined);
 });
+
+
+test('zero-standard long-work codes are not an exemption outside GC', () => {
+  const result = validateProductionReport({
+    process_id: 2,
+    process_code: 'MAI',
+    work_date: '2026-10-14',
+    shift: 'A',
+    work_type: 'XUATNHAP',
+    operation_type: 'LONG',
+    operation_mode: 'MANUAL',
+    total_time: 8,
+    actual_time: 8,
+    deduction_time: 0,
+    standard_output: 0,
+    actual_output: 0,
+    tt_ok: 0,
+    tt_ng: 0,
+    defects: [],
+    deductions: [],
+    machine_lines: [],
+  }, { skipActualOutputFormula: true });
+
+  assert.equal(result.valid, false);
+  assert.equal(typeof result.errors.standard_output, 'string');
+  assert.equal(result.errors.actual_time, undefined);
+});
+
+test('zero-standard long-work codes remain allowed for GC', () => {
+  const result = validateProductionReport({
+    process_id: 1,
+    process_code: 'GC',
+    work_date: '2026-10-14',
+    shift: 'A',
+    work_type: 'XUATNHAP',
+    operation_type: 'LONG',
+    operation_mode: 'MANUAL',
+    total_time: 8,
+    actual_time: 8,
+    deduction_time: 0,
+    standard_output: 0,
+    actual_output: 0,
+    tt_ok: 0,
+    tt_ng: 0,
+    defects: [],
+    deductions: [],
+    machine_lines: [],
+  }, { skipActualOutputFormula: true });
+
+  assert.equal(result.valid, true, JSON.stringify(result.errors));
+  assert.equal(result.normalized.standard_output, 0);
+});
