@@ -16,6 +16,10 @@ function trimOriginalTemplateSheet(sheet, lastDataRow, lastDataColumn) {
   // Only remove merges whose master lies beyond the retained report area.
   // Preserve merges crossing its boundary; they belong to retained cells.
   const unmerged = new Set();
+  let hasCrossingRowMerge = false;
+  let hasCrossingColumnMerge = false;
+  const isRetainedMerge = (cell) => cell.isMerged && cell.master
+    && cell.master.row <= lastRow && cell.master.col <= lastColumn;
   const discardMerge = (cell) => {
     if (!cell.isMerged) return;
     const master = cell.master;
@@ -28,31 +32,42 @@ function trimOriginalTemplateSheet(sheet, lastDataRow, lastDataColumn) {
   for (let rowNumber = 1; rowNumber <= sourceRowCount; rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
     if (rowNumber > lastRow) {
-      row.eachCell({ includeEmpty: true }, discardMerge);
       row.eachCell({ includeEmpty: true }, (cell) => {
+        if (isRetainedMerge(cell)) hasCrossingRowMerge = true;
+        else discardMerge(cell);
+      });
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        if (isRetainedMerge(cell)) return;
         cell.value = null;
         cell.style = {};
       });
       continue;
     }
     for (let column = lastColumn + 1; column <= sourceColumnCount; column += 1) {
-      discardMerge(row.getCell(column));
+      const cell = row.getCell(column);
+      if (isRetainedMerge(cell)) hasCrossingColumnMerge = true;
+      else discardMerge(cell);
     }
   }
 
   // Once unused merges are removed, public splice operations can shift/remove
   // the trailing sample cells without touching the approved-report region.
-  if (sourceRowCount > lastRow) sheet.spliceRows(lastRow + 1, sourceRowCount - lastRow);
+  if (sourceRowCount > lastRow && !hasCrossingRowMerge) {
+    sheet.spliceRows(lastRow + 1, sourceRowCount - lastRow);
+  }
   if (sourceColumnCount > lastColumn) {
     for (let rowNumber = 1; rowNumber <= Math.min(lastRow, sheet.rowCount); rowNumber += 1) {
       const row = sheet.getRow(rowNumber);
       for (let column = lastColumn + 1; column <= sourceColumnCount; column += 1) {
         const cell = row.getCell(column);
+        if (isRetainedMerge(cell)) continue;
         cell.value = null;
         cell.style = {};
       }
     }
-    sheet.spliceColumns(lastColumn + 1, sourceColumnCount - lastColumn);
+    if (!hasCrossingColumnMerge) {
+      sheet.spliceColumns(lastColumn + 1, sourceColumnCount - lastColumn);
+    }
   }
 }
 
