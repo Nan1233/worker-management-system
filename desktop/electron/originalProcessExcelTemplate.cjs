@@ -6,6 +6,7 @@ const TEMPLATE_ROOT = process.resourcesPath && fs.existsSync(path.join(process.r
   ? path.join(process.resourcesPath, "templates")
   : path.resolve(__dirname, "../../backend/templates");
 const { FORMS, WORKBOOK1_FORMS } = require('./originalProcessTemplateRegistry.cjs');
+const { trimOriginalTemplateSheet } = require('./originalTemplateSheetTrimming.cjs');
 const norm = (value) => String(value == null ? "" : value)
   .normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D")
   .toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -383,30 +384,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     // Blank formatted sample rows are not data. Remove them entirely, not just
     // their values, otherwise Excel/WPS shows a long empty bordered table.
     const lastDataRow = Math.max(config.header, rowIndex - 1);
-    // ExcelJS.spliceRows(start, count) moves rows but does not reliably
-    // reduce worksheet.rowCount when the template has pre-styled empty rows.
-    // Those old row objects keep the exported dimension at row 115.
-    // Remove the trailing row models themselves so Excel/WPS does not draw
-    // a large empty bordered table after the final approved report.
-    if (sheet.rowCount > lastDataRow) {
-      sheet._rows.length = lastDataRow;
-    }
-    // Trim the source form's unused right-hand styled columns as well as its
-    // unused bottom rows. Preserve any genuinely appended NG columns.
+    // Remove the blank template sample area using supported worksheet APIs.
     const lastDataCol = Math.max(lastMappedCol,...extraDefects.map(d=>d.col));
-    for (const row of sheet._rows) {
-      if (row && row._cells && row._cells.length > lastDataCol) {
-        row._cells.length=lastDataCol;
-      }
-    }
-    if (sheet._columns && sheet._columns.length > lastDataCol) {
-      sheet._columns.length=lastDataCol;
-    }
-    // Remove only merged blocks fully outside the retained table; they
-    // otherwise expand the worksheet dimension back into blank columns.
-    if (sheet._merges) for (const [key,range] of Object.entries(sheet._merges)) {
-      if (range.left > lastDataCol) delete sheet._merges[key];
-    }
+    trimOriginalTemplateSheet(sheet, lastDataRow, lastDataCol);
     // Keep a complete four-sided grid through the last actual report. The
     // source form can omit edges on styled sample rows; writing only cell
     // values must never make adjacent report cells look borderless.
