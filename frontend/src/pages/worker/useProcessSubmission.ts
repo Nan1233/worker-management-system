@@ -43,7 +43,8 @@ export function useProcessSubmission({
     duplicateForceRequestIdRef, isRestoringDraftRef, draftSaveTimerRef, resetVersionRef,
 }: Params) {
     const finishSubmission = () => {
-        finishSubmission();
+        clearSubmittedProcessDraft({ process, isRestoringDraftRef, resetVersionRef, draftSaveTimerRef, clientRequestIdRef });
+        window.setTimeout(() => navigate("/worker", { replace: true }), 900);
     };
 
     const handleSubmit =
