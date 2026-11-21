@@ -33,9 +33,10 @@ function plannedOutputFor(report) {
 function groupedWorkHours(report) {
   const exportTimes = resolveWorkerParticipationTimes(report);
   if (exportTimes.hasMachine) return exportTimes.totalHours;
-  const minutes = hasValue(report.total_minutes)
+  const hasExplicitMinutes = (value) => value !== null && value !== undefined && value !== '';
+  const minutes = hasExplicitMinutes(report.total_minutes)
     ? toNumber(report.total_minutes)
-    : hasValue(report.work_minutes)
+    : hasExplicitMinutes(report.work_minutes)
       ? toNumber(report.work_minutes) + toNumber(report.deduction_time) * 60
       : toNumber(report.total_time ?? report.actual_time) * 60;
   return minutes / 60;
