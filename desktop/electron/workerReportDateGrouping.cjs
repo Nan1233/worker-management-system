@@ -1,10 +1,10 @@
 'use strict';
-const { resolveWorkerParticipationTimes } = require('./exportMachineTime.cjs');
+const { groupedWorkHours, plannedAchievementRate } = require('./workerReportPlannedOutput.cjs');
 const { cloneExcelStyle } = require('./excelStyleClone.cjs');
 
 // Group worker rows by production date while preserving template styling and formulas.
 function createWorkerReportDateGrouping({
-  findColumnMap, pickExact, applyReportRow, plannedOutputFor, writeValue, number, asDate,
+  findColumnMap, pickExact, applyReportRow, writeValue, number, asDate,
 }) {
 function findDateSeparatorRow(sheet, headerRow, dataStartRow) {
   for (let r = headerRow + 1; r < dataStartRow; r += 1) {
@@ -103,30 +103,12 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
-      const exportTimes = resolveWorkerParticipationTimes(report);
-      const totalMinutes = exportTimes.hasMachine
-        ? exportTimes.totalHours * 60
-        : (
-          report.total_minutes !== null
-            && report.total_minutes !== undefined
-            && report.total_minutes !== ''
-            ? number(report.total_minutes)
-            : (
-              report.work_minutes !== null
-                && report.work_minutes !== undefined
-                && report.work_minutes !== ''
-                ? number(report.work_minutes) + number(report.deduction_time) * 60
-                : number(report.total_time ?? report.actual_time) * 60
-            )
-        );
-      writeValue(row, contract.cols.workTime, totalMinutes / 60);
+      writeValue(row, contract.cols.workTime, groupedWorkHours(report));
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
-        const { planned } = plannedOutputFor(report);
-        const output = number(report.actual_output ?? report.tt_ok);
         cell.value = {
           formula: `IFERROR(${outputLetter}${rowNumber}/${standardLetter}${rowNumber},0)`,
-          result: planned ? output / planned : 0
+          result: plannedAchievementRate(report)
         };
         cell.numFmt = percentFormat;
       }
