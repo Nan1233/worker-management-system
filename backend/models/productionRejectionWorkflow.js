@@ -19,6 +19,7 @@ async function rejectSelected(targets, reviewerId, reason, isAdmin = false) {
 
     const connection = await getConnection();
     const postCommitNotifications = [];
+    let transactionCommitted = false;
     try {
       await beginTransaction(connection);
       const { sql: selectionSql, params: selectionParams } = buildRejectionScopeQuery(reportIds, reviewerId, isAdmin);
@@ -35,10 +36,11 @@ async function rejectSelected(targets, reviewerId, reason, isAdmin = false) {
         postCommitNotifications.push(buildRejectedReportNotification(row, cleanReason));
       }
       await commit(connection);
+      transactionCommitted = true;
       await deliverRejectedPostCommitNotifications(postCommitNotifications);
       return buildRejectionBatchResult(rows);
     } catch (error) {
-      await rollbackReviewTransaction(connection, error);
+      if (!transactionCommitted) await rollbackReviewTransaction(connection, error);
       throw error;
     } finally {
       connection.release();
