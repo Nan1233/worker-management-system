@@ -2,8 +2,7 @@ import {
     useCallback,
     useEffect,
     useMemo,
-    useRef,
-    useState
+    useRef
 } from "react";
 
 import {
@@ -29,9 +28,7 @@ import type {
 
 import {
     clampWorkerWorkDate,
-    createEmptyMachineLine,
     getWorkerAllowedWorkDates,
-    initialForm,
     processMap,
 } from "./processPageConfig";
 import { processExtraFields } from "./processExtraFields";
@@ -43,7 +40,6 @@ import ProcessBasicInfoSection from "./components/ProcessBasicInfoSection";
 import ProcessSubmitActions from "./components/ProcessSubmitActions";
 import {
     filterProductsForProcessScope,
-    getInitialOperationMode,
     getProcessCapabilities,
     usesMultiMachineLines as resolveUsesMultiMachineLines,
     usesSingleMachine as resolveUsesSingleMachine,
@@ -69,6 +65,7 @@ import { useProcessReset } from "./useProcessReset";
 import { useProcessInputActions } from "./useProcessInputActions";
 import { useProcessModeResets } from "./useProcessModeResets";
 import { useProcessEntryState } from "./useProcessEntryState";
+import { useProcessReportFormState } from "./useProcessReportFormState";
 import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
@@ -83,9 +80,6 @@ import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
 
 import type {
     FormState,
-    MachineLineState,
-    OperationMode,
-    OperationType,
 } from "./processPageConfig";
 function ProcessPage() {
 
@@ -125,10 +119,13 @@ function ProcessPage() {
 
 
 
-    const [form, setForm] = useState<FormState>(initialForm);
-    const { worker, loadingWorker } = useProcessWorkerProfile(process, setForm);
-
     const processCapabilities = useMemo(() => getProcessCapabilities(process), [process]);
+    const {
+        form, setForm, operationType, setOperationType, isCvkMode, setIsCvkMode,
+        cutExecutionMode, setCutExecutionMode, operationMode, setOperationMode,
+        machineCount, setMachineCount, machineLines, setMachineLines, extraData, setExtraData,
+    } = useProcessReportFormState(processCapabilities);
+    const { worker, loadingWorker } = useProcessWorkerProfile(process, setForm);
     const {
         processCode,
         isCutLongProcess,
@@ -169,12 +166,6 @@ const machineAutocompleteOptions =
 
         [machineOptions]
     );
-    const [operationType, setOperationType] = useState<OperationType>("CUT");
-    const [isCvkMode, setIsCvkMode] = useState(false);
-    const [cutExecutionMode, setCutExecutionMode] = useState<"AUTO" | "NON_AUTO">("AUTO");
-    const [operationMode, setOperationMode] = useState<OperationMode>(
-        () => getInitialOperationMode(processCapabilities)
-    );
 
     const scopedProductOptions = useMemo<ProductStandardOption[]>(
         () => filterProductsForProcessScope({
@@ -186,9 +177,6 @@ const machineAutocompleteOptions =
         [productOptions, processCode, processInfo.id, operationType]
     );
 
-    const [machineCount, setMachineCount] = useState(1);
-    const [machineLines, setMachineLines] = useState<MachineLineState[]>([createEmptyMachineLine()]);
-    const [extraData, setExtraData] = useState<Record<string, string>>({});
     const currentExtraFields = processExtraFields[process] || [];
     const usesMultiMachineLines = resolveUsesMultiMachineLines(processCapabilities, operationMode);
     const usesSingleMachine = resolveUsesSingleMachine(processCapabilities, operationMode);
