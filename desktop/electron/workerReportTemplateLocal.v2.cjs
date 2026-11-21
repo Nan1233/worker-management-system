@@ -2,6 +2,7 @@
 
 const ExcelJS = require('exceljs');
 const { resolveWorkerParticipationTimes } = require('./exportMachineTime.cjs');
+const { plannedOutputFor } = require('./workerReportPlannedOutput.cjs');
 
 const { TEMPLATE_NAME, PROCESS_CODES, PROCESS_FILE_PREFIXES,
   DETAIL_ALIASES, GC_FORM_DEFECT_COLUMN_BY_CODE, TEMPLATE_COLUMN_ALIASES,
@@ -235,25 +236,6 @@ function addDerivedColumns(sheet, headerRow, contract) {
       '% học việc', { width: 10 });
     if (training) contract.cols.training = training;
   }
-}
-
-// Planned output of the shift = định mức 1h x thời gian thực tế x % học việc.
-function plannedOutputFor(report) {
-  const has = (value) => value !== null && value !== undefined && String(value).trim() !== '';
-  let trainingPercent = 100;
-  if (has(report.training_percent_snapshot)) trainingPercent = number(report.training_percent_snapshot);
-  else if (has(report.training_percent)) trainingPercent = number(report.training_percent);
-  const exportTimes = resolveWorkerParticipationTimes(report);
-  const effectiveTime = exportTimes.hasMachine
-    ? exportTimes.actualHours
-    : (has(report.actual_time)
-      ? number(report.actual_time)
-      : (has(report.total_time) ? number(report.total_time) - number(report.deduction_time) : null));
-  const perHour = has(report.standard_output) ? number(report.standard_output) : null;
-  const planned = perHour === null || effectiveTime === null
-    ? null
-    : Math.round(perHour * effectiveTime * (trainingPercent / 100) * 100) / 100;
-  return { planned, trainingPercent };
 }
 
 function applyReportRow(row, report, contract, processData, index) {
