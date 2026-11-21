@@ -1,9 +1,9 @@
 'use strict';
 const db = require('../config/db');
-const { createStandardResolver } = require('../services/standardResolutionService');
 
 // Persistence adapter for legacy machine repair and idempotent approval recovery.
-async function ensureLegacyMachineLines(targets) {
+async function ensureLegacyMachineLines(targets, createResolver) {
+  if (typeof createResolver !== 'function') throw new TypeError('Legacy machine backfill requires a standard resolver');
   const normalized = (Array.isArray(targets) ? targets : [])
     .map((item) => typeof item === "object" ? item : { id: item })
     .map((item) => Number(item?.id))
@@ -82,7 +82,7 @@ async function ensureLegacyMachineLines(targets) {
     // The resolver also rejects a CUT/NEST operation that conflicts with machines.gc_work_type.
     let resolved;
     try {
-      const resolver = createStandardResolver();
+      const resolver = createResolver();
       resolved = await resolver.resolveStandard({
         processId: Number(report.process_id),
         productCode,
