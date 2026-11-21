@@ -7,8 +7,8 @@ const { query, getConnection, beginTransaction, commit } = require('../models/pr
 const { createStandardResolver } = require('./standardResolutionService');
 const { assertReviewBatchSize } = require('./managerReportPaginationService');
 const { validateApprovalSnapshot } = require('../models/productionApprovalSnapshotValidation');
-const { buildApprovedParentInsertQuery, copyApprovedReportDetails, createLegacyApprovedSnapshot } = require('../models/productionApprovalPersistence');
-const { copyMachineLinesToApproved } = require('../models/productionApprovalMachineCopy');
+const { buildApprovedParentInsertQuery, copyApprovedReportDetails, createLegacyApprovedSnapshot } = require('../repositories/productionApprovalWriteRepository');
+const { copyMachineLinesToApproved } = require('../repositories/productionApprovalMachineRepository');
 const { createApprovedReportVersion } = require('./approvedVersionSnapshotService');
 const {
   getApprovedWorkDate, buildApprovedPostCommitActivities, buildApprovedPostCommitNotification,
