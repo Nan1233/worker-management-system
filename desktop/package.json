@@ -36,7 +36,7 @@
     "test:deployment-profile": "node --test tests/deployment-profile.test.cjs"
   },
   "devDependencies": {
-    "electron": "37.10.3",
+    "electron": "45.2.3",
     "electron-builder": "26.15.3"
   },
   "build": {
