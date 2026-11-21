@@ -7,28 +7,11 @@ const TEMPLATE_ROOT = process.resourcesPath && fs.existsSync(path.join(process.r
   : path.resolve(__dirname, "../../backend/templates");
 const { FORMS, WORKBOOK1_FORMS } = require('./originalProcessTemplateRegistry.cjs');
 const { trimOriginalTemplateSheet } = require('./originalTemplateSheetTrimming.cjs');
+const { cloneExcelStyle } = require('./excelStyleClone.cjs');
 const { reportWorkDate, reportRowValues } = require('./originalProcessReportProjection.cjs');
 const norm = (value) => String(value == null ? "" : value)
   .normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D")
   .toLowerCase().replace(/[^a-z0-9]/g,"");
-// Clone ExcelJS style objects without JSON serialization, preserving dates and undefined fields.
-function cloneExcelStyle(value, seen = new WeakMap()) {
-  if (value === null || typeof value !== 'object') return value;
-  if (seen.has(value)) return seen.get(value);
-  if (value instanceof Date) return new Date(value.getTime());
-  if (Buffer.isBuffer(value)) return Buffer.from(value);
-  if (ArrayBuffer.isView(value)) return new value.constructor(value);
-  if (Array.isArray(value)) {
-    const copy = [];
-    seen.set(value, copy);
-    for (const item of value) copy.push(cloneExcelStyle(item, seen));
-    return copy;
-  }
-  const copy = {};
-  seen.set(value, copy);
-  for (const key of Object.keys(value)) copy[key] = cloneExcelStyle(value[key], seen);
-  return copy;
-}
 const templateCellText = (cell) => {
   const value = cell?.value;
   if (value && typeof value === "object") return String(value.result ?? value.text ?? "").trim();
