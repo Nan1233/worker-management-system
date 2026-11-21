@@ -42,6 +42,10 @@ export function useProcessSubmission({
     submitLockRef, clientRequestIdRef, pendingSplitPayloadsRef, duplicatePrimaryCompletedRef,
     duplicateForceRequestIdRef, isRestoringDraftRef, draftSaveTimerRef, resetVersionRef,
 }: Params) {
+    const finishSubmission = () => {
+        finishSubmission();
+    };
+
     const handleSubmit =
         async () => {
 
@@ -70,8 +74,7 @@ export function useProcessSubmission({
                 if (!navigator.onLine) {
                     queueRemainingMachineReports(payloads);
                     showToast("Đang mất mạng. Các báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
-                    clearSubmittedProcessDraft({ process, isRestoringDraftRef, resetVersionRef, draftSaveTimerRef, clientRequestIdRef });
-                    window.setTimeout(() => navigate("/worker", { replace: true }), 900);
+                    finishSubmission();
                     return;
                 }
 
@@ -103,8 +106,7 @@ export function useProcessSubmission({
                         if (isTransientNetworkFailure(error)) {
                             queueRemainingMachineReports(reportsUnsentAfterNetworkFailure(payloads, index));
                             showToast("Kết nối Internet bị gián đoạn. Các báo cáo còn lại đã được lưu trên thiết bị và sẽ tự gửi khi có mạng.", "warning");
-                            clearSubmittedProcessDraft({ process, isRestoringDraftRef, resetVersionRef, draftSaveTimerRef, clientRequestIdRef });
-                            window.setTimeout(() => navigate("/worker", { replace: true }), 900);
+                            finishSubmission();
                             return;
                         }
                         throw error;
@@ -125,8 +127,7 @@ export function useProcessSubmission({
 
                 pendingSplitPayloadsRef.current = [];
                 showToast("Lưu báo cáo thành công. Các báo cáo đã được gửi chờ duyệt.", "success");
-                clearSubmittedProcessDraft({ process, isRestoringDraftRef, resetVersionRef, draftSaveTimerRef, clientRequestIdRef });
-                window.setTimeout(() => navigate("/worker", { replace: true }), 900);
+                finishSubmission();
 
             }
             catch (error: unknown) {
