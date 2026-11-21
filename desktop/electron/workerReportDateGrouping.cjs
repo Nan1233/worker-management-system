@@ -61,19 +61,29 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
   // their styles before splicing prevents stale preformatted rows from being
   // serialized after the actual data rows.
   const sampleRowCount = sheet.rowCount;
+  let headerMergeCrossesSampleRows = false;
+  const unmerged = new Set();
   for (let index = dateRowNumber; index <= sampleRowCount; index += 1) {
     const row = sheet.getRow(index);
     row.eachCell({ includeEmpty: true }, (cell) => {
-      if (cell.isMerged && cell.master?.row >= dateRowNumber) {
-        sheet.unMergeCells(cell.master.address);
+      if (!cell.isMerged || !cell.master) return;
+      if (cell.master.row < dateRowNumber) {
+        headerMergeCrossesSampleRows = true;
+        return;
       }
+      if (unmerged.has(cell.master.address)) return;
+      unmerged.add(cell.master.address);
+      sheet.unMergeCells(cell.master.address);
     });
     row.eachCell({ includeEmpty: true }, (cell) => {
+      if (cell.isMerged && cell.master?.row < dateRowNumber) return;
       cell.value = null;
       cell.style = {};
     });
   }
-  if (sampleRowCount >= dateRowNumber) {
+  // Do not splice through a header merge: ExcelJS documents unreliable
+  // merge handling when rows are spliced across a merged range.
+  if (!headerMergeCrossesSampleRows && sampleRowCount >= dateRowNumber) {
     sheet.spliceRows(dateRowNumber, sampleRowCount - dateRowNumber + 1);
   }
 
