@@ -29,7 +29,6 @@ function cloneExcelStyle(value, seen = new WeakMap()) {
   for (const key of Object.keys(value)) copy[key] = cloneExcelStyle(value[key], seen);
   return copy;
 }
-const asNumeric = (value) => value == null || value === "" ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
 const templateCellText = (cell) => {
   const value = cell?.value;
   if (value && typeof value === "object") return String(value.result ?? value.text ?? "").trim();
