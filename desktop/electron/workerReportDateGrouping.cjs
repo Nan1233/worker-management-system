@@ -56,11 +56,25 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
   const conditional = (sheet.conditionalFormattings || [])
     .find((item) => percentColumn && String(item.ref || '').startsWith(columnLetter(percentColumn)));
 
-  // Remove every template sample row; rows are rebuilt from the DB below.
-  // ExcelJS spliceRows does not reliably drop thousands of rows, so truncate
-  // the internal row list directly (rows are 1-based; keep 1..dateRowNumber-1).
-  if (Array.isArray(sheet._rows)) sheet._rows.length = dateRowNumber - 1;
-  else sheet.spliceRows(dateRowNumber, sheet.rowCount - dateRowNumber + 1);
+  // Drop template-only sample rows using documented ExcelJS APIs. Clearing
+  // their styles before splicing prevents stale preformatted rows from being
+  // serialized after the actual data rows.
+  const sampleRowCount = sheet.rowCount;
+  for (let index = dateRowNumber; index <= sampleRowCount; index += 1) {
+    const row = sheet.getRow(index);
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      if (cell.isMerged && cell.master?.row >= dateRowNumber) {
+        sheet.unMergeCells(cell.master.address);
+      }
+    });
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.value = null;
+      cell.style = {};
+    });
+  }
+  if (sampleRowCount >= dateRowNumber) {
+    sheet.spliceRows(dateRowNumber, sampleRowCount - dateRowNumber + 1);
+  }
 
   const dayKey = (report) => {
     const day = asDate(report.work_date);
