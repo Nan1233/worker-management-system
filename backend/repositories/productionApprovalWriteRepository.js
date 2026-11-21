@@ -3,7 +3,7 @@ const { query } = require('../models/productionTempModelShared');
 const { qRows } = require('./productionApprovalReadRepository');
 const { buildApprovedDetailCopyQuery, buildApprovedDetailReadQuery } = require('../models/productionTempApprovalQueries');
 const { buildApprovedMachineLinesRead } = require('../models/productionApprovalMachineQueries');
-const { serializeExtraData: serializeExtraDataValue } = require('../services/productionApprovalService');
+const { serializeExtraData: serializeExtraDataValue } = require('../utils/reportExtraDataSerialization');
 const {
   buildLegacySnapshotDefects, buildLegacySnapshotDeductions, buildLegacyApprovedSnapshotPayload,
   buildLegacySnapshotDefectsRead, buildLegacySnapshotDeductionsRead, buildLegacySnapshotInsert,
