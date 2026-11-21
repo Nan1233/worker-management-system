@@ -3,6 +3,7 @@
 const ExcelJS = require('exceljs');
 const { resolveWorkerParticipationTimes } = require('./exportMachineTime.cjs');
 const { plannedOutputFor } = require('./workerReportPlannedOutput.cjs');
+const { calculateDetailTotals } = require('./workerReportDetailTotals.cjs');
 
 const { TEMPLATE_NAME, PROCESS_CODES, PROCESS_FILE_PREFIXES,
   DETAIL_ALIASES, GC_FORM_DEFECT_COLUMN_BY_CODE, TEMPLATE_COLUMN_ALIASES,
@@ -158,24 +159,11 @@ function clearDataRows(sheet, startRow, count, columnCount) {
 }
 
 function writeDetailBlock(row, report, processData, assigned, kind) {
-  const columnByType = new Map(assigned.map((item) => [item.type, item.column]));
-  const sums = new Map(assigned.map((item) => [item.column, 0]));
-  for (const item of detailItems(report, kind)) {
-    const value = detailValue(item, kind);
-    if (!value) continue;
-    let column = null;
-    const type = resolveType(item, processData, kind);
-    if (type) column = columnByType.get(type) || null;
-    if (!column) {
-      const keys = new Set(itemKeys(item, kind).flatMap(detailVariants).map(canonicalDetailKey));
-      const hit = assigned.find((entry) => typeCandidates(entry.type, kind).some((candidate) => keys.has(candidate)));
-      column = hit?.column || null;
-    }
-    if (column) sums.set(column, (sums.get(column) || 0) + value);
-  }
-  for (const [column, total] of sums.entries()) {
-    row.getCell(column).value = total ? Math.round(total * 10000) / 10000 : null;
-  }
+  const totals = calculateDetailTotals(report, processData, assigned, kind, {
+    detailItems, detailValue, resolveType, itemKeys, typeCandidates,
+    detailVariants, canonicalDetailKey,
+  });
+  for (const [column, total] of totals) row.getCell(column).value = total;
 }
 
 // Submission timestamp kept at Vietnam wall-clock time.
