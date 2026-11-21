@@ -29,4 +29,23 @@ function plannedOutputFor(report) {
   return { planned, trainingPercent };
 }
 
-module.exports = { plannedOutputFor };
+/** Convert raw time snapshots into total shift hours for grouped worker exports. */
+function groupedWorkHours(report) {
+  const exportTimes = resolveWorkerParticipationTimes(report);
+  if (exportTimes.hasMachine) return exportTimes.totalHours;
+  const minutes = hasValue(report.total_minutes)
+    ? toNumber(report.total_minutes)
+    : hasValue(report.work_minutes)
+      ? toNumber(report.work_minutes) + toNumber(report.deduction_time) * 60
+      : toNumber(report.total_time ?? report.actual_time) * 60;
+  return minutes / 60;
+}
+
+/** Numeric cached result for the Excel achievement-rate formula. */
+function plannedAchievementRate(report) {
+  const { planned } = plannedOutputFor(report);
+  const actualOutput = toNumber(report.actual_output ?? report.tt_ok);
+  return planned ? actualOutput / planned : 0;
+}
+
+module.exports = { plannedOutputFor, groupedWorkHours, plannedAchievementRate };
