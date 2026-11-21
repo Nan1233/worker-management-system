@@ -355,7 +355,7 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
 // per work date and restarts STT at 1 under each date.
 const { createWorkerReportDateGrouping } = require('./workerReportDateGrouping.cjs');
 const { findDateSeparatorRow, writeGroupedByDate } = createWorkerReportDateGrouping({
-  findColumnMap, pickExact, applyReportRow, plannedOutputFor, writeValue, number, asDate,
+  findColumnMap, pickExact, applyReportRow, writeValue, number, asDate,
 });
 
 function normalizeGcDefectHeaders(sheet, headerRow) {
