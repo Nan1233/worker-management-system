@@ -6,13 +6,18 @@ function clone(value) {
 }
 
 function clearSheetData(sheet) {
-  // ExcelJS has no `sheet.mergedCells`: the old `[...(sheet.mergedCells || [])]` was always empty, so no
-  // template merge was ever removed and the first writeDateRow() -> mergeCells() on a merged template row
-  // threw "Cannot merge already merged cells" as soon as the (previously hung) clear loop finished.
-  // The merge registry is `sheet._merges` ({masterAddress: Range}); it is the same data ExcelJS serialises.
-  for (const merge of Object.values(sheet._merges || {})) {
+  // Discover merge masters through public cell APIs instead of ExcelJS's
+  // private merge registry. Unmerge before clearing values or ExcelJS can
+  // leave a stale merge covering the date rows rebuilt below.
+  const mergedMasters = new Set();
+  sheet.eachRow({ includeEmpty: true }, (row) => {
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      if (cell.isMerged && cell.master) mergedMasters.add(cell.master.address);
+    });
+  });
+  for (const address of mergedMasters) {
     try {
-      sheet.unMergeCells(merge.range);
+      sheet.unMergeCells(address);
     } catch (_) {
       // Preserve best-effort cleanup for malformed template merges.
     }
