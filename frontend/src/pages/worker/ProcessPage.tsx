@@ -1,8 +1,7 @@
 import {
     useCallback,
     useEffect,
-    useMemo,
-    useRef
+    useMemo
 } from "react";
 
 import {
@@ -83,16 +82,6 @@ import type {
 function ProcessPage() {
 
     const { showToast } = useToast();
-    const submitLockRef = useRef(false);
-    const clientRequestIdRef = useRef<string | null>(null);
-    const pendingSplitPayloadsRef = useRef<ProductionReport[]>([]);
-    // A confirmed primary report must not be submitted again when a later split fails.
-    const duplicatePrimaryCompletedRef = useRef(false);
-    // Reuse the same idempotency key if the server accepted a forced duplicate but its response was lost.
-    const duplicateForceRequestIdRef = useRef<string | null>(null);
-    const isRestoringDraftRef = useRef(false);
-    const draftSaveTimerRef = useRef<number | null>(null);
-    const resetVersionRef = useRef(0);
     useProcessDraftSaveWarning(showToast);
 
 
@@ -127,6 +116,9 @@ function ProcessPage() {
         selectedNg, setSelectedNg, showDeduction, setShowDeduction,
         showNg, setShowNg, submitting, setSubmitting,
         submitValidationError, setSubmitValidationError,
+        submitLockRef, clientRequestIdRef, pendingSplitPayloadsRef,
+        duplicatePrimaryCompletedRef, duplicateForceRequestIdRef,
+        isRestoringDraftRef, draftSaveTimerRef, resetVersionRef,
     } = useProcessReportFormState(processCapabilities);
     const { worker, loadingWorker } = useProcessWorkerProfile(process, setForm);
     const {
