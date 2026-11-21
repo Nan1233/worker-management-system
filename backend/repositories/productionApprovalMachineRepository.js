@@ -3,7 +3,7 @@ const { query } = require('../models/productionTempModelShared');
 const { qRows } = require('./productionApprovalReadRepository');
 const { attachMachineLineDefects } = require('../modules/production/domain/machineDefectLineage');
 const { storedStandardSource } = require('../utils/standardSourceCode');
-const { serializeExtraData: serializeExtraDataValue } = require('../services/productionApprovalService');
+const { serializeExtraData: serializeExtraDataValue } = require('../utils/reportExtraDataSerialization');
 const { verifyApprovedMachineLineCopy } = require('../models/productionApprovedMachineLineVerification');
 const {
   buildTempMachineLineDefectsQuery, buildApprovedMachineDefectsInsert, buildApprovedMachineLinesRead,
