@@ -1,6 +1,7 @@
 const { toDateKey } = require("../utils/dateKey");
 const AuditService = require("./auditService");
-const { query, getConnection, beginTransaction, commit, rollback, normalizeIds } = require("../models/productionTempModelShared");
+const { getConnection, beginTransaction, commit, rollback, normalizeIds } = require("../models/productionTempModelShared");
+const { findRejectableReports, markReportRejected } = require("../repositories/productionTempRejectionRepository");
 
 async function rejectSelectedTempReports(ids, reviewerId, reason, isAdmin = false) {
     const reportIds = normalizeIds(ids);
@@ -12,31 +13,17 @@ async function rejectSelectedTempReports(ids, reviewerId, reason, isAdmin = fals
     const connection = await getConnection();
     const activities = [];
     const notifications = [];
+    let transactionCommitted = false;
     try {
         await beginTransaction(connection);
-        const placeholders = reportIds.map(() => "?").join(",");
-        const scopeJoin = isAdmin ? "" : "JOIN manager_processes mp ON mp.process_id=temp.process_id";
-        const scopeWhere = isAdmin ? "" : "AND mp.manager_id=?";
-        const params = isAdmin ? [...reportIds] : [...reportIds, Number(reviewerId)];
-        const rows = await query(connection, `
-            SELECT DISTINCT temp.id,temp.worker_id,temp.process_id,temp.work_date,temp.shift,temp.product_name,w.user_id AS worker_user_id
-            FROM production_reports_temp temp
-            JOIN workers w ON w.id=temp.worker_id
-            ${scopeJoin}
-            WHERE temp.id IN (${placeholders})
-              AND temp.status IN ('pending','need_fix')
-              ${scopeWhere}
-            ORDER BY temp.id ASC`, params);
+        const rows = await findRejectableReports(connection, reportIds, reviewerId, isAdmin);
 
         const eligibleIds = rows.map((row) => Number(row.id));
         const initiallySkipped = reportIds.filter((id) => !eligibleIds.includes(Number(id)));
         const rejectedRows = [];
 
         for (const row of rows) {
-            const update = await query(connection, `
-                UPDATE production_reports_temp
-                   SET status='rejected', review_note=?, reviewed_by=?, updated_at=NOW()
-                 WHERE id=? AND status IN ('pending','need_fix')`, [cleanReason, Number(reviewerId), Number(row.id)]);
+            const update = await markReportRejected(connection, row, reviewerId, cleanReason);
             if (Number(update?.affectedRows || 0) !== 1) continue;
             rejectedRows.push(row);
         }
@@ -56,10 +43,11 @@ async function rejectSelectedTempReports(ids, reviewerId, reason, isAdmin = fals
 
         if (activities.length) await AuditService.logActivities(activities, connection);
         await commit(connection);
+        transactionCommitted = true;
         try { if (notifications.length) await AuditService.notifyBatch(notifications); } catch (e) { console.warn(`[KTC] Reject notification batch failed: ${e.message}`); }
         return { count: rejectedIds.length, rejected_ids: rejectedIds, skipped_ids: skippedIds, requested_ids: reportIds, initially_skipped_ids: initiallySkipped, reason: cleanReason };
     } catch (error) {
-        await rollback(connection);
+        if (!transactionCommitted) await rollback(connection);
         throw error;
     } finally {
         connection.release();
