@@ -7,6 +7,7 @@ const TEMPLATE_ROOT = process.resourcesPath && fs.existsSync(path.join(process.r
   : path.resolve(__dirname, "../../backend/templates");
 const { FORMS, WORKBOOK1_FORMS } = require('./originalProcessTemplateRegistry.cjs');
 const { trimOriginalTemplateSheet } = require('./originalTemplateSheetTrimming.cjs');
+const { reportWorkDate, reportRowValues } = require('./originalProcessReportProjection.cjs');
 const norm = (value) => String(value == null ? "" : value)
   .normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D")
   .toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -187,30 +188,6 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   }
   // A copied source template has 50 blank styled rows. Additional rows
   // are made with the same styles without altering source headers/column widths.
-  // Use the same local date normalization as the established GC exporter.
-  // Backend work_date can be a Date, ISO timestamp, or SQL date string.
-  const dateOf=(report)=>{
-    // Diagnostic only: log date values before normalization, without exposing worker details.
-    if(String(report?.id)==="1170007"||String(report?.id)==="1050001"){
-      const raw=report?.work_date;
-      console.log("[KTC_EXCEL_DATE_DIAGNOSTIC]",JSON.stringify({
-        processCode:code,reportId:report?.id,yearMonth,
-        workDateValue:raw instanceof Date?raw.toISOString():raw??null,
-        workDateType:raw instanceof Date?"Date":typeof raw,
-        normalizedDate:helpers.dateKey(raw),
-        dateFields:Object.keys(report||{}).filter(key=>/date|ngay/i.test(key))
-      }));
-    }
-    // Export payloads may use snake_case or camelCase; only accept a date
-    // within the requested month, never substitute the sync/creation date.
-    const candidates=[report?.work_date,report?.workDate,report?.production_date,report?.productionDate,report?.report_date,report?.reportDate];
-    for(const raw of candidates){
-      const key=helpers.dateKey(raw);
-      if(/^\d{4}-\d{2}-\d{2}$/.test(key)&&key.slice(0,7)===yearMonth)return key;
-    }
-    const fields=Object.keys(report||{}).filter(key=>/date|ngay/i.test(key)).join(",");
-    throw new Error("Báo cáo "+code+" (id="+String(report?.id??"?")+") thiếu ngày sản xuất thuộc "+yearMonth+"; dateFields="+fields);
-  };
   // Capture an untouched template body style before inserting date separators.
   // Reuse the original cell formatting for every MAI data row, including rows
   // beyond the template's preformatted sample area.
@@ -253,7 +230,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   let dayStt=0;
   for (let index=0;index<reports.length;index++) {
     const report=reports[index];
-    const day=dateOf(report);
+    const day=reportWorkDate(report, code, yearMonth, helpers.dateKey);
     if(day!==currentDay){
       currentDay=day;dayStt=0;
       const separator=sheet.getRow(rowIndex++);
@@ -303,23 +280,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     }
     const snapshot=helpers.reportSnapshot(report,helpers.settingsForReport(report,settings,processData?.settingsByDate||{}));
     const extra=helpers.parseExtraData(report);
-    // ExcelJS stores Date values as UTC serial dates. Construct at UTC
-    // midnight, otherwise a +07 local midnight is displayed one day early.
-    const [dayYear,dayMonth,dayNumber]=day.split("-").map(Number);
-    const excelWorkDate=new Date(Date.UTC(dayYear,dayMonth-1,dayNumber));
-    const values={...snapshot,stt:++dayStt, date:excelWorkDate,
-      expectedOutput:(asNumeric(snapshot.standard)||0)*(asNumeric(snapshot.actualTime)||0)};
-    // Preserve the established GC work-type codes when the row represents
-    // non-product work; never replace them with an invented product code.
-    if (code === "GC") {
-      const nonProduct = extra.non_product_work === true || extra.non_product_work === 1
-        || String(extra.non_product_work || "").toLowerCase() === "true";
-      if (nonProduct) {
-        const raw = String(extra.work_type ?? extra.workType ?? report.work_type ?? "").trim().toUpperCase();
-        const types = { TAIPP:"TPP", TPP:"TPP", XUATNHAP:"XN", XN:"XN", KTCD:"KTCD" };
-        values.product = types[raw] || raw || null;
-      }
-    }
+    const values = reportRowValues({ snapshot, day, stt: ++dayStt, code, report, extra });
     for (const [col,key] of Object.entries(config.fields)) {
       const value=key.startsWith("extra:")?extra[key.slice(6)]:values[key];
       if(value!==undefined && value!==null) {
