@@ -64,7 +64,6 @@ import { useProcessSubmission } from "./useProcessSubmission";
 import { useProcessReset } from "./useProcessReset";
 import { useProcessInputActions } from "./useProcessInputActions";
 import { useProcessModeResets } from "./useProcessModeResets";
-import { useProcessEntryState } from "./useProcessEntryState";
 import { useProcessReportFormState } from "./useProcessReportFormState";
 import { createDuplicateFormSignature } from "./processDuplicateFormSignature";
 import { buildProductionReportPayloads } from "./processReportSubmission";
@@ -124,6 +123,10 @@ function ProcessPage() {
         form, setForm, operationType, setOperationType, isCvkMode, setIsCvkMode,
         cutExecutionMode, setCutExecutionMode, operationMode, setOperationMode,
         machineCount, setMachineCount, machineLines, setMachineLines, extraData, setExtraData,
+        deductions, setDeductions, selectedDeduction, setSelectedDeduction,
+        selectedNg, setSelectedNg, showDeduction, setShowDeduction,
+        showNg, setShowNg, submitting, setSubmitting,
+        submitValidationError, setSubmitValidationError,
     } = useProcessReportFormState(processCapabilities);
     const { worker, loadingWorker } = useProcessWorkerProfile(process, setForm);
     const {
@@ -238,13 +241,6 @@ const machineAutocompleteOptions =
     // KQD is an ordinary NG defect: actual output is always TT OK + every NG.
     const calculateActualOutput = (values: FormState): number =>
         calculateActualOutputValue(values, activeNgOptions);
-
-    const {
-        deductions, setDeductions, selectedDeduction, setSelectedDeduction,
-        selectedNg, setSelectedNg, showDeduction, setShowDeduction,
-        showNg, setShowNg, submitting, setSubmitting,
-        submitValidationError, setSubmitValidationError,
-    } = useProcessEntryState();
 
     const {
         duplicatePrompt,
