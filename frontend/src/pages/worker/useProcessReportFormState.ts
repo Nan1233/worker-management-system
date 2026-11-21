@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormState, MachineLineState, OperationMode, OperationType } from "./processPageConfig";
 import { createEmptyMachineLine, initialForm } from "./processPageConfig";
 import { getInitialOperationMode, getProcessCapabilities } from "./processPageDomain";
+import { useProcessEntryState } from "./useProcessEntryState";
 
 type ProcessCapabilities = ReturnType<typeof getProcessCapabilities>;
 
@@ -15,7 +16,9 @@ export function useProcessReportFormState(capabilities: ProcessCapabilities) {
     const [machineCount, setMachineCount] = useState(1);
     const [machineLines, setMachineLines] = useState<MachineLineState[]>([createEmptyMachineLine()]);
     const [extraData, setExtraData] = useState<Record<string, string>>({});
+    const entryState = useProcessEntryState();
     return {
+        ...entryState,
         form, setForm, operationType, setOperationType, isCvkMode, setIsCvkMode,
         cutExecutionMode, setCutExecutionMode, operationMode, setOperationMode,
         machineCount, setMachineCount, machineLines, setMachineLines, extraData, setExtraData,
