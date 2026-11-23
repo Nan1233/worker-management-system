@@ -67,8 +67,12 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
   });
   // A once-per-day backup may be older than the current workbook. Keep a
   // unique recovery copy for every overwrite, including later edits that day.
-  const recoveryPath = originalStat ? `${filePath}.${randomUUID()}.recovery.xlsx` : null;
+  const recoveryPath = originalStat ? path.join(
+    getDocumentsRoot(), 'KTC', 'Backup', 'Excel', 'Recovery',
+    `${path.basename(filePath, '.xlsx')}.${randomUUID()}.xlsx`
+  ) : null;
   if (recoveryPath) {
+    await fs.mkdir(path.dirname(recoveryPath), { recursive: true });
     await fs.copyFile(filePath, recoveryPath, fsSync.constants.COPYFILE_EXCL);
     const afterCopy = await fs.stat(filePath);
     if (afterCopy.mtimeMs !== originalStat.mtimeMs || afterCopy.size !== originalStat.size) {
