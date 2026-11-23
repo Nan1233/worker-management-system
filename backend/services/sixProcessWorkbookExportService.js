@@ -59,7 +59,7 @@ function stripExternalLinks(workbook) {
   workbook.eachSheet((sheet) => sheet.eachRow((row) => row.eachCell((cell) => {
     const value = cell.value;
     if (value && typeof value === 'object' && value.formula) {
-      if (/\[[^\]]+\]|#REF!|VLOOKUP\s*\(/i.test(value.formula)) cell.value = null;
+      if (/\[[^\]]+\]|#REF!/i.test(value.formula)) cell.value = null;
     }
   })));
 }
