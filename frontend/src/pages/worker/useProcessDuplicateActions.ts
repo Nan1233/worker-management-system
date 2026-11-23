@@ -6,7 +6,8 @@ import type { ProductionReport } from "../../types/production";
 import type { DuplicatePromptState } from "./processDuplicateReportLogic";
 import { createTempReport, updateTempReport } from "../../services/productionService";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
-import { clearProcessDraftAsync } from "./processDraftStorage";
+import { clearSubmittedProcessDraft } from "./processSubmitDraftCompletion";
+import { getApiError } from "../../utils/apiError";
 import { queueRemainingMachineReports, shouldQueuePendingMachineReports } from "./processMachineReportQueue";
 
 type Params = {
@@ -35,17 +36,10 @@ export function useProcessDuplicateActions({
     duplicateForceRequestIdRef, isRestoringDraftRef, draftSaveTimerRef, resetVersionRef,
 }: Params) {
     const finishDuplicateAction = useCallback(() => {
-        // A confirmed duplicate creation/update is a successful submission.
-        // Cancel any pending autosave and invalidate its snapshot before
-        // clearing, otherwise navigating back can restore an already-sent form.
-        // Invalidate autosave exactly once before deleting the sent draft.
-        resetVersionRef.current += 1;
-        if (draftSaveTimerRef.current !== null) {
-            window.clearTimeout(draftSaveTimerRef.current);
-            draftSaveTimerRef.current = null;
-        }
-        isRestoringDraftRef.current = true;
-        void clearProcessDraftAsync(process);
+        clearSubmittedProcessDraft({
+            process, isRestoringDraftRef, resetVersionRef,
+            draftSaveTimerRef, clientRequestIdRef,
+        });
         setDuplicatePrompt(null);
         pendingSplitPayloadsRef.current = [];
         duplicatePrimaryCompletedRef.current = false;
@@ -101,7 +95,7 @@ export function useProcessDuplicateActions({
                     showToast(queueError instanceof Error ? queueError.message : "Không thể lưu báo cáo còn lại trên thiết bị.", "error");
                 }
             }
-            showToast((error as any)?.response?.data?.message || (duplicatePrimaryCompletedRef.current ? "Báo cáo chính đã được xử lý. Một báo cáo còn lại chưa gửi được; hãy thử lại để tiếp tục phần chưa gửi." : "Không thể tạo báo cáo."), "error");
+            showToast(getApiError(error, duplicatePrimaryCompletedRef.current ? "Báo cáo chính đã được xử lý. Một báo cáo còn lại chưa gửi được; hãy thử lại để tiếp tục phần chưa gửi." : "Không thể tạo báo cáo.").message, "error");
             submitLockRef.current = false;
             setSubmitting(false);
         }
@@ -139,7 +133,7 @@ export function useProcessDuplicateActions({
                     showToast(queueError instanceof Error ? queueError.message : "Không thể lưu báo cáo còn lại trên thiết bị.", "error");
                 }
             }
-            showToast((error as any)?.response?.data?.message || (duplicatePrimaryCompletedRef.current ? "Báo cáo chính đã được cập nhật. Một báo cáo còn lại chưa gửi được; hãy thử lại để tiếp tục phần chưa gửi." : "Không thể cập nhật báo cáo."), "error");
+            showToast(getApiError(error, duplicatePrimaryCompletedRef.current ? "Báo cáo chính đã được cập nhật. Một báo cáo còn lại chưa gửi được; hãy thử lại để tiếp tục phần chưa gửi." : "Không thể cập nhật báo cáo.").message, "error");
             submitLockRef.current = false;
             setSubmitting(false);
         }
