@@ -6,7 +6,7 @@ const { buildApprovalSelection, assertApprovalSelectionVisible, assertApprovalSe
 const { query, getConnection, beginTransaction, commit } = require('../models/productionTempModelShared');
 const { createStandardResolver } = require('./standardResolutionService');
 const { assertReviewBatchSize } = require('./managerReportPaginationService');
-const { validateApprovalSnapshot } = require('../models/productionApprovalSnapshotValidation');
+const { validateApprovalSnapshot } = require('./productionApprovalSnapshotValidationService');
 const { buildApprovedParentInsertQuery, copyApprovedReportDetails, createLegacyApprovedSnapshot } = require('../repositories/productionApprovalWriteRepository');
 const { copyMachineLinesToApproved } = require('../repositories/productionApprovalMachineRepository');
 const { createApprovedReportVersion } = require('./approvedVersionSnapshotService');
