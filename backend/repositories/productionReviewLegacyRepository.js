@@ -1,18 +1,6 @@
 'use strict';
 const db = require('../config/db');
 const { query } = require('../models/productionTempModelShared');
-const { buildApprovalScopeQuery } = require('../models/productionTempApprovalQueries');
-const { assertApprovalSelectionVisible, assertApprovalSelectionVersions } = require('../models/productionTempApprovalSelection');
-
-// Preflight permission and version checks before non-transactional legacy
-// repair. The approval transaction repeats both checks before committing.
-async function assertLegacyRepairAuthorized(reportIds, expectedById, reviewerId, isAdmin) {
-  const { sql, params } = buildApprovalScopeQuery(reportIds, reviewerId, isAdmin);
-  const scopedSql = sql.replace(/\\s+FOR\\s+UPDATE\\s*$/i, '');
-  const [rows] = await db.promise().query(scopedSql, params);
-  assertApprovalSelectionVisible(rows || [], reportIds);
-  assertApprovalSelectionVersions(rows || [], expectedById);
-}
 
 // Match mysql2's [rows] contract while keeping every repair statement on
 // the caller's transaction connection. A missing connection is not allowed.
@@ -313,4 +301,4 @@ async function loadAlreadyApproved(reportIds, reviewerId, isAdmin = false) {
   return { count: ids.length, temp_ids: ids, approved_ids: approvedIds, dates };
 }
 
-module.exports = { assertLegacyRepairAuthorized, ensureLegacyMachineLines, repairMachineLineReferences, linkMatchingApprovedMachineEvents, loadAlreadyApproved };
+module.exports = { ensureLegacyMachineLines, repairMachineLineReferences, linkMatchingApprovedMachineEvents, loadAlreadyApproved };
