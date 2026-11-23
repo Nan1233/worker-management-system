@@ -171,7 +171,7 @@ async function applyCurrentDbMasterData(reports) {
 }
 
 async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = {}) {
-  if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(String(yearMonth))) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(yearMonth))) {
     throw Object.assign(new Error('Tháng xuất Excel không hợp lệ (YYYY-MM)'), {
       code: 'KTC_EXCEL_INVALID_MONTH', statusCode: 422
     });
