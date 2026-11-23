@@ -244,6 +244,14 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   // produces an apparently valid workbook with missing production data.
   const requiredColumns = ['workerCode', 'workDate', 'shift', 'product', 'actual'];
   const missingColumns = requiredColumns.filter((name) => !mapping.cols[name]);
+  // A template can contain a valid-looking header at a different physical
+  // position. Never write the essential identity/output fields into a blank
+  // or unrelated header cell based on a hard-coded fallback alone.
+  const headerLabel = (field) => mapping.map.get(mapping.cols[field]) || '';
+  if (processCode === 'GC' && mapping.cols.product === 6
+      && !/(?:ma|ten|san pham|sp)/.test(headerLabel('product'))) {
+    missingColumns.push('product (header mismatch)');
+  }
   // A fuzzy header lookup may accidentally resolve two distinct fields to
   // the same worksheet column. Reject such templates instead of overwriting
   // one production value with another.
