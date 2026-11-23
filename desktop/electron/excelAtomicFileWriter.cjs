@@ -74,6 +74,12 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
   if (recoveryPath) {
     await fs.mkdir(path.dirname(recoveryPath), { recursive: true });
     await fs.copyFile(filePath, recoveryPath, fsSync.constants.COPYFILE_EXCL);
+    const copiedStat = await fs.stat(recoveryPath);
+    if (copiedStat.size !== originalStat.size) {
+      const conflict = new Error('Recovery copy differs from the source workbook');
+      conflict.code = 'KTC_EXCEL_CONCURRENT_MODIFICATION';
+      throw conflict;
+    }
     const afterCopy = await fs.stat(filePath);
     if (afterCopy.mtimeMs !== originalStat.mtimeMs || afterCopy.size !== originalStat.size) {
       const conflict = new Error('Workbook changed during recovery snapshot');
@@ -137,13 +143,13 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
   // Do not close/reopen a user's Excel workbook automatically. COM can see
   // only one Excel instance, and another Excel/WPS instance may have unsaved
   // edits. Keep the pending workbook for explicit user-controlled recovery.
-  const reloadResult = { reason: 'manual-replacement-required' };
+  const reloadReason = 'manual-replacement-required';
   await writeLog('WARN', 'FILE_LOCKED_PENDING_CREATED', {
     filePath,
     pendingPath,
     code: lastError?.code,
     errorMessage: lastError?.message,
-    reason: reloadResult.reason,
+    reason: reloadReason,
     excelWorkbookStillOpen: true,
     hint: 'Workbook replacement was deferred. Save and close Excel/WPS in all instances, inspect the pending copy, then explicitly retry the export.'
   });
