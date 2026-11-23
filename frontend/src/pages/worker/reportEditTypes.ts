@@ -48,3 +48,15 @@ export function parseReportEditDeductions(value: unknown): ReportEditDeduction[]
     return decoded.filter((row): row is ReportEditDeduction =>
         row !== null && typeof row === "object" && !Array.isArray(row));
 }
+
+/** Isolate historical API response envelopes from the editable report model. */
+export function unwrapReportEditResponse(payload: unknown): ReportEditRecord | null {
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return null;
+    const envelope = payload as Record<string, unknown>;
+    const candidate = envelope.report ?? envelope.data ?? payload;
+    if (candidate === null || typeof candidate !== "object" || Array.isArray(candidate)) return null;
+    const record = candidate as Record<string, unknown>;
+    const id = Number(record.id);
+    if (!Number.isSafeInteger(id) || id <= 0) return null;
+    return candidate as ReportEditRecord;
+}
