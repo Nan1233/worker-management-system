@@ -16,6 +16,8 @@ type Params = {
     showToast: ToastContextValue["showToast"];
     submitting: boolean;
     form: FormState;
+    deductions: DeductionState;
+    extraData: Record<string, string>;
     selectedNg: NgKey[];
     selectedDeduction: DeductionKey[];
     machineLines: MachineLineState[];
@@ -46,7 +48,7 @@ type Params = {
 
 /** Confirm reset, cancel stale autosaves, retain worker identity and reset machine cards. */
 export function useProcessReset({
-    process, showToast, submitting, form, selectedNg, selectedDeduction, machineLines,
+    process, showToast, submitting, form, deductions, extraData, selectedNg, selectedDeduction, machineLines,
     submitLockRef, clientRequestIdRef, pendingSplitPayloadsRef,
     duplicatePrimaryCompletedRef, duplicateForceRequestIdRef, isRestoringDraftRef,
     draftSaveTimerRef, resetVersionRef, setForm, setSubmitValidationError, setDuplicatePrompt,
@@ -60,7 +62,7 @@ export function useProcessReset({
             return;
         }
         if (submitLockRef.current || submitting) return;
-        const hasEnteredData = hasProcessReportInput(form, selectedNg, selectedDeduction, machineLines);
+        const hasEnteredData = hasProcessReportInput(form, selectedNg, selectedDeduction, machineLines, deductions, extraData);
 
         if (hasEnteredData && !window.confirm("Làm mới sẽ xóa dữ liệu bạn đang nhập. Bạn có chắc muốn tiếp tục?")) {
             return;
