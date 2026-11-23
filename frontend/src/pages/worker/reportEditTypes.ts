@@ -60,7 +60,15 @@ export function parseReportEditDeductions(value: unknown): ReportEditDeduction[]
             || Number(item.deduction_type_id) < 0)) return false;
         return true;
     });
-    return valid ? decoded as ReportEditDeduction[] : [];
+    if (!valid) return [];
+    return decoded.map((entry) => {
+        const item = entry as ReportEditDeduction;
+        return {
+            ...item,
+            ...(item.hours != null ? { hours: Number(item.hours) } : {}),
+            ...(item.deduction_type_id != null ? { deduction_type_id: Number(item.deduction_type_id) } : {}),
+        };
+    });
 }
 
 /** Preserve legacy fallback priority: a real deductions array wins over
