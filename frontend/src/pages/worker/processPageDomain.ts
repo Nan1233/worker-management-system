@@ -1,6 +1,7 @@
 import type { ProductStandardOption } from "../../services/masterDataService";
 import type { OperationMode, OperationType } from "./processPageConfig";
 import { normalizeWorkType } from "./productSuggestionRules";
+import { PROCESS_FORM_SCHEMAS } from "./processFormSchemas";
 
 export type ProcessCapabilities = {
   processCode: string;
@@ -13,19 +14,10 @@ const codeOf = (value: unknown) => String(value || "").trim().toUpperCase();
 export const normalizeMasterText = (value: unknown) => codeOf(value);
 
 export function getProcessCapabilities(process: string): ProcessCapabilities {
-  const map: Record<string, string> = {
-    "cat-long": "GC",
-    "mai": "MAI",
-    "do": "DO",
-    "kiem-1": "K1",
-    "kiem-2": "K2",
-    "can": "CAN",
-    "ep": "EP",
-    "bavia": "XLBV",
-    "sx3": "SX3",
-    "cvk": "CVK",
-  };
-  const processCode = map[process] || codeOf(process);
+  // Process form schemas are the single source of truth for slug-to-code
+  // mapping. CVK remains a special non-product route outside those schemas.
+  const processCode = PROCESS_FORM_SCHEMAS[process]?.processCode
+    || (process === "cvk" ? "CVK" : codeOf(process));
 
   return {
     processCode,
