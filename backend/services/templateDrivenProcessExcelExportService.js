@@ -297,7 +297,9 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   const temporaryPath = path.join(folder, `.${fileName}.${process.pid}.${require('node:crypto').randomUUID()}.tmp`);
   try {
     await workbook.xlsx.writeFile(temporaryPath);
-    await fs.rename(temporaryPath, outputPath);
+    // Backend exports must not silently overwrite an existing workbook that
+    // could have been edited after a previous download/export.
+    await fs.copyFile(temporaryPath, outputPath, require('node:fs').constants.COPYFILE_EXCL);
   } finally {
     await fs.rm(temporaryPath, { force: true }).catch(() => {});
   }
