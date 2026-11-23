@@ -23,10 +23,11 @@ const num = (value) => { const n = Number(value); return Number.isFinite(n) ? n 
 const date = (value) => { if (!value) return null; const d = value instanceof Date ? value : new Date(value); return Number.isNaN(d.getTime()) ? null : d; };
 const key = (value) => normalizeLabel(value).replace(/^(?:gc|mai|do|xlbv|ep|can)\s*\d+\s*/, '').trim();
 const detailName = (item, kind) => item?.[kind + '_name'] || item?.name || item?.[kind + '_code'] || '';
-function fillDetails(row, header, report, startColumn, endColumn) {
+function fillDetails(row, header, report, startColumn, endColumn, reservedColumns = new Set()) {
   const defects = Array.isArray(report.defects) ? report.defects : [];
   const deductions = Array.isArray(report.deductions) ? report.deductions : [];
   for (let col = startColumn; col <= endColumn; col += 1) {
+    if (reservedColumns.has(col)) continue;
     const title = header.getCell(col).value;
     const label = key(typeof title === 'string' ? title : title?.text || '');
     if (!label || label.length < 2) continue;
@@ -49,6 +50,11 @@ function stripExternalLinks(workbook) {
   })));
 }
 async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
+  if (!/^\\d{4}-(?:0[1-9]|1[0-2])$/.test(String(yearMonth))) {
+    throw Object.assign(new Error('Tháng xuất Excel không hợp lệ (YYYY-MM)'), {
+      code: 'KTC_EXCEL_INVALID_MONTH', statusCode: 422
+    });
+  }
   const processCode = String(options.processCode || reports?.[0]?.process_code || '').toUpperCase();
   const sheetName = SHEETS[processCode];
   if (!sheetName) throw new Error('Unsupported Workbook1 process: ' + processCode);
@@ -72,7 +78,12 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
     for (let c = 1; c < styles.length; c += 1) if (styles[c]) row.getCell(c).style = JSON.parse(JSON.stringify(styles[c].style || {}));
     const day = String(report.work_date || '').slice(0,10);
     seq = day === previousDate ? seq + 1 : 1; previousDate = day;
-    const put = (field, value) => { if (columns[field]) row.getCell(columns[field]).value = value ?? null; };
+    const put = (field, value) => {
+      if (!columns[field]) return;
+      const cell = row.getCell(columns[field]);
+      cell.value = value ?? null;
+      if (typeof value === 'string') cell.numFmt = '@';
+    };
     const gross = num(report.total_time), net = num(report.actual_time ?? report.total_time);
     const output = num(report.actual_output), ok = num(report.tt_ok ?? output), ng = num(report.tt_ng);
     const standard = num(report.standard_output), target = standard * net;
@@ -85,7 +96,7 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
     put('rate', target > 0 ? output / target : 0); put('date', date(report.work_date));
     put('perHour', net > 0 ? output / net : 0);
     put('ok', ok); put('ng', ng); put('ngRate', output > 0 ? ng / output : 0);
-    fillDetails(row, header, report, 1, sheet.columnCount);
+    fillDetails(row, header, report, 1, sheet.columnCount, new Set(Object.values(columns)));
     row.commit();
   }
   stripExternalLinks(workbook);
