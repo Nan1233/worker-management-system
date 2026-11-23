@@ -28,7 +28,6 @@ type Params = {
     loadingMasterData: boolean;
     submitting: boolean;
     isRestoringDraftRef: MutableRefObject<boolean>;
-    draftSaveTimerRef: MutableRefObject<number | null>;
     resetVersionRef: MutableRefObject<number>;
 };
 
