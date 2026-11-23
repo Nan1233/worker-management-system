@@ -72,6 +72,9 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
   // Remove old sample data and formulas, including broken cached lookups.
   if (sheet.rowCount >= first) sheet.spliceRows(first, sheet.rowCount - first + 1);
   const ordered = [...reports].sort((a,b) => String(a.work_date || '').localeCompare(String(b.work_date || '')) || String(a.worker_code || '').localeCompare(String(b.worker_code || '')));
+  // The six-process workbook is a dynamic row template. An exported row must
+  // never carry sample formulas or stale values from the source workbook.
+  const detailColumns = new Set(Object.values(columns));
   let previousDate = '', seq = 0;
   for (let i = 0; i < ordered.length; i += 1) {
     const report = ordered[i], row = sheet.getRow(first + i);
@@ -96,8 +99,10 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
     put('rate', target > 0 ? output / target : 0); put('date', date(report.work_date));
     put('perHour', net > 0 ? output / net : 0);
     put('ok', ok); put('ng', ng); put('ngRate', output > 0 ? ng / output : 0);
-    fillDetails(row, header, report, 1, sheet.columnCount, new Set(Object.values(columns)));
-    row.commit();
+    fillDetails(row, header, report, 1, sheet.columnCount, detailColumns);
+    // Standard ExcelJS worksheets are non-streaming; committing rows is not
+    // required and may discard later template/formula adjustments.
+
   }
   stripExternalLinks(workbook);
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
