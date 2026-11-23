@@ -102,11 +102,11 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
   stripExternalLinks(workbook);
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const [year, month] = String(yearMonth).split('-');
-  const folder = path.join(options.exportRoot || path.join(process.cwd(), 'exports-process'), year, path.basename(String(options.processName || processCode).replace(/\\\\/g, '/')).replace(/[<>:"|?*\\x00-\\x1f]/g, '_'), month);
+  const folder = path.join(options.exportRoot || path.join(process.cwd(), 'exports-process'), year, path.basename(String(options.processName || processCode).split(String.fromCharCode(92)).join('/')).replace(/[<>:"|?*\\x00-\\x1f]/g, '_'), month);
   await fs.mkdir(folder, { recursive: true });
   const fileName = options.fileName || `Bao-cao-${processCode}-${month}-${year}.xlsx`;
   if (typeof fileName !== 'string' || fileName !== path.basename(fileName)
-      || fileName.includes('/') || fileName.includes('\\\\')
+      || fileName.includes('/') || fileName.includes(String.fromCharCode(92))
       || /[<>:"|?*\\x00-\\x1f]/.test(fileName) || !fileName.toLowerCase().endsWith('.xlsx')) {
     throw Object.assign(new Error('Tên file xuất Excel không hợp lệ'), {
       code: 'KTC_EXCEL_INVALID_FILENAME', statusCode: 422
