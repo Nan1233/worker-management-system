@@ -133,6 +133,18 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
     if (error?.code === 'ENOENT') return null;
     throw error;
   });
+  // A once-per-day backup may be older than the current workbook. Keep a
+  // unique recovery copy for every overwrite, including later edits that day.
+  const recoveryPath = originalStat ? `${filePath}.${randomUUID()}.recovery.xlsx` : null;
+  if (recoveryPath) {
+    await fs.copyFile(filePath, recoveryPath, fsSync.constants.COPYFILE_EXCL);
+    const afterCopy = await fs.stat(filePath);
+    if (afterCopy.mtimeMs !== originalStat.mtimeMs || afterCopy.size !== originalStat.size) {
+      const conflict = new Error('Workbook changed during recovery snapshot');
+      conflict.code = 'KTC_EXCEL_CONCURRENT_MODIFICATION';
+      throw conflict;
+    }
+  }
   try {
     await fs.writeFile(temporaryPath, buffer, { flag: 'wx' });
   } catch (error) {
@@ -161,7 +173,7 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
       // Pending chỉ là bản chờ khi file đang khóa. Khi lần đồng bộ mới đã ghi
       // thành công từ dữ liệu DB mới nhất, xóa pending cũ để tránh áp dụng dữ liệu cũ.
       await fs.rm(`${filePath}.pending.xlsx`, { force: true }).catch(() => {});
-      return { saved: true, pendingPath: null, backupPath };
+      return { saved: true, pendingPath: null, backupPath, recoveryPath };
     } catch (error) {
       lastError = error;
       if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt === RETRY_COUNT) break;
@@ -189,7 +201,7 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
   const reloadResult = await reloadOpenExcelWorkbook(filePath, pendingPath);
   if (reloadResult.reloaded) {
     await writeLog('INFO', 'OPEN_EXCEL_RELOADED', { filePath, backupPath });
-    return { saved: true, pendingPath: null, backupPath, reloadedOpenWorkbook: true };
+    return { saved: true, pendingPath: null, backupPath, recoveryPath, reloadedOpenWorkbook: true };
   }
 
   await writeLog('WARN', 'FILE_LOCKED_PENDING_CREATED', {
@@ -207,6 +219,7 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
     saved: false,
     pendingPath,
     backupPath,
+    recoveryPath,
     waitingForExcelSave: reloadResult.reason === 'unsaved-changes'
   };
 }
