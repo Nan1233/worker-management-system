@@ -20,7 +20,21 @@ const COLUMNS = Object.freeze({
 const FIRST_ROW = { GC: 5, MAI: 3, DO: 3, XLBV: 3, EP: 3, CAN: 3 };
 const HEADER_ROW = { GC: 3, MAI: 1, DO: 1, XLBV: 1, EP: 1, CAN: 1 };
 const num = (value) => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
-const date = (value) => { if (!value) return null; const d = value instanceof Date ? value : new Date(value); return Number.isNaN(d.getTime()) ? null : d; };
+const date = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const text = String(value);
+  const day = /^(\\d{4})-(\\d{2})-(\\d{2})(?:$|[T\\s])/.exec(text);
+  if (day) {
+    const [, year, month, dayOfMonth] = day.map(Number);
+    const parsed = new Date(year, month - 1, dayOfMonth);
+    if (parsed.getFullYear() === year && parsed.getMonth() === month - 1
+        && parsed.getDate() === dayOfMonth) return parsed;
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 const key = (value) => normalizeLabel(value).replace(/^(?:gc|mai|do|xlbv|ep|can)\s*\d+\s*/, '').trim();
 const detailName = (item, kind) => item?.[kind + '_name'] || item?.name || item?.[kind + '_code'] || '';
 function fillDetails(row, header, report, startColumn, endColumn, reservedColumns = new Set()) {
