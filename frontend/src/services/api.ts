@@ -243,7 +243,7 @@ async function performNetworkRefresh(): Promise<CoordinatedRefreshSuccess> {
 
     const currentUser = getStoredUser();
     const refreshedUser = response.data.user;
-    if (currentUser && refreshedUser && currentUser.id !== refreshedUser.id) {
+    if (currentUser && refreshedUser && String(currentUser.id) !== String(refreshedUser.id)) {
         clearCurrentTabAuthSession();
         throw new axios.CanceledError("Phiên làm mới thuộc tài khoản khác. Tab hiện tại đã được đăng xuất.");
     }
