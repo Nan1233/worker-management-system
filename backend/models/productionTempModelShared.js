@@ -30,21 +30,26 @@ const executeRaw = (executor, sql, params = []) =>
         });
     });
 
-const isTempReportApprovalSelect = (sql) => {
+// Only review-list selection has optimistic row-version guards on its writes.
+// Never strip FOR UPDATE from unrelated queries (e.g. worker-hours locks).
+const isOptimisticReviewSelection = (sql) => {
     const text = String(sql || "");
-    return /FROM\s+production_reports_temp\s+temp/i.test(text)
-        && /\bFOR\s+UPDATE\b/i.test(text);
+    return /\\bSELECT\\s+DISTINCT\\s+temp\\./i.test(text)
+        && /\\bFROM\\s+production_reports_temp\\s+temp\\b/i.test(text)
+        && /\\bJOIN\\s+workers\\s+w\\b/i.test(text)
+        && /\\btemp\\.status\\s+IN\\s*\\(\\s*'pending'\\s*,\\s*'need_fix'\\s*\\)/i.test(text)
+        && /\\bFOR\\s+UPDATE\\b/i.test(text);
 };
 
-const removeApprovalRowLock = (sql) =>
-    String(sql || "").replace(/\s+FOR\s+UPDATE\b/gi, "");
+const removeOptimisticReviewRowLock = (sql) =>
+    String(sql || "").replace(/\\s+FOR\\s+UPDATE\\b/gi, "");
 
 const queryWithLockRetry = async (executor, sql, params = []) => {
     // Approval selection is optimistic (status + updated_at are checked
     // before writes). Do not hold a pessimistic temp-row lock across standard
     // resolution, snapshot creation and audit writes on TiDB Cloud Serverless.
-    const effectiveSql = isTempReportApprovalSelect(sql)
-        ? removeApprovalRowLock(sql)
+    const effectiveSql = isOptimisticReviewSelection(sql)
+        ? removeOptimisticReviewRowLock(sql)
         : sql;
 
     // TiDB 1205 may happen while another approval transaction is committing.
