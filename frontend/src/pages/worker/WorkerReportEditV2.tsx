@@ -373,7 +373,7 @@ function WorkerReportEditV2() {
       setError("Không thể lưu vì thiếu thông tin phiên bản cập nhật của báo cáo đã duyệt. Vui lòng tải lại dữ liệu.");
       return;
     }
-    let payload: any;
+    let payload: ProductionReport | ReturnType<typeof buildApprovedMachineNotePatch>;
     if (approvedMachineNoteOnly) {
       payload = buildApprovedMachineNotePatch({ note: form.note, reason: changeReason, updatedAt: report.updated_at });
     } else {
@@ -399,7 +399,7 @@ function WorkerReportEditV2() {
       machineLines: normalizedLines, machineOptions: editMachineOptions, productOptions: editProductOptions, activeNgOptions: editNgOptions, deductions, activeDeductionOptions: editDeductionOptions,
     });
     }
-    if (!approvedMachineNoteOnly) {
+    if (!approvedMachineNoteOnly && "deduction_time" in payload) {
       // Never silently erase historical deductions when the edit screen cannot
       // reconstruct their detail rows (e.g. a failed master-data request).
       const originalDeductionMinutes = Math.round(n(report.deduction_time) * 60);
@@ -440,11 +440,12 @@ function WorkerReportEditV2() {
     try {
       setSaving(true);
       if (managerRoute) {
-        const result = await updateReport(Number(report.id), payload as ProductionReport, source, originalUpdatedAtRef.current);
+        const result = await updateReport(Number(report.id), payload, source, originalUpdatedAtRef.current);
         originalUpdatedAtRef.current = result?.data?.updated_at || originalUpdatedAtRef.current;
         const roleBasePath = storedRole === "lead" ? "/lead" : storedRole === "admin" ? "/admin" : storedRole === "admin_ops" ? "/admin-ops" : "/manager";
         navigate(source === "pending" ? `${roleBasePath}/report/${report.id}?source=pending` : `${roleBasePath}/report/${report.id}?source=approved`, { replace: true });
       } else {
+        if (!("process_id" in payload)) throw new Error("Thiếu dữ liệu báo cáo để cập nhật.");
         await updateTempReport(Number(report.id), payload);
         navigate(`/worker/history/${report.id}`, { replace: true });
       }
