@@ -73,6 +73,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
     let failed = 0;
     const changedMonths = new Set();
     const blockedMonths = new Set();
+    let unreadableWorkbook = false;
     for (const filePath of files) {
       let stat;
       try { stat = await fs.stat(filePath); } catch { continue; }
@@ -84,6 +85,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         parsed = await readExcelChanges(filePath);
       } catch (error) {
         // File đang mở/đang save có thể tạm thời không đọc được; vòng sau sẽ thử lại.
+        unreadableWorkbook = true;
         await writeLog('WARN', 'EXCEL_DB_SYNC_READ_SKIPPED', { filePath, source, ...normalizeError(error) });
         continue;
       }
@@ -154,6 +156,9 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       else if (/^\d{4}-(?:0[1-9]|1[0-2])$/.test(parsedMonth)) blockedMonths.add(parsedMonth);
     }
     for (const month of blockedMonths) changedMonths.delete(month);
+    // An unreadable workbook might contain unsynced changes for any month.
+    // Do not regenerate any workbook until it can be inspected safely.
+    if (unreadableWorkbook) changedMonths.clear();
     if (detected > 0) {
       await writeLog('INFO', 'EXCEL_DB_SYNC_FINISH', { source, detected, succeeded, failed, changedMonths: [...changedMonths] });
       if (source === 'watcher') sendRenderer('ktc-excel-db-sync-result', { detected, succeeded, failed });
