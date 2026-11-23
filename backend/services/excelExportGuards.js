@@ -5,17 +5,23 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
 });
 
 function monthRange(yearMonth) {
-  const [year, month] = String(yearMonth).split('-').map(Number);
-  const start = `${yearMonth}-01`;
+  const value = String(yearMonth ?? '');
+  if (!/^(?:19|20|21)\\d{2}-(?:0[1-9]|1[0-2])$/.test(value)) {
+    const error = new Error('Tháng xuất Excel không hợp lệ (YYYY-MM)');
+    error.statusCode = 422; error.code = 'KTC_EXCEL_INVALID_MONTH';
+    throw error;
+  }
+  const [year, month] = value.split('-').map(Number);
+  const start = `${value}-01`;
   const nextDate = new Date(year, month, 1);
   const next = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-01`;
   return { start, next };
 }
 
 async function assertReportVolume({ yearMonth, processIds = [] }) {
-  const ids = [...new Set(processIds.map(Number).filter(Number.isInteger))];
-  if (!ids.length) return { monthlyCount: 0, maxDailyCount: 0 };
+  const ids = [...new Set(processIds.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0))];
   const { start, next } = monthRange(yearMonth);
+  if (!ids.length) return { monthlyCount: 0, maxDailyCount: 0 };
   const placeholders = ids.map(() => '?').join(',');
   const maxMonthly = Math.max(Number(process.env.EXCEL_MAX_REPORTS_PER_MONTH || 5000), 100);
   const maxDaily = Math.max(Number(process.env.EXCEL_MAX_REPORTS_PER_DAY || 350), 20);
