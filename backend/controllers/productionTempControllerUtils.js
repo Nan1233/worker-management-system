@@ -59,8 +59,12 @@ const normalizeReviewTargets = (body = {}) => {
         const seen = new Map();
         const normalized = [];
         for (const item of targets) {
-            const id = toPositiveInteger(item?.id);
-            if (!id) continue;
+            const rawId = item?.id;
+            const id = (typeof rawId === "number" || (typeof rawId === "string" && /^\\d+$/.test(rawId)))
+                ? toPositiveInteger(rawId) : null;
+            if (!id || !Number.isSafeInteger(id)) {
+                throw publicError("ID báo cáo không hợp lệ. Hãy tải lại danh sách.", 400, "INVALID_REVIEW_TARGET");
+            }
             const expected_updated_at = item?.expected_updated_at ? String(item.expected_updated_at) : null;
             if (seen.has(id)) {
                 // Never silently discard a conflicting optimistic-lock token:
