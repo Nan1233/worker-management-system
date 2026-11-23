@@ -94,13 +94,20 @@ if (-not $workbook.Saved) {
 }
 $wasActive = $workbook.Application.ActiveWorkbook -eq $workbook
 $workbook.Close($false)
-Copy-Item -LiteralPath $replacement -Destination $target -Force
-Remove-Item -LiteralPath $replacement -Force -ErrorAction SilentlyContinue
-$opened = $excel.Workbooks.Open($target)
-$excel.CalculateFullRebuild()
-$opened.Save()
-if ($wasActive) { $opened.Activate() }
-Write-Output '{"handled":true,"reloaded":true,"reason":"reopened"}'
+try {
+  Copy-Item -LiteralPath $replacement -Destination $target -Force
+  $opened = $excel.Workbooks.Open($target)
+  if ($wasActive) { $opened.Activate() }
+  Remove-Item -LiteralPath $replacement -Force -ErrorAction SilentlyContinue
+  Write-Output '{"handled":true,"reloaded":true,"reason":"reopened"}'
+} catch {
+  # A failed replacement must not leave the user's workbook closed.
+  try {
+    $recovered = $excel.Workbooks.Open($target)
+    if ($wasActive) { $recovered.Activate() }
+  } catch {}
+  Write-Output '{"handled":true,"reloaded":false,"reason":"reopen-failed"}'
+}
 `;
 
   try {
