@@ -2,11 +2,20 @@ import axios from "axios";
 
 export type ApiFieldErrors = Record<string, string>;
 
-export const getApiError = (error: unknown, fallback = "Đã xảy ra lỗi") => {
+export type NormalizedApiError = {
+    message: string;
+    errors: ApiFieldErrors;
+    status: number | null;
+    code: string | null;
+};
+
+export const getApiError = (error: unknown, fallback = "Đã xảy ra lỗi"): NormalizedApiError => {
     if (!axios.isAxiosError(error)) {
         return {
             message: error instanceof Error ? error.message : fallback,
-            errors: {} as ApiFieldErrors,
+            errors: {},
+            status: null,
+            code: null,
         };
     }
 
@@ -15,7 +24,9 @@ export const getApiError = (error: unknown, fallback = "Đã xảy ra lỗi") =>
             message: error.code === "ECONNABORTED"
                 ? "Máy chủ phản hồi quá lâu. Báo cáo chưa được xác nhận lưu, vui lòng kiểm tra lại trước khi gửi lại."
                 : "Không thể kết nối máy chủ. Vui lòng kiểm tra mạng.",
-            errors: {} as ApiFieldErrors,
+            errors: {},
+            status: null,
+            code: null,
         };
     }
 
@@ -56,5 +67,6 @@ export const getApiError = (error: unknown, fallback = "Đã xảy ra lỗi") =>
         message = data?.message || nestedErrorMessage || "Máy chủ đang bận. Báo cáo chưa được xác nhận lưu, vui lòng thử lại sau.";
     }
 
-    return { message, errors: fieldErrors };
+    const code = data?.code || (typeof data?.error === "object" ? data.error?.code : undefined) || null;
+    return { message, errors: fieldErrors, status, code };
 };
