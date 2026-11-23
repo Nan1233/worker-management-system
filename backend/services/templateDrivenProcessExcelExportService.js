@@ -55,9 +55,10 @@ function metric(report, key) {
   if (key === 'achievement_rate') { const standard = Number(report?.standard_output ?? 0), actual = Number(report?.actual_output ?? 0), time = Number(report?.actual_time ?? report?.total_time ?? 0); return standard > 0 && time > 0 ? actual / (standard * time) : 0; }
   return Number(report?.[key] ?? 0);
 }
-function writeDefectsAndDeductions(row, report, columnMap) {
+function writeDefectsAndDeductions(row, report, columnMap, reservedColumns = new Set()) {
   const defects = Array.isArray(report?.defects) ? report.defects : [], deductions = Array.isArray(report?.deductions) ? report.deductions : [];
   for (const [column, label] of columnMap.entries()) {
+    if (reservedColumns.has(column)) continue;
     const normalized = alias(label);
     const defect = defects.find((item) => {
       const name = alias(item?.defect_name || item?.name || item?.defect_code);
@@ -85,7 +86,7 @@ function writeReportRow(sheet, rowNumber, report, processCode, mapping) {
       cell.value = value == null ? null : value;
     }
   };
-  set(c.workerCode, report.worker_code); set(c.workerName, report.full_name || report.worker_name); set(c.shift, report.shift); set(c.machine, report.machine_no); set(c.product, report.product_name || rawValue(report, 'product_code')); set(c.workDate, asDate(report.work_date)); set(c.training, report.training_percent); set(c.standard, metric(report, 'standard_output')); set(c.actual, metric(report, 'actual_output')); set(c.ok, metric(report, 'tt_ok')); set(c.ng, metric(report, 'tt_ng')); set(c.achievement, metric(report, 'achievement_rate')); set(c.totalTime, metric(report, 'total_time')); if (c.actualTime && c.actualTime !== c.totalTime) set(c.actualTime, metric(report, 'actual_time')); writeDefectsAndDeductions(row, report, mapping.map);
+  set(c.workerCode, report.worker_code); set(c.workerName, report.full_name || report.worker_name); set(c.shift, report.shift); set(c.machine, report.machine_no); set(c.product, report.product_name || rawValue(report, 'product_code')); set(c.workDate, asDate(report.work_date)); set(c.training, report.training_percent); set(c.standard, metric(report, 'standard_output')); set(c.actual, metric(report, 'actual_output')); set(c.ok, metric(report, 'tt_ok')); set(c.ng, metric(report, 'tt_ng')); set(c.achievement, metric(report, 'achievement_rate')); set(c.totalTime, metric(report, 'total_time')); if (c.actualTime && c.actualTime !== c.totalTime) set(c.actualTime, metric(report, 'actual_time')); writeDefectsAndDeductions(row, report, mapping.map, new Set(Object.values(c).filter(Boolean)));
 }
 function clearBrokenAndExternalFormulas(workbook) { let removed = 0; workbook.eachSheet((sheet) => sheet.eachRow((row) => row.eachCell((cell) => { if (typeof cell.value === 'string' && cell.value.startsWith('=') && (cell.value.includes('#REF!') || /\[[^\]]+\][^!]+!/.test(cell.value))) { cell.value = null; removed += 1; } }))); return removed; }
 function clearDetailConstants(sheet, startRow, endRow) { for (let r = startRow; r <= endRow; r += 1) { const row = sheet.getRow(r); for (let c = 1; c <= sheet.columnCount; c += 1) { const cell = row.getCell(c); if (typeof cell.value !== 'string' || !cell.value.startsWith('=')) cell.value = null; } } }
