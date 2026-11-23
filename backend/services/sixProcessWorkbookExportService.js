@@ -20,12 +20,12 @@ const COLUMNS = Object.freeze({
 const FIRST_ROW = { GC: 5, MAI: 3, DO: 3, XLBV: 3, EP: 3, CAN: 3 };
 const HEADER_ROW = { GC: 3, MAI: 1, DO: 1, XLBV: 1, EP: 1, CAN: 1 };
 const num = (value) => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
-const date = (value) => {
+const date = (value, calendarDateOnly = false) => {
   if (!value) return null;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
   const text = String(value);
   const day = /^(\\d{4})-(\\d{2})-(\\d{2})(?:$|[T\\s])/.exec(text);
-  if (day) {
+  if (day && (calendarDateOnly || /^\\d{4}-\\d{2}-\\d{2}$/.test(text))) {
     const [, year, month, dayOfMonth] = day.map(Number);
     const parsed = new Date(year, month - 1, dayOfMonth);
     if (parsed.getFullYear() === year && parsed.getMonth() === month - 1
@@ -110,7 +110,7 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
     put('shift', report.shift); put('gross', gross); put('net', net); put('deducted', Math.max(0, gross - net));
     put('product', report.product_code || report.product_name);
     put('standard', standard); put('output', output);
-    put('rate', target > 0 ? output / target : 0); put('date', date(report.work_date));
+    put('rate', target > 0 ? output / target : 0); put('date', date(report.work_date, true));
     put('perHour', net > 0 ? output / net : 0);
     put('ok', ok); put('ng', ng); put('ngRate', output > 0 ? ng / output : 0);
     fillDetails(row, header, report, 1, sheet.columnCount, detailColumns);
