@@ -7,6 +7,9 @@ import { getReportById, updateReport, updateTempReport } from "../../services/pr
 import { resolveProductStandard } from "../../services/masterDataService";
 import type { ProductionReport } from "../../types/production";
 import { getApiError } from "../../utils/apiError";
+import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
+import type { WorkerMasterOption } from "./processMasterDataNormalization";
+import type { ReportEditDefect, ReportEditDeduction, ReportEditMachineLine } from "./reportEditTypes";
 import axios from "axios";
 import { getStoredUser } from "../../utils/authStorage";
 import { getCanonicalProcessId } from "../../utils/processAccess";
@@ -80,8 +83,8 @@ function WorkerReportEditV2() {
   const { machineOptions, productOptions, activeNgOptions, activeDeductionOptions, loadingMasterData: masterLoading, masterDetailsReady } = useProcessMasterData(processId, capabilities.processCode);
   useEffect(() => setLoadingMasterData(masterLoading), [masterLoading]);
 
-  const sourceDefects = useMemo(() => getWorkerDeclaredDefects<any>(report), [report]);
-  const sourceDeductions = useMemo(() => {
+  const sourceDefects = useMemo(() => getWorkerDeclaredDefects<ReportEditDefect>(report), [report]);
+  const sourceDeductions = useMemo<ReportEditDeduction[]>(() => {
     const parent = Array.isArray(report?.deductions) ? report.deductions : Array.isArray(report?.deduction_items) ? report.deduction_items : [];
     if (parent.length) return parent;
     // Older machine reports may store the original deductions only on machine lines.
@@ -95,12 +98,12 @@ function WorkerReportEditV2() {
     }
     return parent;
   }, [report]);
-  const sourceLines = useMemo(() => Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [], [report]);
+  const sourceLines = useMemo<ReportEditMachineLine[]>(() => Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [], [report]);
 
   const editNgOptions = useMemo(() => {
-    const result = [...activeNgOptions] as any[];
-    const seen = new Set(result.map((x: any) => String(x.key || x.code || x.label).toUpperCase()));
-    sourceDefects.forEach((d: any, index: number) => {
+    const result: WorkerMasterOption[] = [...activeNgOptions];
+    const seen = new Set(result.map((x) => String(x.key || x.code || x.label).toUpperCase()));
+    sourceDefects.forEach((d, index: number) => {
       if (/^CUSTOM_NG_/i.test(s(d.defect_code))) return;
       const code = s(d.defect_code).trim();
       const label = s(d.defect_name || d.defect_label || code || `Lỗi ${index + 1}`).trim();
@@ -114,12 +117,12 @@ function WorkerReportEditV2() {
   }, [activeNgOptions, sourceDefects]);
 
   const editDeductionOptions = useMemo(() => {
-    const result = [...activeDeductionOptions] as any[];
+    const result: WorkerMasterOption[] = [...activeDeductionOptions];
     const normalizeLabel = (value: unknown) => s(value).trim().normalize("NFD")
       .replace(/[\\u0300-\\u036f]/g, "").replace(/đ/gi, "d")
       .toLowerCase().replace(/[^a-z0-9]/g, "");
-    const seenLabels = new Set(result.map((option: any) => normalizeLabel(option.label)));
-    sourceDeductions.forEach((d: any, index: number) => {
+    const seenLabels = new Set(result.map((option) => normalizeLabel(option.label)));
+    sourceDeductions.forEach((d, index: number) => {
       if (/^CUSTOM_DED_/i.test(s(d.deduction_code))) return;
       const code = s(d.deduction_code).trim();
       const label = s(d.deduction_name || d.deduction_label || code || `Trừ giờ ${index + 1}`).trim();
@@ -133,29 +136,29 @@ function WorkerReportEditV2() {
   }, [activeDeductionOptions, sourceDeductions]);
 
   const editMachineOptions = useMemo(() => {
-    const result = [...machineOptions] as any[];
-    const seen = new Set(result.map((m: any) => s(m.machine_code).trim().toUpperCase()));
+    const result: MachineOption[] = [...machineOptions];
+    const seen = new Set(result.map((m) => s(m.machine_code).trim().toUpperCase()));
     const add = (code: unknown, machineId?: unknown) => {
       const value = s(code).trim();
       if (!value || seen.has(value.toUpperCase())) return;
-      result.push({ id: Number(machineId) || -(result.length + 1), machine_code: value, machine_name: value });
+      result.push({ id: Number(machineId) || -(result.length + 1), process_id: processId, machine_code: value, machine_name: value });
       seen.add(value.toUpperCase());
     };
-    sourceLines.forEach((line: any) => add(line.machine_code, line.machine_id));
+    sourceLines.forEach((line) => add(line.machine_code, line.machine_id));
     s(report?.machine_no).split(",").forEach((value) => add(value));
     return result;
   }, [machineOptions, sourceLines, report]);
 
   const editProductOptions = useMemo(() => {
-    const result = [...productOptions] as any[];
-    const seen = new Set(result.map((p: any) => s(p.product_code).trim().toUpperCase()));
+    const result: ProductStandardOption[] = [...productOptions];
+    const seen = new Set(result.map((p) => s(p.product_code).trim().toUpperCase()));
     const add = (code: unknown) => {
       const value = s(code).trim();
       if (!value || seen.has(value.toUpperCase())) return;
-      result.push({ id: -(result.length + 1), product_code: value, product_name: value, standard_output: Number(report?.standard_output || 0) });
+      result.push({ id: -(result.length + 1), process_id: processId, work_type: "", product_code: value, standard_output: Number(report?.standard_output || 0) });
       seen.add(value.toUpperCase());
     };
-    sourceLines.forEach((line: any) => add(line.product_code));
+    sourceLines.forEach((line) => add(line.product_code));
     s(report?.product_name).split(",").forEach(add);
     return result;
   }, [productOptions, sourceLines, report]);
@@ -316,7 +319,7 @@ function WorkerReportEditV2() {
   const resizeMachineLines = (count: number) => setMachineLines((current) => Array.from({ length: Math.max(1, Math.min(maxMachineCount, count)) }, (_, i) => current[i] || createEmptyMachineLine()));
   const usesMultiMachineLines = resolveMultiMachine(capabilities, operationMode);
   const usesSingleMachine = resolveSingleMachine(capabilities, operationMode);
-  const machineAutocompleteOptions = editMachineOptions.map((m: any) => ({ value: s(m.machine_code), label: s(m.machine_code), workType: m.gc_work_type }));
+  const machineAutocompleteOptions = editMachineOptions.map((m) => ({ value: s(m.machine_code), label: s(m.machine_code), workType: m.gc_work_type }));
   const getMachineProductOptions = (machineCode: string) => filterProductsForSelection({ products: editProductOptions, mode: "MACHINE", machineCode, machineOptions: editMachineOptions, useEncodedMachineSuffix: capabilities.processCode === "GC" });
   const getMachineProductAutocompleteOptions = (machineCode: string) => toProductAutocompleteOptions(getMachineProductOptions(machineCode));
   const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {
@@ -340,7 +343,7 @@ function WorkerReportEditV2() {
 
   // KQD is ordinary NG: actual output = TT OK + every NG (no KQD exclusion flag).
   const recalcQuality = (next: FormState) => {
-    const totalNg = editNgOptions.reduce((sum: number, item: any) => sum + Math.max(0, Math.trunc(n(next[item.key]))), 0);
+    const totalNg = editNgOptions.reduce((sum: number, item) => sum + Math.max(0, Math.trunc(n(next[item.key]))), 0);
     return { ...next, ttNg: String(totalNg), actualOutput: String(Math.max(0, Math.trunc(n(next.ttOk))) + totalNg) };
   };
   const toggleNg = (key: NgKey, checked: boolean) => setSelectedNg((current) => checked ? Array.from(new Set([...current, key])) : current.filter((item) => item !== key));
@@ -392,8 +395,8 @@ function WorkerReportEditV2() {
         processCode: capabilities.processCode,
         machineLines: normalizedLines,
         maxMachines: maxMachineCount,
-        isMachineValid: (code) => editMachineOptions.some((item: any) => s(item.machine_code).trim().toUpperCase() === code.trim().toUpperCase()),
-        isProductValid: (machineCode, productCode) => getMachineProductOptions(machineCode).some((item: any) => s(item.product_code).trim().toUpperCase() === productCode.trim().toUpperCase()),
+        isMachineValid: (code) => editMachineOptions.some((item) => s(item.machine_code).trim().toUpperCase() === code.trim().toUpperCase()),
+        isProductValid: (machineCode, productCode) => getMachineProductOptions(machineCode).some((item) => s(item.product_code).trim().toUpperCase() === productCode.trim().toUpperCase()),
       });
       if (validationError) { setError(validationError); return; }
     }
