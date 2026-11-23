@@ -170,10 +170,10 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           }
           if (acknowledgedIds.size !== expectedIds.size) fileFailed = true;
           // Do not trust server counters over individual row acknowledgments.
-          const verifiedSuccess = (result.results || []).filter((item) =>
-            expectedIds.has(Number(item.id)) && item.success === true && item.updated_at
-          ).length;
+          const verifiedSuccess = verifiedVersions.size;
           if (verifiedSuccess !== batchSucceeded) fileFailed = true;
+          // A contradictory response is not safe to acknowledge as a
+          // synchronized snapshot; retain versions only for valid row IDs.
           for (const [id, version] of verifiedVersions) state.versions.set(id, version);
           succeeded += verifiedSuccess;
           failed += chunk.length - verifiedSuccess;
