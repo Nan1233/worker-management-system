@@ -97,6 +97,11 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         continue;
       }
       if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
+      if (!Array.isArray(parsed.changes)) {
+        unreadableWorkbook = true;
+        await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_WORKBOOK_CHANGES', { filePath, source });
+        continue;
+      }
       if (!parsed.changes.length) {
         const latest = await fs.stat(filePath).catch(() => null);
         if (latest && latest.mtimeMs === stat.mtimeMs && latest.size === stat.size) {
