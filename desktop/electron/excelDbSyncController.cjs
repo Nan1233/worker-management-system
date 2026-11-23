@@ -151,6 +151,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           }
           const expectedIds = new Set(chunk.map((change) => Number(change.id)));
           const acknowledgedIds = new Set();
+          const verifiedVersions = new Map();
           for (const item of result.results || []) {
             const reportId = Number(item.id);
             if (!expectedIds.has(reportId) || acknowledgedIds.has(reportId)) {
@@ -160,7 +161,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
             }
             acknowledgedIds.add(reportId);
             if (item.success && item.updated_at && Number.isSafeInteger(reportId) && reportId > 0) {
-              state.versions.set(reportId, item.updated_at);
+              verifiedVersions.set(reportId, item.updated_at);
             }
             if (!item.success) {
               fileFailed = true;
@@ -173,6 +174,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
             expectedIds.has(Number(item.id)) && item.success === true && item.updated_at
           ).length;
           if (verifiedSuccess !== batchSucceeded) fileFailed = true;
+          for (const [id, version] of verifiedVersions) state.versions.set(id, version);
           succeeded += verifiedSuccess;
           failed += chunk.length - verifiedSuccess;
         } catch (error) {
