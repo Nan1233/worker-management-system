@@ -42,7 +42,7 @@ const validateWorkerWorkDate = (workDate) => {
 
 const normalizeIds = (ids) => {
     const values = Array.isArray(ids) ? ids : [];
-    const validIds = values.map(Number).filter((id) => Number.isInteger(id) && id > 0);
+    const validIds = values.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0);
     return [...new Set(validIds)];
 };
 
@@ -60,7 +60,7 @@ const normalizeReviewTargets = (body = {}) => {
         const normalized = [];
         for (const item of targets) {
             const rawId = item?.id;
-            const id = (typeof rawId === "number" || (typeof rawId === "string" && /^\\d+$/.test(rawId)))
+            const id = (typeof rawId === "number" || (typeof rawId === "string" && /^[0-9]+$/.test(rawId)))
                 ? toPositiveInteger(rawId) : null;
             if (!id || !Number.isSafeInteger(id)) {
                 throw publicError("ID báo cáo không hợp lệ. Hãy tải lại danh sách.", 400, "INVALID_REVIEW_TARGET");
@@ -93,6 +93,17 @@ const normalizeReviewTargets = (body = {}) => {
             }
         }
         return normalized;
+    }
+    if (body?.targets !== undefined && !Array.isArray(body.targets)) {
+        throw publicError("Danh sách phiên bản báo cáo không hợp lệ.", 400, "INVALID_REVIEW_TARGET");
+    }
+    if (body?.ids !== undefined && !Array.isArray(body.ids)) {
+        throw publicError("Danh sách ID báo cáo không hợp lệ.", 400, "INVALID_REVIEW_TARGET");
+    }
+    if (Array.isArray(body?.ids) && body.ids.some((value) =>
+        !(typeof value === "number" || (typeof value === "string" && /^[0-9]+$/.test(value)))
+        || !toPositiveInteger(value) || !Number.isSafeInteger(Number(value)))) {
+        throw publicError("ID báo cáo không hợp lệ. Hãy tải lại danh sách.", 400, "INVALID_REVIEW_TARGET");
     }
     const ids = normalizeIds(body?.ids);
     // Legacy single-report review clients call POST /approve with { id }.
