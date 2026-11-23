@@ -3,6 +3,7 @@
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const execFileAsync = promisify(execFile);
@@ -116,10 +117,15 @@ Write-Output '{"handled":true,"reloaded":true,"reason":"reopened"}'
 }
 
 async function atomicOverwrite(filePath, buffer, syncDate) {
-  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const backupPath = await backupExistingExcel(filePath, syncDate);
-  await fs.writeFile(temporaryPath, buffer, { flag: 'wx' });
+  try {
+    await fs.writeFile(temporaryPath, buffer, { flag: 'wx' });
+  } catch (error) {
+    await fs.rm(temporaryPath, { force: true }).catch(() => {});
+    throw error;
+  }
 
   let lastError;
   for (let attempt = 1; attempt <= RETRY_COUNT; attempt += 1) {
