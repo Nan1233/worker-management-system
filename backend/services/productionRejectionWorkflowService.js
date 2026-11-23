@@ -2,8 +2,9 @@
 const AuditService = require('./auditService');
 const { readReviewCandidates } = require('../repositories/productionApprovalReadRepository');
 const { buildApprovalSelection, assertApprovalSelectionVisible, assertApprovalSelectionVersions } = require('../models/productionTempApprovalSelection');
-const { buildRejectedReportUpdate, buildRejectedReportActivity, buildRejectedReportNotification } = require('../models/productionTempRejectionBuilders');
-const { query, getConnection, beginTransaction, commit } = require('../models/productionTempModelShared');
+const { buildRejectedReportActivity, buildRejectedReportNotification } = require('../models/productionTempRejectionBuilders');
+const { transitionRejectedTemp } = require('../repositories/productionRejectionRepository');
+const { getConnection, beginTransaction, commit } = require('../models/productionTempModelShared');
 const { assertReviewBatchSize } = require('./managerReportPaginationService');
 const { assertRejectedTempTransition, buildRejectionBatchResult } = require('../models/productionApprovalReviewBuilders');
 const {
@@ -27,8 +28,7 @@ async function rejectSelected(targets, reviewerId, reason, isAdmin = false) {
       assertApprovalSelectionVersions(rows, expectedById);
       for (const row of rows) {
         const expected = expectedById.get(Number(row.id));
-        const { sql: updateSql, params: updateParams } = buildRejectedReportUpdate(row, expected, cleanReason, reviewerId);
-        const updateResult = await query(connection,updateSql,updateParams);
+        const updateResult = await transitionRejectedTemp(connection, row, expected, cleanReason, reviewerId);
         assertRejectedTempTransition(updateResult, row);
         await recordRejectedTempVersion(row, cleanReason, reviewerId, connection);
         await AuditService.logActivity(buildRejectedReportActivity(row, cleanReason, reviewerId), connection);
