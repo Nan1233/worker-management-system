@@ -47,7 +47,19 @@ async function rejectSelectedTempReports(ids, reviewerId, reason, isAdmin = fals
         try { if (notifications.length) await AuditService.notifyBatch(notifications); } catch (e) { console.warn(`[KTC] Reject notification batch failed: ${e.message}`); }
         return { count: rejectedIds.length, rejected_ids: rejectedIds, skipped_ids: skippedIds, requested_ids: reportIds, initially_skipped_ids: initiallySkipped, reason: cleanReason };
     } catch (error) {
-        if (!transactionCommitted) await rollback(connection);
+        if (!transactionCommitted) {
+            // Preserve the rejection failure even when TiDB cannot roll back.
+            try {
+                const result = await rollback(connection);
+                if (result?.ok === false) {
+                    if (error && typeof error === "object") error.rollbackError = result.error;
+                    console.error("[KTC][REJECTION_ROLLBACK_FAILED]", result.error?.message || result.error);
+                }
+            } catch (rollbackError) {
+                if (error && typeof error === "object") error.rollbackError = rollbackError;
+                console.error("[KTC][REJECTION_ROLLBACK_FAILED]", rollbackError?.message || rollbackError);
+            }
+        }
         throw error;
     } finally {
         connection.release();
