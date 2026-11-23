@@ -1,5 +1,6 @@
 'use strict';
 const db = require('../config/db');
+const { query } = require('../models/productionTempModelShared');
 const { buildApprovalScopeQuery } = require('../models/productionTempApprovalQueries');
 const { assertApprovalSelectionVisible, assertApprovalSelectionVersions } = require('../models/productionTempApprovalSelection');
 
@@ -13,8 +14,15 @@ async function assertLegacyRepairAuthorized(reportIds, expectedById, reviewerId,
   assertApprovalSelectionVersions(rows || [], expectedById);
 }
 
+// Match mysql2's [rows] contract while keeping every repair statement on
+// the caller's transaction connection. A missing connection is not allowed.
+async function transactionQuery(connection, sql, params = []) {
+  if (!connection) throw new Error('Legacy machine repair requires an active approval transaction');
+  return [await query(connection, sql, params)];
+}
+
 // Persistence adapter for legacy machine repair and idempotent approval recovery.
-async function ensureLegacyMachineLines(targets, createResolver) {
+async function ensureLegacyMachineLines(targets, createResolver, connection) {
   if (typeof createResolver !== 'function') throw new TypeError('Legacy machine backfill requires a standard resolver');
   const normalized = (Array.isArray(targets) ? targets : [])
     .map((item) => typeof item === "object" ? item : { id: item })
@@ -22,7 +30,7 @@ async function ensureLegacyMachineLines(targets, createResolver) {
     .filter((id) => Number.isInteger(id) && id > 0);
   if (!normalized.length) return;
   const placeholders = normalized.map(() => "?").join(",");
-  const [reports] = await db.promise().query(
+  const [reports] = await transactionQuery(connection, 
     `SELECT t.id,t.process_id,t.work_date,t.operation_type,t.operation_mode,t.machine_no,t.product_name,
             t.actual_time,t.standard_output,t.standard_version_id,t.machine_standard_id,
             t.actual_output,t.tt_ok,t.tt_ng,
@@ -70,7 +78,7 @@ async function ensureLegacyMachineLines(targets, createResolver) {
     // Reports that already have machine lines are filtered out by the NOT EXISTS above (one query for the whole batch).
     let machine = null;
     try {
-      const [machines] = await db.promise().query(`SELECT id,machine_code,gc_work_type FROM machines WHERE process_id=? AND status='active' AND UPPER(TRIM(machine_code))=UPPER(TRIM(?)) LIMIT 2`, [Number(report.process_id), machineCode]);
+      const [machines] = await transactionQuery(connection, `SELECT id,machine_code,gc_work_type FROM machines WHERE process_id=? AND status='active' AND UPPER(TRIM(machine_code))=UPPER(TRIM(?)) LIMIT 2`, [Number(report.process_id), machineCode]);
       if ((machines || []).length !== 1) {
         const error = new Error(`Mã máy ${machineCode} của báo cáo #${report.id} không khớp duy nhất với máy đang hoạt động trong công đoạn; cần kiểm tra danh mục máy.`);
         error.status = 409;
@@ -132,7 +140,7 @@ async function ensureLegacyMachineLines(targets, createResolver) {
     const maxOutput = standardOutput * actualTime;
     const earnedStandardHours = actualOutput / standardOutput;
     try {
-      await db.promise().query(
+      await transactionQuery(connection, 
         `INSERT INTO production_temp_machine_lines
          (temp_report_id,machine_event_id,machine_id,machine_code,product_standard_id,
           standard_version_id,machine_standard_id,product_code,machine_time_hours,
@@ -159,7 +167,7 @@ async function ensureLegacyMachineLines(targets, createResolver) {
 // Repair stale machine_id values on existing temporary machine lines before approval.
 // Older reports can contain a valid machine_code but an old/wrong machine_id; resolve the
 // canonical machine again from the process + machine code so approval can validate the snapshot.
-async function repairMachineLineReferences(targets) {
+async function repairMachineLineReferences(targets, connection) {
   const ids = [...new Set((Array.isArray(targets) ? targets : [])
     .map((item) => typeof item === "object" ? item?.id : item)
     .map(Number)
@@ -169,7 +177,7 @@ async function repairMachineLineReferences(targets) {
   // Resolve only unambiguous active machines in one joined UPDATE. The previous
   // implementation performed SELECT + UPDATE for every line, exhausting Worker
   // subrequests when a report contained multiple machine lines.
-  await db.promise().query(
+  await transactionQuery(connection, 
     `UPDATE production_temp_machine_lines ml
        JOIN production_reports_temp r ON r.id=ml.temp_report_id
        JOIN (
@@ -196,13 +204,13 @@ async function repairMachineLineReferences(targets) {
   );
 }
 
-async function linkMatchingApprovedMachineEvents(targets) {
+async function linkMatchingApprovedMachineEvents(targets, connection) {
   const ids = (Array.isArray(targets) ? targets : [])
     .map((item) => typeof item === "object" ? item?.id : item).map(Number)
     .filter((id) => Number.isInteger(id) && id > 0);
   if (!ids.length) return;
   const placeholders = ids.map(() => "?").join(",");
-  const [lines] = await db.promise().query(
+  const [lines] = await transactionQuery(connection, 
     `SELECT ml.id,ml.machine_event_id,ml.machine_id,ml.machine_code,ml.product_code,
             r.process_id,r.work_date,r.shift,r.machine_no,r.product_name,p.process_code
        FROM production_temp_machine_lines ml
@@ -227,7 +235,7 @@ async function linkMatchingApprovedMachineEvents(targets) {
 
   const processIds = [...new Set(pending.map((p) => Number(p.line.process_id)))];
   const workDates = [...new Set(pending.map((p) => p.workDate))];
-  const [candidateEvents] = await db.promise().query(
+  const [candidateEvents] = await transactionQuery(connection, 
     `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
        FROM machine_production_events
       WHERE status='approved'
@@ -266,7 +274,7 @@ async function linkMatchingApprovedMachineEvents(targets) {
   const machineCodeParams = params.splice(0);
   pairs((l) => l.productCode);
   const productCodeParams = params.splice(0);
-  await db.promise().query(
+  await transactionQuery(connection, 
     `UPDATE production_temp_machine_lines
         SET machine_id=COALESCE(${caseOf("NULL")},machine_id),
             machine_code=COALESCE(NULLIF(TRIM(machine_code),''),${caseOf("NULL")}),
