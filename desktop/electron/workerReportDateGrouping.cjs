@@ -43,19 +43,16 @@ function columnLetter(column) {
   return result;
 }
 
-function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap, headerRow) {
+function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, headerRow) {
   const columnCount = Math.max(sheet.columnCount, Number(contract.lastColumn || 0));
   const dateSnapshot = snapshotRow(sheet, dateRowNumber, columnCount);
   const dataSnapshot = snapshotRow(sheet, dataStartRow, columnCount);
-  // Read the header row as it stands now: addDerivedColumns may have inserted
-  // columns after columnMap was built, so cached indexes would be stale.
+  // Read the current header row because derived columns may have been inserted.
   const liveMap = findColumnMap(sheet, headerRow);
   const percentColumn = pickExact(liveMap, '%tt', '% tt');
   const outputLetter = contract.cols.output ? columnLetter(contract.cols.output) : null;
   const standardLetter = contract.cols.standard ? columnLetter(contract.cols.standard) : null;
   const percentFormat = sheet.getRow(dataStartRow + 1).getCell(percentColumn || 1).numFmt || '0%';
-  const conditional = (sheet.conditionalFormattings || [])
-    .find((item) => percentColumn && String(item.ref || '').startsWith(columnLetter(percentColumn)));
 
   // Drop template-only sample rows using documented ExcelJS APIs. Clearing
   // their styles before splicing prevents stale preformatted rows from being
