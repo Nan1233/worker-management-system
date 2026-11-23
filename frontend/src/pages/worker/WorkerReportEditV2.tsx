@@ -169,7 +169,7 @@ function WorkerReportEditV2() {
         if (!Number.isInteger(reportId) || reportId <= 0) throw new Error("ID báo cáo không hợp lệ.");
         const raw = await getReportById(reportId, managerRoute ? source : "pending");
         const data = unwrapReportEditResponse(raw);
-        if (!data) throw new Error("Không tìm thấy báo cáo.");
+        if (!data) throw new Error("Không tải được báo cáo hợp lệ (thiếu ID, công đoạn, ngày/ca hoặc dữ liệu máy). Vui lòng tải lại.");
         if (!alive) return;
         originalUpdatedAtRef.current = source === "approved" ? (data.updated_at || null) : null;
         // Commit only the fully prepared report once. Intermediate report identities
@@ -425,7 +425,7 @@ function WorkerReportEditV2() {
         }
       }
       if (originalDeductionMinutes > 0 && sourceDeductions.length === 0 && detailMinutes === 0) {
-        setError("Không tải được chi tiết khấu trừ của báo cáo cũ. Dữ liệu 1 giờ 20 phút (hoặc thời gian trừ đã lưu) vẫn được giữ nguyên; vui lòng tải lại báo cáo hoặc liên hệ quản lý. Không thể lưu khi thiếu chi tiết.");
+        setError("Không tải đủ chi tiết khấu trừ của báo cáo cũ. Để bảo toàn thời gian trừ đã lưu, vui lòng tải lại báo cáo hoặc liên hệ quản lý trước khi chỉnh sửa.");
         return;
       }
       if (Math.abs(submittedDeductionMinutes - detailMinutes) > 1) {
