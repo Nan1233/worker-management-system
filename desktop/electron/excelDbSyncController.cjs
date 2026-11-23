@@ -89,27 +89,42 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
       if (!parsed.changes.length) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs }); continue; }
       for (const change of parsed.changes) {
-        if (state.versions?.has(change.id)) change.expected_updated_at = state.versions.get(change.id);
+        const reportId = Number(change.id);
+        if (Number.isSafeInteger(reportId) && state.versions?.has(reportId)) {
+          change.expected_updated_at = state.versions.get(reportId);
+        }
       }
       detected += parsed.changes.length;
       if (/^\d{4}-\d{2}$/.test(String(parsed.yearMonth || ''))) changedMonths.add(parsed.yearMonth);
+      let fileFailed = false;
       for (let index = 0; index < parsed.changes.length; index += 100) {
         const chunk = parsed.changes.slice(index, index + 100);
         try {
           const result = await postExcelChanges(chunk);
           succeeded += Number(result.succeeded || 0);
-          failed += Number(result.failed || 0);
+          const batchFailed = Number(result.failed || 0);
+          failed += batchFailed;
+          if (batchFailed > 0 || !Array.isArray(result.results)) fileFailed = true;
           for (const item of result.results || []) {
             if (item.success && item.updated_at) state.versions.set(Number(item.id), item.updated_at);
-            if (!item.success) await writeLog('WARN', 'EXCEL_DB_SYNC_ROW_FAILED', { filePath, reportId: item.id, code: item.code, message: item.message });
+            if (!item.success) {
+              fileFailed = true;
+              await writeLog('WARN', 'EXCEL_DB_SYNC_ROW_FAILED', { filePath, reportId: item.id, code: item.code, message: item.message });
+            }
           }
         } catch (error) {
+          fileFailed = true;
           failed += chunk.length;
           await writeLog('ERROR', 'EXCEL_DB_SYNC_BATCH_FAILED', { filePath, source, count: chunk.length, ...normalizeError(error) });
           if (error.code === 'EXCEL_DB_SYNC_FORBIDDEN') return { detected, succeeded, failed, forbidden: true };
         }
       }
-      excelDbSyncState.set(filePath, { mtimeMs: stat.mtimeMs, versions: state.versions });
+      // Do not acknowledge an unchanged file timestamp after partial failure:
+      // the next watcher pass must retry failed rows instead of losing them.
+      excelDbSyncState.set(filePath, {
+        mtimeMs: fileFailed ? state.mtimeMs : stat.mtimeMs,
+        versions: state.versions
+      });
     }
     if (detected > 0) {
       await writeLog('INFO', 'EXCEL_DB_SYNC_FINISH', { source, detected, succeeded, failed, changedMonths: [...changedMonths] });
