@@ -433,13 +433,21 @@ const openDraftDatabase = (): Promise<IDBDatabase> => {
 const draftRequest = async <T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> => {
   const db = await openDraftDatabase();
   return new Promise<T>((resolve, reject) => {
-    const transaction = db.transaction(DB_STORE, mode);
-    const request = action(transaction.objectStore(DB_STORE));
+    let transaction: IDBTransaction;
+    let request: IDBRequest<T>;
+    try {
+      transaction = db.transaction(DB_STORE, mode);
+      request = action(transaction.objectStore(DB_STORE));
+    } catch (error) {
+      reject(error);
+      return;
+    }
     let result: T;
     request.onsuccess = () => { result = request.result; };
+    request.onerror = () => { try { transaction.abort(); } catch { /* already closed */ } };
     transaction.oncomplete = () => resolve(result);
-    transaction.onerror = () => reject(transaction.error || new Error("IndexedDB transaction failed"));
-    transaction.onabort = () => reject(transaction.error || new Error("IndexedDB transaction aborted"));
+    transaction.onerror = () => reject(transaction.error || request.error || new Error("IndexedDB transaction failed"));
+    transaction.onabort = () => reject(transaction.error || request.error || new Error("IndexedDB transaction aborted"));
   });
 };
 
