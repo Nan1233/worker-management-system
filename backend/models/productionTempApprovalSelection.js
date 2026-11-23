@@ -38,22 +38,26 @@ function buildApprovalSelection(targets) {
   const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
 
   if (reportIds.length === 0 || normalizedTargets.some((item) => !isValidReportId(item.id))) {
-    throw new Error('Danh sách báo cáo không hợp lệ');
+    throw publicError('Danh sách báo cáo không hợp lệ', 400, 'INVALID_REVIEW_TARGET');
   }
 
   const expectedById = new Map();
   for (const item of normalizedTargets) {
     const id = Number(item.id);
     const expected = normalizeExpectedVersion(item.expected_updated_at, id);
-    const previous = expectedById.get(id);
-
-    // Duplicate IDs cannot erase an existing version or supply a conflicting one.
-    if (previous && expected && new Date(previous).getTime() !== new Date(expected).getTime()) {
-      throw createTempReportVersionConflictError(id);
+    // A duplicate with no token cannot silently inherit a version token
+    // from another selection, or vice versa. The submitted snapshot must
+    // describe one unambiguous version for every report ID.
+    if (expectedById.has(id)) {
+      const previous = expectedById.get(id);
+      if ((previous === null) !== (expected === null)
+          || (previous !== null && expected !== null
+            && new Date(previous).getTime() !== new Date(expected).getTime())) {
+        throw createTempReportVersionConflictError(id);
+      }
+      continue;
     }
-    if (expected || !expectedById.has(id)) {
-      expectedById.set(id, expected);
-    }
+    expectedById.set(id, expected);
   }
   return { reportIds, expectedById };
 }
