@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { ProductionReport } from "../../types/production";
+import type { DuplicatePromptState } from "./processDuplicateReportLogic";
 import type { ToastContextValue } from "../../components/feedback/toastContext";
 import type {
     FormState, MachineLineState, DeductionState, DeductionKey, NgKey,
@@ -28,6 +29,7 @@ type Params = {
     resetVersionRef: MutableRefObject<number>;
     setForm: Dispatch<SetStateAction<FormState>>;
     setSubmitValidationError: Dispatch<SetStateAction<string>>;
+    setDuplicatePrompt: Dispatch<SetStateAction<DuplicatePromptState | null>>;
     setDeductions: Dispatch<SetStateAction<DeductionState>>;
     setSelectedDeduction: Dispatch<SetStateAction<DeductionKey[]>>;
     setSelectedNg: Dispatch<SetStateAction<NgKey[]>>;
@@ -47,7 +49,7 @@ export function useProcessReset({
     process, showToast, submitting, form, selectedNg, selectedDeduction, machineLines,
     submitLockRef, clientRequestIdRef, pendingSplitPayloadsRef,
     duplicatePrimaryCompletedRef, duplicateForceRequestIdRef, isRestoringDraftRef,
-    draftSaveTimerRef, resetVersionRef, setForm, setSubmitValidationError,
+    draftSaveTimerRef, resetVersionRef, setForm, setSubmitValidationError, setDuplicatePrompt,
     setDeductions, setSelectedDeduction, setSelectedNg, setOperationType,
     setIsCvkMode, setCutExecutionMode, setExtraData,
     setOperationMode, setMachineCount, setMachineLines, setShowDeduction, setShowNg,
@@ -77,6 +79,9 @@ export function useProcessReset({
 
 
         setSubmitValidationError("");
+        setDuplicatePrompt(null);
+        pendingSplitPayloadsRef.current = [];
+        duplicatePrimaryCompletedRef.current = false;
         clientRequestIdRef.current = null;
         duplicateForceRequestIdRef.current = null;
         setDeductions(
