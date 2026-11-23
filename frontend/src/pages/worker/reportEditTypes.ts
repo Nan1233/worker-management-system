@@ -19,7 +19,7 @@ export type ReportEditDeduction = Partial<ProductionDeduction> & {
 export type ReportEditMachineLine = Partial<Omit<NonNullable<ProductionReport["machine_lines"]>[number], "deductions" | "defects">> & {
     grinding_machine_no?: string;
     deductions_json?: string | ReportEditDeduction[] | null;
-    deductions?: ReportEditDeduction[];
+    deductions?: ReportEditDeduction[] | string;
     defects?: ReportEditDefect[];
 };
 
@@ -69,7 +69,7 @@ export function getReportEditLineDeductions(line: ReportEditMachineLine | null |
     if (!line) return [];
     if (Array.isArray(line.deductions_json)) return parseReportEditDeductions(line.deductions_json);
     if (Array.isArray(line.deductions)) return parseReportEditDeductions(line.deductions);
-    return parseReportEditDeductions(line.deductions_json);
+    return parseReportEditDeductions(line.deductions_json ?? line.deductions);
 }
 
 /** Only accept the minimum report identity required to edit safely. */
