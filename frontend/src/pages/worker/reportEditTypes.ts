@@ -57,7 +57,7 @@ export function parseReportEditDeductions(value: unknown): ReportEditDeduction[]
                 || !Number.isFinite(Number(item[key])) || Number(item[key]) < 0)) return false;
         }
         if (item.deduction_type_id != null && (!Number.isSafeInteger(Number(item.deduction_type_id))
-            || Number(item.deduction_type_id) <= 0)) return false;
+            || Number(item.deduction_type_id) < 0)) return false;
         return true;
     });
     return valid ? decoded as ReportEditDeduction[] : [];
