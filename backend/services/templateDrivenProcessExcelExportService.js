@@ -224,6 +224,9 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
     defects: Array.isArray(report.defects) ? [...report.defects] : report.defects,
     deductions: Array.isArray(report.deductions) ? [...report.deductions] : report.deductions
   }));
+  // The export loader also accepts metadata attached to the report array.
+  // Preserve that context while isolating individual mutable report records.
+  exportReports.deductionTypes = reports.deductionTypes;
   if (['GC','MAI','DO','XLBV','EP','CAN'].includes(processCode)) {
     await hydrateExportDetailFallbacks(exportReports);
     // Preserve the historical report snapshot; do not override standards with today's DB master data.
