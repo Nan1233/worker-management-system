@@ -41,7 +41,10 @@ function processColumns(sheet, contract, processCode) {
   for (const [column, label] of map.entries()) if (label.includes('thời gian') || label === 'thời gian') timeCandidates.push(column);
   const timeRules = { CAN: [6], EP: [7], XLBV: [11], GC: [7, 8], MAI: [9, 10], DO: [8, 9], K1: [14], K2: [22, 23], SX3: [8, 9] };
   const preferred = timeRules[processCode] || [];
-  const validPreferred = preferred.filter((column) => map.has(column));
+  const validPreferred = preferred.filter((column) => {
+    const label = map.get(column) || '';
+    return label.includes('thoi gian') || label.includes('thời gian');
+  });
   cols.totalTime = validPreferred[0] || timeCandidates[0] || null;
   cols.actualTime = validPreferred[1] || timeCandidates[1] || cols.totalTime;
   // Never silently map a required time field outside the physical header.
@@ -238,7 +241,7 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   // or unrelated header cell based on a hard-coded fallback alone.
   const headerLabel = (field) => mapping.map.get(mapping.cols[field]) || '';
   if (processCode === 'GC' && mapping.cols.product === 6
-      && !/(?:ma|ten|san pham|sp)/.test(headerLabel('product'))) {
+      && !/(?:^| )(?:ma|ten|san pham|sp)(?: |$)/.test(headerLabel('product'))) {
     missingColumns.push('product (header mismatch)');
   }
   // A fuzzy header lookup may accidentally resolve two distinct fields to
