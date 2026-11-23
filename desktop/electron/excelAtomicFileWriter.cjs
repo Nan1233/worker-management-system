@@ -163,13 +163,39 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
 }
 
 
+// Cross-process cooperative lock: 'wx' ensures only one KTC process can
+// replace a workbook at a time. A stale lock is intentionally NOT broken
+// automatically; doing so could overwrite another process's live edits.
+async function withWorkbookLock(filePath, task) {
+  const lockPath = `${filePath}.ktc-write.lock`;
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  let handle;
+  try {
+    handle = await fs.open(lockPath, 'wx', 0o600);
+  } catch (error) {
+    if (error?.code === 'EEXIST') {
+      const conflict = new Error('Another KTC process holds the Excel write lock.');
+      conflict.code = 'KTC_EXCEL_WRITE_LOCKED';
+      throw conflict;
+    }
+    throw error;
+  }
+  try {
+    await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }));
+    return await task();
+  } finally {
+    await handle.close().catch(() => {});
+    await fs.rm(lockPath, { force: true }).catch(() => {});
+  }
+}
+
 // Serialize writes to the same destination. Without this queue, an older
 // pending replacement can race with a newer export and overwrite its data.
 const fileQueues = new Map();
 function atomicOverwrite(filePath, buffer, syncDate) {
   const key = path.resolve(filePath);
   const previous = fileQueues.get(key) || Promise.resolve();
-  const operation = previous.catch(() => {}).then(() => performAtomicOverwrite(key, buffer, syncDate));
+  const operation = previous.catch(() => {}).then(() => withWorkbookLock(key, () => performAtomicOverwrite(key, buffer, syncDate)));
   const settled = operation.then(() => {}, () => {});
   fileQueues.set(key, settled);
   void settled.then(() => {
