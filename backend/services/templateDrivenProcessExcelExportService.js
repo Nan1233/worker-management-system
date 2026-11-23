@@ -210,18 +210,27 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
       code: 'KTC_EXCEL_MIXED_PROCESSES', statusCode: 422
     });
   }
+  // Hydration enriches detail arrays. Work on detached records so callers do
+  // not observe export-only mutations after the workbook has been generated.
+  const exportReports = reports.map((report) => ({
+    ...report,
+    machineLines: Array.isArray(report.machineLines)
+      ? report.machineLines.map((line) => ({ ...line })) : report.machineLines,
+    defects: Array.isArray(report.defects) ? [...report.defects] : report.defects,
+    deductions: Array.isArray(report.deductions) ? [...report.deductions] : report.deductions
+  }));
   if (['GC','MAI','DO','XLBV','EP','CAN'].includes(processCode)) {
-    await hydrateExportDetailFallbacks(reports);
+    await hydrateExportDetailFallbacks(exportReports);
     // Preserve the historical report snapshot; do not override standards with today's DB master data.
-    const exportRows = buildMachineExcelRows(reports);
+    const exportRows = buildMachineExcelRows(exportReports);
     return buildSixProcessWorkbook(exportRows, yearMonth, { ...options, processCode });
   }
   const contract = getProcessTemplateContract(processCode); const templatePath = await resolveTemplatePath(); const workbook = new ExcelJS.Workbook(); await workbook.xlsx.readFile(templatePath);
   const sheet = workbook.getWorksheet(contract.sheet); if (!sheet) throw Object.assign(new Error(`File mẫu thiếu sheet ${contract.sheet}`), { code: 'KTC_EXCEL_TEMPLATE_SHEET_MISSING', statusCode: 500 });
-  await hydrateExportDetailFallbacks(reports);
+  await hydrateExportDetailFallbacks(exportReports);
   // Historical standards, product codes and machine identifiers are immutable
   // report snapshots. Never replace them with today's master-data values.
-  const exportRows = buildMachineExcelRows(reports);
+  const exportRows = buildMachineExcelRows(exportReports);
   const capacity = contract.dataEndRow - contract.dataStartRow + 1;
   if (!Number.isInteger(contract.dataStartRow) || !Number.isInteger(contract.dataEndRow)
       || contract.dataStartRow <= contract.headerRow || contract.dataEndRow < contract.dataStartRow
