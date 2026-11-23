@@ -104,7 +104,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         if (!parsed.yearMonth) unreadableWorkbook = true;
         continue;
       }
-      if (!Array.isArray(parsed.changes)) {
+      if (!Array.isArray(parsed.changes) || parsed.changes.some((item) => !item || typeof item !== 'object' || Array.isArray(item))) {
         unreadableWorkbook = true;
         await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_WORKBOOK_CHANGES', { filePath, source });
         continue;
@@ -116,6 +116,9 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         } else unreadableWorkbook = true;
         continue;
       }
+      // Avoid mutating the parser's workbook-derived objects. Reconciliation
+      // metadata belongs to this request, not to the original snapshot.
+      parsed.changes = parsed.changes.map((change) => ({ ...change }));
       for (const change of parsed.changes) {
         const reportId = Number(change.id);
         if (Number.isSafeInteger(reportId) && state.versions?.has(reportId)) {
