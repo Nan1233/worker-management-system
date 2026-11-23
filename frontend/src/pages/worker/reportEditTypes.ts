@@ -80,6 +80,26 @@ export function getReportEditLineDeductions(line: ReportEditMachineLine | null |
     return parseReportEditDeductions(line.deductions_json ?? line.deductions);
 }
 
+/** A machine edit replaces its saved deduction details. Never permit that
+ * replacement when the historical per-machine hour snapshot cannot be
+ * reconciled with the loaded detail rows. A note-only edit is exempt. */
+export function getReportEditMachineDeductionIssue(lines: readonly ReportEditMachineLine[]): string | null {
+    for (const line of lines) {
+        const storedHours = Number(line.deduction_time_hours ?? 0);
+        const items = getReportEditLineDeductions(line);
+        const loadedMinutes = items.reduce((sum, item) => {
+            const minutes = item.minutes ?? item.deduction_minutes ?? Number(item.hours ?? 0) * 60;
+            return sum + Math.round(Number(minutes) || 0);
+        }, 0);
+        const storedMinutes = Math.round(storedHours * 60);
+        if (!Number.isFinite(storedHours) || storedHours < 0
+            || Math.abs(loadedMinutes - storedMinutes) > 1) {
+            return "Chi tiết thời gian trừ của máy không khớp dữ liệu lịch sử. Vui lòng tải lại báo cáo trước khi sửa để tránh thay đổi giờ máy đã lưu.";
+        }
+    }
+    return null;
+}
+
 /** Only accept the minimum report identity required to edit safely. */
 export function unwrapReportEditResponse(payload: unknown): ReportEditRecord | null {
     if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return null;
