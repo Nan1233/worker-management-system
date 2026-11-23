@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 import type {
     DeductionKey, DeductionState, FormState, MachineLineState, NgKey,
@@ -38,20 +38,20 @@ export function useProcessDraftAutosave({
     cutExecutionMode, extraData, loadingWorker, loadingMasterData, submitting,
     isRestoringDraftRef, resetVersionRef,
 }: Params): void {
-    const createSnapshot = (): ProcessDraft => ({
+    const createSnapshot = useCallback((): ProcessDraft => ({
         version: 3, savedAt: Date.now(), process, form, deductions,
         selectedDeduction, selectedNg, machineLines, machineCount,
         operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
-    });
+    }), [
+        process, form, deductions, selectedDeduction, selectedNg, machineLines,
+        machineCount, operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
+    ]);
 
     // DO persists immediately on pagehide, including edits inside the debounce window.
     const doDraftSnapshotRef = useRef<ProcessDraft | null>(null);
     useEffect(() => {
         doDraftSnapshotRef.current = createSnapshot();
-    }, [
-        process, form, deductions, selectedDeduction, selectedNg, machineLines,
-        machineCount, operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
-    ]);
+    }, [createSnapshot]);
     useEffect(() => {
         if (processCode !== "DO") return;
         const persistOnLeave = () => {
@@ -76,10 +76,5 @@ export function useProcessDraftAutosave({
         }
         // Never delete a saved draft merely because the initial form is empty.
         // Only explicit reset or confirmed submission may clear it.
-    }, [
-        process, form, deductions, selectedDeduction, selectedNg, machineLines,
-        machineCount, operationType, operationMode, isCvkMode, cutExecutionMode,
-        extraData, loadingWorker, loadingMasterData, submitting,
-        isRestoringDraftRef, resetVersionRef,
-    ]);
+    }, [createSnapshot, loadingWorker, loadingMasterData, submitting, isRestoringDraftRef, resetVersionRef]);
 }
