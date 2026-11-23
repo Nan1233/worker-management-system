@@ -4,6 +4,7 @@ const { qRows, readReviewCandidates } = require('../repositories/productionAppro
 const { buildApprovalSelection, assertApprovalSelectionVisible, assertApprovalSelectionVersions } = require('../models/productionTempApprovalSelection');
 const { getConnection, beginTransaction, commit } = require('../models/productionTempModelShared');
 const { createStandardResolver } = require('./standardResolutionService');
+const { ensureLegacyMachineLines, repairMachineLineReferences, linkMatchingApprovedMachineEvents } = require('../repositories/productionReviewLegacyRepository');
 const { assertReviewBatchSize } = require('./managerReportPaginationService');
 const { validateApprovalSnapshot } = require('./productionApprovalSnapshotValidationService');
 const { insertApprovedParent, transitionApprovedTemp, copyApprovedReportDetails, createLegacyApprovedSnapshot } = require('../repositories/productionApprovalWriteRepository');
@@ -40,6 +41,12 @@ async function approveSelected(targets, reviewerId, isAdmin = false, options = {
       const rows = await readReviewCandidates(connection, reportIds, reviewerId, isAdmin, 'approve');
       assertApprovalSelectionVisible(rows, reportIds);
       assertApprovalSelectionVersions(rows, expectedById);
+
+      // Repair and approval must be one atomic unit across Cloudflare instances.
+      // All writes share this TiDB connection and roll back together on failure.
+      await ensureLegacyMachineLines(targets, createStandardResolver, connection);
+      await repairMachineLineReferences(targets, connection);
+      await linkMatchingApprovedMachineEvents(targets, connection);
 
       const standardResolver = createStandardResolver({
         query: (sql, params = []) => qRows(connection, sql, params),
