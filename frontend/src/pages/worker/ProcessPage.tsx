@@ -371,7 +371,7 @@ const machineAutocompleteOptions =
         process, showToast, submitting, form, selectedNg, selectedDeduction, machineLines,
         submitLockRef, clientRequestIdRef, pendingSplitPayloadsRef,
         duplicatePrimaryCompletedRef, duplicateForceRequestIdRef, isRestoringDraftRef,
-        draftSaveTimerRef, resetVersionRef, setForm, setSubmitValidationError,
+        draftSaveTimerRef, resetVersionRef, setForm, setSubmitValidationError, setDuplicatePrompt,
         setDeductions, setSelectedDeduction, setSelectedNg, setOperationType,
         setIsCvkMode, setCutExecutionMode, setExtraData,
         setOperationMode, setMachineCount, setMachineLines, setShowDeduction, setShowNg,
