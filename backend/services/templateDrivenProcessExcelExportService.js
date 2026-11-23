@@ -218,6 +218,21 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   // produces an apparently valid workbook with missing production data.
   const requiredColumns = ['workerCode', 'workDate', 'shift', 'product', 'actual'];
   const missingColumns = requiredColumns.filter((name) => !mapping.cols[name]);
+  // A fuzzy header lookup may accidentally resolve two distinct fields to
+  // the same worksheet column. Reject such templates instead of overwriting
+  // one production value with another.
+  const columnOwners = new Map();
+  const collisions = [];
+  for (const [field, column] of Object.entries(mapping.cols)) {
+    if (!column || (field === 'actualTime' && column === mapping.cols.totalTime)) continue;
+    if (columnOwners.has(column)) collisions.push(columnOwners.get(column) + '/' + field + ' (cột ' + column + ')');
+    else columnOwners.set(column, field);
+  }
+  if (collisions.length) {
+    throw Object.assign(new Error('File mẫu ' + contract.sheet + ' có cột bị ánh xạ trùng: ' + collisions.join(', ')), {
+      code: 'KTC_EXCEL_TEMPLATE_COLUMN_COLLISION', statusCode: 422
+    });
+  }
   if (missingColumns.length) {
     throw Object.assign(new Error(`File mẫu ${contract.sheet} thiếu cột bắt buộc: ${missingColumns.join(', ')}`), {
       code: 'KTC_EXCEL_TEMPLATE_COLUMN_MISSING', statusCode: 422
