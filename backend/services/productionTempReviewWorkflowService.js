@@ -3,7 +3,7 @@ const approvalModel = require('../models/productionTempApprovalModel');
 const { buildApprovalSelection } = require('../models/productionTempApprovalSelection');
 const { createStandardResolver } = require('./standardResolutionService');
 const {
-  ensureLegacyMachineLines, repairMachineLineReferences,
+  assertLegacyRepairAuthorized, ensureLegacyMachineLines, repairMachineLineReferences,
   linkMatchingApprovedMachineEvents, loadAlreadyApproved,
 } = require('../repositories/productionReviewLegacyRepository');
 
@@ -41,10 +41,7 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
   approvalQueues.set(key, current);
   await previous;
   try {
-    const reportIds = [...new Set((Array.isArray(targets) ? targets : [])
-      .map((item) => typeof item === "object" ? item?.id : item)
-      .map(Number)
-      .filter((id) => Number.isInteger(id) && id > 0))];
+    const { reportIds, expectedById } = buildApprovalSelection(targets);
 
     // A versioned approval is not an idempotent retry: returning a previous
     // result would silently bypass the caller's optimistic-lock token.
@@ -53,6 +50,11 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
       const alreadyApproved = await loadAlreadyApproved(reportIds);
       if (alreadyApproved) return alreadyApproved;
     }
+
+    // Authorization must precede legacy repair because those repairs write
+    // outside the approval transaction. The transaction revalidates scope and
+    // optimistic versions after repairs before any approved-row insert.
+    await assertLegacyRepairAuthorized(reportIds, expectedById, reviewerId, isAdmin);
 
     // Keep legacy repair inside the same per-selection queue. Previously it
     // ran before serialization and two requests could repair the same rows
