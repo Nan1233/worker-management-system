@@ -277,14 +277,18 @@ async function linkMatchingApprovedMachineEvents(targets) {
   console.log(`[KTC] Auto-linked ${links.length} approved machine event(s) to temp machine lines`);
 }
 
-async function loadAlreadyApproved(reportIds) {
-  const ids = [...new Set((Array.isArray(reportIds) ? reportIds : []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+async function loadAlreadyApproved(reportIds, reviewerId, isAdmin = false) {
+  const ids = [...new Set((Array.isArray(reportIds) ? reportIds : []).map(Number).filter((id) => Number.isSafeInteger(id) && id > 0))];
   if (!ids.length) return null;
   const placeholders = ids.map(() => "?").join(",");
+  const scopeJoin = isAdmin ? '' : 'JOIN manager_processes mp ON mp.process_id = approved.process_id AND mp.manager_id = ?';
+  const params = isAdmin ? ids : [reviewerId, ...ids];
   const [rows] = await db.promise().query(
-    `SELECT id,source_temp_id,work_date FROM production_reports
-      WHERE source_temp_id IN (${placeholders})
-      ORDER BY source_temp_id,id DESC`, ids);
+    `SELECT DISTINCT approved.id,approved.source_temp_id,approved.work_date
+       FROM production_reports approved
+       ${scopeJoin}
+      WHERE approved.source_temp_id IN (${placeholders}) AND approved.status='approved'
+      ORDER BY approved.source_temp_id,approved.id DESC`, params);
   const byTemp = new Map();
   for (const row of rows || []) {
     const key = Number(row.source_temp_id);
