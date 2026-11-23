@@ -72,6 +72,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
     let succeeded = 0;
     let failed = 0;
     const changedMonths = new Set();
+    const blockedMonths = new Set();
     for (const filePath of files) {
       let stat;
       try { stat = await fs.stat(filePath); } catch { continue; }
@@ -139,7 +140,9 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       // any of its edits failed or the workbook changed during the request.
       if (/^\d{4}-(?:0[1-9]|1[0-2])$/.test(parsedMonth)
           && !fileFailed && !changedDuringSync) changedMonths.add(parsedMonth);
+      else if (/^\d{4}-(?:0[1-9]|1[0-2])$/.test(parsedMonth)) blockedMonths.add(parsedMonth);
     }
+    for (const month of blockedMonths) changedMonths.delete(month);
     if (detected > 0) {
       await writeLog('INFO', 'EXCEL_DB_SYNC_FINISH', { source, detected, succeeded, failed, changedMonths: [...changedMonths] });
       if (source === 'watcher') sendRenderer('ktc-excel-db-sync-result', { detected, succeeded, failed });
