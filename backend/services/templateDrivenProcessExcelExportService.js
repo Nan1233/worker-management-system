@@ -153,7 +153,12 @@ async function applyCurrentDbMasterData(reports) {
 }
 
 async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = {}) {
-  const processCode = String(reports?.[0]?.process_code || options.processCode || '').toUpperCase();
+  if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(String(yearMonth))) {
+    throw Object.assign(new Error('Tháng xuất Excel không hợp lệ (YYYY-MM)'), {
+      code: 'KTC_EXCEL_INVALID_MONTH', statusCode: 422
+    });
+  }
+  const processCode = String(reports?.[0]?.process_code || options.processCode || '').trim().toUpperCase();
   if (['GC','MAI','DO','XLBV','EP','CAN'].includes(processCode)) {
     await hydrateExportDetailFallbacks(reports);
     // Preserve the historical report snapshot; do not override standards with today's DB master data.
@@ -163,7 +168,8 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   const contract = getProcessTemplateContract(processCode); const templatePath = await resolveTemplatePath(); const workbook = new ExcelJS.Workbook(); await workbook.xlsx.readFile(templatePath);
   const sheet = workbook.getWorksheet(contract.sheet); if (!sheet) throw Object.assign(new Error(`File mẫu thiếu sheet ${contract.sheet}`), { code: 'KTC_EXCEL_TEMPLATE_SHEET_MISSING', statusCode: 500 });
   await hydrateExportDetailFallbacks(reports);
-  await applyCurrentDbMasterData(reports);
+  // Historical standards, product codes and machine identifiers are immutable
+  // report snapshots. Never replace them with today's master-data values.
   const exportRows = buildMachineExcelRows(reports);
   const capacity = contract.dataEndRow - contract.dataStartRow + 1;
   if (exportRows.length > capacity) throw Object.assign(new Error(`File mẫu ${contract.sheet} chỉ có ${capacity} dòng chi tiết; tháng ${yearMonth} cần ${exportRows.length} dòng máy-người từ ${reports.length} báo cáo`), { code: 'KTC_EXCEL_TEMPLATE_CAPACITY_EXCEEDED', statusCode: 422 });
