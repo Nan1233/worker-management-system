@@ -1,6 +1,6 @@
 'use strict';
 const AuditService = require('./auditService');
-const { buildRejectionScopeQuery } = require('../models/productionTempApprovalQueries');
+const { readReviewCandidates } = require('../repositories/productionApprovalReadRepository');
 const { buildApprovalSelection, assertApprovalSelectionVisible, assertApprovalSelectionVersions } = require('../models/productionTempApprovalSelection');
 const { buildRejectedReportUpdate, buildRejectedReportActivity, buildRejectedReportNotification } = require('../models/productionTempRejectionBuilders');
 const { query, getConnection, beginTransaction, commit } = require('../models/productionTempModelShared');
@@ -22,8 +22,7 @@ async function rejectSelected(targets, reviewerId, reason, isAdmin = false) {
     let transactionCommitted = false;
     try {
       await beginTransaction(connection);
-      const { sql: selectionSql, params: selectionParams } = buildRejectionScopeQuery(reportIds, reviewerId, isAdmin);
-      const rows = await query(connection, selectionSql, selectionParams);
+      const rows = await readReviewCandidates(connection, reportIds, reviewerId, isAdmin, 'reject');
       assertApprovalSelectionVisible(rows, reportIds);
       assertApprovalSelectionVersions(rows, expectedById);
       for (const row of rows) {
