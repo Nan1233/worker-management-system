@@ -205,7 +205,7 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   clearDetailConstants(sheet, contract.dataStartRow, contract.dataEndRow);
   for (let index = 0; index < exportRows.length; index += 1) writeReportRow(sheet, contract.dataStartRow + index, exportRows[index], processCode, mapping);
   const removedBrokenFormulas = clearBrokenAndExternalFormulas(workbook); workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
-  const exportRoot = options.exportRoot || path.join(process.cwd(), 'exports-process'); const [year, month] = String(yearMonth).split('-'); const folder = path.join(exportRoot, year, path.basename(String(options.processName || processCode)).replace(/[\\\\/<>:"|?*\\x00-\\x1f]/g, '_'), month); await fs.mkdir(folder, { recursive: true });
+  const exportRoot = options.exportRoot || path.join(process.cwd(), 'exports-process'); const [year, month] = String(yearMonth).split('-'); const folder = path.join(exportRoot, year, path.basename(String(options.processName || processCode).replace(/\\\\/g, '/')).replace(/[<>:"|?*\\x00-\\x1f]/g, '_'), month); await fs.mkdir(folder, { recursive: true });
   const fileName = options.fileName || `Bao-cao-${processCode}-${month}-${year}.xlsx`;
   if (typeof fileName !== 'string' || fileName !== path.basename(fileName)
       || fileName.includes('/') || fileName.includes('\\\\')
