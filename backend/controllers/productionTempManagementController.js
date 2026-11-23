@@ -219,6 +219,7 @@ exports.rejectSelectedReports = async (req, res) => {
         const targets = normalizeReviewTargets(req.body);
         assertReviewBatchSize(targets);
         const ids = targets.map((item) => item.id);
+        if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
         const reviewerId = toPositiveInteger(req.user?.id);
         const reason = String(req.body?.reason || "").trim();
         if (!(await hasPermission(req.user, "REPORT_APPROVE"))) {
@@ -230,7 +231,6 @@ exports.rejectSelectedReports = async (req, res) => {
         );
         await assertProcessesScope(req.user, scopeRows.map((row) => row.process_id), { action:"REPORT_REJECT" });
 
-        if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
         if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người xử lý không hợp lệ" });
         if (!reason) return res.status(400).json({ success: false, message: "Vui lòng nhập lý do từ chối" });
 
