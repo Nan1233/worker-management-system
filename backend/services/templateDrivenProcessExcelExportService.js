@@ -226,6 +226,15 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   const capacity = contract.dataEndRow - contract.dataStartRow + 1;
   if (exportRows.length > capacity) throw Object.assign(new Error(`File mẫu ${contract.sheet} chỉ có ${capacity} dòng chi tiết; tháng ${yearMonth} cần ${exportRows.length} dòng máy-người từ ${reports.length} báo cáo`), { code: 'KTC_EXCEL_TEMPLATE_CAPACITY_EXCEEDED', statusCode: 422 });
   const mapping = processColumns(sheet, contract, processCode);
+  // Contracts are row-limited and must match the physical workbook. In
+  // particular, SX3 has only four reserved detail rows in the legacy template.
+  if (!Number.isInteger(contract.dataStartRow) || !Number.isInteger(contract.dataEndRow)
+      || contract.dataStartRow <= contract.headerRow || contract.dataEndRow < contract.dataStartRow
+      || contract.dataEndRow > sheet.rowCount) {
+    throw Object.assign(new Error('Vùng dữ liệu trong template ' + contract.sheet + ' không hợp lệ'), {
+      code: 'KTC_EXCEL_TEMPLATE_RANGE_INVALID', statusCode: 422
+    });
+  }
   // Fail closed when a template has changed: silently skipping these columns
   // produces an apparently valid workbook with missing production data.
   const requiredColumns = ['workerCode', 'workDate', 'shift', 'product', 'actual'];
