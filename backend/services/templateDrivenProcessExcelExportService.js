@@ -263,7 +263,15 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
     throw Object.assign(new Error('Tên file xuất Excel không hợp lệ'), {
       code: 'KTC_EXCEL_INVALID_FILENAME', statusCode: 422
     });
-  } const outputPath = path.join(folder, fileName); await workbook.xlsx.writeFile(outputPath);
+  }
+  const outputPath = path.join(folder, fileName);
+  const temporaryPath = path.join(folder, `.${fileName}.${process.pid}.${require('node:crypto').randomUUID()}.tmp`);
+  try {
+    await workbook.xlsx.writeFile(temporaryPath);
+    await fs.rename(temporaryPath, outputPath);
+  } finally {
+    await fs.rm(temporaryPath, { force: true }).catch(() => {});
+  }
   return { archivePath: outputPath, fileName, processCode, templateFile: path.basename(templatePath), templateSheet: contract.sheet, templateHeaderRow: contract.headerRow, dataStartRow: contract.dataStartRow, reportCount: reports.length, rowCount: exportRows.length, removedBrokenFormulas };
 }
 
