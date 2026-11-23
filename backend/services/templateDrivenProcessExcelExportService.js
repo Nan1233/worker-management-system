@@ -206,7 +206,13 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   for (let index = 0; index < exportRows.length; index += 1) writeReportRow(sheet, contract.dataStartRow + index, exportRows[index], processCode, mapping);
   const removedBrokenFormulas = clearBrokenAndExternalFormulas(workbook); workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const exportRoot = options.exportRoot || path.join(process.cwd(), 'exports-process'); const [year, month] = String(yearMonth).split('-'); const folder = path.join(exportRoot, year, options.processName || processCode, month); await fs.mkdir(folder, { recursive: true });
-  const fileName = options.fileName || `Bao-cao-${processCode}-${month}-${year}.xlsx`; const outputPath = path.join(folder, fileName); await workbook.xlsx.writeFile(outputPath);
+  const fileName = options.fileName || `Bao-cao-${processCode}-${month}-${year}.xlsx`;
+  if (typeof fileName !== 'string' || fileName !== path.basename(fileName)
+      || !/^[^\\\\/<>:"|?*\\x00-\\x1f]+\\.xlsx$/i.test(fileName)) {
+    throw Object.assign(new Error('Tên file xuất Excel không hợp lệ'), {
+      code: 'KTC_EXCEL_INVALID_FILENAME', statusCode: 422
+    });
+  } const outputPath = path.join(folder, fileName); await workbook.xlsx.writeFile(outputPath);
   return { archivePath: outputPath, fileName, processCode, templateFile: path.basename(templatePath), templateSheet: contract.sheet, templateHeaderRow: contract.headerRow, dataStartRow: contract.dataStartRow, reportCount: reports.length, rowCount: exportRows.length, removedBrokenFormulas };
 }
 
