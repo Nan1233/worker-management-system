@@ -6,6 +6,7 @@ const toPositiveInteger = (value) => {
 };
 
 const { normalizeOperationType, normalizeOperationMode } = require('../domain/operationNormalization');
+const { publicError } = require('../utils/httpError');
 
 const getVietnamDateKey = () => {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -46,13 +47,11 @@ const normalizeIds = (ids) => {
 };
 
 
-const createReviewTargetVersionConflictError = () => {
-    const error = new Error("Danh sách báo cáo chứa phiên bản không thống nhất. Hãy tải lại danh sách rồi chọn lại.");
-    error.status = 409;
-    error.code = "REVIEW_TARGET_VERSION_CONFLICT";
-    error.isPublic = true;
-    return error;
-};
+const createReviewTargetVersionConflictError = () => publicError(
+    "Danh sách báo cáo chứa phiên bản không thống nhất. Hãy tải lại danh sách rồi chọn lại.",
+    409,
+    "REVIEW_TARGET_VERSION_CONFLICT",
+);
 
 const normalizeReviewTargets = (body = {}) => {
     const targets = Array.isArray(body?.targets) ? body.targets : [];
