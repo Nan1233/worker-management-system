@@ -135,6 +135,14 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         });
         continue;
       }
+      // Never send a snapshot that was already superseded while ExcelJS was
+      // reading the workbook. The next sync pass must read the newer file.
+      const beforePost = await fs.stat(filePath).catch(() => null);
+      if (!beforePost || beforePost.mtimeMs !== stat.mtimeMs || beforePost.size !== stat.size) {
+        unreadableWorkbook = true;
+        await writeLog('WARN', 'EXCEL_DB_SYNC_CHANGED_DURING_READ', { filePath, source });
+        continue;
+      }
       detected += parsed.changes.length;
       const parsedMonth = String(parsed.yearMonth || '');
       let fileFailed = false;
