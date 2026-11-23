@@ -99,7 +99,19 @@ function writeReportRow(sheet, rowNumber, report, processCode, mapping) {
   };
   set(c.workerCode, report.worker_code); set(c.workerName, report.full_name || report.worker_name); set(c.shift, report.shift); set(c.machine, report.machine_no); set(c.product, report.product_name || rawValue(report, 'product_code')); set(c.workDate, asDate(report.work_date)); set(c.training, report.training_percent); set(c.standard, metric(report, 'standard_output')); set(c.actual, metric(report, 'actual_output')); set(c.ok, metric(report, 'tt_ok')); set(c.ng, metric(report, 'tt_ng')); set(c.achievement, metric(report, 'achievement_rate')); set(c.totalTime, metric(report, 'total_time')); if (c.actualTime && c.actualTime !== c.totalTime) set(c.actualTime, metric(report, 'actual_time')); writeDefectsAndDeductions(row, report, mapping.map, new Set(Object.values(c).filter(Boolean)));
 }
-function clearBrokenAndExternalFormulas(workbook) { let removed = 0; workbook.eachSheet((sheet) => sheet.eachRow((row) => row.eachCell((cell) => { if (typeof cell.value === 'string' && cell.value.startsWith('=') && (cell.value.includes('#REF!') || /\[[^\]]+\][^!]+!/.test(cell.value))) { cell.value = null; removed += 1; } }))); return removed; }
+function clearBrokenAndExternalFormulas(workbook) {
+  let removed = 0;
+  workbook.eachSheet((sheet) => sheet.eachRow((row) => row.eachCell((cell) => {
+    const value = cell.value;
+    const formula = typeof value === 'string' && value.startsWith('=')
+      ? value : value && typeof value === 'object' ? value.formula || value.sharedFormula : null;
+    if (formula && (formula.includes('#REF!') || /\\[[^\\]]+\\]/.test(formula))) {
+      cell.value = null;
+      removed += 1;
+    }
+  })));
+  return removed;
+}
 function clearDetailConstants(sheet, startRow, endRow) {
   for (let r = startRow; r <= endRow; r += 1) {
     const row = sheet.getRow(r);
