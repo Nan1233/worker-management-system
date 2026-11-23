@@ -376,13 +376,32 @@ export function clearProcessDraft(process: string): void {
   } catch { /* noop */ }
 }
 
+const hasDraftValue = (value: unknown): boolean => {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim() !== "" && value.trim() !== "0";
+  if (typeof value === "number") return Number.isFinite(value) && value !== 0;
+  return Boolean(value);
+};
+
 export function hasMeaningfulProcessDraft(draft: ProcessDraft): boolean {
   const f = draft.form || {};
   return Boolean(
-    f.productName || f.machineNo || f.workType || draft.isCvkMode || f.ttOk || f.ttNg || f.totalTime || f.actualTime || f.actualHours || f.actualMinutes ||
-    draft.machineLines?.some(l => l.machineCode || l.productCode || l.hours || l.minutes || l.okQuantity || l.ngQuantity) ||
-    draft.selectedDeduction?.length || draft.selectedNg?.length ||
-    Object.values(draft.extraData || {}).some(Boolean)
+    [f.productName, f.machineNo, f.workType, f.ttOk, f.ttNg, f.totalTime,
+      f.actualTime, f.actualHours, f.actualMinutes, f.note, f.otherNgName,
+      f.otherDeductionName, f.deductionTime].some(hasDraftValue)
+    || draft.isCvkMode
+    || draft.machineLines?.some((line) =>
+      [line.machineCode, line.productCode, line.hours, line.minutes,
+        line.okQuantity, line.ngQuantity, line.actualQuantity,
+        line.adjustmentMinutes, line.adjustmentCount, line.otherNgName,
+        line.otherDeductionName].some(hasDraftValue)
+      || line.selectedDefects?.length || line.selectedDeductions?.length
+      || Object.values(line.defects || {}).some(hasDraftValue)
+      || Object.values(line.deductions || {}).some(hasDraftValue)
+    )
+    || draft.selectedDeduction?.length || draft.selectedNg?.length
+    || Object.values(draft.deductions || {}).some(hasDraftValue)
+    || Object.values(draft.extraData || {}).some(hasDraftValue)
   );
 }
 /** Durable async draft store. localStorage is read only for migration. */
@@ -502,7 +521,8 @@ export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> 
   const { workerId, workerCode } = getCurrentWorkerIdentity();
   if (workerId == null && !workerCode) return;
   const key = keyFor(draft.process, workerId, workerCode);
-  if (isAutosaveSuppressed(draft.process, workerId, workerCode)) return;
+  // Async drafts carry their own creation timestamp. The clear tombstone
+  // rejects old snapshots while allowing genuinely new input immediately.
   const epoch = draftEpochs.get(key) || 0;
   // Keep the timestamp from the form snapshot. Re-stamping here would make
   // a delayed pagehide/autosave callback appear newer than a completed reset.
@@ -514,8 +534,7 @@ export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> 
   // Never overwrite another worker's saved backup.
   let backupSaved = false;
   try {
-    if ((draftEpochs.get(key) || 0) !== epoch || owned.savedAt <= clearedAt(key)
-        || isAutosaveSuppressed(draft.process, workerId, workerCode)) return;
+    if ((draftEpochs.get(key) || 0) !== epoch || owned.savedAt <= clearedAt(key)) return;
     const raw = localStorage.getItem(key);
     const existing = raw ? JSON.parse(raw) as ProcessDraft : null;
     if (existing && !validDraftForOwner(existing, draft.process, workerId, workerCode)) {
