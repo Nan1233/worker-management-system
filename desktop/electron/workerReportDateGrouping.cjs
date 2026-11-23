@@ -59,27 +59,28 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
   // serialized after the actual data rows.
   const sampleRowCount = sheet.rowCount;
   let headerMergeCrossesSampleRows = false;
-  const unmerged = new Set();
+  const sampleMergeMasters = new Set();
+  // Discover merge masters first. Mutating a worksheet's merges while
+  // iterating its merged cells can change the live cell collection.
   for (let index = dateRowNumber; index <= sampleRowCount; index += 1) {
-    const row = sheet.getRow(index);
-    row.eachCell({ includeEmpty: true }, (cell) => {
+    sheet.getRow(index).eachCell({ includeEmpty: true }, (cell) => {
       if (!cell.isMerged || !cell.master) return;
-      if (cell.master.row < dateRowNumber) {
-        headerMergeCrossesSampleRows = true;
-        return;
-      }
-      if (unmerged.has(cell.master.address)) return;
-      unmerged.add(cell.master.address);
-      sheet.unMergeCells(cell.master.address);
+      if (cell.master.row < dateRowNumber) headerMergeCrossesSampleRows = true;
+      else sampleMergeMasters.add(cell.master.address);
     });
-    row.eachCell({ includeEmpty: true }, (cell) => {
+  }
+  for (const address of sampleMergeMasters) sheet.unMergeCells(address);
+  for (let index = dateRowNumber; index <= sampleRowCount; index += 1) {
+    sheet.getRow(index).eachCell({ includeEmpty: true }, (cell) => {
+      // An upper header merge can legally extend into the template sample.
+      // Never erase its retained master or rewrite its merged children.
       if (cell.isMerged && cell.master?.row < dateRowNumber) return;
       cell.value = null;
       cell.style = {};
     });
   }
-  // Do not splice through a header merge: ExcelJS documents unreliable
-  // merge handling when rows are spliced across a merged range.
+  // ExcelJS cannot safely splice across header merges. In that case leave
+  // the protected header range in place and overwrite only real report rows.
   if (!headerMergeCrossesSampleRows && sampleRowCount >= dateRowNumber) {
     sheet.spliceRows(dateRowNumber, sampleRowCount - dateRowNumber + 1);
   }
