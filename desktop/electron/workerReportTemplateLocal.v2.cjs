@@ -1,6 +1,7 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
+const { cloneExcelStyle } = require('./excelStyleClone.cjs');
 const { resolveWorkerParticipationTimes } = require('./exportMachineTime.cjs');
 const { plannedOutputFor } = require('./workerReportPlannedOutput.cjs');
 const { calculateDetailTotals } = require('./workerReportDetailTotals.cjs');
@@ -187,7 +188,7 @@ function insertContractColumn(sheet, headerRow, contract, afterColumn, header, o
   const column = anchor + 1;
   sheet.spliceColumns(column, 0, []);
   const cell = sheet.getRow(headerRow).getCell(column);
-  cell.style = structuredClone(sheet.getRow(headerRow).getCell(anchor).style || {});
+  cell.style = cloneExcelStyle(sheet.getRow(headerRow).getCell(anchor).style || {});
   cell.value = header;
   sheet.getColumn(column).width = options.width || 14;
   if (options.hidden) sheet.getColumn(column).hidden = true;
@@ -342,7 +343,7 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
       const preserveEncodedCode = kind === 'defect' && Boolean(encodedGcDefectCode(type));
       const cell = sheet.getRow(headerRow).getCell(next);
       cell.value = `${prefix}: ${label}${(duplicate || preserveEncodedCode) && code ? ` (${code})` : ''}`;
-      if (headerSource.style) cell.style = structuredClone(headerSource.style);
+      if (headerSource.style) cell.style = cloneExcelStyle(headerSource.style);
       sheet.getColumn(next).width = Math.max(10, Math.min(24, String(cell.value).length + 2));
       target.push({ type, column: next });
       next += 1;
