@@ -100,7 +100,10 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         } else unreadableWorkbook = true;
         continue;
       }
-      if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
+      if (yearMonth && (!parsed.yearMonth || parsed.yearMonth !== yearMonth)) {
+        if (!parsed.yearMonth) unreadableWorkbook = true;
+        continue;
+      }
       if (!Array.isArray(parsed.changes)) {
         unreadableWorkbook = true;
         await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_WORKBOOK_CHANGES', { filePath, source });
