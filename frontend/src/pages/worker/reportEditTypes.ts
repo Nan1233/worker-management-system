@@ -15,7 +15,7 @@ export type ReportEditDeduction = Partial<ProductionDeduction> & {
     duration_hours?: number | string;
 };
 
-export type ReportEditMachineLine = Partial<NonNullable<ProductionReport["machine_lines"]>[number]> & {
+export type ReportEditMachineLine = Partial<Omit<NonNullable<ProductionReport["machine_lines"]>[number], "deductions" | "defects">> & {
     grinding_machine_no?: string;
     deductions_json?: string | ReportEditDeduction[];
     deductions?: ReportEditDeduction[];
