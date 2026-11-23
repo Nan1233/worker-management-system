@@ -24,6 +24,12 @@ export function hasProcessReportInput(
             || form.note.trim()
             || form.otherNgName.trim()
             || form.otherDeductionName.trim()
+            // Include process-specific and legacy NG fields not listed above.
+            // Worker identity is populated automatically and is not user input.
+            || Object.entries(form).some(([key, value]) =>
+                !["workerCode", "workerName", "trainingPercent"].includes(key)
+                && String(value ?? "") !== String(initialForm[key] ?? "")
+            )
             || hasEnteredQuantity(form.actualHours)
             || hasEnteredQuantity(form.actualMinutes)
             || hasEnteredQuantity(form.totalTime)
