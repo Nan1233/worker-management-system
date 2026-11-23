@@ -2,10 +2,11 @@ import { getAccessToken } from "../utils/authStorage";
 import api from "./api";
 import { clearSessionCache, getSessionCached } from "./sessionCache";
 import type { ProductionDeduction, ProductionDefect, ProductionReport } from "../types/production";
+import type { AxiosRequestConfig } from "axios";
 
 export interface CompanyNetworkAccess { allowed:boolean; restricted:boolean; enforced:boolean; configured:boolean; client_ip:string; message:string; }
 export const getCompanyNetworkAccess=async(forceRefresh=false):Promise<CompanyNetworkAccess>=>{const loader=async()=>{const res=await api.get("/network/access");return res.data?.data||res.data;};if(forceRefresh)return loader();return getSessionCached("network-access",5*60*1000,loader);};
-export const createTempReport=async(data:ProductionReport)=>{const res=await api.post("/production-temp",data,{timeout:20000,_skipProactiveRefresh:true} as any);return res.data;};
+export const createTempReport=async(data:ProductionReport)=>{const res=await api.post("/production-temp",data,{timeout:20000,_skipProactiveRefresh:true} as AxiosRequestConfig & { _skipProactiveRefresh: boolean });return res.data;};
 export interface SimilarReportCheckResponse{success:boolean;duplicate:boolean;data:{id:number;status:string;work_date:string;shift:string;machine_no:string;product_name:string}|null;message:string;}
 export const checkSimilarTempReport=async(data:Pick<ProductionReport,"process_id"|"work_date"|"shift"|"machine_no"|"product_name">&Partial<Pick<ProductionReport,"operation_mode"|"work_type"|"operation_type">>):Promise<SimilarReportCheckResponse>=>{const res=await api.post("/production-temp/check-similar",data);return res.data;};
 export const getTempDates=async()=>{const res=await api.get("/production-temp/dates");return res.data.data||res.data||[];};
@@ -18,9 +19,35 @@ export const getMyDailyWorkingHours=async(date:string):Promise<DailyWorkingHours
 export interface ManagerReportPagination{page:number;page_size:number;total:number;total_pages:number;}
 export interface ManagerReportPage{data:ProductionReport[];pagination:ManagerReportPagination;processes?:Array<{id:number;process_code?:string;process_name:string}>;previous_count?:number;}
 export interface PendingReportFilters{dateFrom?:string;dateTo?:string;shift?:string;processId?:number|string;processName?:string;search?:string;page?:number;pageSize?:number;signal?:AbortSignal;includeMeta?:boolean;}
-const normalizeManagerReportPage=(payload:any):ManagerReportPage=>({data:Array.isArray(payload?.data)?payload.data:Array.isArray(payload)?payload:[],pagination:{page:Number(payload?.pagination?.page||1),page_size:Number(payload?.pagination?.page_size||20),total:Number(payload?.pagination?.total ?? (Array.isArray(payload?.data)?payload.data.length:0)),total_pages:Math.max(1,Number(payload?.pagination?.total_pages||1))},processes:Array.isArray(payload?.processes)?payload.processes:undefined,previous_count:Number(payload?.previous_count||0)});
+type ManagerReportResponse = {
+  data?: unknown;
+  pagination?: Record<string, unknown>;
+  processes?: unknown;
+  previous_count?: unknown;
+};
+const normalizeManagerReportPage = (payload: unknown): ManagerReportPage => {
+  const response: ManagerReportResponse = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as ManagerReportResponse : {};
+  const rawRows = Array.isArray(response.data) ? response.data : Array.isArray(payload) ? payload : [];
+  const data = rawRows.filter((item): item is ProductionReport => item != null && typeof item === "object" && !Array.isArray(item));
+  const pagination = response.pagination || {};
+  const rawProcesses = Array.isArray(response.processes) ? response.processes : undefined;
+  return {
+    data,
+    pagination: {
+      page: Number(pagination.page || 1),
+      page_size: Number(pagination.page_size || 20),
+      total: Number(pagination.total ?? data.length),
+      total_pages: Math.max(1, Number(pagination.total_pages || 1)),
+    },
+    processes: rawProcesses?.filter((item): item is NonNullable<ManagerReportPage["processes"]>[number] =>
+      item != null && typeof item === "object" && !Array.isArray(item)
+      && Number((item as Record<string, unknown>).id) > 0),
+    previous_count: Number(response.previous_count || 0),
+  };
+};
 const approvedTrainingPercentCache=new Map<number,number>();
-const rememberApprovedTrainingPercents=(page:ManagerReportPage)=>{for(const item of page.data){const id=Number(item.id);const value=Number((item as any).training_percent);if(Number.isInteger(id)&&id>0&&Number.isFinite(value))approvedTrainingPercentCache.set(id,value);}return page;};
+const rememberApprovedTrainingPercents=(page:ManagerReportPage)=>{for(const item of page.data){const id=Number(item.id);const value=Number(item.training_percent);if(Number.isInteger(id)&&id>0&&Number.isFinite(value))approvedTrainingPercentCache.set(id,value);}return page;};
 export const getPendingReports=async(filters:PendingReportFilters={}):Promise<ManagerReportPage>=>{const res=await api.get("/production-temp/pending",{params:{date_from:filters.dateFrom||undefined,date_to:filters.dateTo||undefined,shift:filters.shift,process_id:filters.processId||undefined,process_name:filters.processName,search:filters.search?.trim(),page:filters.page||1,page_size:filters.pageSize||20,include_meta:filters.includeMeta===false?0:1},signal:filters.signal});return normalizeManagerReportPage(res.data);};
 export interface ApprovedReportFilters extends PendingReportFilters{}
 export const getApprovedReports=async(filters:ApprovedReportFilters={}):Promise<ManagerReportPage>=>{const key=["manager-approved-v3",filters.dateFrom||"",filters.dateTo||"",filters.shift||"",filters.processId||"",filters.processName||"",filters.search?.trim()||"",filters.page||1,filters.pageSize||20,filters.includeMeta===false?0:1].join(":");return getSessionCached(key,15000,async()=>{const res=await api.get("/production/",{params:{date_from: filters.dateFrom||undefined,date_to: filters.dateTo||undefined,shift: filters.shift||undefined,process_id: filters.processId||undefined,process_name: filters.processName||undefined,search: filters.search?.trim()||undefined,page: filters.page || 1, page_size: filters.pageSize || 20,include_meta:filters.includeMeta===false?0:1 }});return rememberApprovedTrainingPercents(normalizeManagerReportPage(res.data));});};
