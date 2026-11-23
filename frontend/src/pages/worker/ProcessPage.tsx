@@ -368,7 +368,7 @@ const machineAutocompleteOptions =
     // =====================================================
 
     const { handleReset } = useProcessReset({
-        process, showToast, submitting, form, selectedNg, selectedDeduction, machineLines,
+        process, showToast, submitting, form, deductions, extraData, selectedNg, selectedDeduction, machineLines,
         submitLockRef, clientRequestIdRef, pendingSplitPayloadsRef,
         duplicatePrimaryCompletedRef, duplicateForceRequestIdRef, isRestoringDraftRef,
         draftSaveTimerRef, resetVersionRef, setForm, setSubmitValidationError, setDuplicatePrompt,
