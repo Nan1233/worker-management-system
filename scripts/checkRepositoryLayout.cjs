@@ -110,4 +110,24 @@ for (const code of ['GC', 'MAI', 'DO', 'K1', 'K2', 'CAN', 'EP', 'XLBV', 'SX3']) 
     `Nine-process template contract missing ${code}`);
 }
 
+// Verify local CommonJS dependency paths structurally, not merely by searching
+// for safety-related tokens. Only relative require() calls are in scope here.
+const localModules = [
+  'desktop/electron/excelAtomicFileWriter.cjs',
+  'desktop/electron/excelDbSyncController.cjs',
+  'backend/services/templateDrivenProcessExcelExportService.js',
+  'backend/services/sixProcessWorkbookExportService.js',
+];
+for (const relativeFile of localModules) {
+  const absoluteFile = at(...relativeFile.split('/'));
+  const source = fs.readFileSync(absoluteFile, 'utf8');
+  const requires = [...source.matchAll(/\\brequire\\(\\s*['"]([.][.\\/][^'"]+)['"]\\s*\\)/g)];
+  for (const [, specifier] of requires) {
+    const target = path.resolve(path.dirname(absoluteFile), specifier);
+    assert.ok([target, target + '.js', target + '.cjs', target + '.json', path.join(target, 'index.js')]
+      .some(candidate => fs.existsSync(candidate)),
+    `Unresolved local dependency in ${relativeFile}: ${specifier}`);
+  }
+}
+
 console.log('[KTC] Repository/template layout PASS (static contracts; no runtime/build verification)');
