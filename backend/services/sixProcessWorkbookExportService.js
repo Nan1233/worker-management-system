@@ -80,6 +80,16 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
   // Each process export must contain only its own worksheet.
   for (const other of [...workbook.worksheets]) if (other.name !== sheetName) workbook.removeWorksheet(other.id);
   const columns = COLUMNS[processCode], first = FIRST_ROW[processCode], header = sheet.getRow(HEADER_ROW[processCode]);
+  // A shifted or truncated company template must fail before any output is
+  // written; otherwise ExcelJS silently creates cells at incorrect positions.
+  const required = ['worker', 'name', 'shift', 'product', 'standard', 'output', 'date'];
+  const invalid = required.filter((field) => !Number.isInteger(columns[field])
+    || columns[field] < 1 || columns[field] > sheet.columnCount);
+  if (invalid.length || HEADER_ROW[processCode] >= first) {
+    throw Object.assign(new Error('Workbook1 template columns invalid: ' + invalid.join(', ')), {
+      code: 'KTC_EXCEL_TEMPLATE_COLUMN_MISSING', statusCode: 422
+    });
+  }
   const sample = sheet.getRow(first);
   const styles = [];
   for (let c = 1; c <= sheet.columnCount; c += 1) styles[c] = { style: sample.getCell(c).style, numFmt: sample.getCell(c).numFmt };
