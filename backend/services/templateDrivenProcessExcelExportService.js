@@ -196,7 +196,17 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
       code: 'KTC_EXCEL_INVALID_MONTH', statusCode: 422
     });
   }
+  if (!Array.isArray(reports)) {
+    throw Object.assign(new TypeError('Production reports must be an array'), {
+      code: 'KTC_EXCEL_INVALID_REPORTS', statusCode: 422
+    });
+  }
   const processCode = String(reports?.[0]?.process_code || options.processCode || '').trim().toUpperCase();
+  if (reports.some((report) => report?.process_code && String(report.process_code).trim().toUpperCase() !== processCode)) {
+    throw Object.assign(new Error('Không thể xuất nhiều công đoạn vào cùng một file'), {
+      code: 'KTC_EXCEL_MIXED_PROCESSES', statusCode: 422
+    });
+  }
   if (['GC','MAI','DO','XLBV','EP','CAN'].includes(processCode)) {
     await hydrateExportDetailFallbacks(reports);
     // Preserve the historical report snapshot; do not override standards with today's DB master data.
