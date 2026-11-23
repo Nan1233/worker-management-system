@@ -105,6 +105,12 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
   const folder = path.join(options.exportRoot || path.join(process.cwd(), 'exports-process'), year, options.processName || processCode, month);
   await fs.mkdir(folder, { recursive: true });
   const fileName = options.fileName || `Bao-cao-${processCode}-${month}-${year}.xlsx`;
+  if (typeof fileName !== 'string' || fileName !== path.basename(fileName)
+      || !/^[^\\\\/<>:"|?*\\x00-\\x1f]+\\.xlsx$/i.test(fileName)) {
+    throw Object.assign(new Error('Tên file xuất Excel không hợp lệ'), {
+      code: 'KTC_EXCEL_INVALID_FILENAME', statusCode: 422
+    });
+  }
   const outputPath = path.join(folder, fileName);
   await workbook.xlsx.writeFile(outputPath);
   return { archivePath: outputPath, fileName, processCode, templateFile: 'Workbook1.xlsx', templateSheet: sheetName, templateHeaderRow: HEADER_ROW[processCode], dataStartRow: first, reportCount: reports.length, rowCount: ordered.length, removedBrokenFormulas: 0 };
