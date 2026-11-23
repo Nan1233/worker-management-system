@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 import type {
     DeductionKey, DeductionState, FormState, MachineLineState, NgKey,
@@ -49,7 +49,9 @@ export function useProcessDraftAutosave({
 
     // DO persists immediately on pagehide, including edits inside the debounce window.
     const doDraftSnapshotRef = useRef<ProcessDraft | null>(null);
-    useEffect(() => {
+    // Keep the pagehide snapshot current at commit time, before passive
+    // effects or a rapid tab close can leave it pointing to the previous edit.
+    useLayoutEffect(() => {
         doDraftSnapshotRef.current = createSnapshot();
     }, [createSnapshot]);
     useEffect(() => {
