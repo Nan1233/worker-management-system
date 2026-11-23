@@ -1,6 +1,7 @@
 'use strict';
 const approvalModel = require('../models/productionTempApprovalModel');
 const { buildApprovalSelection } = require('../models/productionTempApprovalSelection');
+const { assertReviewBatchSize } = require('./managerReportPaginationService');
 const { createStandardResolver } = require('./standardResolutionService');
 const {
   assertLegacyRepairAuthorized, ensureLegacyMachineLines, repairMachineLineReferences,
@@ -90,6 +91,7 @@ module.exports = {
   async approveSelected(targets, reviewerId, isAdmin = false) {
     // Validate the entire selection before legacy repair writes or any queue
     // recovery. Invalid targets must not mutate machine-line references.
+    assertReviewBatchSize(targets);
     buildApprovalSelection(targets);
     return approvalStage("approveSelectedSerialized", () => approveSelectedSerialized(targets, reviewerId, isAdmin));
   },
