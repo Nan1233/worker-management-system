@@ -73,6 +73,21 @@ const normalizeReviewTargets = (body = {}) => {
             seen.set(id, expected_updated_at);
             normalized.push({ id, expected_updated_at });
         }
+        // Legacy clients send only ids, modern review clients send both ids
+        // and versioned targets. Never process a different target set than
+        // the one validated by the HTTP request schema.
+        if (Array.isArray(body?.ids)) {
+            const requestedIds = normalizeIds(body.ids);
+            const selected = new Set(normalized.map((item) => item.id));
+            if (requestedIds.length !== body.ids.length
+                || requestedIds.length !== selected.size
+                || requestedIds.some((id) => !selected.has(id))) {
+                throw publicError(
+                    "Danh sách báo cáo và phiên bản không khớp. Hãy tải lại danh sách rồi thử lại.",
+                    409, "REVIEW_TARGET_IDS_MISMATCH",
+                );
+            }
+        }
         return normalized;
     }
     const ids = normalizeIds(body?.ids);
