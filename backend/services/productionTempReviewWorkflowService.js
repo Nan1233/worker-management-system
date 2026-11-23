@@ -24,24 +24,21 @@ const approvalQueues = new Map();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isLockWaitTimeout = (error) => Number(error?.errno) === 1205 || /lock wait timeout exceeded|error 1205/i.test(String(error?.message || ""));
 
-function approvalQueueKey(targets) {
-  return [...new Set((Array.isArray(targets) ? targets : [])
-    .map((item) => typeof item === "object" ? item?.id : item)
-    .map(Number)
-    .filter((id) => Number.isSafeInteger(id) && id > 0))]
-    .sort((a, b) => a - b)
-    .join(",");
+function approvalReportIds(targets) {
+  return buildApprovalSelection(targets).reportIds;
 }
 
 async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
-  const key = approvalQueueKey(targets);
-  const previous = approvalQueues.get(key) || Promise.resolve();
+  const reportIds = approvalReportIds(targets);
+  // Queue by individual report ID, not by the whole batch. Overlapping
+  // selections such as [1,2] and [2,3] must not repair report #2 in parallel.
+  const previous = [...new Set(reportIds.map((id) => approvalQueues.get(id)).filter(Boolean))];
   let release;
   const current = new Promise((resolve) => { release = resolve; });
-  approvalQueues.set(key, current);
-  await previous;
+  for (const id of reportIds) approvalQueues.set(id, current);
   try {
-    const { reportIds, expectedById } = buildApprovalSelection(targets);
+    await Promise.all(previous);
+    const { expectedById } = buildApprovalSelection(targets);
 
     // A versioned approval is not an idempotent retry: returning a previous
     // result would silently bypass the caller's optimistic-lock token.
@@ -82,7 +79,9 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
     throw error;
   } finally {
     release();
-    if (approvalQueues.get(key) === current) approvalQueues.delete(key);
+    for (const id of reportIds) {
+      if (approvalQueues.get(id) === current) approvalQueues.delete(id);
+    }
   }
 }
 
