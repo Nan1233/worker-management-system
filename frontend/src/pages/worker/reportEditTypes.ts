@@ -37,3 +37,14 @@ export type ReportEditRecord = Omit<ProductionReport, "machine_lines" | "defects
     execution_method?: string;
     __edit_machine_lines?: ReportEditMachineLine[];
 };
+
+/** Parse stored deduction JSON without letting malformed legacy rows reach the edit form. */
+export function parseReportEditDeductions(value: unknown): ReportEditDeduction[] {
+    let decoded: unknown = value;
+    if (typeof value === "string") {
+        try { decoded = JSON.parse(value); } catch { return []; }
+    }
+    if (!Array.isArray(decoded)) return [];
+    return decoded.filter((row): row is ReportEditDeduction =>
+        row !== null && typeof row === "object" && !Array.isArray(row));
+}
