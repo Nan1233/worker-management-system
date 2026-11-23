@@ -32,6 +32,9 @@ type Params = {
     setSelectedDeduction: Dispatch<SetStateAction<DeductionKey[]>>;
     setSelectedNg: Dispatch<SetStateAction<NgKey[]>>;
     setOperationType: Dispatch<SetStateAction<OperationType>>;
+    setIsCvkMode: Dispatch<SetStateAction<boolean>>;
+    setCutExecutionMode: Dispatch<SetStateAction<"AUTO" | "NON_AUTO">>;
+    setExtraData: Dispatch<SetStateAction<Record<string, string>>>;
     setOperationMode: Dispatch<SetStateAction<OperationMode>>;
     setMachineCount: Dispatch<SetStateAction<number>>;
     setMachineLines: Dispatch<SetStateAction<MachineLineState[]>>;
@@ -46,6 +49,7 @@ export function useProcessReset({
     duplicatePrimaryCompletedRef, duplicateForceRequestIdRef, isRestoringDraftRef,
     draftSaveTimerRef, resetVersionRef, setForm, setSubmitValidationError,
     setDeductions, setSelectedDeduction, setSelectedNg, setOperationType,
+    setIsCvkMode, setCutExecutionMode, setExtraData,
     setOperationMode, setMachineCount, setMachineLines, setShowDeduction, setShowNg,
 }: Params) {
     const handleReset = () => {
@@ -90,6 +94,9 @@ export function useProcessReset({
         );
 
         setOperationType("CUT");
+        setIsCvkMode(false);
+        setCutExecutionMode("AUTO");
+        setExtraData({});
         setOperationMode(getInitialOperationMode(getProcessCapabilities(process)));
         setMachineCount(1);
         setMachineLines([createEmptyMachineLine()]);
