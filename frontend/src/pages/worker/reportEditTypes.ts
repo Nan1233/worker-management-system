@@ -7,6 +7,7 @@ export type ReportEditDefect = Partial<ProductionDefect> & {
 
 export type ReportEditDeduction = Partial<ProductionDeduction> & {
     deduction_label?: string;
+    code?: string;
     name?: string;
     label?: string;
     minutes?: number | string;
@@ -17,7 +18,7 @@ export type ReportEditDeduction = Partial<ProductionDeduction> & {
 
 export type ReportEditMachineLine = Partial<Omit<NonNullable<ProductionReport["machine_lines"]>[number], "deductions" | "defects">> & {
     grinding_machine_no?: string;
-    deductions_json?: string | ReportEditDeduction[];
+    deductions_json?: string | ReportEditDeduction[] | null;
     deductions?: ReportEditDeduction[];
     defects?: ReportEditDefect[];
 };
@@ -32,6 +33,7 @@ export type ReportEditRecord = Omit<ProductionReport, "machine_lines" | "defects
     deductions?: ReportEditDeduction[];
     deduction_items?: ReportEditDeduction[];
     operation?: string;
+    machine_lines_load_failed?: boolean;
     training_percent_snapshot?: number | string | null;
     adjustment_count?: number | string | null;
     execution_method?: string;
