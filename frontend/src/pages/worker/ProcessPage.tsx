@@ -79,7 +79,7 @@ import { applyMachineAggregateToForm } from "./processMachineFormAggregation";
 import type {
     FormState,
 } from "./processPageConfig";
-function ProcessPage() {
+function ProcessPageContent() {
 
     const { showToast } = useToast();
     useProcessDraftSaveWarning(showToast);
@@ -543,5 +543,12 @@ const machineAutocompleteOptions =
 
 }
 
+
+// A process switch must discard state, pending submission IDs and autosave refs
+// from the previous form. Draft restoration then runs for the new keyed instance.
+function ProcessPage() {
+    const { process = "cat-long" } = useParams();
+    return <ProcessPageContent key={process} />;
+}
 
 export default ProcessPage;
