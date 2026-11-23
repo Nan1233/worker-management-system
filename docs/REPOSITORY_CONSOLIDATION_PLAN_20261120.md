@@ -29,3 +29,11 @@ Branch: `refactor/ktc-local-cleanup`. No merges, Cloudflare deployments or produ
 - Cloudflare deployment and endpoint contract checks.
 
 The structural cleanup **is implemented** but its runtime reliability **has not been verified**. Retain the branch until validation succeeds. Do not merge or deploy based only on file-count reductions or static reference searches.
+
+## Phase 5 structural closeout — 24/11/2026
+
+The repository consolidation scope is complete **at source-edit level** on `refactor/ktc-local-cleanup`. Stable compatibility entry points, ownership boundaries, duplicate template removal, canonical process registries, and static repository guards are in place. The latest guard additionally tracks Excel atomic replacement, DB acknowledgment and month-rebuild protections, and all nine process contracts.
+
+**Not a production acceptance:** Phase 4's historical nine-process binary workbook has not been fully inspected sheet-by-sheet through the available GitHub connector, and Windows Excel/WPS lock, COM reopen, pending, backup, and concurrent-save behavior have not been executed on a real PC. No tests or builds were run during this phase-5 closeout. The source-only completion must not be interpreted as runtime PASS, release approval, or authorization to merge/deploy.
+
+**Next gate:** independent test-environment review of Excel templates and Windows/Desktop, followed by the existing phase-5 release-readiness checklist. Keep the branch isolated until evidence is collected.
