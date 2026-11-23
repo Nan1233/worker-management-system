@@ -201,6 +201,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           // Do not trust server counters over individual row acknowledgments.
           const verifiedSuccess = verifiedVersions.size;
           if (verifiedSuccess !== batchSucceeded) fileFailed = true;
+          if (batchSucceeded + batchFailed !== chunk.length || acknowledgedIds.size !== expectedIds.size) fileFailed = true;
           // A contradictory response is not safe to acknowledge as a
           // synchronized snapshot; retain versions only for valid row IDs.
           if (countsValid && verifiedSuccess === batchSucceeded
@@ -209,8 +210,14 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
               && Array.isArray(result.results) && result.results.length === chunk.length) {
             for (const [id, version] of verifiedVersions) state.versions.set(id, version);
           }
-          succeeded += verifiedSuccess;
-          failed += chunk.length - verifiedSuccess;
+          // Only count verifiable acknowledgments. A malformed response is
+          // reported as an unresolved batch, not as confirmed DB success.
+          const trustworthy = countsValid && verifiedSuccess === batchSucceeded
+            && batchSucceeded + batchFailed === chunk.length
+            && acknowledgedIds.size === expectedIds.size
+            && Array.isArray(result.results) && result.results.length === chunk.length;
+          succeeded += trustworthy ? verifiedSuccess : 0;
+          failed += trustworthy ? chunk.length - verifiedSuccess : chunk.length;
         } catch (error) {
           fileFailed = true;
           failed += chunk.length;
