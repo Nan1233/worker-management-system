@@ -10,7 +10,7 @@ import { getApiError } from "../../utils/apiError";
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 import type { WorkerMasterOption } from "./processMasterDataNormalization";
 import type { ReportEditDefect, ReportEditDeduction, ReportEditMachineLine, ReportEditRecord } from "./reportEditTypes";
-import { parseReportEditDeductions, unwrapReportEditResponse } from "./reportEditTypes";
+import { getReportEditLineDeductions, unwrapReportEditResponse } from "./reportEditTypes";
 import axios from "axios";
 import { getStoredUser } from "../../utils/authStorage";
 import { getCanonicalProcessId } from "../../utils/processAccess";
@@ -93,7 +93,7 @@ function WorkerReportEditV2() {
     const lines = Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [];
     if (lines.length !== 1) return parent;
     const line = lines[0];
-    return parseReportEditDeductions(line?.deductions_json ?? line?.deductions);
+    return getReportEditLineDeductions(line);
   }, [report]);
   const sourceLines = useMemo<ReportEditMachineLine[]>(() => Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [], [report]);
 
@@ -187,7 +187,7 @@ function WorkerReportEditV2() {
           const gross = Math.max(0, n(line.machine_time_hours));
           let deduction = Number(line.deduction_time_hours);
           if (!Number.isFinite(deduction) || deduction < 0) {
-            const rawDeductions = parseReportEditDeductions(line.deductions_json ?? line.deductions);
+            const rawDeductions = getReportEditLineDeductions(line);
             deduction = rawDeductions.reduce((sum: number, item) => sum + Math.max(0, n(item.minutes ?? item.deduction_minutes ?? n(item.hours) * 60)) / 60, 0);
           }
           totals.gross += gross;
@@ -269,7 +269,7 @@ function WorkerReportEditV2() {
       // machine_time_hours lưu trong DB là "Tổng thời gian" (gross = thực tế + trừ).
       // Form chỉnh sửa hiển thị lại "Thời gian chạy thực tế" cho Worker, nên phải trừ
       // ngược deduction_time_hours ra trước khi đổ vào ô giờ/phút có thể chỉnh sửa.
-      const rawLineDeductions = parseReportEditDeductions(line.deductions_json ?? line.deductions);
+      const rawLineDeductions = getReportEditLineDeductions(line);
       const lineDeductions: DeductionState = { ...initialDeduction };
       const customNg = lineDefects.find((item) => /^CUSTOM_NG_/i.test(s(item.defect_code)));
       const customDeduction = rawLineDeductions.find((item) => /^CUSTOM_DED_/i.test(s(item.deduction_code)));
