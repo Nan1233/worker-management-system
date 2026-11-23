@@ -2,11 +2,7 @@
 const approvalModel = require('../models/productionTempApprovalModel');
 const { buildApprovalSelection } = require('../models/productionTempApprovalSelection');
 const { assertReviewBatchSize } = require('./managerReportPaginationService');
-const { createStandardResolver } = require('./standardResolutionService');
-const {
-  assertLegacyRepairAuthorized, ensureLegacyMachineLines, repairMachineLineReferences,
-  linkMatchingApprovedMachineEvents, loadAlreadyApproved,
-} = require('../repositories/productionReviewLegacyRepository');
+const { loadAlreadyApproved } = require('../repositories/productionReviewLegacyRepository');
 
 const approvalStage = async (name, task) => {
   const started = Date.now();
@@ -39,8 +35,6 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
   for (const id of reportIds) approvalQueues.set(id, current);
   try {
     await Promise.all(previous);
-    const { expectedById } = buildApprovalSelection(targets);
-
     // A versioned approval is not an idempotent retry: returning a previous
     // result would silently bypass the caller's optimistic-lock token.
     const hasVersionGuard = targets.some((item) => item && typeof item === 'object' && item.expected_updated_at != null);
@@ -48,18 +42,6 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
       const alreadyApproved = await loadAlreadyApproved(reportIds, reviewerId, isAdmin);
       if (alreadyApproved) return alreadyApproved;
     }
-
-    // Authorization must precede legacy repair because those repairs write
-    // outside the approval transaction. The transaction revalidates scope and
-    // optimistic versions after repairs before any approved-row insert.
-    await assertLegacyRepairAuthorized(reportIds, expectedById, reviewerId, isAdmin);
-
-    // Keep legacy repair inside the same per-selection queue. Previously it
-    // ran before serialization and two requests could repair the same rows
-    // concurrently, outside the approval transaction.
-    await approvalStage("ensureLegacyMachineLines", () => ensureLegacyMachineLines(targets, createStandardResolver));
-    await approvalStage("repairMachineLineReferences", () => repairMachineLineReferences(targets));
-    await approvalStage("linkMatchingApprovedMachineEvents", () => linkMatchingApprovedMachineEvents(targets));
 
     for (const delay of [0, 250, 750]) {
       if (delay) await sleep(delay);
