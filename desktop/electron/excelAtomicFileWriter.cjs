@@ -4,9 +4,6 @@ const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { execFile } = require('node:child_process');
-const { promisify } = require('node:util');
-const execFileAsync = promisify(execFile);
 
 // Factory keeps environment-specific logging, backup policy and path handling injectable.
 function createExcelAtomicWriter({ writeLog, getExportRoot, getDocumentsRoot, safeFolderName,
@@ -57,71 +54,6 @@ async function backupExistingExcel(filePath, syncDate) {
 }
 
 
-
-function escapePowerShellLiteral(value) {
-  return String(value || '').replace(/'/g, "''");
-}
-
-async function reloadOpenExcelWorkbook(filePath, replacementPath) {
-  if (process.platform !== 'win32') return { handled: false, reason: 'not-windows' };
-
-  const target = escapePowerShellLiteral(path.resolve(filePath));
-  const replacement = escapePowerShellLiteral(path.resolve(replacementPath));
-  const script = `
-$ErrorActionPreference = 'Stop'
-$target = '${target}'
-$replacement = '${replacement}'
-try {
-  $excel = [Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application')
-} catch {
-  Write-Output '{"handled":false,"reason":"excel-not-running"}'
-  exit 0
-}
-$workbook = $null
-foreach ($book in $excel.Workbooks) {
-  if ([string]::Equals($book.FullName, $target, [System.StringComparison]::OrdinalIgnoreCase)) {
-    $workbook = $book
-    break
-  }
-}
-if ($null -eq $workbook) {
-  Write-Output '{"handled":false,"reason":"workbook-not-open"}'
-  exit 0
-}
-if (-not $workbook.Saved) {
-  Write-Output '{"handled":true,"reloaded":false,"reason":"unsaved-changes"}'
-  exit 0
-}
-$wasActive = $workbook.Application.ActiveWorkbook -eq $workbook
-$workbook.Close($false)
-try {
-  Copy-Item -LiteralPath $replacement -Destination $target -Force
-  $opened = $excel.Workbooks.Open($target)
-  if ($wasActive) { $opened.Activate() }
-  Remove-Item -LiteralPath $replacement -Force -ErrorAction SilentlyContinue
-  Write-Output '{"handled":true,"reloaded":true,"reason":"reopened"}'
-} catch {
-  # A failed replacement must not leave the user's workbook closed.
-  try {
-    $recovered = $excel.Workbooks.Open($target)
-    if ($wasActive) { $recovered.Activate() }
-  } catch {}
-  Write-Output '{"handled":true,"reloaded":false,"reason":"reopen-failed"}'
-}
-`;
-
-  try {
-    const { stdout } = await execFileAsync('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script
-    ], { windowsHide: true, timeout: 45_000, maxBuffer: 1024 * 1024 });
-    const lines = String(stdout || '').trim().split(/\r?\n/).filter(Boolean);
-    const last = lines[lines.length - 1];
-    return last ? JSON.parse(last) : { handled: false, reason: 'empty-response' };
-  } catch (error) {
-    await writeLog('WARN', 'EXCEL_COM_RELOAD_FAILED', { filePath, replacementPath, ...normalizeError(error) });
-    return { handled: false, reason: 'powershell-error' };
-  }
-}
 
 async function performAtomicOverwrite(filePath, buffer, syncDate) {
   const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
@@ -202,11 +134,6 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
   // only one Excel instance, and another Excel/WPS instance may have unsaved
   // edits. Keep the pending workbook for explicit user-controlled recovery.
   const reloadResult = { handled: false, reloaded: false, reason: 'manual-replacement-required' };
-  if (reloadResult.reloaded) {
-    await writeLog('INFO', 'OPEN_EXCEL_RELOADED', { filePath, backupPath });
-    return { saved: true, pendingPath: null, backupPath, recoveryPath, reloadedOpenWorkbook: true };
-  }
-
   await writeLog('WARN', 'FILE_LOCKED_PENDING_CREATED', {
     filePath,
     pendingPath,
