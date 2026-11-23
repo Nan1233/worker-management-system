@@ -54,7 +54,18 @@ const createReviewTargetVersionConflictError = () => publicError(
 );
 
 const normalizeReviewTargets = (body = {}) => {
+    if (body?.targets !== undefined && !Array.isArray(body.targets)) {
+        throw publicError("Danh sách phiên bản báo cáo không hợp lệ.", 400, "INVALID_REVIEW_TARGET");
+    }
+    if (body?.ids !== undefined && !Array.isArray(body.ids)) {
+        throw publicError("Danh sách ID báo cáo không hợp lệ.", 400, "INVALID_REVIEW_TARGET");
+    }
     const targets = Array.isArray(body?.targets) ? body.targets : [];
+    if (Array.isArray(body?.targets) && targets.length === 0
+        && (body?.ids === undefined || body.ids.length === 0)
+        && body?.id == null && body?.report_id == null) {
+        throw publicError("Danh sách báo cáo không được để trống.", 400, "INVALID_REVIEW_TARGET");
+    }
     if (targets.length) {
         const seen = new Map();
         const normalized = [];
@@ -93,12 +104,6 @@ const normalizeReviewTargets = (body = {}) => {
             }
         }
         return normalized;
-    }
-    if (body?.targets !== undefined && !Array.isArray(body.targets)) {
-        throw publicError("Danh sách phiên bản báo cáo không hợp lệ.", 400, "INVALID_REVIEW_TARGET");
-    }
-    if (body?.ids !== undefined && !Array.isArray(body.ids)) {
-        throw publicError("Danh sách ID báo cáo không hợp lệ.", 400, "INVALID_REVIEW_TARGET");
     }
     if (Array.isArray(body?.ids) && body.ids.some((value) =>
         !(typeof value === "number" || (typeof value === "string" && /^[0-9]+$/.test(value)))
