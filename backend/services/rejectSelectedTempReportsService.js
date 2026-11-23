@@ -1,4 +1,5 @@
 const { toDateKey } = require("../utils/dateKey");
+const { publicError } = require("../utils/httpError");
 const AuditService = require("./auditService");
 const { getConnection, beginTransaction, commit, rollback, normalizeIds } = require("../models/productionTempModelShared");
 const { findRejectableReports, markReportRejected } = require("../repositories/productionTempRejectionRepository");
@@ -6,9 +7,9 @@ const { findRejectableReports, markReportRejected } = require("../repositories/p
 async function rejectSelectedTempReports(ids, reviewerId, reason, isAdmin = false) {
     const reportIds = normalizeIds(ids);
     const cleanReason = String(reason || "").trim();
-    if (!reportIds.length) { const e = new Error("Danh sách báo cáo không hợp lệ"); e.status = 400; e.code = "INVALID_REJECT_SELECTION"; throw e; }
-    if (!Number.isInteger(Number(reviewerId)) || Number(reviewerId) <= 0) { const e = new Error("Thông tin người xử lý không hợp lệ"); e.status = 401; e.code = "INVALID_REVIEWER"; throw e; }
-    if (!cleanReason) { const e = new Error("Vui lòng nhập lý do từ chối"); e.status = 400; e.code = "REJECT_REASON_REQUIRED"; throw e; }
+    if (!reportIds.length) throw publicError("Danh sách báo cáo không hợp lệ", 400, "INVALID_REJECT_SELECTION");
+    if (!Number.isInteger(Number(reviewerId)) || Number(reviewerId) <= 0) throw publicError("Thông tin người xử lý không hợp lệ", 401, "INVALID_REVIEWER");
+    if (!cleanReason) throw publicError("Vui lòng nhập lý do từ chối", 400, "REJECT_REASON_REQUIRED");
 
     const connection = await getConnection();
     const activities = [];
