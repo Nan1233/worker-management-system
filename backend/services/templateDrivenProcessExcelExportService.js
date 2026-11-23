@@ -204,7 +204,12 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
       code: 'KTC_EXCEL_INVALID_REPORTS', statusCode: 422
     });
   }
-  const processCode = String(reports?.[0]?.process_code || options.processCode || '').trim().toUpperCase();
+  const processCode = String(options.processCode || reports?.[0]?.process_code || '').trim().toUpperCase();
+  if (reports.some((report) => !report || typeof report !== 'object' || Array.isArray(report))) {
+    throw Object.assign(new TypeError('Each production report must be an object'), {
+      code: 'KTC_EXCEL_INVALID_REPORTS', statusCode: 422
+    });
+  }
   if (reports.some((report) => report?.process_code && String(report.process_code).trim().toUpperCase() !== processCode)) {
     throw Object.assign(new Error('Không thể xuất nhiều công đoạn vào cùng một file'), {
       code: 'KTC_EXCEL_MIXED_PROCESSES', statusCode: 422
