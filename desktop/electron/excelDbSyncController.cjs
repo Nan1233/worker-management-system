@@ -104,7 +104,11 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           succeeded += Number(result.succeeded || 0);
           const batchFailed = Number(result.failed || 0);
           failed += batchFailed;
-          if (batchFailed > 0 || !Array.isArray(result.results)) fileFailed = true;
+          if (batchFailed > 0 || !Array.isArray(result.results)
+              || Number(result.succeeded || 0) + batchFailed !== chunk.length
+              || (Array.isArray(result.results) && result.results.length !== chunk.length)) {
+            fileFailed = true;
+          }
           for (const item of result.results || []) {
             if (item.success && item.updated_at) state.versions.set(Number(item.id), item.updated_at);
             if (!item.success) {
