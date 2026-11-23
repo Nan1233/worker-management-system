@@ -469,8 +469,9 @@ const validDraftForOwner = (value: unknown, process: string, workerId: number | 
   // missing identity on the payload is not proof of ownership.
   if (workerId != null && draft.ownerWorkerId != null && Number(draft.ownerWorkerId) !== workerId) return false;
   if (workerCode && draft.ownerWorkerCode != null && String(draft.ownerWorkerCode).trim() !== workerCode) return false;
-  if (draft.ownerWorkerId == null && draft.ownerWorkerCode == null) return false;
-  return true;
+  const matchesId = workerId != null && draft.ownerWorkerId != null && Number(draft.ownerWorkerId) === workerId;
+  const matchesCode = Boolean(workerCode && draft.ownerWorkerCode && String(draft.ownerWorkerCode).trim() === workerCode);
+  return matchesId || matchesCode;
 };
 
 const prepareOwnedDraft = (draft: ProcessDraft, workerId: number | null, workerCode: string | null): ProcessDraft => {
