@@ -527,12 +527,14 @@ export async function loadProcessDraftAsync(process: string): Promise<ProcessDra
   } catch (error) {
     console.warn("[KTC draft] IndexedDB restore failed", error instanceof Error ? error.name : "UnknownError");
   }
+  // A reset may have completed while the IndexedDB read was in flight.
+  // Re-check both the epoch and tombstone after the asynchronous read.
   const candidates = [backup, stored].filter((d): d is ProcessDraft =>
     validDraftForOwner(d, process, workerId, workerCode) &&
     hasMeaningfulProcessDraft(d) &&
     Number(d.savedAt || 0) > clearedAt(key));
   const draft = candidates.sort((a, b) => b.savedAt - a.savedAt)[0];
-  if (!draft) return null;
+  if (!draft || draft.savedAt <= clearedAt(key)) return null;
   const normalized = normalizeDraftForResume(draft);
   if (String(process).toLowerCase() === "do" || isDefaultSameDayShiftDraft(normalized)) return normalized;
   if (!window.confirm(buildDraftResumeMessage(normalized))) {
