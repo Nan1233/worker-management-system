@@ -10,7 +10,7 @@ import { getApiError } from "../../utils/apiError";
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 import type { WorkerMasterOption } from "./processMasterDataNormalization";
 import type { ReportEditDefect, ReportEditDeduction, ReportEditMachineLine, ReportEditRecord } from "./reportEditTypes";
-import { getReportEditLineDeductions, unwrapReportEditResponse } from "./reportEditTypes";
+import { getReportEditLineDeductions, getReportEditMachineDeductionIssue, unwrapReportEditResponse } from "./reportEditTypes";
 import { getStoredUser } from "../../utils/authStorage";
 import { getCanonicalProcessId } from "../../utils/processAccess";
 import { getProcessCapabilities, usesMultiMachineLines as resolveMultiMachine, usesSingleMachine as resolveSingleMachine } from "./processPageDomain";
@@ -371,6 +371,10 @@ function WorkerReportEditV2() {
     if (source === "approved" && !originalUpdatedAtRef.current && managerRoute) {
       setError("Không thể lưu vì thiếu thông tin phiên bản cập nhật của báo cáo đã duyệt. Vui lòng tải lại dữ liệu.");
       return;
+    }
+    if (!approvedMachineNoteOnly) {
+      const machineDeductionIssue = getReportEditMachineDeductionIssue(sourceLines);
+      if (machineDeductionIssue) { setError(machineDeductionIssue); return; }
     }
     let payload: ProductionReport | ReturnType<typeof buildApprovedMachineNotePatch>;
     if (approvedMachineNoteOnly) {
