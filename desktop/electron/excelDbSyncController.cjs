@@ -110,8 +110,16 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
               || (Array.isArray(result.results) && result.results.length !== chunk.length)) {
             fileFailed = true;
           }
+          const expectedIds = new Set(chunk.map((change) => Number(change.id)));
+          const acknowledgedIds = new Set();
           for (const item of result.results || []) {
             const reportId = Number(item.id);
+            if (!expectedIds.has(reportId) || acknowledgedIds.has(reportId)) {
+              fileFailed = true;
+              await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_ACK', { filePath, reportId: item.id });
+              continue;
+            }
+            acknowledgedIds.add(reportId);
             if (item.success && item.updated_at && Number.isSafeInteger(reportId) && reportId > 0) {
               state.versions.set(reportId, item.updated_at);
             }
@@ -120,6 +128,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
               await writeLog('WARN', 'EXCEL_DB_SYNC_ROW_FAILED', { filePath, reportId: item.id, code: item.code, message: item.message });
             }
           }
+          if (acknowledgedIds.size !== expectedIds.size) fileFailed = true;
         } catch (error) {
           fileFailed = true;
           failed += chunk.length;
