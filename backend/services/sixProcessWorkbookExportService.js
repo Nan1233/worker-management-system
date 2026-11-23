@@ -75,6 +75,11 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
     });
   }
   const processCode = String(options.processCode || reports?.[0]?.process_code || '').trim().toUpperCase();
+  if (reports.some((report) => !report || typeof report !== 'object' || Array.isArray(report))) {
+    throw Object.assign(new TypeError('Each production report must be an object'), {
+      code: 'KTC_EXCEL_INVALID_REPORTS', statusCode: 422
+    });
+  }
   if (reports.some((report) => report?.process_code && String(report.process_code).trim().toUpperCase() !== processCode)) {
     throw Object.assign(new Error('Cannot mix production processes in one workbook'), {
       code: 'KTC_EXCEL_MIXED_PROCESSES', statusCode: 422
