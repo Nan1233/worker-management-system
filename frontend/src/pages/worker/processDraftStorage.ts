@@ -1,5 +1,5 @@
 import { getStoredUser } from "../../utils/authStorage";
-import { createEmptyMachineLine, getCurrentLocalDate } from "./processPageConfig";
+import { createEmptyMachineLine, getCurrentLocalDate, initialForm } from "./processPageConfig";
 import type { DeductionState, FormState, MachineLineState, NgKey, DeductionKey, OperationMode, OperationType } from "./processPageConfig";
 
 export const PROCESS_DRAFT_SAVE_FAILED_EVENT = "ktc:process-draft-save-failed";
@@ -389,6 +389,10 @@ export function hasMeaningfulProcessDraft(draft: ProcessDraft): boolean {
     [f.productName, f.machineNo, f.workType, f.ttOk, f.ttNg, f.totalTime,
       f.actualTime, f.actualHours, f.actualMinutes, f.note, f.otherNgName,
       f.otherDeductionName, f.deductionTime].some(hasDraftValue)
+    || Object.entries(f).some(([key, value]) =>
+      !["workerCode", "workerName", "trainingPercent"].includes(key)
+      && String(value ?? "") !== String(initialForm[key] ?? "")
+    )
     || draft.isCvkMode
     || draft.machineLines?.some((line) =>
       [line.machineCode, line.productCode, line.hours, line.minutes,
