@@ -44,7 +44,7 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
     // result would silently bypass the caller's optimistic-lock token.
     const hasVersionGuard = targets.some((item) => item && typeof item === 'object' && item.expected_updated_at != null);
     if (!hasVersionGuard) {
-      const alreadyApproved = await loadAlreadyApproved(reportIds);
+      const alreadyApproved = await loadAlreadyApproved(reportIds, reviewerId, isAdmin);
       if (alreadyApproved) return alreadyApproved;
     }
 
@@ -67,7 +67,7 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
       } catch (error) {
         if (!isLockWaitTimeout(error)) throw error;
         if (!hasVersionGuard) {
-          const recovered = await loadAlreadyApproved(reportIds);
+          const recovered = await loadAlreadyApproved(reportIds, reviewerId, isAdmin);
           if (recovered) return recovered;
         }
       }
