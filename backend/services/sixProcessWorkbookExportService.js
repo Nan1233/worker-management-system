@@ -106,7 +106,8 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
   await fs.mkdir(folder, { recursive: true });
   const fileName = options.fileName || `Bao-cao-${processCode}-${month}-${year}.xlsx`;
   if (typeof fileName !== 'string' || fileName !== path.basename(fileName)
-      || !/^[^\\\\/<>:"|?*\\x00-\\x1f]+\\.xlsx$/i.test(fileName)) {
+      || fileName.includes('/') || fileName.includes('\\\\')
+      || /[<>:"|?*\\x00-\\x1f]/.test(fileName) || !fileName.toLowerCase().endsWith('.xlsx')) {
     throw Object.assign(new Error('Tên file xuất Excel không hợp lệ'), {
       code: 'KTC_EXCEL_INVALID_FILENAME', statusCode: 422
     });
