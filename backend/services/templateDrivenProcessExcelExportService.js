@@ -299,7 +299,7 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
     await workbook.xlsx.writeFile(temporaryPath);
     // Backend exports must not silently overwrite an existing workbook that
     // could have been edited after a previous download/export.
-    await fs.copyFile(temporaryPath, outputPath, require('node:fs').constants.COPYFILE_EXCL);
+    await fs.link(temporaryPath, outputPath);
   } finally {
     await fs.rm(temporaryPath, { force: true }).catch(() => {});
   }
