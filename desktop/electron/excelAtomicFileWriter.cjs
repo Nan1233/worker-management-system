@@ -145,6 +145,13 @@ async function atomicOverwrite(filePath, buffer, syncDate) {
     }
   }
 
+  // A pending copy is appropriate only for a locked destination. Permission,
+  // disk or filesystem errors must surface rather than masquerade as a lock.
+  if (!lastError || !['EPERM', 'EACCES', 'EBUSY'].includes(lastError.code)) {
+    await fs.rm(temporaryPath, { force: true }).catch(() => {});
+    throw lastError || new Error('Excel atomic replacement failed');
+  }
+
   const pendingPath = `${filePath}.pending.xlsx`;
   try {
     await fs.rm(pendingPath, { force: true });
