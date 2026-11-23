@@ -1,4 +1,5 @@
 'use strict';
+const { publicError } = require('../utils/httpError');
 
 // Pure approval/rejection response and conflict builders. No database side effects.
 function getApprovedWorkDate(item) {
@@ -71,11 +72,10 @@ function buildApprovedPostCommitNotification(item, approvedReportId, workDate) {
 
 
 function createReviewTransitionConflictError(reportId, code) {
-  const error = new Error(`Báo cáo #${reportId} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
-  error.status = 409;
-  error.code = code;
-  error.isPublic = true;
-  return error;
+  return publicError(
+    `Báo cáo #${reportId} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`,
+    409, code,
+  );
 }
 
 function hasExactlyOneAffectedRow(result) {
