@@ -10,7 +10,7 @@ import { getApiError } from "../../utils/apiError";
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 import type { WorkerMasterOption } from "./processMasterDataNormalization";
 import type { ReportEditDefect, ReportEditDeduction, ReportEditMachineLine, ReportEditRecord } from "./reportEditTypes";
-import { parseReportEditDeductions } from "./reportEditTypes";
+import { parseReportEditDeductions, unwrapReportEditResponse } from "./reportEditTypes";
 import axios from "axios";
 import { getStoredUser } from "../../utils/authStorage";
 import { getCanonicalProcessId } from "../../utils/processAccess";
@@ -168,8 +168,7 @@ function WorkerReportEditV2() {
         const reportId = Number(id);
         if (!Number.isInteger(reportId) || reportId <= 0) throw new Error("ID báo cáo không hợp lệ.");
         const raw = await getReportById(reportId, managerRoute ? source : "pending");
-        const response = raw as ReportEditRecord | { report?: ReportEditRecord; data?: ReportEditRecord } | null;
-        const data = response && ("report" in response && response.report || "data" in response && response.data || response) as ReportEditRecord | null;
+        const data = unwrapReportEditResponse(raw);
         if (!data) throw new Error("Không tìm thấy báo cáo.");
         if (!alive) return;
         originalUpdatedAtRef.current = source === "approved" ? (data.updated_at || null) : null;
