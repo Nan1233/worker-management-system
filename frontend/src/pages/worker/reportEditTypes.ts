@@ -47,8 +47,20 @@ export function parseReportEditDeductions(value: unknown): ReportEditDeduction[]
         try { decoded = JSON.parse(value); } catch { return []; }
     }
     if (!Array.isArray(decoded)) return [];
-    return decoded.filter((row): row is ReportEditDeduction =>
-        row !== null && typeof row === "object" && !Array.isArray(row));
+    // Reject a partially corrupted list as a whole. Silently dropping an
+    // invalid historical deduction could make an edit erase persisted detail.
+    const valid = decoded.every((row) => {
+        if (row === null || typeof row !== "object" || Array.isArray(row)) return false;
+        const item = row as Record<string, unknown>;
+        for (const key of ["hours", "minutes", "deduction_minutes", "deduction_hours", "duration_hours"]) {
+            if (item[key] != null && (String(item[key]).trim() === ""
+                || !Number.isFinite(Number(item[key])) || Number(item[key]) < 0)) return false;
+        }
+        if (item.deduction_type_id != null && (!Number.isSafeInteger(Number(item.deduction_type_id))
+            || Number(item.deduction_type_id) <= 0)) return false;
+        return true;
+    });
+    return valid ? decoded as ReportEditDeduction[] : [];
 }
 
 /** Preserve legacy fallback priority: a real deductions array wins over
