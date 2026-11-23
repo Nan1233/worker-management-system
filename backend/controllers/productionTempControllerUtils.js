@@ -2,7 +2,7 @@
 
 const toPositiveInteger = (value) => {
     const numberValue = Number(value);
-    return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null;
+    return Number.isSafeInteger(numberValue) && numberValue > 0 ? numberValue : null;
 };
 
 const { normalizeOperationType, normalizeOperationMode } = require('../domain/operationNormalization');
@@ -108,9 +108,15 @@ const normalizeReviewTargets = (body = {}) => {
     const ids = normalizeIds(body?.ids);
     // Legacy single-report review clients call POST /approve with { id }.
     // Keep that contract compatible while the current frontend sends { ids }.
-    if (ids.length === 0) {
-        const legacyId = toPositiveInteger(body?.id ?? body?.report_id);
-        if (legacyId) ids.push(legacyId);
+    if (ids.length === 0 && (body?.id != null || body?.report_id != null)) {
+        const rawLegacyId = body.id ?? body.report_id;
+        const legacyId = (typeof rawLegacyId === "number"
+            || (typeof rawLegacyId === "string" && /^[0-9]+$/.test(rawLegacyId)))
+            ? toPositiveInteger(rawLegacyId) : null;
+        if (!legacyId) {
+            throw publicError("ID báo cáo không hợp lệ.", 400, "INVALID_REVIEW_TARGET");
+        }
+        ids.push(legacyId);
     }
     return ids.map((id) => ({ id, expected_updated_at: null }));
 };
