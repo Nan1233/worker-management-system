@@ -6,7 +6,7 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
 
 function monthRange(yearMonth) {
   const value = String(yearMonth ?? '');
-  if (!/^(?:19|20|21)\\d{2}-(?:0[1-9]|1[0-2])$/.test(value)) {
+  if (!/^(?:19|20|21)\d{2}-(?:0[1-9]|1[0-2])$/.test(value)) {
     const error = new Error('Tháng xuất Excel không hợp lệ (YYYY-MM)');
     error.statusCode = 422; error.code = 'KTC_EXCEL_INVALID_MONTH';
     throw error;
