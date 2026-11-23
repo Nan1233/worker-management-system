@@ -8,6 +8,7 @@ import type {
 import { createEmptyMachineLine, getCurrentLocalDate, initialDeduction } from "./processPageConfig";
 import { hasProcessReportInput, resetProcessFormRetainingWorker } from "./processFormResetGuard";
 import { clearProcessDraftAsync } from "./processDraftStorage";
+import { getInitialOperationMode, getProcessCapabilities } from "./processPageDomain";
 
 type Params = {
     process: string;
@@ -89,7 +90,7 @@ export function useProcessReset({
         );
 
         setOperationType("CUT");
-        setOperationMode("MANUAL");
+        setOperationMode(getInitialOperationMode(getProcessCapabilities(process)));
         setMachineCount(1);
         setMachineLines([createEmptyMachineLine()]);
 
