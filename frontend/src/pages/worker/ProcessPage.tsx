@@ -373,6 +373,7 @@ const machineAutocompleteOptions =
         duplicatePrimaryCompletedRef, duplicateForceRequestIdRef, isRestoringDraftRef,
         draftSaveTimerRef, resetVersionRef, setForm, setSubmitValidationError,
         setDeductions, setSelectedDeduction, setSelectedNg, setOperationType,
+        setIsCvkMode, setCutExecutionMode, setExtraData,
         setOperationMode, setMachineCount, setMachineLines, setShowDeduction, setShowNg,
     });
 
