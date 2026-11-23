@@ -9,7 +9,7 @@ import type { ProductionReport } from "../../types/production";
 import { getApiError } from "../../utils/apiError";
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 import type { WorkerMasterOption } from "./processMasterDataNormalization";
-import type { ReportEditDefect, ReportEditDeduction, ReportEditMachineLine } from "./reportEditTypes";
+import type { ReportEditDefect, ReportEditDeduction, ReportEditMachineLine, ReportEditRecord } from "./reportEditTypes";
 import axios from "axios";
 import { getStoredUser } from "../../utils/authStorage";
 import { getCanonicalProcessId } from "../../utils/processAccess";
@@ -51,7 +51,7 @@ function WorkerReportEditV2() {
   const managerRoute = managerRole || /^\/(manager|lead|admin)(?:\/|$)/i.test(pathname);
   const readOnly = managerRoute && !pathname.endsWith("/edit");
   const source = searchParams.get("source") === "approved" ? "approved" : "pending";
-  const [report, setReport] = useState<any>(null);
+  const [report, setReport] = useState<ReportEditRecord | null>(null);
   const originalUpdatedAtRef = useRef<string | null>(null);
   const [changeReason, setChangeReason] = useState("");
   const [form, setForm] = useState<FormState>(initialForm);
@@ -172,7 +172,8 @@ function WorkerReportEditV2() {
         const reportId = Number(id);
         if (!Number.isInteger(reportId) || reportId <= 0) throw new Error("ID báo cáo không hợp lệ.");
         const raw = await getReportById(reportId, managerRoute ? source : "pending");
-        const data: any = (raw as any)?.report || (raw as any)?.data || raw;
+        const response = raw as ReportEditRecord | { report?: ReportEditRecord; data?: ReportEditRecord } | null;
+        const data = response && ("report" in response && response.report || "data" in response && response.data || response) as ReportEditRecord | null;
         if (!data) throw new Error("Không tìm thấy báo cáo.");
         if (!alive) return;
         originalUpdatedAtRef.current = source === "approved" ? (data.updated_at || null) : null;
@@ -241,19 +242,19 @@ function WorkerReportEditV2() {
     return () => window.clearInterval(timer);
   }, [report, managerRoute]);
 
-  const hydratedReportRef = useRef<any>(null);
+  const hydratedReportRef = useRef<ReportEditRecord | null>(null);
 
   useEffect(() => {
     // Hydrate each loaded report once, after its master options are ready.
     // Later option refreshes must never overwrite unsaved edits.
     if (!report || loading || loadingMasterData || !masterDetailsReady || hydratedReportRef.current === report) return;
     hydratedReportRef.current = report;
-    const findNgKey = (item: any) => /^CUSTOM_NG_/i.test(s(item.defect_code)) ? "__otherNg" : editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
-    const findDeductionKey = (item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)) ? "__otherDeduction" : editDeductionOptions.find((o: any) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
+    const findNgKey = (item: ReportEditDefect) => /^CUSTOM_NG_/i.test(s(item.defect_code)) ? "__otherNg" : editNgOptions.find((o) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
+    const findDeductionKey = (item: ReportEditDeduction) => /^CUSTOM_DED_/i.test(s(item.deduction_code)) ? "__otherDeduction" : editDeductionOptions.find((o) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
     // Resolve both slices before queuing updates. Do not enqueue one React
     // state update inside another updater (which React can replay/defer).
     const hydratedNg: Array<{ key: string; quantity: string; name: string }> = [];
-    sourceDefects.forEach((d: any) => {
+    sourceDefects.forEach((d) => {
       const key = findNgKey(d);
       if (key) hydratedNg.push({ key, quantity: s(d.quantity ?? 0), name: s(d.defect_name) });
     });
@@ -278,8 +279,8 @@ function WorkerReportEditV2() {
         : Array.isArray(line.deductions) ? line.deductions
         : (() => { try { return JSON.parse(line.deductions_json || "[]"); } catch { return []; } })();
       const lineDeductions: DeductionState = { ...initialDeduction };
-      const customNg = lineDefects.find((item: any) => /^CUSTOM_NG_/i.test(s(item.defect_code)));
-      const customDeduction = rawLineDeductions.find((item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)));
+      const customNg = lineDefects.find((item) => /^CUSTOM_NG_/i.test(s(item.defect_code)));
+      const customDeduction = rawLineDeductions.find((item) => /^CUSTOM_DED_/i.test(s(item.deduction_code)));
       const selectedLineDeductions: string[] = [];
       rawLineDeductions.forEach((d: any) => { const key = findDeductionKey(d); const minutes = d.minutes ?? d.deduction_minutes ?? n(d.hours) * 60; if (key) { (lineDeductions as any)[key] = String(Math.round(n(minutes))); selectedLineDeductions.push(key); } });
       const deductionTimeHours = n(line.deduction_time_hours);
@@ -287,10 +288,10 @@ function WorkerReportEditV2() {
       const time = hm(actualTimeHours);
       return { ...createEmptyMachineLine(), otherNgName: s(customNg?.defect_name), otherDeductionName: s(customDeduction?.deduction_name), machineCode: s(line.machine_code), productCode: s(line.product_code), grindingMachineNo: s(line.grinding_machine_no ?? dataFromReportGrindingMachine(report)), hours: time.hours, minutes: time.minutes, deductions: lineDeductions, selectedDeductions: selectedLineDeductions, adjustmentMinutes: s(line.adjustment_minutes ?? ""), adjustmentCount: s(line.adjustment_count ?? ""), okQuantity: s(line.ok_quantity ?? ""), ngQuantity: s(line.ng_quantity ?? ""), standardOutputPerHour: n(line.standard_output), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null, selectedDefects, defects, machineEventId: line.machine_event_id ?? null } as any;
     }));
-    const existingOtherDeduction = sourceDeductions.find((item: any) => /^CUSTOM_DED_/i.test(s(item.deduction_code)));
+    const existingOtherDeduction = sourceDeductions.find((item) => /^CUSTOM_DED_/i.test(s(item.deduction_code)));
     if (existingOtherDeduction) setForm((current) => ({ ...current, otherDeductionName: s(existingOtherDeduction.deduction_name) }));
     const hydratedDeductions: Array<{ key: string; minutes: string }> = [];
-    sourceDeductions.forEach((d: any) => {
+    sourceDeductions.forEach((d) => {
       const key = findDeductionKey(d);
       const minutes = d.minutes ?? d.deduction_minutes ?? n(d.hours) * 60;
       if (key) hydratedDeductions.push({ key, minutes: String(Math.round(n(minutes))) });
@@ -412,18 +413,18 @@ function WorkerReportEditV2() {
       const originalDeductionMinutes = Math.round(n(report.deduction_time) * 60);
       const submittedDeductionMinutes = Math.round(n(payload.deduction_time) * 60);
       let detailMinutes = (Array.isArray(payload.deductions) ? payload.deductions : [])
-        .reduce((sum: number, item: any) => sum + Math.round(n(item.hours) * 60), 0);
+        .reduce((sum: number, item) => sum + Math.round(n(item.hours) * 60), 0);
       // Some historical reports retain valid deduction details in the API but
       // the editor's master-data mapping may not serialize them back to payload.
       // Preserve those exact persisted entries only when the deduction total
       // has not changed. Never invent a deduction category or overwrite edits.
       if (detailMinutes === 0 && submittedDeductionMinutes > 0 && sourceDeductions.length > 0) {
-        const originalDetails = sourceDeductions.map((item: any) => ({
+        const originalDetails = sourceDeductions.map((item) => ({
           deduction_type_id: Number(item.deduction_type_id) || undefined,
           deduction_code: s(item.deduction_code || item.code),
           deduction_name: s(item.deduction_name || item.name || item.label),
           hours: n(item.hours ?? item.deduction_hours ?? item.duration_hours),
-        })).filter((item: any) => item.hours > 0);
+        })).filter((item) => item.hours > 0);
         const originalDetailMinutes = originalDetails.reduce((sum: number, item: any) => sum + Math.round(item.hours * 60), 0);
         if (originalDetailMinutes > 0
           && Math.abs(originalDetailMinutes - submittedDeductionMinutes) <= 1
