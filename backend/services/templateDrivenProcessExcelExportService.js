@@ -32,17 +32,18 @@ function processColumns(sheet, contract, processCode) {
   const find = (...patterns) => pickColumn(map, patterns.map((p) => (label) => label.includes(alias(p))));
   const findExact = (...patterns) => pickColumn(map, patterns.map((p) => (label) => label === alias(p)));
   const cols = {
-    workerCode: find('mã số cn') || find('mã nhân viên') || find('mã số'), workerName: find('họ tên') || find('họ & tên') || find('tên') || find('người'), shift: findExact('ca') || findExact('ca làm việc') || findExact('ca sản xuất'),
-    machine: find('số máy') || find('máy đo') || find('máy mài') || find('máy'),
+    workerCode: findExact('mã số cn') || findExact('mã nhân viên') || findExact('mã số'), workerName: findExact('họ tên') || findExact('họ & tên') || findExact('tên nhân viên') || findExact('tên công nhân'), shift: findExact('ca') || findExact('ca làm việc') || findExact('ca sản xuất'),
+    machine: findExact('số máy') || findExact('máy đo') || findExact('máy mài') || findExact('máy'),
     product: findExact('mã sản phẩm') || findExact('mã số sản phẩm') || findExact('mã sp') || findExact('tên sp') || findExact('sản phẩm') || (processCode === 'GC' ? 6 : null),
-    workDate: find('ngày sản xuất') || find('ngày/tháng') || find('ngày tháng') || find('ngày'), training: find('% học việc'), standard: find('định mức') || find('kh'), actual: find('thực tích') || find('kqsx') || find('kết quả sản xuất') || findExact('tt'), ok: find('sản phẩm ok') || find('sl ok') || find('ok'), ng: find('tổng ng') || find('tổng lỗi') || find('tổng pp'), achievement: find('% năng suất') || find('% thực tích') || find('% sản lượng theo kế hoạch') || findExact('%'), totalTime: null, actualTime: null
+    workDate: findExact('ngày sản xuất') || findExact('ngày/tháng') || findExact('ngày tháng') || findExact('ngày'), training: find('% học việc'), standard: findExact('định mức') || findExact('kh'), actual: find('thực tích') || find('kqsx') || find('kết quả sản xuất') || findExact('tt'), ok: findExact('sản phẩm ok') || findExact('sl ok') || findExact('ok'), ng: find('tổng ng') || find('tổng lỗi') || find('tổng pp'), achievement: find('% năng suất') || find('% thực tích') || find('% sản lượng theo kế hoạch') || findExact('%'), totalTime: null, actualTime: null
   };
   const timeCandidates = [];
   for (const [column, label] of map.entries()) if (label.includes('thời gian') || label === 'thời gian') timeCandidates.push(column);
   const timeRules = { CAN: [6], EP: [7], XLBV: [11], GC: [7, 8], MAI: [9, 10], DO: [8, 9], K1: [14], K2: [22, 23], SX3: [8, 9] };
   const preferred = timeRules[processCode] || [];
-  cols.totalTime = preferred[0] || timeCandidates[0] || null;
-  cols.actualTime = preferred[1] || timeCandidates[1] || cols.totalTime;
+  const validPreferred = preferred.filter((column) => map.has(column));
+  cols.totalTime = validPreferred[0] || timeCandidates[0] || null;
+  cols.actualTime = validPreferred[1] || timeCandidates[1] || cols.totalTime;
   // Never silently map a required time field outside the physical header.
   for (const field of ['totalTime', 'actualTime']) {
     if (cols[field] && cols[field] > sheet.columnCount) cols[field] = null;
