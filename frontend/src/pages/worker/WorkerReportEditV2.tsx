@@ -151,7 +151,7 @@ function WorkerReportEditV2() {
     const add = (code: unknown) => {
       const value = s(code).trim();
       if (!value || seen.has(value.toUpperCase())) return;
-      result.push({ id: -(result.length + 1), process_id: processId, work_type: "", product_code: value, standard_output: Number(report?.standard_output || 0) });
+      result.push({ id: -(result.length + 1), process_id: processId, work_type: s(report?.work_type), product_code: value, standard_output: Number(report?.standard_output || 0) });
       seen.add(value.toUpperCase());
     };
     sourceLines.forEach((line) => add(line.product_code));
