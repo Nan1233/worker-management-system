@@ -54,6 +54,7 @@ function WorkerReportEditV2() {
   const source = searchParams.get("source") === "approved" ? "approved" : "pending";
   const [report, setReport] = useState<ReportEditRecord | null>(null);
   const originalUpdatedAtRef = useRef<string | null>(null);
+  const saveInFlightRef = useRef(false);
   const [changeReason, setChangeReason] = useState("");
   const [form, setForm] = useState<FormState>(initialForm);
   const [deductions, setDeductions] = useState<DeductionState>(initialDeduction);
@@ -436,6 +437,8 @@ function WorkerReportEditV2() {
     }
     const approvedEditAudit = { reason: source === "approved" ? changeReason.trim() : undefined };
     Object.assign(payload, approvedEditAudit);
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     try {
       setSaving(true);
       if (managerRoute) {
@@ -458,7 +461,10 @@ function WorkerReportEditV2() {
       }
       setError(data?.errors?.machine_lines || getApiError(error, "Không thể lưu thay đổi.").message);
     }
-    finally { setSaving(false); }
+    finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+    }
   };
 
   if (loading) return <div className="detail-container"><div className="detail-state">Đang tải biểu mẫu...</div></div>;
