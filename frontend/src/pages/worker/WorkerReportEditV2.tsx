@@ -6,6 +6,8 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { getReportById, updateReport, updateTempReport } from "../../services/productionService";
 import { resolveProductStandard } from "../../services/masterDataService";
 import type { ProductionReport } from "../../types/production";
+import { getApiError } from "../../utils/apiError";
+import axios from "axios";
 import { getStoredUser } from "../../utils/authStorage";
 import { getCanonicalProcessId } from "../../utils/processAccess";
 import { getProcessCapabilities, usesMultiMachineLines as resolveMultiMachine, usesSingleMachine as resolveSingleMachine } from "./processPageDomain";
@@ -30,7 +32,7 @@ const hm = (value: number) => {
   const minutes = Math.max(0, Math.round(n(value) * 60));
   return { hours: String(Math.floor(minutes / 60)), minutes: String(minutes % 60) };
 };
-const dataFromReportGrindingMachine = (report: any): string => s(report?.extra_data?.grinding_machine_no);
+const dataFromReportGrindingMachine = (report: Pick<ProductionReport, "extra_data"> | null): string => s(report?.extra_data?.grinding_machine_no);
 const slug = (code?: string | null) => ({ GC: "cat-long", MAI: "mai", DO: "do", K1: "kiem-1", K2: "kiem-2", CAN: "can", EP: "ep", XLBV: "bavia", SX3: "sx3", CVK: "cvk" } as Record<string, string>)[s(code).trim().toUpperCase()] || "cat-long";
 
 function WorkerReportEditV2() {
@@ -215,8 +217,8 @@ function WorkerReportEditV2() {
          setForm((current) => ({ ...current, workType: resolvedWorkType }));
         setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).filter(([key]) => key !== "adjustment_count" && key !== "work_type").map(([key, value]) => [key, value == null ? "" : String(value)])));
         setReport({ ...data, __edit_machine_lines: editMachineLines });
-      } catch (e: any) {
-        if (alive) setError(e?.response?.data?.message || e?.message || "Không tải được báo cáo.");
+      } catch (error: unknown) {
+        if (alive) setError(getApiError(error, "Không tải được báo cáo.").message);
       } finally { if (alive) setLoading(false); }
     };
     void load();
@@ -324,7 +326,7 @@ function WorkerReportEditV2() {
       const resolved = await getCachedResolvedProductStandard(processId, machineCode.trim(), productCode.trim(), () => resolveProductStandard(processId, machineCode.trim(), productCode.trim(), form.workDate));
       const output = n(resolved.resolved_output_per_hour);
       updateLine(index, { standardOutputPerHour: output, standardTimeSeconds: resolved.standard_time_seconds, standardSource: resolved.standard_source, standardLoading: false, standardError: output > 0 ? "" : "Định mức bằng 0" });
-    } catch (e: any) { updateLine(index, { standardLoading: false, standardError: e?.response?.data?.message || e?.message || "Không lấy được định mức" }); }
+    } catch (error: unknown) { updateLine(index, { standardLoading: false, standardError: getApiError(error, "Không lấy được định mức").message }); }
   };
 
   const syncDeductionTime = (next: DeductionState) => {
@@ -450,12 +452,15 @@ function WorkerReportEditV2() {
         await updateTempReport(Number(report.id), payload);
         navigate(`/worker/history/${report.id}`, { replace: true });
       }
-    } catch (e: any) {
-      if (["REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_REQUIRED"].includes(String(e?.response?.data?.code || "")) || (Number(e?.response?.status) === 409 && !e?.response?.data?.code)) {
-        setError("Báo cáo đã được người khác cập nhật. Vui lòng tải lại dữ liệu trước khi lưu. Các thay đổi bạn đang nhập vẫn được giữ trên màn hình.")
+    } catch (error: unknown) {
+      const response = axios.isAxiosError(error) ? error.response : undefined;
+      const data = response?.data as { code?: string; errors?: { machine_lines?: string } } | undefined;
+      const conflictCodes = ["REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_REQUIRED"];
+      if (conflictCodes.includes(String(data?.code || "")) || (response?.status === 409 && !data?.code)) {
+        setError("Báo cáo đã được người khác cập nhật. Vui lòng tải lại dữ liệu trước khi lưu. Các thay đổi bạn đang nhập vẫn được giữ trên màn hình.");
         return;
       }
-      setError(e?.response?.data?.message || e?.response?.data?.errors?.machine_lines || "Không thể lưu thay đổi.");
+      setError(data?.errors?.machine_lines || getApiError(error, "Không thể lưu thay đổi.").message);
     }
     finally { setSaving(false); }
   };
