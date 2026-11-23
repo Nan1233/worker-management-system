@@ -137,7 +137,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       });
       // A rebuild overwrites the local workbook. Never rebuild a month while
       // any of its edits failed or the workbook changed during the request.
-      if (/^\\d{4}-(?:0[1-9]|1[0-2])$/.test(parsedMonth)
+      if (/^\d{4}-(?:0[1-9]|1[0-2])$/.test(parsedMonth)
           && !fileFailed && !changedDuringSync) changedMonths.add(parsedMonth);
     }
     if (detected > 0) {
