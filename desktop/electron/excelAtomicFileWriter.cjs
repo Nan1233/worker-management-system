@@ -116,7 +116,7 @@ Write-Output '{"handled":true,"reloaded":true,"reason":"reopened"}'
   }
 }
 
-async function atomicOverwrite(filePath, buffer, syncDate) {
+async function performAtomicOverwrite(filePath, buffer, syncDate) {
   const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const backupPath = await backupExistingExcel(filePath, syncDate);
@@ -186,6 +186,21 @@ async function atomicOverwrite(filePath, buffer, syncDate) {
   };
 }
 
+
+// Serialize writes to the same destination. Without this queue, an older
+// pending replacement can race with a newer export and overwrite its data.
+const fileQueues = new Map();
+function atomicOverwrite(filePath, buffer, syncDate) {
+  const key = path.resolve(filePath);
+  const previous = fileQueues.get(key) || Promise.resolve();
+  const operation = previous.catch(() => {}).then(() => performAtomicOverwrite(key, buffer, syncDate));
+  const settled = operation.then(() => {}, () => {});
+  fileQueues.set(key, settled);
+  void settled.then(() => {
+    if (fileQueues.get(key) === settled) fileQueues.delete(key);
+  });
+  return operation;
+}
 
 return { atomicOverwrite };
 }
