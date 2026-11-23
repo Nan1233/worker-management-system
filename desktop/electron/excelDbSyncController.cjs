@@ -76,7 +76,11 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
     let unreadableWorkbook = false;
     for (const filePath of files) {
       let stat;
-      try { stat = await fs.stat(filePath); } catch { continue; }
+      try { stat = await fs.stat(filePath); } catch (error) {
+        unreadableWorkbook = true;
+        await writeLog('WARN', 'EXCEL_DB_SYNC_STAT_FAILED', { filePath, source, ...normalizeError(error) });
+        continue;
+      }
       const state = excelDbSyncState.get(filePath) || { mtimeMs: 0, versions: new Map() };
       if (Number(state.mtimeMs || 0) === Number(stat.mtimeMs || 0)
           && Number(state.size ?? -1) === Number(stat.size)) continue;
@@ -114,6 +118,16 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         if (Number.isSafeInteger(reportId) && state.versions?.has(reportId)) {
           change.expected_updated_at = state.versions.get(reportId);
         }
+      }
+      const allIds = parsed.changes.map((change) => Number(change.id));
+      if (allIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
+          || new Set(allIds).size !== allIds.length) {
+        failed += parsed.changes.length;
+        unreadableWorkbook = true;
+        await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_REPORT_IDS', {
+          filePath, source, count: parsed.changes.length
+        });
+        continue;
       }
       detected += parsed.changes.length;
       const parsedMonth = String(parsed.yearMonth || '');
