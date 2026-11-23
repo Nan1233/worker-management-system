@@ -10,6 +10,10 @@ function cloneExcelStyle(value, seen = new WeakMap()) {
   if (seen.has(value)) return seen.get(value);
   if (value instanceof Date) return new Date(value.getTime());
   if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) return Buffer.from(value);
+  if (value instanceof ArrayBuffer) return value.slice(0);
+  if (value instanceof DataView) {
+    return new DataView(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+  }
   if (ArrayBuffer.isView(value)) return new value.constructor(value);
   if (Array.isArray(value)) {
     const copy = [];
