@@ -1,13 +1,12 @@
 'use strict';
 const AuditService = require('./auditService');
-const { buildApprovedTempTransitionQuery } = require('../models/productionTempApprovalQueries');
 const { qRows, readReviewCandidates } = require('../repositories/productionApprovalReadRepository');
 const { buildApprovalSelection, assertApprovalSelectionVisible, assertApprovalSelectionVersions } = require('../models/productionTempApprovalSelection');
-const { query, getConnection, beginTransaction, commit } = require('../models/productionTempModelShared');
+const { getConnection, beginTransaction, commit } = require('../models/productionTempModelShared');
 const { createStandardResolver } = require('./standardResolutionService');
 const { assertReviewBatchSize } = require('./managerReportPaginationService');
 const { validateApprovalSnapshot } = require('./productionApprovalSnapshotValidationService');
-const { buildApprovedParentInsertQuery, copyApprovedReportDetails, createLegacyApprovedSnapshot } = require('../repositories/productionApprovalWriteRepository');
+const { insertApprovedParent, transitionApprovedTemp, copyApprovedReportDetails, createLegacyApprovedSnapshot } = require('../repositories/productionApprovalWriteRepository');
 const { copyMachineLinesToApproved } = require('../repositories/productionApprovalMachineRepository');
 const { createApprovedReportVersion } = require('./approvedVersionSnapshotService');
 const {
@@ -50,8 +49,7 @@ async function approveSelected(targets, reviewerId, isAdmin = false, options = {
       for (const item of rows) {
         await validateApprovalSnapshot(item, connection, standardResolver, tempLinesCache);
 
-        const { sql: parentInsertSql, params: parentInsertParams } = buildApprovedParentInsertQuery(item, reviewerId);
-        const insertResult = await query(connection, parentInsertSql, parentInsertParams);
+        const insertResult = await insertApprovedParent(connection, item, reviewerId);
         const approvedReportId = Number(insertResult.insertId);
         if (!Number.isSafeInteger(approvedReportId) || approvedReportId <= 0) {
           const error = new Error(`Không xác nhận được ID báo cáo đã duyệt cho báo cáo tạm #${item.id}; đã hủy duyệt để bảo vệ dữ liệu`);
@@ -84,8 +82,7 @@ async function approveSelected(targets, reviewerId, isAdmin = false, options = {
         // The final temp transition must succeed before committing the
         // approved report, copied lines, snapshots and audit records.
         // A lost status race must roll back the entire transaction.
-        const { sql: statusSql, params: statusParams } = buildApprovedTempTransitionQuery(item, reviewerId);
-        const statusUpdate = await query(connection, statusSql, statusParams);
+        const statusUpdate = await transitionApprovedTemp(connection, item, reviewerId);
         assertApprovedTempTransition(statusUpdate, item);
 
         await recordApprovedTempVersion(item, approvedReportId, reviewerId, connection, tempLinesCache);
