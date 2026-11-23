@@ -1,9 +1,7 @@
 'use strict';
 
 const { LAST_COLUMN, MAX_DEDUCTIONS, MAX_DEFECTS } = require('./commonProcessExcelColumns');
-function clone(value) {
-  return value == null ? value : JSON.parse(JSON.stringify(value));
-}
+const { cloneExcelStyle: clone } = require('../../shared/excelStyleClone.cjs');
 
 function clearSheetData(sheet) {
   // Discover merge masters through public cell APIs instead of ExcelJS's
