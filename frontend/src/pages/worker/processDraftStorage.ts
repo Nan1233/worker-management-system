@@ -504,12 +504,18 @@ export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> 
   const key = keyFor(draft.process, workerId, workerCode);
   if (isAutosaveSuppressed(draft.process, workerId, workerCode)) return;
   const epoch = draftEpochs.get(key) || 0;
-  const owned = prepareOwnedDraft({ ...draft, savedAt: Date.now() }, workerId, workerCode);
+  // Keep the timestamp from the form snapshot. Re-stamping here would make
+  // a delayed pagehide/autosave callback appear newer than a completed reset.
+  const snapshotTime = Number(draft.savedAt);
+  if (!Number.isFinite(snapshotTime) || snapshotTime <= clearedAt(key)) return;
+  const owned = prepareOwnedDraft(draft, workerId, workerCode);
   // Either localStorage or IndexedDB is enough to restore this snapshot.
   // A failure of only one store must not claim the draft was lost.
   // Never overwrite another worker's saved backup.
   let backupSaved = false;
   try {
+    if ((draftEpochs.get(key) || 0) !== epoch || owned.savedAt <= clearedAt(key)
+        || isAutosaveSuppressed(draft.process, workerId, workerCode)) return;
     const raw = localStorage.getItem(key);
     const existing = raw ? JSON.parse(raw) as ProcessDraft : null;
     if (existing && !validDraftForOwner(existing, draft.process, workerId, workerCode)) {
