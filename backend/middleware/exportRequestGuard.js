@@ -33,7 +33,7 @@ function exportRequestGuard(req, res, next) {
   const now = Date.now();
   const existing = inFlight.get(key);
 
-  if (existing && existing.expiresAt > now) {
+  if (existing) {
     res.setHeader(
       'Retry-After',
       String(Math.max(1, Math.ceil((existing.expiresAt - now) / 1000)))
@@ -64,12 +64,9 @@ function exportRequestGuard(req, res, next) {
   res.once('finish', release);
   res.once('close', release);
 
-  // Safety TTL: tránh khóa vô hạn nếu process/request chết bất thường.
-  const timer = setTimeout(() => {
-    const current = inFlight.get(key);
-    if (current === entry) inFlight.delete(key);
-  }, RECENT_TTL_MS);
-  timer.unref?.();
+  // Never expire an in-flight request by timer: a slow export must still
+  // prevent another request from writing the same workbook. Finish/close
+  // events release the entry, and process exit clears the in-memory map.
 
   return next();
 }
