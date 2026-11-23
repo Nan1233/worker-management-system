@@ -1,7 +1,7 @@
 'use strict';
 const { query } = require('../models/productionTempModelShared');
 const { qRows } = require('./productionApprovalReadRepository');
-const { buildApprovedDetailCopyQuery, buildApprovedDetailReadQuery } = require('../models/productionTempApprovalQueries');
+const { buildApprovedDetailCopyQuery, buildApprovedDetailReadQuery, buildApprovedTempTransitionQuery } = require('../models/productionTempApprovalQueries');
 const { buildApprovedMachineLinesRead } = require('../models/productionApprovalMachineQueries');
 const { serializeExtraData: serializeExtraDataValue } = require('../utils/reportExtraDataSerialization');
 const {
@@ -79,7 +79,18 @@ async function copyApprovedReportDetails(connection, approvedReportId, tempRepor
 }
 
 
+async function insertApprovedParent(connection, report, reviewerId) {
+  const { sql, params } = buildApprovedParentInsertQuery(report, reviewerId);
+  return query(connection, sql, params);
+}
+
+async function transitionApprovedTemp(connection, report, reviewerId) {
+  const { sql, params } = buildApprovedTempTransitionQuery(report, reviewerId);
+  return query(connection, sql, params);
+}
+
 module.exports = {
   createLegacyApprovedSnapshot, buildApprovedReportInsertValues,
   buildApprovedParentInsertQuery, copyApprovedReportDetails,
+  insertApprovedParent, transitionApprovedTemp,
 };
