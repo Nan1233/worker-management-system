@@ -38,14 +38,16 @@ export function useProcessDraftAutosave({
     cutExecutionMode, extraData, loadingWorker, loadingMasterData, submitting,
     isRestoringDraftRef, resetVersionRef,
 }: Params): void {
+    const createSnapshot = (): ProcessDraft => ({
+        version: 3, savedAt: Date.now(), process, form, deductions,
+        selectedDeduction, selectedNg, machineLines, machineCount,
+        operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
+    });
+
     // DO persists immediately on pagehide, including edits inside the debounce window.
     const doDraftSnapshotRef = useRef<ProcessDraft | null>(null);
     useEffect(() => {
-        doDraftSnapshotRef.current = {
-            version: 3, savedAt: Date.now(), process, form, deductions,
-            selectedDeduction, selectedNg, machineLines, machineCount,
-            operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
-        };
+        doDraftSnapshotRef.current = createSnapshot();
     }, [
         process, form, deductions, selectedDeduction, selectedNg, machineLines,
         machineCount, operationType, operationMode, isCvkMode, cutExecutionMode, extraData,
@@ -65,22 +67,7 @@ export function useProcessDraftAutosave({
         if (loadingWorker || loadingMasterData || submitting || isRestoringDraftRef.current) return;
 
         const resetVersion = resetVersionRef.current;
-        const snapshot = {
-            version: 3 as const,
-            savedAt: Date.now(),
-            process,
-            form,
-            deductions,
-            selectedDeduction,
-            selectedNg,
-            machineLines,
-            machineCount,
-            operationType,
-            operationMode,
-            isCvkMode,
-            cutExecutionMode,
-            extraData,
-        };
+        const snapshot = createSnapshot();
 
         // Persist immediately after each committed form change. A 700ms debounce
         // could lose the last edits on reload, tab close, or navigation.
