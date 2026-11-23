@@ -24,8 +24,8 @@ const date = (value, calendarDateOnly = false) => {
   if (!value) return null;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
   const text = String(value);
-  const day = /^(\\d{4})-(\\d{2})-(\\d{2})(?:$|[T\\s])/.exec(text);
-  if (day && (calendarDateOnly || /^\\d{4}-\\d{2}-\\d{2}$/.test(text))) {
+  const day = /^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/.exec(text);
+  if (day && (calendarDateOnly || /^\d{4}-\d{2}-\d{2}$/.test(text))) {
     const [, year, month, dayOfMonth] = day.map(Number);
     const parsed = new Date(year, month - 1, dayOfMonth);
     if (parsed.getFullYear() === year && parsed.getMonth() === month - 1
