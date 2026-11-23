@@ -6,7 +6,7 @@ function normalizeIds(ids) {
   const input = Array.isArray(ids) ? ids : [];
   const positiveIntegerIds = input
     .map(Number)
-    .filter((id) => Number.isInteger(id) && id > 0);
+    .filter((id) => Number.isSafeInteger(id) && id > 0);
 
   return [...new Set(positiveIntegerIds)].sort((left, right) => left - right);
 }
