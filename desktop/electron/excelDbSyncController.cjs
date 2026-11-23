@@ -155,7 +155,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           const expectedIds = new Set(chunk.map((change) => Number(change.id)));
           const acknowledgedIds = new Set();
           const verifiedVersions = new Map();
-          for (const item of result.results || []) {
+          for (const item of (Array.isArray(result.results) ? result.results : [])) {
             const reportId = Number(item.id);
             if (!expectedIds.has(reportId) || acknowledgedIds.has(reportId)) {
               fileFailed = true;
@@ -177,7 +177,9 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           if (verifiedSuccess !== batchSucceeded) fileFailed = true;
           // A contradictory response is not safe to acknowledge as a
           // synchronized snapshot; retain versions only for valid row IDs.
-          for (const [id, version] of verifiedVersions) state.versions.set(id, version);
+          if (countsValid && verifiedSuccess === batchSucceeded) {
+            for (const [id, version] of verifiedVersions) state.versions.set(id, version);
+          }
           succeeded += verifiedSuccess;
           failed += chunk.length - verifiedSuccess;
         } catch (error) {
