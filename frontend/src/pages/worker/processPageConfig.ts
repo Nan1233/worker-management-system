@@ -80,6 +80,8 @@ export type MachineLineState = {
     standardOutputPerHour: number;
     standardTimeSeconds: number | null;
     standardSource: "MACHINE" | "DEFAULT" | null;
+    /** Existing physical event reference retained when editing a machine report. */
+    machineEventId?: number | null;
     standardLoading: boolean;
     standardError: string;
     selectedDefects: string[];
