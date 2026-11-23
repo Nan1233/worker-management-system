@@ -5,17 +5,15 @@ const { toDateKey } = require('../utils/dateKey');
 // transaction and must keep row locks, optimistic version checks and rollback.
 // Keep rejection's optimistic version condition and positional SQL parameters paired.
 function buildRejectedReportUpdate(row, expected, cleanReason, reviewerId) {
-  const sql = expected
-    ? `UPDATE production_reports_temp
+  // Even legacy clients without a version token must not reject a report that
+  // changed between the selection query and this conditional UPDATE.
+  const version = expected || row.updated_at;
+  return {
+    sql: `UPDATE production_reports_temp
                 SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW()
-              WHERE id=? AND status IN ('pending','need_fix') AND updated_at=?`
-    : `UPDATE production_reports_temp
-                SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW()
-              WHERE id=? AND status IN ('pending','need_fix')`;
-  const params = expected
-    ? [cleanReason,reviewerId,row.id,expected]
-    : [cleanReason,reviewerId,row.id];
-  return { sql, params };
+              WHERE id=? AND status IN ('pending','need_fix') AND updated_at=?`,
+    params: [cleanReason, reviewerId, row.id, version],
+  };
 }
 
 function buildRejectedReportVersion(row, rejectedSnapshot, cleanReason, reviewerId) {
