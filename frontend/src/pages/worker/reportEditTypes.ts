@@ -94,13 +94,22 @@ export function unwrapReportEditResponse(payload: unknown): ReportEditRecord | n
         || typeof record.work_date !== "string"
         || !/^\\d{4}-\\d{2}-\\d{2}/.test(record.work_date)
         || typeof record.shift !== "string" || !record.shift.trim()) return null;
+    // Reject malformed numeric data instead of treating it as zero on save.
+    const numbers = ["actual_time", "total_time", "deduction_time", "standard_output",
+        "actual_output", "tt_ok", "tt_ng"] as const;
+    if (numbers.some((key) => record[key] != null && !Number.isFinite(Number(record[key])))) return null;
     // Never treat a broken machine-lines payload as an empty report; the
     // editor would replace all persisted machines on save.
     for (const key of ["machine_lines", "machineLines"] as const) {
         const value = record[key];
         if (value != null && !Array.isArray(value)) return null;
-        if (Array.isArray(value) && value.some((line) =>
-            line === null || typeof line !== "object" || Array.isArray(line))) return null;
+        if (Array.isArray(value) && value.some((line) => {
+            if (line === null || typeof line !== "object" || Array.isArray(line)) return true;
+            const detail = line as Record<string, unknown>;
+            return ["machine_time_hours", "deduction_time_hours", "ok_quantity",
+                "ng_quantity", "standard_output"].some((field) =>
+                detail[field] != null && !Number.isFinite(Number(detail[field])));
+        })) return null;
     }
     return { ...record, id, process_id: processId } as ReportEditRecord;
 }
