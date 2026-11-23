@@ -177,6 +177,11 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           const acknowledgedIds = new Set();
           const verifiedVersions = new Map();
           for (const item of (Array.isArray(result.results) ? result.results : [])) {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              fileFailed = true;
+              await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_ACK', { filePath, reason: 'invalid-row' });
+              continue;
+            }
             const reportId = Number(item.id);
             if (!expectedIds.has(reportId) || acknowledgedIds.has(reportId)) {
               fileFailed = true;
@@ -198,7 +203,10 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           if (verifiedSuccess !== batchSucceeded) fileFailed = true;
           // A contradictory response is not safe to acknowledge as a
           // synchronized snapshot; retain versions only for valid row IDs.
-          if (countsValid && verifiedSuccess === batchSucceeded) {
+          if (countsValid && verifiedSuccess === batchSucceeded
+              && batchSucceeded + batchFailed === chunk.length
+              && acknowledgedIds.size === expectedIds.size
+              && Array.isArray(result.results) && result.results.length === chunk.length) {
             for (const [id, version] of verifiedVersions) state.versions.set(id, version);
           }
           succeeded += verifiedSuccess;
