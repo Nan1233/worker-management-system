@@ -136,11 +136,16 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         const chunk = parsed.changes.slice(index, index + 100);
         try {
           const result = await postExcelChanges(chunk);
-          succeeded += Number(result.succeeded || 0);
+          const batchSucceeded = Number(result.succeeded || 0);
           const batchFailed = Number(result.failed || 0);
-          failed += batchFailed;
+          const countsValid = Number.isSafeInteger(batchSucceeded) && batchSucceeded >= 0
+            && Number.isSafeInteger(batchFailed) && batchFailed >= 0;
+          if (!countsValid) {
+            fileFailed = true;
+            await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_COUNTS', { filePath, source });
+          }
           if (batchFailed > 0 || !Array.isArray(result.results)
-              || Number(result.succeeded || 0) + batchFailed !== chunk.length
+              || batchSucceeded + batchFailed !== chunk.length
               || (Array.isArray(result.results) && result.results.length !== chunk.length)) {
             fileFailed = true;
           }
@@ -163,6 +168,13 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
             }
           }
           if (acknowledgedIds.size !== expectedIds.size) fileFailed = true;
+          // Do not trust server counters over individual row acknowledgments.
+          const verifiedSuccess = (result.results || []).filter((item) =>
+            expectedIds.has(Number(item.id)) && item.success === true && item.updated_at
+          ).length;
+          if (verifiedSuccess !== batchSucceeded) fileFailed = true;
+          succeeded += verifiedSuccess;
+          failed += chunk.length - verifiedSuccess;
         } catch (error) {
           fileFailed = true;
           failed += chunk.length;
