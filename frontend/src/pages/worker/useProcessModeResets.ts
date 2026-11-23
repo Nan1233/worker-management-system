@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { FormState, MachineLineState, OperationMode, OperationType } from "./processPageConfig";
 import { createEmptyMachineLine } from "./processPageConfig";
+import { getInitialOperationMode, getProcessCapabilities } from "./processPageDomain";
 
 type Params = {
     process: string;
@@ -48,7 +49,7 @@ export function useProcessModeResets({
         setMachineLines([createEmptyMachineLine()]);
         setMachineCount(1);
         setOperationMode(
-            ["MAI", "DO", "EP", "CAN"].includes(processCode) ? "MACHINE" : "MANUAL"
+            getInitialOperationMode(getProcessCapabilities(processCode))
         );
     }, [process, processCode]);
 
