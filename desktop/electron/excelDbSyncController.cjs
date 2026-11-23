@@ -77,7 +77,8 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       let stat;
       try { stat = await fs.stat(filePath); } catch { continue; }
       const state = excelDbSyncState.get(filePath) || { mtimeMs: 0, versions: new Map() };
-      if (Math.abs(Number(state.mtimeMs || 0) - Number(stat.mtimeMs || 0)) < 1) continue;
+      if (Number(state.mtimeMs || 0) === Number(stat.mtimeMs || 0)
+          && Number(state.size ?? -1) === Number(stat.size)) continue;
       let parsed;
       try {
         parsed = await readExcelChanges(filePath);
@@ -86,7 +87,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         await writeLog('WARN', 'EXCEL_DB_SYNC_READ_SKIPPED', { filePath, source, ...normalizeError(error) });
         continue;
       }
-      if (!parsed.managed) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs }); continue; }
+      if (!parsed.managed) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs, size: stat.size }); continue; }
       if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
       if (!parsed.changes.length) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs }); continue; }
       for (const change of parsed.changes) {
@@ -143,6 +144,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         || Number(latestStat.size) !== Number(stat.size);
       excelDbSyncState.set(filePath, {
         mtimeMs: fileFailed || changedDuringSync ? state.mtimeMs : stat.mtimeMs,
+        size: fileFailed || changedDuringSync ? state.size : stat.size,
         versions: state.versions
       });
       // A rebuild overwrites the local workbook. Never rebuild a month while
