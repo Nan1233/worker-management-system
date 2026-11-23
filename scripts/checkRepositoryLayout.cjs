@@ -106,7 +106,7 @@ for (const [name, source, tokens] of [
   }
 }
 for (const code of ['GC', 'MAI', 'DO', 'K1', 'K2', 'CAN', 'EP', 'XLBV', 'SX3']) {
-  assert.ok(new RegExp('\\\\b' + code + ':').test(templateContract),
+  assert.ok(templateContract.includes(code + ':'),
     `Nine-process template contract missing ${code}`);
 }
 
