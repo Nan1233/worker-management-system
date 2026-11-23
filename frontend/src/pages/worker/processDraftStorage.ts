@@ -275,12 +275,8 @@ export function loadProcessDraft(process: string): ProcessDraft | null {
     const raw = localStorage.getItem(keyFor(process, workerId, workerCode));
     if (!raw) return null;
 
-    const parsed = JSON.parse(raw) as ProcessDraft;
-    if (
-      parsed?.version !== 3 ||
-      parsed.process !== process ||
-      !hasMeaningfulProcessDraft(parsed)
-    ) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!validDraftForOwner(parsed, process, workerId, workerCode) || !hasMeaningfulProcessDraft(parsed)) return null;
 
     if (parsed.ownerWorkerId != null && workerId != null && Number(parsed.ownerWorkerId) !== workerId) return null;
     if (parsed.ownerWorkerCode && workerCode && String(parsed.ownerWorkerCode).trim() !== workerCode) return null;
@@ -447,10 +443,27 @@ const draftRequest = async <T>(mode: IDBTransactionMode, action: (store: IDBObje
   });
 };
 
-const validDraftForOwner = (value: ProcessDraft | null, process: string, workerId: number | null, workerCode: string | null): value is ProcessDraft =>
-  Boolean(value && value.version === 3 && value.process === process &&
-    (value.ownerWorkerId == null || workerId == null || Number(value.ownerWorkerId) === workerId) &&
-    (!value.ownerWorkerCode || !workerCode || String(value.ownerWorkerCode).trim() === workerCode));
+const validDraftForOwner = (value: unknown, process: string, workerId: number | null, workerCode: string | null): value is ProcessDraft => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const draft = value as Record<string, unknown>;
+  if (draft.version !== 3 || draft.process !== process
+      || !Number.isFinite(Number(draft.savedAt)) || Number(draft.savedAt) <= 0
+      || !draft.form || typeof draft.form !== "object" || Array.isArray(draft.form)
+      || !Array.isArray(draft.machineLines)
+      || draft.machineLines.some(line => !line || typeof line !== "object" || Array.isArray(line))
+      || !draft.deductions || typeof draft.deductions !== "object" || Array.isArray(draft.deductions)
+      || !Array.isArray(draft.selectedDeduction) || !Array.isArray(draft.selectedNg)
+      || !draft.extraData || typeof draft.extraData !== "object" || Array.isArray(draft.extraData)
+      || !Number.isSafeInteger(Number(draft.machineCount)) || Number(draft.machineCount) < 1
+      || !["CUT", "LONG"].includes(String(draft.operationType))
+      || !["MACHINE", "MANUAL"].includes(String(draft.operationMode))) return false;
+  // A persisted draft must be bound to the current authenticated worker. A
+  // missing identity on the payload is not proof of ownership.
+  if (workerId != null && draft.ownerWorkerId != null && Number(draft.ownerWorkerId) !== workerId) return false;
+  if (workerCode && draft.ownerWorkerCode != null && String(draft.ownerWorkerCode).trim() !== workerCode) return false;
+  if (draft.ownerWorkerId == null && draft.ownerWorkerCode == null) return false;
+  return true;
+};
 
 const prepareOwnedDraft = (draft: ProcessDraft, workerId: number | null, workerCode: string | null): ProcessDraft => {
   const lines = Array.isArray(draft.machineLines) ? draft.machineLines : [];
@@ -496,7 +509,7 @@ export async function loadProcessDraftAsync(process: string): Promise<ProcessDra
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
-      const parsed = JSON.parse(raw) as ProcessDraft;
+      const parsed: unknown = JSON.parse(raw);
       if (validDraftForOwner(parsed, process, workerId, workerCode)) backup = parsed;
     }
   } catch { /* malformed backup must not hide a valid IndexedDB draft */ }
@@ -540,12 +553,12 @@ export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> 
   try {
     if ((draftEpochs.get(key) || 0) !== epoch || owned.savedAt <= clearedAt(key)) return;
     const raw = localStorage.getItem(key);
-    const existing = raw ? JSON.parse(raw) as ProcessDraft : null;
+    const existing: unknown = raw ? JSON.parse(raw) : null;
     if (existing && !validDraftForOwner(existing, draft.process, workerId, workerCode)) {
       throw new Error("Existing draft belongs to another worker or is invalid");
     }
     // An older save must never replace a newer local recovery point.
-    if (existing && Number(existing.savedAt || 0) > owned.savedAt) return;
+    if (validDraftForOwner(existing, draft.process, workerId, workerCode) && Number(existing.savedAt || 0) > owned.savedAt) return;
     const serialized = JSON.stringify(owned);
     localStorage.setItem(key, serialized);
     backupSaved = localStorage.getItem(key) === serialized;
