@@ -154,7 +154,8 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
 
   const pendingPath = `${filePath}.pending.xlsx`;
   try {
-    await fs.rm(pendingPath, { force: true });
+    // Replace pending atomically without deleting the previous good pending
+    // copy first. If rename fails, leave the previous pending intact.
     await fs.rename(temporaryPath, pendingPath);
   } catch (error) {
     await fs.rm(temporaryPath, { force: true }).catch(() => {});
