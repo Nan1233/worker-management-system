@@ -424,7 +424,7 @@ contract.cols.workTime = workTimeColumn;
   let layout = 'flat';
   if (dateRowNumber) {
     layout = 'grouped-by-date';
-    writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap, headerRow);
+    writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, headerRow);
   } else {
     const sourceRow = sheet.getRow(dataStartRow);
     const requiredEndRow = dataStartRow + reports.length - 1;
