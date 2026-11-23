@@ -1,5 +1,14 @@
 import { initialForm, type DeductionState, type FormState, type MachineLineState } from "./processPageConfig";
 
+// A non-empty malformed or localized numeric input still counts as user data.
+// Never discard it without confirming a reset, even when Number(...) is NaN.
+const hasEnteredQuantity = (value: unknown): boolean => {
+    const text = String(value ?? "").trim();
+    if (!text) return false;
+    const amount = Number(text.replace(",", "."));
+    return !Number.isFinite(amount) || amount !== 0;
+};
+
 /** Reset confirmation guard; pure and free of browser-side effects. */
 export function hasProcessReportInput(
     form: FormState,
@@ -15,31 +24,31 @@ export function hasProcessReportInput(
             || form.note.trim()
             || form.otherNgName.trim()
             || form.otherDeductionName.trim()
-            || Number(form.actualHours || 0) > 0
-            || Number(form.actualMinutes || 0) > 0
-            || Number(form.totalTime || 0) > 0
-            || Number(form.deductionTime || 0) > 0
-            || Number(form.actualTime || 0) > 0
-            || Number(form.ttOk || 0) > 0
-            || Number(form.ttNg || 0) > 0
+            || hasEnteredQuantity(form.actualHours)
+            || hasEnteredQuantity(form.actualMinutes)
+            || hasEnteredQuantity(form.totalTime)
+            || hasEnteredQuantity(form.deductionTime)
+            || hasEnteredQuantity(form.actualTime)
+            || hasEnteredQuantity(form.ttOk)
+            || hasEnteredQuantity(form.ttNg)
             || selectedNg.length
             || selectedDeduction.length
-            || Object.values(deductions || {}).some((value) => Number(value || 0) > 0)
+            || Object.values(deductions || {}).some((value) => hasEnteredQuantity(value))
             || Object.values(extraData || {}).some((value) => String(value ?? "").trim() !== "")
             || machineLines.some((line) =>
                 line.machineCode.trim()
                 || line.productCode.trim()
-                || Number(line.okQuantity || 0) > 0
-                || Number(line.ngQuantity || 0) > 0
-                || Number(line.hours || 0) > 0
-                || Number(line.minutes || 0) > 0
-                || Number(line.adjustmentMinutes || 0) > 0
-                || Number(line.adjustmentCount || 0) > 0
-                || Number(line.actualQuantity || 0) > 0
+                || hasEnteredQuantity(line.okQuantity)
+                || hasEnteredQuantity(line.ngQuantity)
+                || hasEnteredQuantity(line.hours)
+                || hasEnteredQuantity(line.minutes)
+                || hasEnteredQuantity(line.adjustmentMinutes)
+                || hasEnteredQuantity(line.adjustmentCount)
+                || hasEnteredQuantity(line.actualQuantity)
                 || line.selectedDefects.length > 0
                 || line.selectedDeductions.length > 0
-                || Object.values(line.defects).some((value) => Number(value || 0) > 0)
-                || Object.values(line.deductions).some((value) => Number(value || 0) > 0)
+                || Object.values(line.defects).some((value) => hasEnteredQuantity(value))
+                || Object.values(line.deductions).some((value) => hasEnteredQuantity(value))
                 || line.otherNgName.trim()
                 || line.otherDeductionName.trim()
             )
