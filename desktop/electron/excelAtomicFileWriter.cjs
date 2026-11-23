@@ -134,7 +134,10 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
   try {
     // Replace pending atomically without deleting the previous good pending
     // copy first. If rename fails, leave the previous pending intact.
-    await fs.rename(temporaryPath, pendingPath);
+    // Never overwrite an older pending workbook: it may contain a different
+    // export that has not yet been reviewed by the operator.
+    await fs.copyFile(temporaryPath, pendingPath, fsSync.constants.COPYFILE_EXCL);
+    await fs.rm(temporaryPath, { force: true });
   } catch (error) {
     await fs.rm(temporaryPath, { force: true }).catch(() => {});
     throw error;
@@ -150,7 +153,7 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
     code: lastError?.code,
     errorMessage: lastError?.message,
     reason: reloadReason,
-    excelWorkbookStillOpen: true,
+    excelWorkbookStillOpen: null,
     hint: 'Workbook replacement was deferred. Save and close Excel/WPS in all instances, inspect the pending copy, then explicitly retry the export.'
   });
   return {
@@ -158,7 +161,7 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
     pendingPath,
     backupPath,
     recoveryPath,
-    waitingForExcelSave: true
+    waitingForExcelSave: false
   };
 }
 
