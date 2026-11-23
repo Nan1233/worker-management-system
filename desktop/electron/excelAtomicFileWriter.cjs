@@ -198,7 +198,10 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
     throw error;
   }
 
-  const reloadResult = await reloadOpenExcelWorkbook(filePath, pendingPath);
+  // Do not close/reopen a user's Excel workbook automatically. COM can see
+  // only one Excel instance, and another Excel/WPS instance may have unsaved
+  // edits. Keep the pending workbook for explicit user-controlled recovery.
+  const reloadResult = { handled: false, reloaded: false, reason: 'manual-replacement-required' };
   if (reloadResult.reloaded) {
     await writeLog('INFO', 'OPEN_EXCEL_RELOADED', { filePath, backupPath });
     return { saved: true, pendingPath: null, backupPath, recoveryPath, reloadedOpenWorkbook: true };
