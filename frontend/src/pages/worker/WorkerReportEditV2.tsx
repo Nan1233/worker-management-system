@@ -11,7 +11,6 @@ import type { MachineOption, ProductStandardOption } from "../../services/master
 import type { WorkerMasterOption } from "./processMasterDataNormalization";
 import type { ReportEditDefect, ReportEditDeduction, ReportEditMachineLine, ReportEditRecord } from "./reportEditTypes";
 import { getReportEditLineDeductions, unwrapReportEditResponse } from "./reportEditTypes";
-import axios from "axios";
 import { getStoredUser } from "../../utils/authStorage";
 import { getCanonicalProcessId } from "../../utils/processAccess";
 import { getProcessCapabilities, usesMultiMachineLines as resolveMultiMachine, usesSingleMachine as resolveSingleMachine } from "./processPageDomain";
@@ -452,14 +451,13 @@ function WorkerReportEditV2() {
         navigate(`/worker/history/${report.id}`, { replace: true });
       }
     } catch (error: unknown) {
-      const response = axios.isAxiosError(error) ? error.response : undefined;
-      const data = response?.data as { code?: string; errors?: { machine_lines?: string } } | undefined;
+      const apiError = getApiError(error, "Không thể lưu thay đổi.");
       const conflictCodes = ["REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_CONFLICT", "TEMP_REPORT_VERSION_REQUIRED"];
-      if (conflictCodes.includes(String(data?.code || "")) || (response?.status === 409 && !data?.code)) {
+      if (conflictCodes.includes(apiError.code || "") || (apiError.status === 409 && !apiError.code)) {
         setError("Báo cáo đã được người khác cập nhật. Vui lòng tải lại dữ liệu trước khi lưu. Các thay đổi bạn đang nhập vẫn được giữ trên màn hình.");
         return;
       }
-      setError(data?.errors?.machine_lines || getApiError(error, "Không thể lưu thay đổi.").message);
+      setError(apiError.errors.machine_lines || apiError.message);
     }
     finally {
       saveInFlightRef.current = false;
