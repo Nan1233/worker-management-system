@@ -67,7 +67,7 @@ export function useProcessDraftAutosave({
 
         const resetVersion = resetVersionRef.current;
         const snapshot = {
-            version: 1 as const,
+            version: 3 as const,
             savedAt: Date.now(),
             process,
             form,
