@@ -1,5 +1,17 @@
 'use strict';
 const db = require('../config/db');
+const { buildApprovalScopeQuery } = require('../models/productionTempApprovalQueries');
+const { assertApprovalSelectionVisible, assertApprovalSelectionVersions } = require('../models/productionTempApprovalSelection');
+
+// Preflight permission and version checks before non-transactional legacy
+// repair. The approval transaction repeats both checks before committing.
+async function assertLegacyRepairAuthorized(reportIds, expectedById, reviewerId, isAdmin) {
+  const { sql, params } = buildApprovalScopeQuery(reportIds, reviewerId, isAdmin);
+  const scopedSql = sql.replace(/\\s+FOR\\s+UPDATE\\s*$/i, '');
+  const [rows] = await db.promise().query(scopedSql, params);
+  assertApprovalSelectionVisible(rows || [], reportIds);
+  assertApprovalSelectionVersions(rows || [], expectedById);
+}
 
 // Persistence adapter for legacy machine repair and idempotent approval recovery.
 async function ensureLegacyMachineLines(targets, createResolver) {
@@ -289,4 +301,4 @@ async function loadAlreadyApproved(reportIds) {
   return { count: ids.length, temp_ids: ids, approved_ids: approvedIds, dates };
 }
 
-module.exports = { ensureLegacyMachineLines, repairMachineLineReferences, linkMatchingApprovedMachineEvents, loadAlreadyApproved };
+module.exports = { assertLegacyRepairAuthorized, ensureLegacyMachineLines, repairMachineLineReferences, linkMatchingApprovedMachineEvents, loadAlreadyApproved };
