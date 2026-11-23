@@ -95,7 +95,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         }
       }
       detected += parsed.changes.length;
-      if (/^\d{4}-\d{2}$/.test(String(parsed.yearMonth || ''))) changedMonths.add(parsed.yearMonth);
+      const parsedMonth = String(parsed.yearMonth || '');
       let fileFailed = false;
       for (let index = 0; index < parsed.changes.length; index += 100) {
         const chunk = parsed.changes.slice(index, index + 100);
@@ -135,6 +135,10 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         mtimeMs: fileFailed || changedDuringSync ? state.mtimeMs : stat.mtimeMs,
         versions: state.versions
       });
+      // A rebuild overwrites the local workbook. Never rebuild a month while
+      // any of its edits failed or the workbook changed during the request.
+      if (/^\\d{4}-(?:0[1-9]|1[0-2])$/.test(parsedMonth)
+          && !fileFailed && !changedDuringSync) changedMonths.add(parsedMonth);
     }
     if (detected > 0) {
       await writeLog('INFO', 'EXCEL_DB_SYNC_FINISH', { source, detected, succeeded, failed, changedMonths: [...changedMonths] });
