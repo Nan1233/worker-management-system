@@ -110,7 +110,10 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
             fileFailed = true;
           }
           for (const item of result.results || []) {
-            if (item.success && item.updated_at) state.versions.set(Number(item.id), item.updated_at);
+            const reportId = Number(item.id);
+            if (item.success && item.updated_at && Number.isSafeInteger(reportId) && reportId > 0) {
+              state.versions.set(reportId, item.updated_at);
+            }
             if (!item.success) {
               fileFailed = true;
               await writeLog('WARN', 'EXCEL_DB_SYNC_ROW_FAILED', { filePath, reportId: item.id, code: item.code, message: item.message });
@@ -123,10 +126,13 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           if (error.code === 'EXCEL_DB_SYNC_FORBIDDEN') return { detected, succeeded, failed, forbidden: true };
         }
       }
-      // Do not acknowledge an unchanged file timestamp after partial failure:
-      // the next watcher pass must retry failed rows instead of losing them.
+      // Never acknowledge an earlier file snapshot if Excel was saved again
+      // during the HTTP requests. Re-read the newest workbook next cycle.
+      const latestStat = await fs.stat(filePath).catch(() => null);
+      const changedDuringSync = !latestStat || Math.abs(Number(latestStat.mtimeMs) - Number(stat.mtimeMs)) >= 1
+        || Number(latestStat.size) !== Number(stat.size);
       excelDbSyncState.set(filePath, {
-        mtimeMs: fileFailed ? state.mtimeMs : stat.mtimeMs,
+        mtimeMs: fileFailed || changedDuringSync ? state.mtimeMs : stat.mtimeMs,
         versions: state.versions
       });
     }
