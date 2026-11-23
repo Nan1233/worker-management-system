@@ -521,6 +521,8 @@ export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> 
     if (existing && !validDraftForOwner(existing, draft.process, workerId, workerCode)) {
       throw new Error("Existing draft belongs to another worker or is invalid");
     }
+    // An older save must never replace a newer local recovery point.
+    if (existing && Number(existing.savedAt || 0) > owned.savedAt) return;
     const serialized = JSON.stringify(owned);
     localStorage.setItem(key, serialized);
     backupSaved = localStorage.getItem(key) === serialized;
@@ -531,6 +533,12 @@ export async function saveProcessDraftAsync(draft: ProcessDraft): Promise<void> 
   await queueDraftWrite(key, async () => {
     if ((draftEpochs.get(key) || 0) !== epoch || owned.savedAt <= clearedAt(key)) return;
     try {
+      // The queue is sequential per worker/process. Do not let a delayed
+      // older write replace a newer IndexedDB snapshot.
+      const current = await draftRequest<ProcessDraft | undefined>("readonly", store => store.get(key));
+      if (current && validDraftForOwner(current, draft.process, workerId, workerCode)
+          && Number(current.savedAt || 0) > owned.savedAt) return;
+      if ((draftEpochs.get(key) || 0) !== epoch || owned.savedAt <= clearedAt(key)) return;
       await draftRequest("readwrite", store => store.put(owned, key));
     } catch (error) {
       console.warn("[KTC draft] IndexedDB save failed", error instanceof Error ? error.name : "UnknownError");
