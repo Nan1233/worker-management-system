@@ -48,6 +48,12 @@ async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
     }
     if (!parsed.changes.length) continue;
     if (yearMonth && parsed.yearMonth !== yearMonth) continue;
+    const previewIds = parsed.changes.map((change) => Number(change?.id));
+    if (previewIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
+        || new Set(previewIds).size !== previewIds.length) {
+      helperUpdateErrors.push({ file: path.basename(filePath), message: 'Duplicate or invalid report IDs' });
+      continue;
+    }
     for (const change of parsed.changes) {
       changes.push({
         ...change,
