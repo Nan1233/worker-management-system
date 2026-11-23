@@ -47,9 +47,7 @@ function exportRequestGuard(req, res, next) {
     });
   }
 
-  const entry = {
-    expiresAt: now + RECENT_TTL_MS
-  };
+  const entry = { expiresAt: now + RECENT_TTL_MS };
 
   inFlight.set(key, entry);
 
