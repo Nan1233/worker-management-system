@@ -137,24 +137,22 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
   // Do not close/reopen a user's Excel workbook automatically. COM can see
   // only one Excel instance, and another Excel/WPS instance may have unsaved
   // edits. Keep the pending workbook for explicit user-controlled recovery.
-  const reloadResult = { handled: false, reloaded: false, reason: 'manual-replacement-required' };
+  const reloadResult = { reason: 'manual-replacement-required' };
   await writeLog('WARN', 'FILE_LOCKED_PENDING_CREATED', {
     filePath,
     pendingPath,
     code: lastError?.code,
     errorMessage: lastError?.message,
     reason: reloadResult.reason,
-    excelWorkbookStillOpen: reloadResult.reason === 'unsaved-changes',
-    hint: reloadResult.reason === 'unsaved-changes'
-      ? 'Excel still reports this workbook as open with unsaved changes. Save and close it in every Excel instance; also check WPS.'
-      : 'Target is still locked or inaccessible. Close Excel/WPS, check file permissions and syncing software, then retry.'
+    excelWorkbookStillOpen: true,
+    hint: 'Workbook replacement was deferred. Save and close Excel/WPS in all instances, inspect the pending copy, then explicitly retry the export.'
   });
   return {
     saved: false,
     pendingPath,
     backupPath,
     recoveryPath,
-    waitingForExcelSave: reloadResult.reason === 'unsaved-changes'
+    waitingForExcelSave: true
   };
 }
 
