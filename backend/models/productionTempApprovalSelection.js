@@ -1,6 +1,7 @@
 'use strict';
 
 const { normalizeIds } = require('./productionTempIdNormalization');
+const { publicError } = require('../utils/httpError');
 
 function isValidReportId(id) {
   const correctType = typeof id === 'number'
@@ -58,22 +59,18 @@ function buildApprovalSelection(targets) {
 }
 
 function createApprovalSelectionStaleError(reportIds, missingIds) {
-  const error = new Error(
-    "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
+  return publicError(
+    "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại.",
+    409, "APPROVAL_SELECTION_STALE",
+    { requested_ids: reportIds, missing_ids: missingIds },
   );
-  error.status = 409;
-  error.code = "APPROVAL_SELECTION_STALE";
-  error.isPublic = true;
-  error.details = { requested_ids: reportIds, missing_ids: missingIds };
-  return error;
 }
 
 function createTempReportVersionConflictError(reportId) {
-  const error = new Error(`Báo cáo #${reportId} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
-  error.status = 409;
-  error.code = "TEMP_REPORT_VERSION_CONFLICT";
-  error.isPublic = true;
-  return error;
+  return publicError(
+    `Báo cáo #${reportId} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`,
+    409, "TEMP_REPORT_VERSION_CONFLICT",
+  );
 }
 
 function assertApprovalSelectionVisible(rows, reportIds) {
