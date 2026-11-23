@@ -15,39 +15,39 @@ function trimOriginalTemplateSheet(sheet, lastDataRow, lastDataColumn) {
   // dropped. Clear style and value first, then remove the unused rows/columns.
   // Only remove merges whose master lies beyond the retained report area.
   // Preserve merges crossing its boundary; they belong to retained cells.
-  const unmerged = new Set();
+  const unwantedMergeMasters = new Set();
   let hasCrossingRowMerge = false;
   let hasCrossingColumnMerge = false;
   const isRetainedMerge = (cell) => cell.isMerged && cell.master
     && cell.master.row <= lastRow && cell.master.col <= lastColumn;
-  const discardMerge = (cell) => {
-    if (!cell.isMerged) return;
-    const master = cell.master;
-    if (!master || (master.row <= lastRow && master.col <= lastColumn)) return;
-    if (unmerged.has(master.address)) return;
-    unmerged.add(master.address);
-    sheet.unMergeCells(master.address);
-  };
 
+  // Discover all merges before changing the worksheet. Unmerging while
+  // visiting live merged cells can invalidate the iterator's next cell.
   for (let rowNumber = 1; rowNumber <= sourceRowCount; rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
     if (rowNumber > lastRow) {
       row.eachCell({ includeEmpty: true }, (cell) => {
+        if (!cell.isMerged || !cell.master) return;
         if (isRetainedMerge(cell)) hasCrossingRowMerge = true;
-        else discardMerge(cell);
-      });
-      row.eachCell({ includeEmpty: true }, (cell) => {
-        if (isRetainedMerge(cell)) return;
-        cell.value = null;
-        cell.style = {};
+        else unwantedMergeMasters.add(cell.master.address);
       });
       continue;
     }
     for (let column = lastColumn + 1; column <= sourceColumnCount; column += 1) {
       const cell = row.getCell(column);
+      if (!cell.isMerged || !cell.master) continue;
       if (isRetainedMerge(cell)) hasCrossingColumnMerge = true;
-      else discardMerge(cell);
+      else unwantedMergeMasters.add(cell.master.address);
     }
+  }
+  for (const address of unwantedMergeMasters) sheet.unMergeCells(address);
+
+  for (let rowNumber = lastRow + 1; rowNumber <= sourceRowCount; rowNumber += 1) {
+    sheet.getRow(rowNumber).eachCell({ includeEmpty: true }, (cell) => {
+      if (isRetainedMerge(cell)) return;
+      cell.value = null;
+      cell.style = {};
+    });
   }
 
   // Once unused merges are removed, public splice operations can shift/remove
