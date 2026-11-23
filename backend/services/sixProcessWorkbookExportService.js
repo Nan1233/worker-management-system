@@ -1,8 +1,8 @@
 'use strict';
 
 // Export the six production processes from the user-maintained Workbook1.xlsx.
-// Column positions are taken from each worksheet's actual header row, not from
-// the legacy nine-process workbook.
+// Column positions follow the reviewed Workbook1 worksheet contract.
+// Validate the physical sheet bounds before writing any report values.
 const ExcelJS = require('exceljs');
 const path = require('node:path');
 const fs = require('node:fs/promises');
@@ -85,6 +85,8 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
   const required = ['worker', 'name', 'shift', 'product', 'standard', 'output', 'date'];
   const invalid = required.filter((field) => !Number.isInteger(columns[field])
     || columns[field] < 1 || columns[field] > sheet.columnCount);
+  const duplicateColumns = Object.values(columns).filter((column, index, values) => values.indexOf(column) !== index);
+  if (duplicateColumns.length) invalid.push('duplicate column positions');
   if (invalid.length || HEADER_ROW[processCode] >= first) {
     throw Object.assign(new Error('Workbook1 template columns invalid: ' + invalid.join(', ')), {
       code: 'KTC_EXCEL_TEMPLATE_COLUMN_MISSING', statusCode: 422
