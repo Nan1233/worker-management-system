@@ -163,6 +163,20 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
   const temporaryPath = path.join(folder, `.${fileName}.${process.pid}.${require('node:crypto').randomUUID()}.tmp`);
   try {
     await workbook.xlsx.writeFile(temporaryPath);
+    const previous = await fs.stat(outputPath).catch((error) => {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (previous) {
+      const recoveryPath = `${outputPath}.${require('node:crypto').randomUUID()}.recovery.xlsx`;
+      await fs.copyFile(outputPath, recoveryPath, require('node:fs').constants.COPYFILE_EXCL);
+      const current = await fs.stat(outputPath);
+      if (current.mtimeMs !== previous.mtimeMs || current.size !== previous.size) {
+        throw Object.assign(new Error('Existing export changed during recovery snapshot'), {
+          code: 'KTC_EXCEL_CONCURRENT_MODIFICATION'
+        });
+      }
+    }
     await fs.rename(temporaryPath, outputPath);
   } finally {
     await fs.rm(temporaryPath, { force: true }).catch(() => {});
