@@ -120,6 +120,12 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
   const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const backupPath = await backupExistingExcel(filePath, syncDate);
+  // The backup must be the exact version we are about to replace. A workbook
+  // edited after backup creation must not be overwritten with an older export.
+  const originalStat = await fs.stat(filePath).catch((error) => {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  });
   try {
     await fs.writeFile(temporaryPath, buffer, { flag: 'wx' });
   } catch (error) {
@@ -133,6 +139,17 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
       // Rename within the same directory is an atomic replacement when the
       // target is unlocked. NEVER delete the old workbook first: if rename
       // subsequently fails, the user must retain their last good report.
+      const currentStat = await fs.stat(filePath).catch((error) => {
+        if (error?.code === 'ENOENT') return null;
+        throw error;
+      });
+      if ((originalStat === null) !== (currentStat === null)
+          || (originalStat && currentStat &&
+            (originalStat.mtimeMs !== currentStat.mtimeMs || originalStat.size !== currentStat.size))) {
+        const conflict = new Error('File Excel đã được chỉnh sửa sau khi bắt đầu xuất. Không ghi đè thay đổi mới.');
+        conflict.code = 'KTC_EXCEL_CONCURRENT_MODIFICATION';
+        throw conflict;
+      }
       await fs.rename(temporaryPath, filePath);
       // Pending chỉ là bản chờ khi file đang khóa. Khi lần đồng bộ mới đã ghi
       // thành công từ dữ liệu DB mới nhất, xóa pending cũ để tránh áp dụng dữ liệu cũ.
