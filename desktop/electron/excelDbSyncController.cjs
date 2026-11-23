@@ -89,9 +89,21 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         await writeLog('WARN', 'EXCEL_DB_SYNC_READ_SKIPPED', { filePath, source, ...normalizeError(error) });
         continue;
       }
-      if (!parsed.managed) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs, size: stat.size }); continue; }
+      if (!parsed?.managed) {
+        const latest = await fs.stat(filePath).catch(() => null);
+        if (latest && latest.mtimeMs === stat.mtimeMs && latest.size === stat.size) {
+          excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs, size: stat.size });
+        } else unreadableWorkbook = true;
+        continue;
+      }
       if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
-      if (!parsed.changes.length) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs }); continue; }
+      if (!parsed.changes.length) {
+        const latest = await fs.stat(filePath).catch(() => null);
+        if (latest && latest.mtimeMs === stat.mtimeMs && latest.size === stat.size) {
+          excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs, size: stat.size });
+        } else unreadableWorkbook = true;
+        continue;
+      }
       for (const change of parsed.changes) {
         const reportId = Number(change.id);
         if (Number.isSafeInteger(reportId) && state.versions?.has(reportId)) {
@@ -142,7 +154,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       // Never acknowledge an earlier file snapshot if Excel was saved again
       // during the HTTP requests. Re-read the newest workbook next cycle.
       const latestStat = await fs.stat(filePath).catch(() => null);
-      const changedDuringSync = !latestStat || Math.abs(Number(latestStat.mtimeMs) - Number(stat.mtimeMs)) >= 1
+      const changedDuringSync = !latestStat || Number(latestStat.mtimeMs) !== Number(stat.mtimeMs)
         || Number(latestStat.size) !== Number(stat.size);
       excelDbSyncState.set(filePath, {
         mtimeMs: fileFailed || changedDuringSync ? state.mtimeMs : stat.mtimeMs,
