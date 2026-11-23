@@ -51,6 +51,15 @@ export function parseReportEditDeductions(value: unknown): ReportEditDeduction[]
         row !== null && typeof row === "object" && !Array.isArray(row));
 }
 
+/** Preserve legacy fallback priority: a real deductions array wins over
+ * malformed or empty deductions_json; otherwise decode JSON text. */
+export function getReportEditLineDeductions(line: ReportEditMachineLine | null | undefined): ReportEditDeduction[] {
+    if (!line) return [];
+    if (Array.isArray(line.deductions_json)) return parseReportEditDeductions(line.deductions_json);
+    if (Array.isArray(line.deductions)) return parseReportEditDeductions(line.deductions);
+    return parseReportEditDeductions(line.deductions_json);
+}
+
 /** Only accept the minimum report identity required to edit safely. */
 export function unwrapReportEditResponse(payload: unknown): ReportEditRecord | null {
     if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return null;
