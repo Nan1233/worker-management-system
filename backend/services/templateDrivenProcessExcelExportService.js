@@ -114,7 +114,7 @@ function clearBrokenAndExternalFormulas(workbook) {
     const value = cell.value;
     const formula = typeof value === 'string' && value.startsWith('=')
       ? value : value && typeof value === 'object' ? value.formula || value.sharedFormula : null;
-    if (formula && (formula.includes('#REF!') || /\\[[^\\]]+\\]/.test(formula))) {
+    if (formula && (formula.includes('#REF!') || /\[[^\]]+\]/.test(formula))) {
       cell.value = null;
       removed += 1;
     }
