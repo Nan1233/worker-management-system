@@ -1,5 +1,6 @@
 // Infrastructure: approval SQL execution with the existing slow-query/error diagnostics.
 const { query } = require("../models/productionTempModelShared");
+const { buildApprovalScopeQuery, buildRejectionScopeQuery } = require("../models/productionTempApprovalQueries");
 
 const APPROVAL_SLOW_QUERY_MS = 750;
 
@@ -24,4 +25,10 @@ async function qRows(executor, sql, params = []) {
   }
 }
 
-module.exports = { qRows };
+async function readReviewCandidates(connection, reportIds, reviewerId, isAdmin, action) {
+  const queryBuilder = action === 'reject' ? buildRejectionScopeQuery : buildApprovalScopeQuery;
+  const { sql, params } = queryBuilder(reportIds, reviewerId, isAdmin);
+  return qRows(connection, sql, params);
+}
+
+module.exports = { qRows, readReviewCandidates };
