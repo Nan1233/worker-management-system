@@ -182,30 +182,10 @@ async function hydrateExportDetailFallbacks(reports) {
   return reports;
 }
 
+// Compatibility export retained for callers that still import this helper.
+// Historical production reports must never be rewritten from today's mutable
+// master data, including through a legacy call site.
 async function applyCurrentDbMasterData(reports) {
-  if (!Array.isArray(reports) || !reports.length) return reports;
-  const processId = Number(reports[0]?.process_id); if (!Number.isInteger(processId) || processId <= 0) return reports;
-  const [standards, machines] = await Promise.all([
-    query(`SELECT id, product_code, standard_output FROM product_standards WHERE process_id=? AND LOWER(COALESCE(status,'active')) IN ('active','enabled','1') ORDER BY id`, [processId]),
-    query(`SELECT id, machine_code FROM machines WHERE process_id=? AND LOWER(COALESCE(status,'active')) IN ('active','enabled','1') ORDER BY id`, [processId])
-  ]);
-  const normalize = (value) => String(value ?? '').trim().toUpperCase();
-  const standardMap = new Map();
-  for (const row of standards) { if (normalize(row.product_code)) standardMap.set(normalize(row.product_code), row); }
-  const machineMap = new Map(machines.map((row) => [normalize(row.machine_code), row]));
-  for (const report of reports) {
-    const requestedProduct = String(rawValue(report, 'product_code') ?? report.product_name ?? '').trim();
-    const key = normalize(requestedProduct); const standard = standardMap.get(key) || null;
-    if (standard) {
-      report.product_name = String(standard.product_code || requestedProduct).trim(); report.product_code = String(standard.product_code || requestedProduct).trim();
-      const dbStandard = Number(standard.standard_output); if (Number.isFinite(dbStandard) && dbStandard > 0) report.standard_output = dbStandard;
-    }
-    const requestedMachine = String(report.machine_no ?? '').trim();
-    if (!requestedMachine) { report.machine_no = null; report.exportWorkType = 'LỒNG'; continue; }
-    const machine = machineMap.get(normalize(requestedMachine));
-    if (machine) { report.machine_no = machine.machine_code; report.exportWorkType = 'MÁY'; }
-    else report.exportWorkType = 'MÁY_KHÔNG_CÒN_TRONG_DB';
-  }
   return reports;
 }
 
