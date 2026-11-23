@@ -59,14 +59,32 @@ function writeDefectsAndDeductions(row, report, columnMap) {
   const defects = Array.isArray(report?.defects) ? report.defects : [], deductions = Array.isArray(report?.deductions) ? report.deductions : [];
   for (const [column, label] of columnMap.entries()) {
     const normalized = alias(label);
-    const defect = defects.find((item) => alias(item?.defect_name || item?.name || item?.defect_code).includes(normalized) || normalized.includes(alias(item?.defect_name || item?.name || item?.defect_code)));
+    const defect = defects.find((item) => {
+      const name = alias(item?.defect_name || item?.name || item?.defect_code);
+      return name && normalized && (name === normalized || name.includes(normalized) || normalized.includes(name));
+    });
     if (defect) { row.getCell(column).value = Number(defect.quantity ?? defect.count ?? defect.value ?? 0); continue; }
-    const deduction = deductions.find((item) => alias(item?.deduction_name || item?.name || item?.deduction_code).includes(normalized) || normalized.includes(alias(item?.deduction_name || item?.name || item?.deduction_code)));
+    const deduction = deductions.find((item) => {
+      const name = alias(item?.deduction_name || item?.name || item?.deduction_code);
+      return name && normalized && (name === normalized || name.includes(normalized) || normalized.includes(name));
+    });
     if (deduction) row.getCell(column).value = Number(deduction.hours ?? deduction.time ?? deduction.value ?? 0);
   }
 }
 function writeReportRow(sheet, rowNumber, report, processCode, mapping) {
-  const row = sheet.getRow(rowNumber), c = mapping.cols; const set = (column, value) => { if (column) row.getCell(column).value = value == null ? null : value; };
+  const row = sheet.getRow(rowNumber), c = mapping.cols;
+  const set = (column, value) => {
+    if (!column) return;
+    // Never allow user-entered worker/product/machine text to be interpreted
+    // as an Excel formula. Preserve the exact text as an explicit string cell.
+    const cell = row.getCell(column);
+    if (typeof value === 'string') {
+      cell.value = value;
+      cell.numFmt = '@';
+    } else {
+      cell.value = value == null ? null : value;
+    }
+  };
   set(c.workerCode, report.worker_code); set(c.workerName, report.full_name || report.worker_name); set(c.shift, report.shift); set(c.machine, report.machine_no); set(c.product, report.product_name || rawValue(report, 'product_code')); set(c.workDate, asDate(report.work_date)); set(c.training, report.training_percent); set(c.standard, metric(report, 'standard_output')); set(c.actual, metric(report, 'actual_output')); set(c.ok, metric(report, 'tt_ok')); set(c.ng, metric(report, 'tt_ng')); set(c.achievement, metric(report, 'achievement_rate')); set(c.totalTime, metric(report, 'total_time')); if (c.actualTime && c.actualTime !== c.totalTime) set(c.actualTime, metric(report, 'actual_time')); writeDefectsAndDeductions(row, report, mapping.map);
 }
 function clearBrokenAndExternalFormulas(workbook) { let removed = 0; workbook.eachSheet((sheet) => sheet.eachRow((row) => row.eachCell((cell) => { if (typeof cell.value === 'string' && cell.value.startsWith('=') && (cell.value.includes('#REF!') || /\[[^\]]+\][^!]+!/.test(cell.value))) { cell.value = null; removed += 1; } }))); return removed; }
