@@ -283,7 +283,7 @@ const machineAutocompleteOptions =
         process, processCode, form, deductions, selectedDeduction, selectedNg,
         machineLines, machineCount, operationType, operationMode, isCvkMode,
         cutExecutionMode, extraData, loadingWorker, loadingMasterData, submitting,
-        isRestoringDraftRef, draftSaveTimerRef, resetVersionRef,
+        isRestoringDraftRef, resetVersionRef,
         setForm, setDeductions, setSelectedDeduction, setSelectedNg,
         setMachineLines, setMachineCount, setOperationType, setIsCvkMode,
         setCutExecutionMode, setOperationMode, setExtraData,
