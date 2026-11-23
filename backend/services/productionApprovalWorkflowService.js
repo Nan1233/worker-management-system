@@ -1,7 +1,7 @@
 'use strict';
 const AuditService = require('./auditService');
-const { buildApprovalScopeQuery, buildApprovedTempTransitionQuery } = require('../models/productionTempApprovalQueries');
-const { qRows } = require('../repositories/productionApprovalReadRepository');
+const { buildApprovedTempTransitionQuery } = require('../models/productionTempApprovalQueries');
+const { qRows, readReviewCandidates } = require('../repositories/productionApprovalReadRepository');
 const { buildApprovalSelection, assertApprovalSelectionVisible, assertApprovalSelectionVersions } = require('../models/productionTempApprovalSelection');
 const { query, getConnection, beginTransaction, commit } = require('../models/productionTempModelShared');
 const { createStandardResolver } = require('./standardResolutionService');
@@ -38,8 +38,7 @@ async function approveSelected(targets, reviewerId, isAdmin = false, options = {
 
     try {
       if (ownsTransaction) await beginTransaction(connection);
-      const { sql: selectionSql, params: selectionParams } = buildApprovalScopeQuery(reportIds, reviewerId, isAdmin);
-      const rows = await query(connection, selectionSql, selectionParams);
+      const rows = await readReviewCandidates(connection, reportIds, reviewerId, isAdmin, 'approve');
       assertApprovalSelectionVisible(rows, reportIds);
       assertApprovalSelectionVersions(rows, expectedById);
 
