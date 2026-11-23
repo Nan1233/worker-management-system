@@ -19,10 +19,12 @@ const publicMessage = (error, fallback = "Đã xảy ra lỗi hệ thống") => 
     return isProduction() ? fallback : (error?.message || fallback);
 };
 
-const publicError = (message, status = 400) => {
+const publicError = (message, status = 400, code = undefined, details = undefined) => {
     const error = new Error(message);
     error.status = status;
     error.isPublic = true;
+    if (code !== undefined) error.code = code;
+    if (details !== undefined) error.details = details;
     return error;
 };
 
