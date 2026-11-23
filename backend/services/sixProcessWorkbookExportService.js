@@ -132,7 +132,14 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
     });
   }
   const outputPath = path.join(folder, fileName);
-  await workbook.xlsx.writeFile(outputPath);
+  // Never truncate a previously exported workbook before the new ZIP is ready.
+  const temporaryPath = path.join(folder, `.${fileName}.${process.pid}.${require('node:crypto').randomUUID()}.tmp`);
+  try {
+    await workbook.xlsx.writeFile(temporaryPath);
+    await fs.rename(temporaryPath, outputPath);
+  } finally {
+    await fs.rm(temporaryPath, { force: true }).catch(() => {});
+  }
   return { archivePath: outputPath, fileName, processCode, templateFile: 'Workbook1.xlsx', templateSheet: sheetName, templateHeaderRow: HEADER_ROW[processCode], dataStartRow: first, reportCount: reports.length, rowCount: ordered.length, removedBrokenFormulas: 0 };
 }
 module.exports = { buildSixProcessWorkbook, SHEETS, COLUMNS };
