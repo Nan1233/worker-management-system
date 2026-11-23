@@ -28,7 +28,7 @@ function approvalQueueKey(targets) {
   return [...new Set((Array.isArray(targets) ? targets : [])
     .map((item) => typeof item === "object" ? item?.id : item)
     .map(Number)
-    .filter((id) => Number.isInteger(id) && id > 0))]
+    .filter((id) => Number.isSafeInteger(id) && id > 0))]
     .sort((a, b) => a - b)
     .join(",");
 }
@@ -46,8 +46,20 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
       .map(Number)
       .filter((id) => Number.isInteger(id) && id > 0))];
 
-    const alreadyApproved = await loadAlreadyApproved(reportIds);
-    if (alreadyApproved) return alreadyApproved;
+    // A versioned approval is not an idempotent retry: returning a previous
+    // result would silently bypass the caller's optimistic-lock token.
+    const hasVersionGuard = targets.some((item) => item && typeof item === 'object' && item.expected_updated_at != null);
+    if (!hasVersionGuard) {
+      const alreadyApproved = await loadAlreadyApproved(reportIds);
+      if (alreadyApproved) return alreadyApproved;
+    }
+
+    // Keep legacy repair inside the same per-selection queue. Previously it
+    // ran before serialization and two requests could repair the same rows
+    // concurrently, outside the approval transaction.
+    await approvalStage("ensureLegacyMachineLines", () => ensureLegacyMachineLines(targets, createStandardResolver));
+    await approvalStage("repairMachineLineReferences", () => repairMachineLineReferences(targets));
+    await approvalStage("linkMatchingApprovedMachineEvents", () => linkMatchingApprovedMachineEvents(targets));
 
     for (const delay of [0, 250, 750]) {
       if (delay) await sleep(delay);
@@ -55,8 +67,10 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
         return await approvalModel.approveSelected(targets, reviewerId, isAdmin);
       } catch (error) {
         if (!isLockWaitTimeout(error)) throw error;
-        const recovered = await loadAlreadyApproved(reportIds);
-        if (recovered) return recovered;
+        if (!hasVersionGuard) {
+          const recovered = await loadAlreadyApproved(reportIds);
+          if (recovered) return recovered;
+        }
       }
     }
     const error = new Error("Yêu cầu duyệt báo cáo đang bị yêu cầu khác xử lý. Vui lòng thử lại.");
@@ -76,9 +90,6 @@ module.exports = {
     // Validate the entire selection before legacy repair writes or any queue
     // recovery. Invalid targets must not mutate machine-line references.
     buildApprovalSelection(targets);
-    await approvalStage("ensureLegacyMachineLines", () => ensureLegacyMachineLines(targets, createStandardResolver));
-    await approvalStage("repairMachineLineReferences", () => repairMachineLineReferences(targets));
-    await approvalStage("linkMatchingApprovedMachineEvents", () => linkMatchingApprovedMachineEvents(targets));
     return approvalStage("approveSelectedSerialized", () => approveSelectedSerialized(targets, reviewerId, isAdmin));
   },
 };
