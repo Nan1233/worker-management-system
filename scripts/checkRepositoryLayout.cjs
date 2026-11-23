@@ -121,7 +121,7 @@ const localModules = [
 for (const relativeFile of localModules) {
   const absoluteFile = at(...relativeFile.split('/'));
   const source = fs.readFileSync(absoluteFile, 'utf8');
-  const requires = [...source.matchAll(/\\brequire\\(\\s*['"]([.][.\\/][^'"]+)['"]\\s*\\)/g)];
+  const requires = [...source.matchAll(/\brequire\(\s*['"]([.][.\/][^'"]+)['"]\s*\)/g)];
   for (const [, specifier] of requires) {
     const target = path.resolve(path.dirname(absoluteFile), specifier);
     assert.ok([target, target + '.js', target + '.cjs', target + '.json', path.join(target, 'index.js')]
