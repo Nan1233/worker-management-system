@@ -10,6 +10,7 @@ import { getApiError } from "../../utils/apiError";
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 import type { WorkerMasterOption } from "./processMasterDataNormalization";
 import type { ReportEditDefect, ReportEditDeduction, ReportEditMachineLine, ReportEditRecord } from "./reportEditTypes";
+import { parseReportEditDeductions } from "./reportEditTypes";
 import axios from "axios";
 import { getStoredUser } from "../../utils/authStorage";
 import { getCanonicalProcessId } from "../../utils/processAccess";
@@ -91,12 +92,7 @@ function WorkerReportEditV2() {
     const lines = Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [];
     if (lines.length !== 1) return parent;
     const line = lines[0];
-    const raw = line?.deductions_json ?? line?.deductions;
-    if (Array.isArray(raw)) return raw;
-    if (typeof raw === "string") {
-      try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed; } catch { /* invalid legacy JSON: fail closed on save */ }
-    }
-    return parent;
+    return parseReportEditDeductions(line?.deductions_json ?? line?.deductions);
   }, [report]);
   const sourceLines = useMemo<ReportEditMachineLine[]>(() => Array.isArray(report?.machine_lines) ? report.machine_lines : Array.isArray(report?.machineLines) ? report.machineLines : [], [report]);
 
@@ -187,14 +183,12 @@ function WorkerReportEditV2() {
         // Với báo cáo theo máy, machine_time_hours là tổng thời gian (thực tế + trừ giờ).
         // Các cột tổng hợp phải được tính lại từ từng dòng máy, không lấy các trường legacy
         // ở cấp báo cáo vì các trường đó có thể bằng 0 hoặc mang ý nghĩa gross khác nhau.
-        const lineTimeTotals = rawMachineLines.reduce((totals: { gross: number; deduction: number }, line: any) => {
+        const lineTimeTotals = rawMachineLines.reduce((totals: { gross: number; deduction: number }, line) => {
           const gross = Math.max(0, n(line.machine_time_hours));
           let deduction = Number(line.deduction_time_hours);
           if (!Number.isFinite(deduction) || deduction < 0) {
-            const rawDeductions = Array.isArray(line.deductions_json) ? line.deductions_json
-              : Array.isArray(line.deductions) ? line.deductions
-              : (() => { try { return JSON.parse(line.deductions_json || "[]"); } catch { return []; } })();
-            deduction = rawDeductions.reduce((sum: number, item: any) => sum + Math.max(0, n(item.minutes ?? item.deduction_minutes ?? n(item.hours) * 60)) / 60, 0);
+            const rawDeductions = parseReportEditDeductions(line.deductions_json ?? line.deductions);
+            deduction = rawDeductions.reduce((sum: number, item) => sum + Math.max(0, n(item.minutes ?? item.deduction_minutes ?? n(item.hours) * 60)) / 60, 0);
           }
           totals.gross += gross;
           totals.deduction += Math.min(gross, Math.max(0, deduction));
@@ -267,22 +261,20 @@ function WorkerReportEditV2() {
       });
       return next;
     });
-    setMachineLines((Array.isArray(report?.__edit_machine_lines) ? report.__edit_machine_lines : sourceLines).map((line: any) => {
+    setMachineLines((Array.isArray(report?.__edit_machine_lines) ? report.__edit_machine_lines : sourceLines).map((line) => {
       const lineDefects = Array.isArray(line.defects) ? line.defects : [];
       const defects: Record<string, string> = {};
       const selectedDefects: string[] = [];
-      lineDefects.forEach((d: any) => { const key = findNgKey(d); if (key) { defects[key] = s(d.quantity ?? 0); selectedDefects.push(key); } });
+      lineDefects.forEach((d) => { const key = findNgKey(d); if (key) { defects[key] = s(d.quantity ?? 0); selectedDefects.push(key); } });
       // machine_time_hours lưu trong DB là "Tổng thời gian" (gross = thực tế + trừ).
       // Form chỉnh sửa hiển thị lại "Thời gian chạy thực tế" cho Worker, nên phải trừ
       // ngược deduction_time_hours ra trước khi đổ vào ô giờ/phút có thể chỉnh sửa.
-      const rawLineDeductions = Array.isArray(line.deductions_json) ? line.deductions_json
-        : Array.isArray(line.deductions) ? line.deductions
-        : (() => { try { return JSON.parse(line.deductions_json || "[]"); } catch { return []; } })();
+      const rawLineDeductions = parseReportEditDeductions(line.deductions_json ?? line.deductions);
       const lineDeductions: DeductionState = { ...initialDeduction };
       const customNg = lineDefects.find((item) => /^CUSTOM_NG_/i.test(s(item.defect_code)));
       const customDeduction = rawLineDeductions.find((item) => /^CUSTOM_DED_/i.test(s(item.deduction_code)));
       const selectedLineDeductions: string[] = [];
-      rawLineDeductions.forEach((d: any) => { const key = findDeductionKey(d); const minutes = d.minutes ?? d.deduction_minutes ?? n(d.hours) * 60; if (key) { (lineDeductions as any)[key] = String(Math.round(n(minutes))); selectedLineDeductions.push(key); } });
+      rawLineDeductions.forEach((d) => { const key = findDeductionKey(d); const minutes = d.minutes ?? d.deduction_minutes ?? n(d.hours) * 60; if (key) { lineDeductions[key] = String(Math.round(n(minutes))); selectedLineDeductions.push(key); } });
       const deductionTimeHours = n(line.deduction_time_hours);
       const actualTimeHours = Math.max(0, n(line.machine_time_hours) - deductionTimeHours);
       const time = hm(actualTimeHours);
@@ -425,7 +417,7 @@ function WorkerReportEditV2() {
           deduction_name: s(item.deduction_name || item.name || item.label),
           hours: n(item.hours ?? item.deduction_hours ?? item.duration_hours),
         })).filter((item) => item.hours > 0);
-        const originalDetailMinutes = originalDetails.reduce((sum: number, item: any) => sum + Math.round(item.hours * 60), 0);
+        const originalDetailMinutes = originalDetails.reduce((sum: number, item) => sum + Math.round(item.hours * 60), 0);
         if (originalDetailMinutes > 0
           && Math.abs(originalDetailMinutes - submittedDeductionMinutes) <= 1
           && Math.abs(originalDetailMinutes - originalDeductionMinutes) <= 1) {
