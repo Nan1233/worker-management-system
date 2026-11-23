@@ -191,7 +191,17 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   const exportRows = buildMachineExcelRows(reports);
   const capacity = contract.dataEndRow - contract.dataStartRow + 1;
   if (exportRows.length > capacity) throw Object.assign(new Error(`File mẫu ${contract.sheet} chỉ có ${capacity} dòng chi tiết; tháng ${yearMonth} cần ${exportRows.length} dòng máy-người từ ${reports.length} báo cáo`), { code: 'KTC_EXCEL_TEMPLATE_CAPACITY_EXCEEDED', statusCode: 422 });
-  const mapping = processColumns(sheet, contract, processCode); clearDetailConstants(sheet, contract.dataStartRow, contract.dataEndRow);
+  const mapping = processColumns(sheet, contract, processCode);
+  // Fail closed when a template has changed: silently skipping these columns
+  // produces an apparently valid workbook with missing production data.
+  const requiredColumns = ['workerCode', 'workDate', 'shift', 'product', 'actual'];
+  const missingColumns = requiredColumns.filter((name) => !mapping.cols[name]);
+  if (missingColumns.length) {
+    throw Object.assign(new Error(`File mẫu ${contract.sheet} thiếu cột bắt buộc: ${missingColumns.join(', ')}`), {
+      code: 'KTC_EXCEL_TEMPLATE_COLUMN_MISSING', statusCode: 422
+    });
+  }
+  clearDetailConstants(sheet, contract.dataStartRow, contract.dataEndRow);
   for (let index = 0; index < exportRows.length; index += 1) writeReportRow(sheet, contract.dataStartRow + index, exportRows[index], processCode, mapping);
   const removedBrokenFormulas = clearBrokenAndExternalFormulas(workbook); workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const exportRoot = options.exportRoot || path.join(process.cwd(), 'exports-process'); const [year, month] = String(yearMonth).split('-'); const folder = path.join(exportRoot, year, options.processName || processCode, month); await fs.mkdir(folder, { recursive: true });
