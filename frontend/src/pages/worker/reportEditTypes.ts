@@ -51,7 +51,7 @@ export function parseReportEditDeductions(value: unknown): ReportEditDeduction[]
         row !== null && typeof row === "object" && !Array.isArray(row));
 }
 
-/** Isolate historical API response envelopes from the editable report model. */
+/** Only accept the minimum report identity required to edit safely. */
 export function unwrapReportEditResponse(payload: unknown): ReportEditRecord | null {
     if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return null;
     const envelope = payload as Record<string, unknown>;
@@ -59,6 +59,19 @@ export function unwrapReportEditResponse(payload: unknown): ReportEditRecord | n
     if (candidate === null || typeof candidate !== "object" || Array.isArray(candidate)) return null;
     const record = candidate as Record<string, unknown>;
     const id = Number(record.id);
-    if (!Number.isSafeInteger(id) || id <= 0) return null;
-    return candidate as ReportEditRecord;
+    const processId = Number(record.process_id);
+    if (!Number.isSafeInteger(id) || id <= 0
+        || !Number.isSafeInteger(processId) || processId <= 0
+        || typeof record.work_date !== "string"
+        || !/^\\d{4}-\\d{2}-\\d{2}/.test(record.work_date)
+        || typeof record.shift !== "string" || !record.shift.trim()) return null;
+    // Never treat a broken machine-lines payload as an empty report; the
+    // editor would replace all persisted machines on save.
+    for (const key of ["machine_lines", "machineLines"] as const) {
+        const value = record[key];
+        if (value != null && !Array.isArray(value)) return null;
+        if (Array.isArray(value) && value.some((line) =>
+            line === null || typeof line !== "object" || Array.isArray(line))) return null;
+    }
+    return { ...record, id, process_id: processId } as ReportEditRecord;
 }
