@@ -89,4 +89,25 @@ for (const deleted of [
 ]) {
   assert.ok(!exists(...deleted), `Removed legacy duplicate was reintroduced: ${deleted.join('/')}`);
 }
+// Guard the production Excel safety boundaries introduced during phase 4.
+// These are static source invariants, not a substitute for runtime verification.
+const atomicWriter = fs.readFileSync(at('desktop', 'electron', 'excelAtomicFileWriter.cjs'), 'utf8');
+const dbSync = fs.readFileSync(at('desktop', 'electron', 'excelDbSyncController.cjs'), 'utf8');
+const templateExport = fs.readFileSync(at('backend', 'services', 'templateDrivenProcessExcelExportService.js'), 'utf8');
+const templateContract = fs.readFileSync(at('backend', 'services', 'excelTemplateContractService.js'), 'utf8');
+for (const [name, source, tokens] of [
+  ['atomic Excel writer', atomicWriter, ['backupExistingExcel', 'performAtomicOverwrite', 'fileQueues', 'KTC_EXCEL_CONCURRENT_MODIFICATION', 'pendingPath']],
+  ['Excel DB reconciliation', dbSync, ['expected_updated_at', 'acknowledgedIds', 'blockedMonths', 'unreadableWorkbook', 'changedDuringSync']],
+  ['template-driven Excel export', templateExport, ['buildSixProcessWorkbook', 'KTC_EXCEL_TEMPLATE_COLUMN_COLLISION', 'KTC_EXCEL_TEMPLATE_RANGE_INVALID', 'KTC_EXCEL_TEMPLATE_CAPACITY_EXCEEDED']],
+  ['historical template contracts', templateContract, ['PROCESS_TEMPLATE_CONTRACTS', 'K1:', 'K2:', 'SX3:']],
+]) {
+  for (const token of tokens) {
+    assert.ok(source.includes(token), `Missing ${name} safety contract: ${token}`);
+  }
+}
+for (const code of ['GC', 'MAI', 'DO', 'K1', 'K2', 'CAN', 'EP', 'XLBV', 'SX3']) {
+  assert.ok(new RegExp('\\\\b' + code + ':').test(templateContract),
+    `Nine-process template contract missing ${code}`);
+}
+
 console.log('[KTC] Repository/template layout PASS (static contracts; no runtime/build verification)');
