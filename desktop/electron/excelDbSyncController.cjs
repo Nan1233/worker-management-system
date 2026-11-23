@@ -42,8 +42,12 @@ async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
     if (!parsed?.managed) continue;
     if (parsed.helperUpdated) helperUpdatedFiles.push(path.basename(filePath));
     if (parsed.helperUpdateError) helperUpdateErrors.push({ file: path.basename(filePath), message: parsed.helperUpdateError });
-    if (!parsed.changes?.length) continue;
-    if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
+    if (!Array.isArray(parsed.changes)) {
+      helperUpdateErrors.push({ file: path.basename(filePath), message: 'Workbook changes payload is invalid' });
+      continue;
+    }
+    if (!parsed.changes.length) continue;
+    if (yearMonth && parsed.yearMonth !== yearMonth) continue;
     for (const change of parsed.changes) {
       changes.push({
         ...change,
