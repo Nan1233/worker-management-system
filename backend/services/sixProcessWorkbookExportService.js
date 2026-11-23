@@ -69,7 +69,17 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
       code: 'KTC_EXCEL_INVALID_MONTH', statusCode: 422
     });
   }
-  const processCode = String(options.processCode || reports?.[0]?.process_code || '').toUpperCase();
+  if (!Array.isArray(reports)) {
+    throw Object.assign(new TypeError('Production reports must be an array'), {
+      code: 'KTC_EXCEL_INVALID_REPORTS', statusCode: 422
+    });
+  }
+  const processCode = String(options.processCode || reports?.[0]?.process_code || '').trim().toUpperCase();
+  if (reports.some((report) => report?.process_code && String(report.process_code).trim().toUpperCase() !== processCode)) {
+    throw Object.assign(new Error('Cannot mix production processes in one workbook'), {
+      code: 'KTC_EXCEL_MIXED_PROCESSES', statusCode: 422
+    });
+  }
   const sheetName = SHEETS[processCode];
   if (!sheetName) throw new Error('Unsupported Workbook1 process: ' + processCode);
   const templatePath = path.resolve(__dirname, '../templates/Workbook1.xlsx');
