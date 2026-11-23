@@ -535,6 +535,8 @@ export async function loadProcessDraftAsync(process: string): Promise<ProcessDra
     hasMeaningfulProcessDraft(d) &&
     Number(d.savedAt || 0) > clearedAt(key));
   const draft = candidates.sort((a, b) => b.savedAt - a.savedAt)[0];
+  const currentIdentity = getCurrentWorkerIdentity();
+  if (currentIdentity.workerId !== workerId || currentIdentity.workerCode !== workerCode) return null;
   if (!draft || draft.savedAt <= clearedAt(key)) return null;
   const normalized = normalizeDraftForResume(draft);
   if (String(process).toLowerCase() === "do" || isDefaultSameDayShiftDraft(normalized)) return normalized;
