@@ -66,6 +66,9 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
     await connection.beginTransaction();
     const [lockedRows] = await connection.query('SELECT * FROM production_reports WHERE id=? FOR UPDATE', [Number(reportId)]);
     if (!lockedRows[0]) throw httpError(404, 'REPORT_NOT_FOUND', 'Không tìm thấy báo cáo');
+    if (String(lockedRows[0].status || '').toLowerCase() !== 'approved') {
+      throw httpError(409, 'REPORT_NOT_APPROVED', 'Chỉ được sửa báo cáo đang ở trạng thái đã duyệt');
+    }
     await assertProcessScope(actor, lockedRows[0].process_id, { executor: connection, action: source === 'excel' ? 'REPORT_APPROVED_EDIT_EXCEL' : 'REPORT_APPROVED_EDIT' });
 
     // Check the durable receipt under the report lock and authorized process scope,
@@ -90,17 +93,27 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
       throw httpError(422, 'PROCESS_CHANGE_NOT_SUPPORTED', 'Không hỗ trợ chuyển báo cáo đã duyệt sang công đoạn khác');
     }
     const isMachineReport = String(before.operation_mode || '').toUpperCase() === 'MACHINE';
+    if (Object.prototype.hasOwnProperty.call(inputPatch, 'operation_mode')
+        && String(inputPatch.operation_mode ?? '').trim().toUpperCase() !== String(before.operation_mode ?? '').trim().toUpperCase()) {
+      throw httpError(422, 'APPROVED_OPERATION_MODE_IMMUTABLE', 'Không được chuyển báo cáo đã duyệt giữa TAY và MÁY');
+    }
+    if (isMachineReport && ['work_date', 'shift', 'operation_type'].some((field) =>
+      Object.prototype.hasOwnProperty.call(inputPatch, field) && String(inputPatch[field] ?? '') !== String(before[field] ?? ''))) {
+      throw httpError(422, 'APPROVED_MACHINE_EVENT_IMMUTABLE', 'Ngày, ca và thao tác của báo cáo MÁY đã duyệt phải được bảo toàn');
+    }
     const aggregateKeys = ['standard_output', 'actual_output', 'tt_ok', 'tt_ng', 'machine_no', 'product_name', 'defects', 'deductions', 'total_time', 'actual_time', 'deduction_time'];
     if (isMachineReport && aggregateKeys.some((key) => Object.prototype.hasOwnProperty.call(inputPatch, key))) {
       throw httpError(422, 'MACHINE_AGGREGATE_READ_ONLY', 'Báo cáo Máy chỉ cho phép sửa % học việc và ghi chú trong Excel; dữ liệu máy phải sửa từ màn hình báo cáo chi tiết.');
     }
 
-    if (source === 'excel' && Object.prototype.hasOwnProperty.call(inputPatch, 'training_percent')) {
+    if (Object.prototype.hasOwnProperty.call(inputPatch, 'training_percent')
+        && Number(inputPatch.training_percent) !== Number(before.training_percent_snapshot)) {
       // Training snapshot affects approved historical KPI. Never ACK an unsupported
       // edit silently; a dedicated versioned training workflow is required.
-      throw httpError(422, 'EXCEL_TRAINING_SNAPSHOT_IMMUTABLE', 'Không thể sửa % học việc của báo cáo đã duyệt trực tiếp từ Excel');
+      throw httpError(422, 'APPROVED_TRAINING_SNAPSHOT_IMMUTABLE', 'Không được thay đổi % học việc lịch sử của báo cáo đã duyệt');
     }
     const normalizedPatch = { ...inputPatch };
+    delete normalizedPatch.training_percent; // permitted only if unchanged from immutable snapshot
     delete normalizedPatch.standard_output;
     delete normalizedPatch.standard_version_id;
     delete normalizedPatch.machine_standard_id;

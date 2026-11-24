@@ -59,9 +59,9 @@ export const getReportById=async(id:number,source?:string|null)=>{const normaliz
 export type ApprovedMachineNotePatch = { note:string; reason:string; expected_updated_at?:string };
 export const updateReport=async(id:number,data:ProductionReport|ApprovedMachineNotePatch,source:"pending"|"approved"="approved",expectedUpdatedAt:string|null=null)=>{const endpoint=source==="pending"?`/production-temp/${id}`:`/production/${id}`;const payload=source==="approved"?{...data,expected_updated_at:expectedUpdatedAt||undefined}:data;const res=await api.put(endpoint,payload);return res.data;};
 export const updateTempReport=async(id:number,data:ProductionReport)=>{const res=await api.put(`/production-temp/${id}`,{...data,expected_updated_at:data.updated_at||undefined});return res.data;};
-export const deleteReport = async (id: number, reason: string) => {
+export const deleteReport = async (id: number, reason: string, expectedUpdatedAt?: string | null) => {
   const res = await api.delete(`/production/${id}`, {
-    data: { reason: String(reason || "").trim() },
+    data: { reason: String(reason || "").trim(), expected_updated_at: expectedUpdatedAt || undefined },
   });
   return res.data;
 };
