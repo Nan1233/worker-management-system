@@ -29,7 +29,7 @@ export const rangeFor = (value: string, type: "day" | "week" | "month" | "year")
 export const kpi = (r: ProductionReport) => {
     const x = r as ProductionReport & Record<string, unknown>;
     const ok = num(x.tt_ok); const ng = num(x.tt_ng);
-    const actual = num(x.actual_output) || ok + ng;
+    const actual = num(x.actual_output ?? (ok + ng));
     const machineLines = Array.isArray(x.machine_lines) ? x.machine_lines as Record<string, unknown>[] : [];
     const machineGrossTime = machineLines.reduce((sum, line) => sum + Math.max(0, num(line.machine_time_hours)), 0);
     const machineNetTime = machineLines.reduce((sum, line) => {
@@ -46,10 +46,11 @@ export const kpi = (r: ProductionReport) => {
     const actualTime = num(x.actual_time) || machineNetTime;
     const totalTime = num(x.total_time) || machineGrossTime;
     const ttDinhMuc = num(x.tt_dinh_muc) || machineStandardTime || (standard > 0 && actualTime > 0 ? standard * actualTime : 0);
-    const nangSuat = num(x.nang_suat_percent) || (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0);
+    const nangSuat = num(x.nang_suat_percent ?? (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0));
     const dat = actual > 0 ? ok / actual * 100 : 0;
-    const pp = num(x.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
-    const hv = x.training_percent ?? x.hv_percent ?? x.learning_percent ?? x.hoc_viec_percent ?? 0;
+    const pp = num(x.pp_percent ?? (ok + ng > 0 ? ng / (ok + ng) * 100 : 0));
+    const rawHv = x.training_percent_snapshot;
+    const hv = rawHv !== null && rawHv !== undefined && String(rawHv).trim() !== '' && Number.isFinite(Number(rawHv)) && Number(rawHv) >= 0 && Number(rawHv) <= 100 ? Number(rawHv) : null;
     const ngTypeCount = Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count));
     return { ok, ng, actual, actualTime, totalTime, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount };
 };

@@ -93,7 +93,7 @@ exports.getApprovedReports = async (req, res) => {
     // Canonical production_reports has no tt_dinh_muc column; referencing it breaks the list.
     const [dataRows] = await db.promise().query(
       `SELECT pr.*, p.process_name, w.worker_code, u.full_name,
-              COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent,
+              CASE WHEN pr.training_percent_snapshot BETWEEN 0 AND 100 THEN pr.training_percent_snapshot ELSE NULL END AS training_percent,
               CASE
                 WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
                  AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)

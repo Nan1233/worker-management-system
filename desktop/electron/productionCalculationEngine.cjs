@@ -2,6 +2,8 @@
 
 const {
   DEFAULT_SETTINGS,
+  parseStoredTrainingSnapshot,
+  safeRatio,
   asNumber,
   asInteger,
   normalizeTrainingPercent,
@@ -149,13 +151,13 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     if (trainingMultiplier !== null) plannedOutput += Math.round(lineStandard * workedHours * trainingMultiplier);
   }
 
-  const outputPerHour = actualTime > 0 ? adjustedOutput / actualTime : null;
+  const outputPerHour = safeRatio(adjustedOutput, actualTime);
   const plannedAvailable = !resolved.apply_training_percent || factor !== null;
   const resolvedPlannedOutput = plannedAvailable ? plannedOutput : null;
   const standard = actualTime > 0 && resolvedPlannedOutput !== null
     ? resolvedPlannedOutput / actualTime
     : null;
-  const achievement = resolvedPlannedOutput > 0 ? adjustedOutput / resolvedPlannedOutput : null;
+  const achievement = safeRatio(adjustedOutput, resolvedPlannedOutput);
   const ngDenominator = ok + allNg;
   const ngRate = resolved.ng_rate_formula === 'NG_DIV_ENTERED_OUTPUT'
     ? (enteredOutput > 0 ? allNg / enteredOutput : null)
@@ -194,16 +196,8 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   const ok = asInteger(report.tt_ok);
   const ng = calculateNg(report);
   const enteredOutput = asInteger(report.actual_output);
-  const hasTrainingSnapshot = Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot');
-  const snapshotMissing = hasTrainingSnapshot
-    && (report.training_percent_snapshot === null
-      || report.training_percent_snapshot === undefined
-      || String(report.training_percent_snapshot).trim() === '');
-  const trainingPercent = snapshotMissing
-    ? null
-    : normalizeTrainingPercent(
-      hasTrainingSnapshot ? report.training_percent_snapshot : report.training_percent
-    );
+  const trainingPercent = parseStoredTrainingSnapshot(report.training_percent_snapshot);
+  const snapshotMissing = trainingPercent === null;
   const factor = trainingPercent === null ? null : trainingPercent / 100;
   const standard = asNumber(report.standard_output);
   const isGcMachineReport = normalizeCode(report.process_code) === 'GC'
@@ -232,12 +226,12 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   if (hasMachinePerformance) {
     // Machine performance is itself a backend snapshot. Preserve it when it
     // exists, otherwise use the DB report fields above.
-    outputPerHour = actualTime && adjustedOutput !== null ? adjustedOutput / actualTime : null;
+    outputPerHour = safeRatio(adjustedOutput, actualTime);
     plannedOutput = asNumber(machinePerformance.maximum_output);
-    achievement = plannedOutput ? adjustedOutput / plannedOutput : null;
+    achievement = safeRatio(adjustedOutput, plannedOutput);
   } else {
-    outputPerHour = actualTime && adjustedOutput !== null ? adjustedOutput / actualTime : null;
-    achievement = outputPerHour !== null && standard ? outputPerHour / standard : null;
+    outputPerHour = safeRatio(adjustedOutput, actualTime);
+    achievement = safeRatio(outputPerHour, standard);
     plannedOutput = standard !== null && actualTime !== null && factor !== null
       ? standard * actualTime * factor
       : null;
@@ -245,19 +239,16 @@ function calculateProductionMetrics(report = {}, settings = {}) {
 
   let ngRate = null;
   if (resolved.ng_rate_formula === 'NG_DIV_ENTERED_OUTPUT') {
-    ngRate = enteredOutput ? ng.allNg / enteredOutput : null;
+    ngRate = safeRatio(ng.allNg, enteredOutput);
   } else {
     const denominator = ok !== null && ng.allNg !== null ? ok + ng.allNg : null;
-    ngRate = denominator ? ng.allNg / denominator : null;
+    ngRate = safeRatio(ng.allNg, denominator);
   }
 
   return {
     trainingPercent,
     trainingFactor: factor,
-    trainingSnapshotAvailable: !(
-      Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot')
-      && (report.training_percent_snapshot === null || report.training_percent_snapshot === undefined || String(report.training_percent_snapshot).trim() === '')
-    ),
+    trainingSnapshotAvailable: !snapshotMissing,
     workingTime,
     deductionTime,
     actualTime,

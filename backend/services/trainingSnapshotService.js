@@ -1,6 +1,6 @@
 'use strict';
 
-const { normalizeTrainingPercent } = require('../utils/trainingPercent');
+const { normalizeTrainingPercent, parseStoredTrainingSnapshot } = require('../../shared/productionMetricPrimitives.cjs');
 
 function httpTrainingError(message, code = 'TRAINING_SNAPSHOT_UNAVAILABLE', status = 422) {
   const error = new Error(message);
@@ -18,13 +18,6 @@ function hasTrainingSnapshot(report = {}) {
   return report.training_percent_snapshot !== null
     && report.training_percent_snapshot !== undefined
     && String(report.training_percent_snapshot).trim() !== '';
-}
-
-function parseStoredTrainingSnapshot(value) {
-  if (value === null || value === undefined || !['number', 'string'].includes(typeof value) || String(value).trim() === '') return null;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
-  return n;
 }
 
 function getReportTrainingSnapshot(report = {}, { allowLegacyTrainingField = false } = {}) {

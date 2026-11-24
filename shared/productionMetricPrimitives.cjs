@@ -35,7 +35,23 @@ function trainingFactor(value, defaultPercent = 100) {
   return normalizeTrainingPercent(value, defaultPercent) / 100;
 }
 
+// Historical snapshots must not be clamped or replaced with current master data.
+function parseStoredTrainingSnapshot(value) {
+  if (!['number', 'string'].includes(typeof value) || String(value).trim() === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
+}
+
+function safeRatio(numerator, denominator) {
+  if (numerator === null || numerator === undefined || denominator === null || denominator === undefined) return null;
+  const n = asNumber(numerator);
+  const d = asNumber(denominator);
+  return n !== null && n >= 0 && d !== null && d > 0 ? n / d : null;
+}
+
 module.exports = {
+  parseStoredTrainingSnapshot,
+  safeRatio,
   DEFAULT_SETTINGS,
   asNumber,
   asInteger,
