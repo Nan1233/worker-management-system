@@ -20,10 +20,17 @@ function hasTrainingSnapshot(report = {}) {
     && String(report.training_percent_snapshot).trim() !== '';
 }
 
+function parseStoredTrainingSnapshot(value) {
+  if (value === null || value === undefined || !['number', 'string'].includes(typeof value) || String(value).trim() === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+  return n;
+}
+
 function getReportTrainingSnapshot(report = {}, { allowLegacyTrainingField = false } = {}) {
-  if (hasTrainingSnapshot(report)) return normalizeSnapshot(report.training_percent_snapshot);
+  if (hasTrainingSnapshot(report)) return parseStoredTrainingSnapshot(report.training_percent_snapshot);
   if (allowLegacyTrainingField && report.training_percent !== null && report.training_percent !== undefined && String(report.training_percent).trim() !== '') {
-    return normalizeSnapshot(report.training_percent);
+    return parseStoredTrainingSnapshot(report.training_percent);
   }
   return null;
 }
@@ -81,6 +88,9 @@ async function resolveInitialTrainingSnapshot({ workerId, query, executor }) {
 
 function assertTrainingSnapshotAvailable(report = {}) {
   const value = getReportTrainingSnapshot(report);
+  if (value === null && hasTrainingSnapshot(report)) {
+    throw httpTrainingError('Snapshot % học việc nằm ngoài khoảng hợp lệ; cần đối chiếu dữ liệu lịch sử', 'TRAINING_SNAPSHOT_INVALID');
+  }
   if (value === null) {
     throw httpTrainingError(
       'Báo cáo lịch sử chưa có snapshot % học việc; không thể tính lại KPI lịch sử một cách tin cậy',
@@ -92,6 +102,7 @@ function assertTrainingSnapshotAvailable(report = {}) {
 
 module.exports = {
   normalizeSnapshot,
+  parseStoredTrainingSnapshot,
   hasTrainingSnapshot,
   getReportTrainingSnapshot,
   resolveInitialTrainingSnapshot,

@@ -25,13 +25,13 @@ async function main() {
              pr.training_percent_snapshot, w.training_percent AS current_training_percent
         FROM production_reports_temp pr
         LEFT JOIN workers w ON w.id = pr.worker_id
-       WHERE pr.training_percent_snapshot IS NULL
+       WHERE pr.training_percent_snapshot IS NULL OR pr.training_percent_snapshot < 0 OR pr.training_percent_snapshot > 100
       UNION ALL
       SELECT 'approved' AS report_type, pr.id AS report_id, pr.work_date, pr.worker_id,
              pr.training_percent_snapshot, w.training_percent AS current_training_percent
         FROM production_reports pr
         LEFT JOIN workers w ON w.id = pr.worker_id
-       WHERE pr.training_percent_snapshot IS NULL
+       WHERE pr.training_percent_snapshot IS NULL OR pr.training_percent_snapshot < 0 OR pr.training_percent_snapshot > 100
       ORDER BY work_date, report_type, report_id
     `);
     rowFindings = rows.map(classifyTrainingSnapshotRow).filter(Boolean);
@@ -40,8 +40,9 @@ async function main() {
   const findings = [...schemaFindings, ...rowFindings];
   const summary = {
     total: findings.length,
-    MISSING_TRAINING_SNAPSHOT: rowFindings.length,
-    CURRENT_MASTER_DRIFT_RISK: rowFindings.length,
+    MISSING_TRAINING_SNAPSHOT: rowFindings.filter(f => f.reason === 'MISSING_TRAINING_SNAPSHOT_CURRENT_MASTER_DRIFT_RISK').length,
+    INVALID_TRAINING_SNAPSHOT: rowFindings.filter(f => f.reason === 'INVALID_TRAINING_SNAPSHOT').length,
+    CURRENT_MASTER_DRIFT_RISK: rowFindings.filter(f => f.reason === 'MISSING_TRAINING_SNAPSHOT_CURRENT_MASTER_DRIFT_RISK').length,
     TRAINING_SCHEMA_INCONSISTENCY: schemaFindings.length,
     AUTO_REPAIR_SAFE: 0,
     REVIEW_REQUIRED: findings.filter((finding) => finding.classification === 'REVIEW_REQUIRED').length,

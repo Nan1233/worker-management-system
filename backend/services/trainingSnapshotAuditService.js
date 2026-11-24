@@ -1,5 +1,5 @@
 'use strict';
-const { normalizeTrainingPercent } = require('../utils/trainingPercent');
+const { parseStoredTrainingSnapshot } = require('./trainingSnapshotService');
 
 const TRAINING_SNAPSHOT_COLUMN = 'training_percent_snapshot';
 const COMPETING_REPORT_TRAINING_COLUMN = 'training_percent';
@@ -103,18 +103,18 @@ async function auditTrainingSnapshotSchema(query) {
 
 function classifyTrainingSnapshotRow(row) {
   const snapshotMissing = row.training_percent_snapshot === null || row.training_percent_snapshot === undefined || String(row.training_percent_snapshot).trim() === '';
-  if (!snapshotMissing) return null;
-  const currentMaster = normalizeTrainingPercent(row.current_training_percent, 100);
+  if (!snapshotMissing && parseStoredTrainingSnapshot(row.training_percent_snapshot) !== null) return null;
+  const currentMaster = parseStoredTrainingSnapshot(row.current_training_percent);
   return {
     scope: 'row',
     report_type: row.report_type,
     report_id: Number(row.report_id),
     work_date: String(row.work_date).slice(0, 10),
     worker_id: Number(row.worker_id),
-    stored_training_percent_snapshot: null,
+    stored_training_percent_snapshot: snapshotMissing ? null : row.training_percent_snapshot,
     current_master_training_percent: currentMaster,
     classification: 'REVIEW_REQUIRED',
-    reason: 'MISSING_TRAINING_SNAPSHOT_CURRENT_MASTER_DRIFT_RISK'
+    reason: snapshotMissing ? 'MISSING_TRAINING_SNAPSHOT_CURRENT_MASTER_DRIFT_RISK' : 'INVALID_TRAINING_SNAPSHOT'
   };
 }
 

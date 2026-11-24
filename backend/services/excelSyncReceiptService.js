@@ -42,7 +42,7 @@ function makeExcelSyncReceipt({ actorId, operationKey, canonicalChange }) {
       }
       if (row.result_json !== null && row.result_json !== undefined) {
         const stored = typeof row.result_json === 'string' ? JSON.parse(row.result_json) : row.result_json;
-        if (!stored || stored.success !== true) {
+        if (!stored || stored.success !== true || !Number.isSafeInteger(Number(stored.id)) || Number(stored.id) <= 0 || typeof stored.updated_at !== 'string' || !Number.isFinite(Date.parse(stored.updated_at))) {
           throw publicError(409, 'EXCEL_SYNC_RECEIPT_INVALID', 'Biên nhận đồng bộ không hợp lệ');
         }
         return stored;
@@ -50,7 +50,7 @@ function makeExcelSyncReceipt({ actorId, operationKey, canonicalChange }) {
       return null;
     },
     async complete(conn, result) {
-      if (result?.success !== true || !Number.isSafeInteger(Number(result.id)) || Number(result.id) <= 0) {
+      if (result?.success !== true || !Number.isSafeInteger(Number(result.id)) || Number(result.id) <= 0 || !result.updated_at || !Number.isFinite(new Date(result.updated_at).getTime())) {
         throw publicError(500, 'EXCEL_SYNC_RESULT_INVALID', 'Không thể lưu biên nhận đồng bộ không hợp lệ');
       }
       const [written] = await conn.query(

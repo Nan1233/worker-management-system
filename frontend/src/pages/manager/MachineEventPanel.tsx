@@ -105,7 +105,8 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
     if (!canManage || !event) return;
     try {
       setBusy(true); setError("");
-      hydrate(await updateMachineProductionEvent(event.id, { physical_ok_quantity: physicalOk, machine_time_hours: machineHours, defects }));
+      if (!event.updated_at) throw new Error('Thiếu phiên bản event. Vui lòng tải lại trước khi sửa.');
+      hydrate(await updateMachineProductionEvent(event.id, { expected_updated_at: event.updated_at, physical_ok_quantity: physicalOk, machine_time_hours: machineHours, defects }));
       await onChanged?.();
     } catch (err) { setError(message(err, "Không thể cập nhật production event.")); }
     finally { setBusy(false); }

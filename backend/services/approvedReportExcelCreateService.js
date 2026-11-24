@@ -6,6 +6,7 @@ const { calculateProductionOutput } = require('../../shared/productionOutput.cjs
 const { validateMachineLines } = require('./machineLineValidationService');
 const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require('./factoryMachineRuleService');
 const { resolveInitialTrainingSnapshot } = require('./trainingSnapshotService');
+const { isSharedEventManaged } = require('./machineProductionEventService');
 const { assertProcessScope } = require('./processAuthorizationService');
 const { createApprovedReportVersion, loadApprovedAggregateSnapshot } = require('./approvedVersionSnapshotService');
 const { buildLogicalDuplicateKey } = require('./logicalDuplicateReportService');
@@ -48,7 +49,11 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
     if(!machineNo) throw httpError(422,'MACHINE_REQUIRED','Chế độ Máy phải nhập máy');
     const mv=await validateMachineLines({processId,machineLines:[{machine_code:machineNo,product_code:productName,machine_time_hours:actualTime,ok_quantity:ttOk,ng_quantity:ttNg,defects}],operationType,operationMode:'MACHINE',maxMachines:1,workDate:data.work_date});
     if(!mv.valid) throw httpError(422,'MACHINE_DATA_INVALID','Thông tin máy không hợp lệ',mv.errors);
-    machineLine=mv.lines[0]; standardOutput=Number(machineLine.standard_output||standardOutput); actualOutput=Number(machineLine.counted_output||actualOutput)
+    machineLine=mv.lines[0];
+    if (isSharedEventManaged(processCode, machineLine.machine_code)) {
+      throw httpError(422, 'EXCEL_SHARED_MACHINE_EVENT_REQUIRED', 'Máy dùng chung GC phải được tạo báo cáo chờ duyệt và liên kết production event vật lý trước khi duyệt; không tạo báo cáo chính thức trực tiếp từ Excel.');
+    }
+    standardOutput=Number(machineLine.standard_output||standardOutput); actualOutput=Number(machineLine.counted_output||actualOutput)
     const fr=await validateFactoryMachineRules({processCode,processId,machineLines:[machineLine]});
     if(!fr.valid) throw httpError(422,'FACTORY_MACHINE_RULE_INVALID','Cách sử dụng máy không đúng quy tắc xưởng',fr.errors);
     const cap=await validateMachineWorkerCapacity({processCode,processId,machineLines:[machineLine],workerId,workDate:data.work_date,shift:data.shift});
