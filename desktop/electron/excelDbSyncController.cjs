@@ -73,10 +73,11 @@ async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
 
 async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } = {}) {
   if (excelDbSyncRunning || isQuitting()) return { skipped: true };
-  const token = await waitForUsableRendererToken('', 2_000);
-  if (!token) return { skipped: true, reason: 'no-token' };
   excelDbSyncRunning = true;
   try {
+    const token = await waitForUsableRendererToken('', 2_000);
+    if (!token) return { skipped: true, reason: 'no-token' };
+    if (isQuitting()) return { skipped: true, reason: 'quitting' };
     const files = await listExcelFiles(getExportRoot());
     let detected = 0;
     let succeeded = 0;
@@ -128,20 +129,20 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       }
       // Avoid mutating the parser's workbook-derived objects. Reconciliation
       // metadata belongs to this request, not to the original snapshot.
-      parsed.changes = parsed.changes.map((change) => ({ ...change }));
-      for (const change of parsed.changes) {
+      const workbookChanges = parsed.changes.map((change) => ({ ...change }));
+      for (const change of workbookChanges) {
         const reportId = Number(change.id);
         if (Number.isSafeInteger(reportId) && state.versions?.has(reportId)) {
           change.expected_updated_at = state.versions.get(reportId);
         }
       }
-      const allIds = parsed.changes.map((change) => Number(change.id));
+      const allIds = workbookChanges.map((change) => Number(change.id));
       if (allIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
           || new Set(allIds).size !== allIds.length) {
-        failed += parsed.changes.length;
+        failed += workbookChanges.length;
         unreadableWorkbook = true;
         await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_REPORT_IDS', {
-          filePath, source, count: parsed.changes.length
+          filePath, source, count: workbookChanges.length
         });
         continue;
       }
@@ -153,11 +154,11 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         await writeLog('WARN', 'EXCEL_DB_SYNC_CHANGED_DURING_READ', { filePath, source });
         continue;
       }
-      detected += parsed.changes.length;
+      detected += workbookChanges.length;
       const parsedMonth = String(parsed.yearMonth || '');
       let fileFailed = false;
-      for (let index = 0; index < parsed.changes.length; index += 100) {
-        const chunk = parsed.changes.slice(index, index + 100);
+      for (let index = 0; index < workbookChanges.length; index += 100) {
+        const chunk = workbookChanges.slice(index, index + 100);
         try {
           const result = await postExcelChanges(chunk);
           const batchSucceeded = Number(result.succeeded || 0);
