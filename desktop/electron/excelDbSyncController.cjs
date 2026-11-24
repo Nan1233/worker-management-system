@@ -132,8 +132,10 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       const workbookChanges = parsed.changes.map((change) => ({ ...change }));
       for (const change of workbookChanges) {
         const reportId = Number(change.id);
-        if (Number.isSafeInteger(reportId) && state.versions?.has(reportId)) {
-          change.expected_updated_at = state.versions.get(reportId);
+        // Never substitute a cached version for the workbook's concurrency
+        // token: it may belong to a different snapshot of the same report.
+        if (!change.expected_updated_at) {
+          await writeLog('WARN', 'EXCEL_DB_SYNC_MISSING_VERSION', { filePath, reportId });
         }
       }
       const allIds = workbookChanges.map((change) => Number(change.id));
