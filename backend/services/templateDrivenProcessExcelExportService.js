@@ -38,7 +38,7 @@ function processColumns(sheet, contract, processCode) {
     workDate: findExact('ngày sản xuất') || findExact('ngày/tháng') || findExact('ngày tháng') || findExact('ngày'), training: find('% học việc'), standard: findExact('định mức') || findExact('kh'), actual: find('thực tích') || find('kqsx') || find('kết quả sản xuất') || findExact('tt'), ok: findExact('sản phẩm ok') || findExact('sl ok') || findExact('ok'), ng: find('tổng ng') || find('tổng lỗi') || find('tổng pp'), achievement: find('% năng suất') || find('% thực tích') || find('% sản lượng theo kế hoạch') || findExact('%'), totalTime: null, actualTime: null
   };
   const timeCandidates = [];
-  for (const [column, label] of map.entries()) if (label.includes('thời gian') || label === 'thời gian') timeCandidates.push(column);
+  for (const [column, label] of map.entries()) if (label.includes('thoi gian')) timeCandidates.push(column);
   const timeRules = { CAN: [6], EP: [7], XLBV: [11], GC: [7, 8], MAI: [9, 10], DO: [8, 9], K1: [14], K2: [22, 23], SX3: [8, 9] };
   const preferred = timeRules[processCode] || [];
   const validPreferred = preferred.filter((column) => {
