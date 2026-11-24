@@ -129,12 +129,21 @@ async function handleApplyReportImport(payload = {}) {
   })));
   const succeeded = Number(payloadResult.succeeded || 0);
   const failed = Number(payloadResult.failed || 0);
-  if (parsed.yearMonth && /^\d{4}-\d{2}$/.test(parsed.yearMonth)) {
-    await enqueueManualExcelSync({ date: `${parsed.yearMonth}-01`, source: 'report-import-rebuild', token }).catch((error) =>
-      writeLog('ERROR', 'REPORT_IMPORT_REBUILD_FAILED', { yearMonth: parsed.yearMonth, ...normalizeError(error) })
-    );
+  // A partial import must never trigger a rebuild that overwrites unsynced rows.
+  // The user can retry using the exact same workbook; operation receipts make
+  // successfully applied rows safe to acknowledge again.
+  if (failed === 0 && succeeded === changes.length && payloadResult.success === true) {
+    if (parsed.yearMonth && /^\d{4}-\d{2}$/.test(parsed.yearMonth)) {
+      await enqueueManualExcelSync({ date: `${parsed.yearMonth}-01`, source: 'report-import-rebuild', token }).catch((error) =>
+        writeLog('ERROR', 'REPORT_IMPORT_REBUILD_FAILED', { yearMonth: parsed.yearMonth, ...normalizeError(error) })
+      );
+    }
+    reportImportPreviewGuard.consume(filePath);
+  } else {
+    await writeLog('WARN', 'REPORT_IMPORT_PARTIAL_NO_REBUILD', {
+      filePath, detected: changes.length, succeeded, failed
+    });
   }
-  if (failed === 0) reportImportPreviewGuard.consume(filePath);
   await writeLog(failed ? 'WARN' : 'INFO', 'REPORT_IMPORT_APPLY', {
     filePath,
     yearMonth: parsed.yearMonth || null,

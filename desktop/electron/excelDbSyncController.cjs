@@ -42,6 +42,46 @@ async function postExcelChanges(changes) {
   }
   const payload = await response.json().catch(() => ({}));
   if (![200, 207].includes(response.status)) throw new Error(payload.message || `Đồng bộ Excel về DB lỗi HTTP ${response.status}`);
+  // Validate every acknowledgment here, including requests sent from the
+  // manual import screen. Never rebuild an Excel file on an ambiguous response.
+  const validCounts = [payload.total, payload.succeeded, payload.failed].every(
+    (value) => Number.isSafeInteger(value) && value >= 0
+  );
+  const expectedIds = new Set(withIds.map((change) => change.operation_id));
+  const acknowledged = new Set();
+  let successCount = 0;
+  let failureCount = 0;
+  let validRows = Array.isArray(payload.results) && payload.results.length === withIds.length;
+  for (const item of (validRows ? payload.results : [])) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)
+        || typeof item.operation_id !== 'string'
+        || !expectedIds.has(item.operation_id) || acknowledged.has(item.operation_id)) {
+      validRows = false;
+      break;
+    }
+    acknowledged.add(item.operation_id);
+    if (item.success === true) {
+      if (!Number.isSafeInteger(Number(item.id)) || Number(item.id) <= 0
+          || typeof item.updated_at !== 'string' || !item.updated_at.trim()) {
+        validRows = false;
+        break;
+      }
+      successCount += 1;
+    } else if (item.success === false) {
+      failureCount += 1;
+    } else {
+      validRows = false;
+      break;
+    }
+  }
+  if (!validCounts || !validRows || acknowledged.size !== expectedIds.size
+      || payload.total !== withIds.length || payload.succeeded !== successCount
+      || payload.failed !== failureCount || (response.status === 200 && failureCount > 0)
+      || payload.success !== (failureCount === 0)) {
+    const error = new Error('Backend trả biên nhận Excel không đầy đủ hoặc mâu thuẫn; giữ nguyên file để thử lại.');
+    error.code = 'EXCEL_DB_SYNC_UNVERIFIED_ACK';
+    throw error;
+  }
   return payload;
 }
 
