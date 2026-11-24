@@ -313,6 +313,17 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
         });
       }
     }
+    const beforePublish = await fs.stat(outputPath).catch((error) => {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    });
+    if ((previous === null) !== (beforePublish === null)
+        || (previous && beforePublish &&
+          (previous.mtimeMs !== beforePublish.mtimeMs || previous.size !== beforePublish.size))) {
+      throw Object.assign(new Error('Existing export changed before replacement'), {
+        code: 'KTC_EXCEL_CONCURRENT_MODIFICATION'
+      });
+    }
     await fs.rename(temporaryPath, outputPath);
   } finally {
     await fs.rm(temporaryPath, { force: true }).catch(() => {});
