@@ -138,6 +138,12 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           await writeLog('WARN', 'EXCEL_DB_SYNC_MISSING_VERSION', { filePath, reportId });
         }
       }
+      if (workbookChanges.some((change) => !change.expected_updated_at)) {
+        detected += workbookChanges.length;
+        failed += workbookChanges.length;
+        unreadableWorkbook = true;
+        continue;
+      }
       const allIds = workbookChanges.map((change) => Number(change.id));
       if (allIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
           || new Set(allIds).size !== allIds.length) {
