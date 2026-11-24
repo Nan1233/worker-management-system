@@ -1,6 +1,23 @@
 'use strict';
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const crypto = require('node:crypto');
+
+// Same workbook change retains this identity across restarts and HTTP retries.
+// A fresh workbook export receives a different generatedAt identifier.
+function stable(value) {
+  if (Array.isArray(value)) return value.map(stable);
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+  }
+  return value;
+}
+function operationIdForChange(change, workbookIdentity = null) {
+  const action = change?.create === true
+    ? { create: true, row: change.row, data: change.data, invalid: Boolean(change.invalid), source: change.source || null }
+    : { id: change.id, expected_updated_at: change.expected_updated_at, patch: change.patch, source: change.source || null };
+  return crypto.createHash('sha256').update(JSON.stringify(stable({ action, workbookIdentity }))).digest('hex');
+}
 
 function createExcelDbSyncController({
   authenticatedFetch, API_BASE_URL, listExcelFiles, getExportRoot, readExcelChanges,
@@ -10,10 +27,13 @@ function createExcelDbSyncController({
   let excelDbSyncRunning = false;
   const excelDbSyncState = new Map();
 async function postExcelChanges(changes) {
+  const withIds = changes.map((change) => ({
+    ...change, operation_id: change.operation_id || operationIdForChange(change)
+  }));
   const response = await authenticatedFetch(`${API_BASE_URL}/production/excel-sync`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ changes })
+    body: JSON.stringify({ changes: withIds })
   });
   if (response.status === 401 || response.status === 403) {
     const error = new Error('Tài khoản hiện tại không có quyền đồng bộ chỉnh sửa Excel về DB.');
@@ -48,7 +68,7 @@ async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
     }
     if (!parsed.changes.length) continue;
     if (yearMonth && parsed.yearMonth !== yearMonth) continue;
-    const previewIds = parsed.changes.map((change) => Number(change?.id));
+    const previewIds = parsed.changes.filter((change) => change?.create !== true).map((change) => Number(change?.id));
     if (previewIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
         || new Set(previewIds).size !== previewIds.length) {
       helperUpdateErrors.push({ file: path.basename(filePath), message: 'Duplicate or invalid report IDs' });
@@ -129,24 +149,28 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       }
       // Avoid mutating the parser's workbook-derived objects. Reconciliation
       // metadata belongs to this request, not to the original snapshot.
-      const workbookChanges = parsed.changes.map((change) => ({ ...change }));
+      const workbookIdentity = { file: path.resolve(filePath), generatedAt: parsed.generatedAt || null, yearMonth: parsed.yearMonth || null };
+      const workbookChanges = parsed.changes.map((change) => ({
+        ...change, operation_id: operationIdForChange(change, workbookIdentity)
+      }));
       for (const change of workbookChanges) {
         const reportId = Number(change.id);
         // Never substitute a cached version for the workbook's concurrency
         // token: it may belong to a different snapshot of the same report.
-        if (!change.expected_updated_at) {
+        if (change.create !== true && !change.expected_updated_at) {
           await writeLog('WARN', 'EXCEL_DB_SYNC_MISSING_VERSION', { filePath, reportId });
         }
       }
-      if (workbookChanges.some((change) => !change.expected_updated_at)) {
+      if (workbookChanges.some((change) => change.create !== true && !change.expected_updated_at)) {
         detected += workbookChanges.length;
         failed += workbookChanges.length;
         unreadableWorkbook = true;
         continue;
       }
-      const allIds = workbookChanges.map((change) => Number(change.id));
+      const allIds = workbookChanges.filter((change) => change.create !== true).map((change) => Number(change.id));
       if (allIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
-          || new Set(allIds).size !== allIds.length) {
+          || new Set(allIds).size !== allIds.length
+          || new Set(workbookChanges.map((change) => change.operation_id)).size !== workbookChanges.length) {
         failed += workbookChanges.length;
         unreadableWorkbook = true;
         await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_REPORT_IDS', {
@@ -189,7 +213,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
               || (Array.isArray(result.results) && result.results.length !== chunk.length)) {
             fileFailed = true;
           }
-          const expectedIds = new Set(chunk.map((change) => Number(change.id)));
+          const expectedIds = new Set(chunk.map((change) => change.operation_id));
           const acknowledgedIds = new Set();
           const verifiedVersions = new Map();
           for (const item of (Array.isArray(result.results) ? result.results : [])) {
@@ -199,14 +223,16 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
               continue;
             }
             const reportId = Number(item.id);
-            if (!expectedIds.has(reportId) || acknowledgedIds.has(reportId)) {
+            const operationId = String(item.operation_id || '');
+            if (!expectedIds.has(operationId) || acknowledgedIds.has(operationId)) {
               fileFailed = true;
               await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_ACK', { filePath, reportId: item.id });
               continue;
             }
-            acknowledgedIds.add(reportId);
-            if (item.success === true && typeof item.updated_at === 'string' && item.updated_at.trim() && Number.isSafeInteger(reportId) && reportId > 0) {
-              verifiedVersions.set(reportId, item.updated_at);
+            acknowledgedIds.add(operationId);
+            if (item.success === true && typeof item.updated_at === 'string' && item.updated_at.trim()
+                && Number.isSafeInteger(reportId) && reportId > 0) {
+              verifiedVersions.set(operationId, { id: reportId, updated_at: item.updated_at });
             }
             if (item.success !== true) {
               fileFailed = true;
@@ -224,7 +250,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
               && batchSucceeded + batchFailed === chunk.length
               && acknowledgedIds.size === expectedIds.size
               && Array.isArray(result.results) && result.results.length === chunk.length) {
-            for (const [id, version] of verifiedVersions) state.versions.set(id, version);
+            for (const [, version] of verifiedVersions) state.versions.set(version.id, version.updated_at);
           }
           // Only count verifiable acknowledgments. A malformed response is
           // reported as an unresolved batch, not as confirmed DB success.

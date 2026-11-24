@@ -17,7 +17,7 @@ const text=(v)=>String(v??'').trim();
 const mode=(v)=>{const x=text(v).toUpperCase(); return ['MÁY','MAY','MACHINE'].includes(x)?'MACHINE':['TAY','MANUAL','THỦ CÔNG','THU CONG'].includes(x)?'MANUAL':x||'MANUAL';};
 const opType=(v)=>{const x=text(v).toUpperCase(); return ['CẮT','CAT','CUT'].includes(x)?'CUT':['LỒNG','LONG','NEST'].includes(x)?'NEST':x||null;};
 
-async function createApprovedReportFromExcel({ data, userId, actor, req=null, sourceMeta=null }) {
+async function createApprovedReportFromExcel({ data, userId, actor, req=null, sourceMeta=null, excelSyncReceipt=null }) {
   const workerCode=text(data?.worker_code), processCode=text(data?.process_code).toUpperCase();
   if(!workerCode || !processCode) throw httpError(422,'EXCEL_CREATE_IDENTITY_REQUIRED','Dòng mới thiếu Mã NV hoặc công đoạn');
   const [[workers],[processes]] = await Promise.all([
@@ -61,6 +61,11 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
   const conn=await db.promise().getConnection();
   try{
     await conn.beginTransaction();
+    const replay = excelSyncReceipt ? await excelSyncReceipt.acquire(conn) : null;
+    if (replay) {
+      await conn.commit();
+      return { replay: true, receipt: replay };
+    }
     const logicalDuplicateKey = buildLogicalDuplicateKey({
       workerId, processId, workDate: validation.normalized.work_date, shift: validation.normalized.shift,
       operationMode, machineNo: validation.normalized.machine_no, productName: validation.normalized.product_name,
@@ -102,7 +107,18 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
     const version=await createApprovedReportVersion({reportId:id,reason:`Tạo mới từ Excel: ${sourceMeta?.file||'Desktop'}`,userId},conn);
     const snapshot=await loadApprovedAggregateSnapshot({reportId:id,executor:conn});
     await AuditService.logActivity({userId,action:'REPORT_CREATED_FROM_EXCEL',entityType:'approved_report',entityId:id,description:`Tạo báo cáo chính thức #${id} từ Excel`,metadata:{source_file:sourceMeta?.file||null,source_sheet:sourceMeta?.sheet||null,source_row:sourceMeta?.row||null,process_code:processCode,worker_code:workerCode,version},req},conn);
-    await conn.commit(); return {report:snapshot,version};
+    const [versionRows] = await conn.query('SELECT created_at,updated_at FROM production_reports WHERE id=?', [id]);
+    const report = { ...snapshot.report,
+      created_at: versionRows[0]?.created_at || null,
+      updated_at: versionRows[0]?.updated_at || null };
+    const result = { report, version };
+    if (excelSyncReceipt) {
+      await excelSyncReceipt.complete(conn, {
+        id, create: true, success: true, version,
+        updated_at: report.updated_at || report.created_at || null
+      });
+    }
+    await conn.commit(); return result;
   }catch(e){await conn.rollback().catch(()=>{}); throw e;}finally{conn.release();}
 }
 module.exports={createApprovedReportFromExcel};

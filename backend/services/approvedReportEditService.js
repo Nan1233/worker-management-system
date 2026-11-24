@@ -34,7 +34,8 @@ function timestampsEqual(expected, actual) {
   if (!expected) return true;
   const a = new Date(expected).getTime();
   const b = new Date(actual || 0).getTime();
-  return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 1000;
+  // Do not treat different versions in the same second as equal.
+  return Number.isFinite(a) && Number.isFinite(b) && a === b;
 }
 
 function httpError(status, code, message, details) {
@@ -46,12 +47,16 @@ function httpError(status, code, message, details) {
   return error;
 }
 
-async function updateApprovedReport({ reportId, patch, reason, userId, actor, req = null, expectedUpdatedAt = null, source = 'web', sourceMeta = null }) {
+async function updateApprovedReport({ reportId, patch, reason, userId, actor, req = null, expectedUpdatedAt = null, source = 'web', sourceMeta = null, excelSyncReceipt = null }) {
   if (!(await hasPermission(actor, 'REPORT_APPROVED_EDIT'))) {
     throw httpError(403, 'PERMISSION_DENIED', 'Bạn không có quyền sửa báo cáo đã duyệt');
   }
   if (!Number.isInteger(Number(reportId)) || Number(reportId) <= 0) {
     throw httpError(422, 'INVALID_REPORT_ID', 'ID báo cáo không hợp lệ');
+  }
+  if (source === 'excel' && (typeof expectedUpdatedAt !== 'string' || !expectedUpdatedAt.trim()
+      || !Number.isFinite(new Date(expectedUpdatedAt).getTime()))) {
+    throw httpError(422, 'EXCEL_EXPECTED_VERSION_REQUIRED', 'Excel thiếu phiên bản gốc hợp lệ; hãy xuất lại file');
   }
   const changeReason = String(reason || '').trim().slice(0, 500);
   if (!changeReason) throw httpError(422, 'CHANGE_REASON_REQUIRED', 'Vui lòng nhập lý do chỉnh sửa báo cáo đã duyệt');
@@ -63,6 +68,13 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
     if (!lockedRows[0]) throw httpError(404, 'REPORT_NOT_FOUND', 'Không tìm thấy báo cáo');
     await assertProcessScope(actor, lockedRows[0].process_id, { executor: connection, action: source === 'excel' ? 'REPORT_APPROVED_EDIT_EXCEL' : 'REPORT_APPROVED_EDIT' });
 
+    // Check the durable receipt under the report lock and authorized process scope,
+    // before comparing the original workbook version. Retries must not reapply writes.
+    const replay = excelSyncReceipt ? await excelSyncReceipt.acquire(connection) : null;
+    if (replay) {
+      await connection.commit();
+      return { replay: true, receipt: replay };
+    }
     const before = await loadApprovedSnapshot(Number(reportId), connection);
     if (expectedUpdatedAt && !timestampsEqual(expectedUpdatedAt, before.updated_at || before.created_at)) {
       const conflictMessage = source === 'excel'
@@ -83,6 +95,11 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
       throw httpError(422, 'MACHINE_AGGREGATE_READ_ONLY', 'Báo cáo Máy chỉ cho phép sửa % học việc và ghi chú trong Excel; dữ liệu máy phải sửa từ màn hình báo cáo chi tiết.');
     }
 
+    if (source === 'excel' && Object.prototype.hasOwnProperty.call(inputPatch, 'training_percent')) {
+      // Training snapshot affects approved historical KPI. Never ACK an unsupported
+      // edit silently; a dedicated versioned training workflow is required.
+      throw httpError(422, 'EXCEL_TRAINING_SNAPSHOT_IMMUTABLE', 'Không thể sửa % học việc của báo cáo đã duyệt trực tiếp từ Excel');
+    }
     const normalizedPatch = { ...inputPatch };
     delete normalizedPatch.standard_output;
     delete normalizedPatch.standard_version_id;
@@ -178,7 +195,7 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
       updateColumns.push('updated_by=?');
       updateValues.push(userId);
     }
-    updateColumns.push('updated_at=NOW()');
+    updateColumns.push('updated_at=GREATEST(NOW(6), DATE_ADD(updated_at, INTERVAL 1 MILLISECOND))');
     await connection.query(
       `UPDATE production_reports SET ${updateColumns.join(',')} WHERE id=?`,
       [...updateValues, Number(reportId)]
@@ -217,6 +234,12 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
       metadata: { reason: changeReason, source, source_file: sourceMeta?.file || null, source_sheet: sourceMeta?.sheet || null, process_code: sourceMeta?.process_code || null, changed_fields: changedFields },
       req
     }, connection);
+    if (excelSyncReceipt) {
+      await excelSyncReceipt.complete(connection, {
+        id: Number(reportId), success: true, version: versionNo,
+        updated_at: after.updated_at || null
+      });
+    }
     await connection.commit();
     return { report: after, version: versionNo, before };
   } catch (error) {
@@ -428,7 +451,7 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
       return target.report[field] ?? null;
     });
     await connection.query(
-      `UPDATE production_reports SET ${parentFields.map((field) => `${field}=?`).join(',')}, updated_at=NOW() WHERE id=?`,
+      `UPDATE production_reports SET ${parentFields.map((field) => `${field}=?`).join(',')}, updated_at=GREATEST(NOW(6), DATE_ADD(updated_at, INTERVAL 1 MILLISECOND)) WHERE id=?`,
       [...parentValues, id]
     );
 
