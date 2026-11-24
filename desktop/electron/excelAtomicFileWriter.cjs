@@ -132,11 +132,11 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
 
   const pendingPath = `${filePath}.pending.xlsx`;
   try {
-    // Replace pending atomically without deleting the previous good pending
-    // copy first. If rename fails, leave the previous pending intact.
+    // Publish the completed temporary file atomically without replacing
+    // an existing pending workbook.
     // Never overwrite an older pending workbook: it may contain a different
     // export that has not yet been reviewed by the operator.
-    await fs.copyFile(temporaryPath, pendingPath, fsSync.constants.COPYFILE_EXCL);
+    await fs.link(temporaryPath, pendingPath);
     await fs.rm(temporaryPath, { force: true });
   } catch (error) {
     await fs.rm(temporaryPath, { force: true }).catch(() => {});
