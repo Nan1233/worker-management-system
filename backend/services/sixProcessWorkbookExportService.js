@@ -100,9 +100,10 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
   const required = ['worker', 'name', 'shift', 'product', 'standard', 'output', 'date'];
   const invalid = required.filter((field) => !Number.isInteger(columns[field])
     || columns[field] < 1 || columns[field] > sheet.columnCount);
-  const duplicateColumns = Object.values(columns).filter((column, index, values) => values.indexOf(column) !== index);
+  const positions = Object.values(columns).filter(Number.isInteger);
+  const duplicateColumns = positions.filter((column, index) => positions.indexOf(column) !== index);
   if (duplicateColumns.length) invalid.push('duplicate column positions');
-  if (invalid.length || HEADER_ROW[processCode] >= first) {
+  if (invalid.length || HEADER_ROW[processCode] >= first || sheet.rowCount < first) {
     throw Object.assign(new Error('Workbook1 template columns invalid: ' + invalid.join(', ')), {
       code: 'KTC_EXCEL_TEMPLATE_COLUMN_MISSING', statusCode: 422
     });
