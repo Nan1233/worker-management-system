@@ -167,6 +167,13 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       let fileFailed = false;
       for (let index = 0; index < workbookChanges.length; index += 100) {
         const chunk = workbookChanges.slice(index, index + 100);
+        const current = await fs.stat(filePath).catch(() => null);
+        if (!current || current.mtimeMs !== stat.mtimeMs || current.size !== stat.size) {
+          fileFailed = true;
+          failed += workbookChanges.length - index;
+          await writeLog('WARN', 'EXCEL_DB_SYNC_CHANGED_BETWEEN_BATCHES', { filePath, source });
+          break;
+        }
         try {
           const result = await postExcelChanges(chunk);
           const batchSucceeded = Number(result.succeeded || 0);
