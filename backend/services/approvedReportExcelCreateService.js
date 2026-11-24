@@ -5,7 +5,7 @@ const { validateMasterData } = require('./reportBusinessValidationService');
 const { calculateProductionOutput } = require('../../shared/productionOutput.cjs');
 const { validateMachineLines } = require('./machineLineValidationService');
 const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require('./factoryMachineRuleService');
-const ReportGovernanceService = require('./reportGovernanceService');
+const { resolveInitialTrainingSnapshot } = require('./trainingSnapshotService');
 const { assertProcessScope } = require('./processAuthorizationService');
 const { createApprovedReportVersion, loadApprovedAggregateSnapshot } = require('./approvedVersionSnapshotService');
 const { buildLogicalDuplicateKey } = require('./logicalDuplicateReportService');
@@ -62,7 +62,8 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
       && (!Number.isFinite(Number(rawTrainingPercent)) || Number(rawTrainingPercent) < 0 || Number(rawTrainingPercent) > 100)) {
     throw httpError(422, 'EXCEL_TRAINING_PERCENT_INVALID', '% học việc phải nằm trong khoảng 0–100');
   }
-  const trainingPercentSnapshot = Number(Number(validation.normalized.training_percent).toFixed(2));
+  const hasExplicitTrainingPercent = rawTrainingPercent !== null && rawTrainingPercent !== undefined
+    && String(rawTrainingPercent).trim() !== '';
 
   const conn=await db.promise().getConnection();
   try{
@@ -72,6 +73,14 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
       await conn.commit();
       return { replay: true, receipt: replay };
     }
+    // Blank training cells must capture the worker's real percentage at CREATE
+    // time, not silently turn into 0% (Desktop) or 100% (validator default).
+    const trainingPercent = hasExplicitTrainingPercent
+      ? Number(validation.normalized.training_percent)
+      : await resolveInitialTrainingSnapshot({
+        workerId, query: async (sql, params) => (await conn.query(sql, params))[0]
+      });
+    const trainingPercentSnapshot = Number(Number(trainingPercent).toFixed(2));
     const logicalDuplicateKey = buildLogicalDuplicateKey({
       workerId, processId, workDate: validation.normalized.work_date, shift: validation.normalized.shift,
       operationMode, machineNo: validation.normalized.machine_no, productName: validation.normalized.product_name,

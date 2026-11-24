@@ -320,7 +320,21 @@ async function readExcelChanges(filePath) {
     }
     const deductions = mergeEditableDetails(current, meta.config.columns, 'deduction:', [], 'deduction_type_id', 'hours', false);
     const defects = mergeEditableDetails(current, meta.config.columns, 'defect:', [], 'defect_type_id', 'quantity', true);
-    const trainingRaw = asNumber(current.training);
+    // An absent training cell is different from an explicit 0% learning rate.
+    // The backend snapshots the worker's current training rate when absent.
+    const trainingCell = current.training && typeof current.training === 'object'
+      && current.training.result !== undefined ? current.training.result : current.training;
+    const hasTrainingCell = trainingCell !== null && trainingCell !== undefined
+      && asText(trainingCell) !== '';
+    const trainingRaw = hasTrainingCell ? Number(trainingCell) : null;
+    if (hasTrainingCell && (!Number.isFinite(trainingRaw) || trainingRaw < 0 || trainingRaw > 100)) {
+      changes.push({
+        create: true, id: null, row, invalid: true,
+        error: '% học việc phải là số từ 0 đến 100.',
+        source: { file: path.basename(filePath), sheet: meta.config.sheetName, process_code: meta.config.processCode, row }
+      });
+      continue;
+    }
     const extraData = {};
     for (const col of meta.config.columns.filter((col) => col.key.startsWith('extra:'))) {
       const key = col.key.slice('extra:'.length);
@@ -336,7 +350,7 @@ async function readExcelChanges(filePath) {
       operation_mode: operationMode,
       machine_no: selectedMachine,
       product_name: productName,
-      training_percent: trainingRaw >= 0 && trainingRaw <= 1 ? trainingRaw * 100 : trainingRaw,
+      training_percent: trainingRaw === null ? null : (trainingRaw >= 0 && trainingRaw <= 1 ? trainingRaw * 100 : trainingRaw),
       actual_time: asNumber(current.actualTime),
       tt_ok: asInteger(current.ok),
       note: asText(current.note),

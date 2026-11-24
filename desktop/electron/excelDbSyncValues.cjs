@@ -1,7 +1,7 @@
 'use strict';
 
 // Side-effect-free normalization for Excel -> DB review. The workbook reader
-// continues to own physical row IDs, _KTC_SYNC validation and file writes.
+// owns physical row IDs and _KTC_SYNC validation, but must never write during parsing.
 // Preserve all legacy parsing / comparison semantics during this extraction.
 const asText = (value) => {
   if (value && typeof value === 'object' && value.result !== undefined) return asText(value.result);
