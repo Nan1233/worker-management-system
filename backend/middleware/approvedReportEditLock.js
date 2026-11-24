@@ -9,7 +9,7 @@ function keyFor(reportId) {
 
 module.exports = async function approvedReportEditLock(req, res, next) {
   const reportId = Number(req.params.id);
-  if (!Number.isInteger(reportId) || reportId <= 0) return next();
+  if (!Number.isSafeInteger(reportId) || reportId <= 0) return next();
 
   const key = keyFor(reportId);
   const previous = pending.get(key) || Promise.resolve();
@@ -32,6 +32,13 @@ module.exports = async function approvedReportEditLock(req, res, next) {
     releaseQueue();
     if (pending.get(key) === current) pending.delete(key);
   };
+
+  // A queued client may disconnect before its turn. Release only after
+  // the preceding operation has settled, preserving queue ordering.
+  if (req.aborted || res.destroyed || res.writableEnded) {
+    release();
+    return;
+  }
 
   // Always release the queue slot when the HTTP response finishes/closes.
   res.once('finish', release);
