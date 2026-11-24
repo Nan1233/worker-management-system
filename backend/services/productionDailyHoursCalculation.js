@@ -1,5 +1,7 @@
 'use strict';
 
+const { calculateNetHours } = require('../../shared/productionMetricPrimitives.cjs');
+
 // Pure calculation for the optional daily working-hours policy.
 // GC and Mài can run machines in parallel; only the highest aggregate
 // worker participation time for a machine counts toward the daily limit.
@@ -15,7 +17,7 @@ function incomingDailyWorkHours(data, machineLines = [], processCode = '') {
       .trim().toUpperCase() || '__UNKNOWN__';
     const grossHours = Number(line?.machine_time_hours ?? line?.actual_time_hours) || 0;
     const deductionHours = Number(line?.deduction_time_hours ?? line?.deduction_time ?? 0) || 0;
-    const netHours = Math.max(0, grossHours - deductionHours);
+    const netHours = calculateNetHours(grossHours, deductionHours) ?? 0;
     netHoursByMachine.set(machine, (netHoursByMachine.get(machine) || 0) + netHours);
   }
 

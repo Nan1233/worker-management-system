@@ -4,6 +4,8 @@ const {
   DEFAULT_SETTINGS,
   parseStoredTrainingSnapshot,
   safeRatio,
+  calculateNetHours,
+  calculatePlannedOutput,
   asNumber,
   asInteger,
   normalizeTrainingPercent,
@@ -52,7 +54,7 @@ function calculateActualTime(report = {}, settings = {}, workingTime = null, ded
   const deduction = deductionTime === null ? asNumber(report.deduction_time) : asNumber(deductionTime);
 
   if (resolved.actual_time_formula === 'WORKING_MINUS_DEDUCTION') {
-    return working === null ? null : Math.max(0, working - (deduction || 0));
+    return working === null ? null : calculateNetHours(working, deduction ?? 0);
   }
   if (resolved.actual_time_formula === 'MACHINE_LINES_SUM') {
     const sum = machineLineHours(report);
@@ -130,7 +132,7 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
       allowReportFallback && !reportLineDeductions.length ? positiveHours(report.deduction_time) : 0
     );
     const deductionHours = reportLineDeductions.length ? detailHours : fallbackHours;
-    const workedHours = Math.max(0, machineHours - deductionHours);
+    const workedHours = calculateNetHours(machineHours, deductionHours) ?? 0;
 
     const lineOk = Math.max(0, asInteger(line.ok_quantity) || 0);
     const lineNg = Math.max(0, asInteger(line.ng_quantity) || 0);
@@ -148,7 +150,7 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     countedNg += lineCountedNg;
     enteredOutput += lineOk + lineNg;
     adjustedOutput += lineOk + lineCountedNg;
-    if (trainingMultiplier !== null) plannedOutput += Math.round(lineStandard * workedHours * trainingMultiplier);
+    if (trainingMultiplier !== null) plannedOutput += Math.round(calculatePlannedOutput(lineStandard, workedHours, trainingMultiplier));
   }
 
   const outputPerHour = safeRatio(adjustedOutput, actualTime);
@@ -160,8 +162,8 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
   const achievement = safeRatio(adjustedOutput, resolvedPlannedOutput);
   const ngDenominator = ok + allNg;
   const ngRate = resolved.ng_rate_formula === 'NG_DIV_ENTERED_OUTPUT'
-    ? (enteredOutput > 0 ? allNg / enteredOutput : null)
-    : (ngDenominator > 0 ? allNg / ngDenominator : null);
+    ? safeRatio(allNg, enteredOutput)
+    : safeRatio(allNg, ngDenominator);
 
   return {
     trainingPercent,
@@ -232,9 +234,7 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   } else {
     outputPerHour = safeRatio(adjustedOutput, actualTime);
     achievement = safeRatio(outputPerHour, standard);
-    plannedOutput = standard !== null && actualTime !== null && factor !== null
-      ? standard * actualTime * factor
-      : null;
+    plannedOutput = calculatePlannedOutput(standard, actualTime, resolved.apply_training_percent ? factor : 1);
   }
 
   let ngRate = null;

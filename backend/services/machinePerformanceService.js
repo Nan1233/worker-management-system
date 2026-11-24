@@ -1,5 +1,7 @@
 "use strict";
 
+const { asNumber, safeRatio, calculatePlannedOutput } = require("../../shared/productionMetricPrimitives.cjs");
+
 const safeNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -46,8 +48,8 @@ const calculateMachineLinePerformance = (line = {}) => {
   const countedOutput = ok + countedNg;
   const machineHours = Math.max(0, safeNumber(line.machine_time_hours));
   const standardOutput = Math.max(0, safeNumber(line.standard_output));
-  const maximumOutput = Math.max(0, safeNumber(line.maximum_output)) || standardOutput * machineHours;
-  const earnedStandardHours = standardOutput > 0 ? countedOutput / standardOutput : 0;
+  const maximumOutput = Math.max(0, asNumber(line.maximum_output) ?? calculatePlannedOutput(standardOutput, machineHours) ?? 0);
+  const earnedStandardHours = safeRatio(countedOutput, standardOutput) ?? 0;
 
   return {
     ...line,
@@ -59,9 +61,9 @@ const calculateMachineLinePerformance = (line = {}) => {
     counted_output: countedOutput,
     maximum_output: maximumOutput,
     earned_standard_hours: earnedStandardHours,
-    machine_efficiency_percent: maximumOutput > 0 ? (countedOutput / maximumOutput) * 100 : 0,
-    ok_rate_percent: physicalOutput > 0 ? (ok / physicalOutput) * 100 : 0,
-    ng_rate_percent: physicalOutput > 0 ? (ng / physicalOutput) * 100 : 0,
+    machine_efficiency_percent: (safeRatio(countedOutput, maximumOutput) ?? 0) * 100,
+    ok_rate_percent: (safeRatio(ok, physicalOutput) ?? 0) * 100,
+    ng_rate_percent: (safeRatio(ng, physicalOutput) ?? 0) * 100,
   };
 };
 
@@ -69,11 +71,11 @@ const calculateManualPerformance = (report = {}) => {
   const ok = Math.max(0, safeNumber(report.tt_ok));
   const ng = Math.max(0, safeNumber(report.tt_ng));
   const physicalOutput = ok + ng;
-  const countedOutput = Math.max(0, safeNumber(report.actual_output)) || physicalOutput;
+  const countedOutput = Math.max(0, asNumber(report.actual_output) ?? physicalOutput);
   const standardOutput = Math.max(0, safeNumber(report.standard_output));
   const actualWorkerHours = Math.max(0, safeNumber(report.actual_time));
-  const maximumOutput = standardOutput * actualWorkerHours;
-  const earnedStandardHours = standardOutput > 0 ? countedOutput / standardOutput : 0;
+  const maximumOutput = calculatePlannedOutput(standardOutput, actualWorkerHours) ?? 0;
+  const earnedStandardHours = safeRatio(countedOutput, standardOutput) ?? 0;
 
   return {
     performanceMode: "MANUAL",
@@ -87,15 +89,15 @@ const calculateManualPerformance = (report = {}) => {
       physical_output: physicalOutput,
       counted_output: countedOutput,
       maximum_output: maximumOutput,
-      efficiency_percent: maximumOutput > 0 ? (countedOutput / maximumOutput) * 100 : 0,
-      ok_rate_percent: physicalOutput > 0 ? (ok / physicalOutput) * 100 : 0,
-      ng_rate_percent: physicalOutput > 0 ? (ng / physicalOutput) * 100 : 0,
+      efficiency_percent: (safeRatio(countedOutput, maximumOutput) ?? 0) * 100,
+      ok_rate_percent: (safeRatio(ok, physicalOutput) ?? 0) * 100,
+      ng_rate_percent: (safeRatio(ng, physicalOutput) ?? 0) * 100,
     },
     machinePerformance: null,
     workerPerformance: {
       actual_worker_hours: actualWorkerHours,
       earned_standard_hours: earnedStandardHours,
-      efficiency_percent: actualWorkerHours > 0 ? (earnedStandardHours / actualWorkerHours) * 100 : 0,
+      efficiency_percent: (safeRatio(earnedStandardHours, actualWorkerHours) ?? 0) * 100,
     },
   };
 };
@@ -137,14 +139,14 @@ const calculateReportPerformance = ({ report = {}, machineLines = [] } = {}) => 
       physical_output: physicalOutput,
       counted_output: countedOutput,
       maximum_output: maximumOutput,
-      efficiency_percent: maximumOutput > 0 ? (countedOutput / maximumOutput) * 100 : 0,
-      ok_rate_percent: physicalOutput > 0 ? (totalOk / physicalOutput) * 100 : 0,
-      ng_rate_percent: physicalOutput > 0 ? (totalNg / physicalOutput) * 100 : 0,
+      efficiency_percent: (safeRatio(countedOutput, maximumOutput) ?? 0) * 100,
+      ok_rate_percent: (safeRatio(totalOk, physicalOutput) ?? 0) * 100,
+      ng_rate_percent: (safeRatio(totalNg, physicalOutput) ?? 0) * 100,
     },
     workerPerformance: {
       actual_worker_hours: actualWorkerHours,
       earned_standard_hours: earnedStandardHours,
-      efficiency_percent: actualWorkerHours > 0 ? (earnedStandardHours / actualWorkerHours) * 100 : 0,
+      efficiency_percent: (safeRatio(earnedStandardHours, actualWorkerHours) ?? 0) * 100,
     },
   };
 };

@@ -1,6 +1,6 @@
 'use strict';
 
-const { parseStoredTrainingSnapshot, safeRatio } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'productionMetricPrimitives.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'productionMetricPrimitives.cjs') : '../../shared/productionMetricPrimitives.cjs');
+const { parseStoredTrainingSnapshot, safeRatio, calculateNetHours } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'productionMetricPrimitives.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'productionMetricPrimitives.cjs') : '../../shared/productionMetricPrimitives.cjs');
 
 // Pure company workbook metrics. Approved report snapshots take precedence over mutable master data.
 function createCompanyExcelMetrics({ num, normalizeCode, safeText }) {
@@ -28,7 +28,7 @@ function getMetrics(report) {
     ? workerTotalTime
     : (hasValue(report.total_time) ? num(report.total_time) : num(report.actual_time ?? report.working_time ?? report.work_time) + sumDetails(report.deductions, 'hours'));
   const actualTime = isGiaCongMachine
-    ? (hasValue(report.actual_time) ? Math.max(0, num(report.actual_time)) : Math.max(0, workerTotalTime - workerDeductionTime))
+    ? (hasValue(report.actual_time) ? Math.max(0, num(report.actual_time)) : (calculateNetHours(workerTotalTime, workerDeductionTime) ?? 0))
     : num(report.actual_time ?? report.working_time ?? report.work_time);
   // Approved historical snapshot takes precedence over mutable worker master data.
   const trainingPercent = parseStoredTrainingSnapshot(report.training_percent_snapshot);
