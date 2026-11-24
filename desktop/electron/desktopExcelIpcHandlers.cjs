@@ -147,6 +147,10 @@ async function handleApplyReportImport(payload = {}) {
   if (!sameImportVersion(stat, beforePost)) throw sourceChangedError();
   const workbookIdentity = { file: path.resolve(filePath), generatedAt: parsed.generatedAt || null, yearMonth: parsed.yearMonth || null };
   const pending = changes.map(change => ({ ...change, operation_id: operationIdForChange(change, workbookIdentity) }));
+  const ids = pending.filter(change => change.create !== true).map(change => Number(change.id));
+  if (ids.some(id => !Number.isSafeInteger(id) || id <= 0) || new Set(ids).size !== ids.length || new Set(pending.map(change => change.operation_id)).size !== pending.length) {
+    throw new Error('Workbook có ID báo cáo hoặc mã thao tác không hợp lệ/trùng lặp. Không import.');
+  }
   let succeeded = 0;
   let failed = 0;
   const results = [];
@@ -177,11 +181,9 @@ async function handleApplyReportImport(payload = {}) {
   // The user can retry using the exact same workbook; operation receipts make
   // successfully applied rows safe to acknowledge again.
   if (!sourceChanged && failed === 0 && succeeded === changes.length) {
-    if (parsed.yearMonth && /^\d{4}-\d{2}$/.test(parsed.yearMonth)) {
-      await enqueueManualExcelSync({ date: `${parsed.yearMonth}-01`, source: 'report-import-rebuild', token }).catch((error) =>
-        writeLog('ERROR', 'REPORT_IMPORT_REBUILD_FAILED', { yearMonth: parsed.yearMonth, ...normalizeError(error) })
-      );
-    }
+    // Import can be from a copied workbook outside the export root. Never
+    // overwrite a different managed workbook before checking its pending edits.
+    // The regular watcher/manual DB sync owns managed workbook regeneration.
     reportImportPreviewGuard.consume(filePath);
   } else {
     await writeLog('WARN', 'REPORT_IMPORT_PARTIAL_NO_REBUILD', {

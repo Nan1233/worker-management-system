@@ -48,6 +48,8 @@ exports.syncExcelEdits = async (req, res) => {
   if (!Array.isArray(req.body?.changes) || req.body.changes.length === 0 || req.body.changes.length > 200) {
     return res.status(422).json({ success: false, code: 'EXCEL_SYNC_BATCH_SIZE_INVALID', message: 'Mỗi yêu cầu phải có từ 1 đến 200 thay đổi; không cắt bỏ âm thầm' });
   }
+  const ids = req.body.changes.map(change => typeof change?.operation_id === 'string' ? change.operation_id.toLowerCase() : '');
+  if (new Set(ids).size !== ids.length) return res.status(422).json({ success: false, code: 'EXCEL_SYNC_DUPLICATE_OPERATION', message: 'Batch chứa mã thao tác trùng lặp; chưa ghi dữ liệu' });
   const seenOperations = new Set();
   const results = [];
   const affectedDates = new Set();

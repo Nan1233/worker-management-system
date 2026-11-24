@@ -19,6 +19,10 @@ function operationIdForChange(change, workbookIdentity = null) {
   return crypto.createHash('sha256').update(JSON.stringify(stable({ action, workbookIdentity }))).digest('hex');
 }
 
+function sameFileVersion(a, b) {
+  return Boolean(a && b) && ['size', 'mtimeMs', 'ctimeMs', 'ino', 'dev'].every(key => a[key] === b[key]);
+}
+
 function createExcelDbSyncController({
   authenticatedFetch, API_BASE_URL, listExcelFiles, getExportRoot, readExcelChanges,
   writeLog, normalizeError, waitForUsableRendererToken, sendRenderer,
@@ -26,10 +30,14 @@ function createExcelDbSyncController({
 }) {
   let excelDbSyncRunning = false;
   const excelDbSyncState = new Map();
+  // Keep acknowledged months pending until every workbook can be read safely.
+  const pendingRebuildMonths = new Set();
 async function postExcelChanges(changes) {
+  if (!Array.isArray(changes) || changes.length < 1 || changes.length > 200) throw new Error('Số thay đổi Excel không hợp lệ');
   const withIds = changes.map((change) => ({
     ...change, operation_id: change.operation_id || operationIdForChange(change)
   }));
+  if (new Set(withIds.map(change => change.operation_id)).size !== withIds.length) throw new Error('Trùng mã thao tác Excel');
   const response = await authenticatedFetch(`${API_BASE_URL}/production/excel-sync`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -156,8 +164,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         continue;
       }
       const state = excelDbSyncState.get(filePath) || { mtimeMs: 0, versions: new Map() };
-      if (Number(state.mtimeMs || 0) === Number(stat.mtimeMs || 0)
-          && Number(state.size ?? -1) === Number(stat.size)) continue;
+      if (sameFileVersion(state.stat, stat)) continue;
       let parsed;
       try {
         parsed = await readExcelChanges(filePath);
@@ -169,8 +176,8 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       }
       if (!parsed?.managed) {
         const latest = await fs.stat(filePath).catch(() => null);
-        if (latest && latest.mtimeMs === stat.mtimeMs && latest.size === stat.size) {
-          excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs, size: stat.size });
+        if (sameFileVersion(latest, stat)) {
+          excelDbSyncState.set(filePath, { ...state, stat });
         } else unreadableWorkbook = true;
         continue;
       }
@@ -185,8 +192,8 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       }
       if (!parsed.changes.length) {
         const latest = await fs.stat(filePath).catch(() => null);
-        if (latest && latest.mtimeMs === stat.mtimeMs && latest.size === stat.size) {
-          excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs, size: stat.size });
+        if (sameFileVersion(latest, stat)) {
+          excelDbSyncState.set(filePath, { ...state, stat });
         } else unreadableWorkbook = true;
         continue;
       }
@@ -214,6 +221,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       if (allIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
           || new Set(allIds).size !== allIds.length
           || new Set(workbookChanges.map((change) => change.operation_id)).size !== workbookChanges.length) {
+        detected += workbookChanges.length;
         failed += workbookChanges.length;
         unreadableWorkbook = true;
         await writeLog('WARN', 'EXCEL_DB_SYNC_INVALID_REPORT_IDS', {
@@ -224,7 +232,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       // Never send a snapshot that was already superseded while ExcelJS was
       // reading the workbook. The next sync pass must read the newer file.
       const beforePost = await fs.stat(filePath).catch(() => null);
-      if (!beforePost || beforePost.mtimeMs !== stat.mtimeMs || beforePost.size !== stat.size) {
+      if (!sameFileVersion(beforePost, stat)) {
         unreadableWorkbook = true;
         await writeLog('WARN', 'EXCEL_DB_SYNC_CHANGED_DURING_READ', { filePath, source });
         continue;
@@ -235,7 +243,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       for (let index = 0; index < workbookChanges.length; index += 100) {
         const chunk = workbookChanges.slice(index, index + 100);
         const current = await fs.stat(filePath).catch(() => null);
-        if (!current || current.mtimeMs !== stat.mtimeMs || current.size !== stat.size) {
+        if (!sameFileVersion(current, stat)) {
           fileFailed = true;
           failed += workbookChanges.length - index;
           await writeLog('WARN', 'EXCEL_DB_SYNC_CHANGED_BETWEEN_BATCHES', { filePath, source });
@@ -317,32 +325,33 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       // Never acknowledge an earlier file snapshot if Excel was saved again
       // during the HTTP requests. Re-read the newest workbook next cycle.
       const latestStat = await fs.stat(filePath).catch(() => null);
-      const changedDuringSync = !latestStat || Number(latestStat.mtimeMs) !== Number(stat.mtimeMs)
-        || Number(latestStat.size) !== Number(stat.size);
-      excelDbSyncState.set(filePath, {
-        mtimeMs: fileFailed || changedDuringSync ? state.mtimeMs : stat.mtimeMs,
-        size: fileFailed || changedDuringSync ? state.size : stat.size,
-        versions: state.versions
-      });
+      const changedDuringSync = !sameFileVersion(latestStat, stat);
+      excelDbSyncState.set(filePath, { stat: fileFailed || changedDuringSync ? state.stat : stat, versions: state.versions });
       // A rebuild overwrites the local workbook. Never rebuild a month while
       // any of its edits failed or the workbook changed during the request.
       if (/^\d{4}-(?:0[1-9]|1[0-2])$/.test(parsedMonth)
-          && !fileFailed && !changedDuringSync) changedMonths.add(parsedMonth);
+          && !fileFailed && !changedDuringSync) pendingRebuildMonths.add(parsedMonth);
       else if (/^\d{4}-(?:0[1-9]|1[0-2])$/.test(parsedMonth)) blockedMonths.add(parsedMonth);
     }
-    for (const month of blockedMonths) changedMonths.delete(month);
+    for (const month of pendingRebuildMonths) {
+      if (!blockedMonths.has(month) && (!yearMonth || yearMonth === month)) changedMonths.add(month);
+    }
     // An unreadable workbook might contain unsynced changes for any month.
     // Do not regenerate any workbook until it can be inspected safely.
     if (unreadableWorkbook) changedMonths.clear();
     if (detected > 0) {
       await writeLog('INFO', 'EXCEL_DB_SYNC_FINISH', { source, detected, succeeded, failed, changedMonths: [...changedMonths] });
       if (source === 'watcher') sendRenderer('ktc-excel-db-sync-result', { detected, succeeded, failed });
-      if (succeeded > 0 && !isSyncRunning() && source === 'watcher') {
-        for (const yearMonth of changedMonths) {
-          void enqueueManualExcelSync({ date: `${yearMonth}-01`, source: 'excel-db-rebuild' }).catch((error) =>
-            writeLog('ERROR', 'EXCEL_DB_REBUILD_FAILED', { yearMonth, ...normalizeError(error) })
-          );
-        }
+    }
+    if (!isSyncRunning() && source === 'watcher') {
+      for (const month of changedMonths) {
+        pendingRebuildMonths.delete(month);
+        void enqueueManualExcelSync({ date: `${month}-01`, source: 'excel-db-rebuild' }).then(result => {
+          if (result?.success !== true) pendingRebuildMonths.add(month);
+        }).catch(error => {
+          pendingRebuildMonths.add(month);
+          return writeLog('ERROR', 'EXCEL_DB_REBUILD_FAILED', { yearMonth: month, ...normalizeError(error) });
+        });
       }
     }
     return { detected, succeeded, failed, changedMonths: [...changedMonths] };
@@ -352,7 +361,8 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
 }
 
 
-  return { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb };
+  function acknowledgeRebuild(month) { pendingRebuildMonths.delete(month); }
+  return { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb, acknowledgeRebuild };
 }
 
 module.exports = { createExcelDbSyncController, operationIdForChange };

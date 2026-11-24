@@ -15,7 +15,8 @@ async function hasColumn(tableName, columnName) {
   const column = assertIdentifier(columnName, 'Tên cột');
   const cacheKey = `${table}.${column}`.toLowerCase();
 
-  if (columnCache.has(cacheKey)) return columnCache.get(cacheKey);
+  const existing = columnCache.get(cacheKey);
+  if (existing && existing.expiresAt > Date.now()) return existing.value;
 
   const promise = (async () => {
     const [rows] = await db.promise().query(
@@ -30,13 +31,14 @@ async function hasColumn(tableName, columnName) {
     return Array.isArray(rows) && rows.length > 0;
   })();
 
-  columnCache.set(cacheKey, promise);
+  const entry = { value: promise, expiresAt: Date.now() + 30_000 };
+  columnCache.set(cacheKey, entry);
   try {
     const result = await promise;
-    columnCache.set(cacheKey, result);
+    if (columnCache.get(cacheKey) === entry) columnCache.set(cacheKey, { value: result, expiresAt: Date.now() + 30_000 });
     return result;
   } catch (error) {
-    columnCache.delete(cacheKey);
+    if (columnCache.get(cacheKey) === entry) columnCache.delete(cacheKey);
     throw error;
   }
 }
