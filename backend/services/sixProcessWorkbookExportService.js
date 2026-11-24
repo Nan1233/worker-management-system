@@ -149,7 +149,7 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
   stripExternalLinks(workbook);
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const [year, month] = String(yearMonth).split('-');
-  const folder = path.join(options.exportRoot || path.join(process.cwd(), 'exports-process'), year, path.basename(String(options.processName || processCode).split(String.fromCharCode(92)).join('/')).replace(/[<>:"|?*\x00-\x1f]/g, '_'), month);
+  const safeProcessFolder = path.basename(String(options.processName || processCode).split(String.fromCharCode(92)).join('/')).replace(/[<>:"|?*\x00-\x1f]/g, '_').replace(/[. ]+$/, '') || processCode; const folder = path.join(options.exportRoot || path.join(process.cwd(), 'exports-process'), year, safeProcessFolder, month);
   await fs.mkdir(folder, { recursive: true });
   const fileName = options.fileName || `Bao-cao-${processCode}-${month}-${year}.xlsx`;
   if (typeof fileName !== 'string' || fileName !== path.basename(fileName)
