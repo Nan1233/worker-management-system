@@ -18,6 +18,8 @@
     "perf:benchmark": "node scripts/performanceBenchmark.cjs",
     "test:quick": "node --test backend\\tests\\*.test.js backend\\tests\\*.test.cjs",
     "release:readiness": "node scripts/phase5ReleaseReadiness.cjs",
-    "release:readiness:strict": "node scripts/phase5ReleaseReadiness.cjs --strict"
+    "release:readiness:strict": "node scripts/phase5ReleaseReadiness.cjs --strict",
+    "perf:400": "node scripts/performance400.cjs",
+    "perf:400:self-test": "node scripts/performance400.cjs --self-test"
   }
 }
