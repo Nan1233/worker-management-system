@@ -1,9 +1,6 @@
 const inFlight = new Map();
 
-const RECENT_TTL_MS = Math.max(
-  3000,
-  Number(process.env.EXPORT_DUPLICATE_WINDOW_MS || 5000)
-);
+const RETRY_AFTER_SECONDS = 5;
 
 function getIdentity(req) {
   return String(
@@ -30,13 +27,12 @@ function getRequestKey(req) {
 
 function exportRequestGuard(req, res, next) {
   const key = getRequestKey(req);
-  const now = Date.now();
   const existing = inFlight.get(key);
 
   if (existing) {
     res.setHeader(
       'Retry-After',
-      String(Math.max(1, Math.ceil((existing.expiresAt - now) / 1000)))
+      String(RETRY_AFTER_SECONDS)
     );
 
     return res.status(409).json({
@@ -47,7 +43,7 @@ function exportRequestGuard(req, res, next) {
     });
   }
 
-  const entry = { expiresAt: now + RECENT_TTL_MS };
+  const entry = {};
 
   inFlight.set(key, entry);
 
