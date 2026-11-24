@@ -3,6 +3,17 @@ const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
 
+function sameImportVersion(before, after) {
+  return Boolean(before && after) && before.size === after.size
+    && before.mtimeMs === after.mtimeMs && before.ctimeMs === after.ctimeMs
+    && before.ino === after.ino && before.dev === after.dev;
+}
+function sourceChangedError() {
+  const error = new Error('File Excel đã được lưu lại trong lúc import. Không ghi đè; hãy xem trước và import bản mới nhất.');
+  error.code = 'KTC_EXCEL_IMPORT_CHANGED';
+  return error;
+}
+
 // Handlers are registered only through the caller's trusted IPC sender guard.
 function createDesktopExcelIpcHandlers({
   getDateParts, writeLog, waitForUsableRendererToken, enqueueManualExcelSync,
@@ -121,18 +132,24 @@ async function handleApplyReportImport(payload = {}) {
   assertImportFileSize(stat);
   const parsed = await readExcelChanges(filePath);
   if (!parsed?.managed) throw new Error('File import không còn đúng contract KTC. Hãy xuất lại file từ DB trước.');
+  const afterRead = await fs.stat(filePath).catch(() => null);
+  if (!sameImportVersion(stat, afterRead)) throw sourceChangedError();
   const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
   if (!changes.length) return { detected: 0, succeeded: 0, failed: 0, filePath, yearMonth: parsed.yearMonth || null };
+  const beforePost = await fs.stat(filePath).catch(() => null);
+  if (!sameImportVersion(stat, beforePost)) throw sourceChangedError();
   const payloadResult = await postExcelChanges(changes.map((change) => ({
     ...change,
     source: { ...(change.source || {}), file: path.basename(filePath), import_center: true }
   })));
   const succeeded = Number(payloadResult.succeeded || 0);
   const failed = Number(payloadResult.failed || 0);
-  // A partial import must never trigger a rebuild that overwrites unsynced rows.
+  const sourceChanged = !sameImportVersion(stat, await fs.stat(filePath).catch(() => null));
+  // A partial import or changed source must never trigger a rebuild that
+  // overwrites unsynced rows. Retrying is safe thanks to operation receipts.
   // The user can retry using the exact same workbook; operation receipts make
   // successfully applied rows safe to acknowledge again.
-  if (failed === 0 && succeeded === changes.length && payloadResult.success === true) {
+  if (!sourceChanged && failed === 0 && succeeded === changes.length && payloadResult.success === true) {
     if (parsed.yearMonth && /^\d{4}-\d{2}$/.test(parsed.yearMonth)) {
       await enqueueManualExcelSync({ date: `${parsed.yearMonth}-01`, source: 'report-import-rebuild', token }).catch((error) =>
         writeLog('ERROR', 'REPORT_IMPORT_REBUILD_FAILED', { yearMonth: parsed.yearMonth, ...normalizeError(error) })
@@ -141,7 +158,7 @@ async function handleApplyReportImport(payload = {}) {
     reportImportPreviewGuard.consume(filePath);
   } else {
     await writeLog('WARN', 'REPORT_IMPORT_PARTIAL_NO_REBUILD', {
-      filePath, detected: changes.length, succeeded, failed
+      filePath, detected: changes.length, succeeded, failed, sourceChanged
     });
   }
   await writeLog(failed ? 'WARN' : 'INFO', 'REPORT_IMPORT_APPLY', {
@@ -151,7 +168,8 @@ async function handleApplyReportImport(payload = {}) {
     succeeded,
     failed
   });
-  return { detected: changes.length, succeeded, failed, results: payloadResult.results || [], filePath, yearMonth: parsed.yearMonth || null };
+  return { detected: changes.length, succeeded, failed, sourceChanged,
+    results: payloadResult.results || [], filePath, yearMonth: parsed.yearMonth || null };
 }
 
 

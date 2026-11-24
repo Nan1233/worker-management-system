@@ -31,6 +31,9 @@ function normalizeChange(change) {
     throw publicError(422, 'EXCEL_EXPECTED_VERSION_REQUIRED', 'Excel thiếu phiên bản gốc hợp lệ; hãy xuất lại file');
   }
   const patch = sanitizeExcelPatch(change.patch);
+  if (change.patch && Object.keys(change.patch).length !== Object.keys(patch).length) {
+    throw publicError(422, 'EXCEL_PATCH_UNSUPPORTED_FIELD', 'Excel chứa trường cập nhật ngoài danh sách được phép');
+  }
   if (!Object.keys(patch).length) throw publicError(422, 'EXCEL_PATCH_EMPTY', 'Không có trường hợp lệ để cập nhật');
   return { id, expected_updated_at: change.expected_updated_at, patch, source: change.source || null };
 }

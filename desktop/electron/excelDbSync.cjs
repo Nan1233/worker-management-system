@@ -364,13 +364,15 @@ async function readExcelChanges(filePath) {
     });
   }
 
-  let helperUpdated = false;
-  let helperUpdateError = null;
-  if (helperDirty && gcHelper?.sheet) {
-    try { await workbook.xlsx.writeFile(filePath); helperUpdated = true; }
-    catch (error) { helperUpdateError = error?.message || 'Không thể ghi sheet TAY MÁY CẮT LỒNG'; }
-  }
-  return { managed: true, changes, generatedAt: meta.config.generatedAt, yearMonth: meta.config.yearMonth || null, helperUpdated, helperUpdateError };
+  // Reading/previewing a workbook must never save it. Saving the in-memory GC
+  // helper here could silently overwrite Excel/WPS edits made during parsing.
+  // It is still used in memory to interpret this snapshot of the workbook.
+  return {
+    managed: true, changes, generatedAt: meta.config.generatedAt,
+    yearMonth: meta.config.yearMonth || null,
+    helperUpdated: false, helperUpdatePending: Boolean(helperDirty),
+    helperUpdateError: null
+  };
 }
 
 module.exports = {
