@@ -3,6 +3,7 @@
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
+const { hostname } = require('node:os');
 const { randomUUID } = require('node:crypto');
 
 // Factory keeps environment-specific logging, backup policy and path handling injectable.
@@ -177,14 +178,25 @@ async function withWorkbookLock(filePath, task) {
     handle = await fs.open(lockPath, 'wx', 0o600);
   } catch (error) {
     if (error?.code === 'EEXIST') {
-      const conflict = new Error('Another KTC process holds the Excel write lock.');
-      conflict.code = 'KTC_EXCEL_WRITE_LOCKED';
+      let owner = null;
+      try { owner = JSON.parse(await fs.readFile(lockPath, 'utf8')); } catch (_) { /* unknown owner: fail closed */ }
+      let stale = false;
+      if (owner?.hostname === hostname() && Number.isSafeInteger(owner.pid) && owner.pid > 0) {
+        try { process.kill(owner.pid, 0); } catch (probeError) {
+          stale = probeError?.code === 'ESRCH';
+        }
+      }
+      const conflict = new Error(stale
+        ? 'KTC write lock belongs to a stopped process. Close all KTC instances before manually removing the lock: ' + lockPath
+        : 'Another KTC process holds the Excel write lock: ' + lockPath);
+      conflict.code = stale ? 'KTC_EXCEL_STALE_WRITE_LOCK' : 'KTC_EXCEL_WRITE_LOCKED';
+      await writeLog('WARN', conflict.code, { lockPath, owner, stale });
       throw conflict;
     }
     throw error;
   }
   try {
-    await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }));
+    await handle.writeFile(JSON.stringify({ pid: process.pid, hostname: hostname(), createdAt: new Date().toISOString() }));
     return await task();
   } finally {
     await handle.close().catch(() => {});
