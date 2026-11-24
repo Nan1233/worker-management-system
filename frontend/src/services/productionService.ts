@@ -65,7 +65,27 @@ export const deleteReport = async (id: number, reason: string, expectedUpdatedAt
   });
   return res.data;
 };
-export const createApprovedReportFromExcel=async(data:ProductionReport)=>{const res=await api.post("/production/excel-sync",{changes:[{create:true,data,source:{file:"Manager Web",sheet:"Quản lý báo cáo"}}]});const result=res.data?.results?.[0];if(!result?.success)throw new Error(result?.message||res.data?.message||"Không thể thêm báo cáo");return result;};
+const canonicalExcelValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalExcelValue);
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(Object.keys(record).sort().map(key => [key, canonicalExcelValue(record[key])]));
+  }
+  return value;
+};
+export const createApprovedReportFromExcel = async (data: ProductionReport) => {
+  const change = { create: true, data, source: { file: "Manager Web", sheet: "Quản lý báo cáo" } };
+  const bytes = new TextEncoder().encode(JSON.stringify(canonicalExcelValue(change)));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const operation_id = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  const res = await api.post("/production/excel-sync", { changes: [{ ...change, operation_id }] });
+  const result = res.data?.results?.[0];
+  if (result?.success !== true || result.operation_id !== operation_id || !Number.isSafeInteger(Number(result.id)) || Number(result.id) <= 0 || typeof result.updated_at !== "string" || !Number.isFinite(Date.parse(result.updated_at))) {
+    throw new Error(result?.message || res.data?.message || "Không thể xác nhận thêm báo cáo");
+  }
+  invalidateManagerReportCaches();
+  return result;
+};
 const downloadExcel=(data:BlobPart,filename:string)=>{const blob=new Blob([data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=window.URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();window.URL.revokeObjectURL(url);};
 export const exportProductionExcel=async(date:string)=>{const res=await api.get(`/reports/export-excel?date=${date}&type=pending`,{responseType:"blob"});downloadExcel(res.data,`BaoCaoChoDuyet_${date}.xlsx`);};
 export const getApprovedDates=async()=>{const res=await api.get("/production/dates");return res.data.data||res.data||[];};

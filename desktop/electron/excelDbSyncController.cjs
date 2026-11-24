@@ -47,7 +47,8 @@ async function postExcelChanges(changes) {
   const validCounts = [payload.total, payload.succeeded, payload.failed].every(
     (value) => Number.isSafeInteger(value) && value >= 0
   );
-  const expectedIds = new Set(withIds.map((change) => change.operation_id));
+  const expectedChanges = new Map(withIds.map((change) => [change.operation_id, change]));
+  const expectedIds = new Set(expectedChanges.keys());
   const acknowledged = new Set();
   let successCount = 0;
   let failureCount = 0;
@@ -62,7 +63,9 @@ async function postExcelChanges(changes) {
     acknowledged.add(item.operation_id);
     if (item.success === true) {
       if (!Number.isSafeInteger(Number(item.id)) || Number(item.id) <= 0
-          || typeof item.updated_at !== 'string' || !item.updated_at.trim()) {
+          || typeof item.updated_at !== 'string' || !Number.isFinite(Date.parse(item.updated_at))
+          || (expectedChanges.get(item.operation_id).create !== true && Number(item.id) !== Number(expectedChanges.get(item.operation_id).id))
+          || (expectedChanges.get(item.operation_id).create === true && item.create !== true)) {
         validRows = false;
         break;
       }
@@ -304,7 +307,11 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
           fileFailed = true;
           failed += chunk.length;
           await writeLog('ERROR', 'EXCEL_DB_SYNC_BATCH_FAILED', { filePath, source, count: chunk.length, ...normalizeError(error) });
-          if (error.code === 'EXCEL_DB_SYNC_FORBIDDEN') return { detected, succeeded, failed, forbidden: true };
+          if (error.code === 'EXCEL_DB_SYNC_FORBIDDEN') return { detected, succeeded, failed: failed + workbookChanges.length - index - chunk.length, forbidden: true };
+        }
+        if (fileFailed) {
+          failed += workbookChanges.length - index - chunk.length;
+          break;
         }
       }
       // Never acknowledge an earlier file snapshot if Excel was saved again
@@ -348,4 +355,4 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
   return { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb };
 }
 
-module.exports = { createExcelDbSyncController };
+module.exports = { createExcelDbSyncController, operationIdForChange };

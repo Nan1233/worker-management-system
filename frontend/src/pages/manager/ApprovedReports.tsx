@@ -181,7 +181,10 @@ export default function ApprovedReports({ onOpenReport }: { onOpenReport?: (repo
         setReportImportBusy(true); setReportImportStatus(null);
         try {
             const result = await desktop.applyReportImport(token, reportImportPreview.filePath);
-            if (Number(result?.failed || 0) > 0) {
+            if (result?.sourceChanged) {
+                setReportImportPreview(null);
+                setReportImportStatus({ tone: "warning", message: "File đã thay đổi trong lúc import. Hãy xem trước bản mới nhất; không tự động ghi đè file." });
+            } else if (Number(result?.failed || 0) > 0) {
                 setReportImportStatus({ tone: "warning", message: "Import một phần: " + Number(result?.succeeded || 0) + " thành công, " + Number(result.failed) + " lỗi. Có thể kiểm tra và thử lại." });
             } else if (Number(result?.detected || 0) === 0 || Number(result?.succeeded || 0) === 0) {
                 setReportImportStatus({ tone: "warning", message: "File không có dòng mới hoặc thay đổi cần import." });

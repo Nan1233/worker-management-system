@@ -54,9 +54,8 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
   if (!Number.isInteger(Number(reportId)) || Number(reportId) <= 0) {
     throw httpError(422, 'INVALID_REPORT_ID', 'ID báo cáo không hợp lệ');
   }
-  if (source === 'excel' && (typeof expectedUpdatedAt !== 'string' || !expectedUpdatedAt.trim()
-      || !Number.isFinite(new Date(expectedUpdatedAt).getTime()))) {
-    throw httpError(422, 'EXCEL_EXPECTED_VERSION_REQUIRED', 'Excel thiếu phiên bản gốc hợp lệ; hãy xuất lại file');
+  if (typeof expectedUpdatedAt !== 'string' || !expectedUpdatedAt.trim() || !Number.isFinite(Date.parse(expectedUpdatedAt))) {
+    throw httpError(428, 'REPORT_VERSION_TOKEN_REQUIRED', 'Thiếu phiên bản báo cáo hợp lệ; vui lòng tải lại dữ liệu');
   }
   const changeReason = String(reason || '').trim().slice(0, 500);
   if (!changeReason) throw httpError(422, 'CHANGE_REASON_REQUIRED', 'Vui lòng nhập lý do chỉnh sửa báo cáo đã duyệt');
@@ -404,6 +403,9 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
   }
   const id = Number(reportId);
   const version = Number(versionNo);
+  if (typeof expectedUpdatedAt !== 'string' || !expectedUpdatedAt.trim() || !Number.isFinite(Date.parse(expectedUpdatedAt))) {
+    throw httpError(428, 'REPORT_VERSION_TOKEN_REQUIRED', 'Vui lòng tải lại lịch sử trước khi khôi phục');
+  }
   if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(version) || version <= 0) {
     throw httpError(422, 'INVALID_REPORT_VERSION', 'Phiên bản báo cáo không hợp lệ');
   }

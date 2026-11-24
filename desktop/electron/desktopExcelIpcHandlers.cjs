@@ -2,6 +2,7 @@
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
+const { operationIdForChange } = require('./excelDbSyncController.cjs');
 
 function sameImportVersion(before, after) {
   return Boolean(before && after) && before.size === after.size
@@ -138,18 +139,38 @@ async function handleApplyReportImport(payload = {}) {
   if (!changes.length) return { detected: 0, succeeded: 0, failed: 0, filePath, yearMonth: parsed.yearMonth || null };
   const beforePost = await fs.stat(filePath).catch(() => null);
   if (!sameImportVersion(stat, beforePost)) throw sourceChangedError();
-  const payloadResult = await postExcelChanges(changes.map((change) => ({
-    ...change,
-    source: { ...(change.source || {}), file: path.basename(filePath), import_center: true }
-  })));
-  const succeeded = Number(payloadResult.succeeded || 0);
-  const failed = Number(payloadResult.failed || 0);
+  const workbookIdentity = { file: path.resolve(filePath), generatedAt: parsed.generatedAt || null, yearMonth: parsed.yearMonth || null };
+  const pending = changes.map(change => ({ ...change, operation_id: operationIdForChange(change, workbookIdentity) }));
+  let succeeded = 0;
+  let failed = 0;
+  const results = [];
+  for (let index = 0; index < pending.length; index += 100) {
+    if (!sameImportVersion(stat, await fs.stat(filePath).catch(() => null))) {
+      failed += pending.length - index;
+      break;
+    }
+    const chunk = pending.slice(index, index + 100);
+    try {
+      const response = await postExcelChanges(chunk);
+      succeeded += response.succeeded;
+      failed += response.failed;
+      results.push(...response.results);
+      if (response.failed > 0) {
+        failed += pending.length - index - chunk.length;
+        break;
+      }
+    } catch (error) {
+      failed += pending.length - index;
+      await writeLog('ERROR', 'REPORT_IMPORT_BATCH_FAILED', { filePath, ...normalizeError(error) });
+      break;
+    }
+  }
   const sourceChanged = !sameImportVersion(stat, await fs.stat(filePath).catch(() => null));
   // A partial import or changed source must never trigger a rebuild that
   // overwrites unsynced rows. Retrying is safe thanks to operation receipts.
   // The user can retry using the exact same workbook; operation receipts make
   // successfully applied rows safe to acknowledge again.
-  if (!sourceChanged && failed === 0 && succeeded === changes.length && payloadResult.success === true) {
+  if (!sourceChanged && failed === 0 && succeeded === changes.length) {
     if (parsed.yearMonth && /^\d{4}-\d{2}$/.test(parsed.yearMonth)) {
       await enqueueManualExcelSync({ date: `${parsed.yearMonth}-01`, source: 'report-import-rebuild', token }).catch((error) =>
         writeLog('ERROR', 'REPORT_IMPORT_REBUILD_FAILED', { yearMonth: parsed.yearMonth, ...normalizeError(error) })
@@ -169,7 +190,7 @@ async function handleApplyReportImport(payload = {}) {
     failed
   });
   return { detected: changes.length, succeeded, failed, sourceChanged,
-    results: payloadResult.results || [], filePath, yearMonth: parsed.yearMonth || null };
+    results, filePath, yearMonth: parsed.yearMonth || null };
 }
 
 
