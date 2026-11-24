@@ -18,16 +18,24 @@ function origin(value,isolated){
 const mk=(name,route,role='public',budget=500,extra={})=>({name,route,role,budget,...extra});
 const catalog=()=>[
  mk('frontend-login','/','public',2500,{fe:true}),
+ mk('version','/api/version','public',500),
  mk('health-live','/api/health/live','public',500,{validate:x=>x?.status==='live'}),
  mk('health-ready','/api/health/ready','public',800,{validate:x=>x?.status==='ready'&&x?.schemaReady===true}),
  mk('worker-permissions','/api/permissions/me','worker'),
  mk('machines','/api/machines','worker'),
  mk('standards','/api/product-standards','worker',1000),
  mk('worker-notifications','/api/system/notifications/unread-count','worker'),
+ mk('worker-self','/api/workers/me','worker'),
+ mk('worker-daily-hours','/api/production-temp/daily-hours?date='+encodeURIComponent(day),'worker',1000),
+ mk('worker-notification-list','/api/system/notifications','worker',1000),
  mk('worker-history','/api/production-temp/my','worker',1000),
  mk('manager-permissions','/api/permissions/me','manager'),
  mk('pending','/api/production-temp/pending','manager',1000),
  mk('approved','/api/production?limit=20&page=1','manager',1000),
+ mk('temp-approved','/api/production-temp/approved','manager',1000),
+ mk('temp-dates','/api/production-temp/dates','manager',1000),
+ mk('manager-reports','/api/manager/reports','manager',1000),
+ mk('excel-status','/api/reports/export-excel/company-status','manager',500),
  mk('report-dates','/api/production/dates','manager',1000),
  mk('dashboard','/api/dashboard/summary','manager',2000),
  mk('excel-day','/api/reports/export-excel/company-data?date='+encodeURIComponent(day),'manager',5000,{heavy:true,validate:x=>Boolean(x?.data?.processes)})
@@ -111,7 +119,7 @@ async function runEnv(env,stages,state,rate){
  const all=catalog(),available=all.filter(c=>c.role==='public'||env.tokens[c.role].length);
  const result={name:env.name,api:env.api,fe:env.fe,skipped:all.filter(c=>!available.includes(c)).map(c=>({route:c.name,reason:'missing role token'})),distinctTokens:{worker:new Set(env.tokens.worker).size,manager:new Set(env.tokens.manager).size},stages:[]};
  // Preflight all included routes (including expensive Excel once). Bulk workload excludes FE and heavy export.
- const pre=await runStage(env,{name:'preflight',users:1,seconds:120,thinkMs:0,preflight:true},state,available,rate);result.stages.push(pre);
+ const pre=await runStage(env,{name:'preflight',users:1,seconds:240,thinkMs:0,preflight:true},state,available,rate);result.stages.push(pre);
  if(!state.stop&&pre.requests!==available.length)state.stop='Preflight incomplete';
  const load=available.filter(c=>!c.fe&&!c.heavy&&c.name!=='health-ready');
  for(const stage of stages){if(state.stop)break;const r=await runStage(env,stage,state,load,rate);result.stages.push(r);console.log(env.name,stage.name,'served',r.usersServed,'requests',r.requests,'rps',r.rps,r.stop||'');}
@@ -121,7 +129,7 @@ async function main(){
  if(process.argv.includes('--self-test')){
  assert.equal(p([1,2,3,4],.95),4);assert.equal(stats([{ok:true,status:200,ms:1,bytes:4}],500).verdict,'INSUFFICIENT');
  assert.throws(()=>origin(origins.test.api,true));assert.throws(()=>origin('https://user:pass@example.org',false));
- assert.equal(catalog().length,14);assert(inventory().length>0);console.log('KTC_PERF_SELF_TEST PASS');return;
+ assert.equal(catalog().length,22);assert(inventory().length>0);console.log('KTC_PERF_SELF_TEST PASS');return;
  }
  const mode=E.KTC_PERF_MODE||'quick';if(!['quick','full','spike','soak'].includes(mode))throw Error('Unknown mode');
  const isolated=mode!=='quick';

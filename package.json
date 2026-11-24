@@ -20,6 +20,8 @@
     "release:readiness": "node scripts/phase5ReleaseReadiness.cjs",
     "release:readiness:strict": "node scripts/phase5ReleaseReadiness.cjs --strict",
     "perf:400": "node scripts/performance400.cjs",
-    "perf:400:self-test": "node scripts/performance400.cjs --self-test"
+    "perf:400:self-test": "node scripts/performance400.cjs --self-test",
+    "perf:400:db": "node scripts/performanceDiagnostics.cjs db",
+    "perf:400:browser": "node scripts/performanceDiagnostics.cjs browser"
   }
 }
