@@ -136,9 +136,9 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         pr.loi_cao_su, pr.ng_kich_thuoc, pr.cat_lem,
         pr.note, ${extraDataSelect}, pr.status, pr.review_note,
         pr.reviewed_by, pr.approved_at, pr.created_at, pr.updated_at,
-        w.worker_code, w.training_percent AS worker_training_percent,
+        w.worker_code,
         pr.training_percent_snapshot,
-        COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent,
+        pr.training_percent_snapshot AS training_percent,
         w.position, w.department,
         u.full_name, p.process_name, p.process_code
        FROM production_reports pr
@@ -155,23 +155,10 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   );
 
   for (const report of reports) {
-    const hasTrainingSnapshot = report.training_percent_snapshot !== null
-      && report.training_percent_snapshot !== undefined
-      && String(report.training_percent_snapshot).trim() !== '';
-    if (!hasTrainingSnapshot) {
-      report.training_percent = Number.isFinite(Number(report.worker_training_percent))
-        ? Number(report.worker_training_percent)
-        : 100;
-      report.trainingSnapshotSource = report.worker_training_percent !== null
-        && report.worker_training_percent !== undefined
-        ? 'LEGACY_WORKER_MASTER'
-        : 'LEGACY_DEFAULT_100';
-      delete report.training_percent_snapshot;
-    } else {
-      assertTrainingSnapshotAvailable(report);
-      report.trainingSnapshotSource = 'IMMUTABLE_SNAPSHOT';
-    }
-
+    // Fail closed: today's worker master cannot reconstruct training percent
+    // on the day an approved report was recorded.
+    report.training_percent = assertTrainingSnapshotAvailable(report);
+    report.trainingSnapshotSource = 'IMMUTABLE_SNAPSHOT';
   }
 
   const reportIds = reports.map((report) => Number(report.id));
