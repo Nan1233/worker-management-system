@@ -5,7 +5,7 @@
 // Validate the physical sheet bounds before writing any report values.
 const ExcelJS = require('exceljs');
 const path = require('node:path');
-const fs = require('node:fs/promises');
+const { publishExcelWorkbook } = require('./excelWorkbookPublisherService');
 const { normalizeLabel } = require('./excelTemplateContractService');
 
 const SHEETS = Object.freeze({ GC: 'Gia công', MAI: 'Mài', DO: 'Đo', XLBV: 'XLBV', EP: 'Ép', CAN: 'Cán' });
@@ -150,7 +150,6 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const [year, month] = String(yearMonth).split('-');
   const safeProcessFolder = path.basename(String(options.processName || processCode).split(String.fromCharCode(92)).join('/')).replace(/[<>:"|?*\x00-\x1f]/g, '_').replace(/[. ]+$/, '') || processCode; const folder = path.join(options.exportRoot || path.join(process.cwd(), 'exports-process'), year, safeProcessFolder, month);
-  await fs.mkdir(folder, { recursive: true });
   const fileName = options.fileName || `Bao-cao-${processCode}-${month}-${year}.xlsx`;
   if (typeof fileName !== 'string' || fileName !== path.basename(fileName)
       || fileName.includes('/') || fileName.includes(String.fromCharCode(92))
@@ -160,39 +159,7 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
     });
   }
   const outputPath = path.join(folder, fileName);
-  // Never truncate a previously exported workbook before the new ZIP is ready.
-  const temporaryPath = path.join(folder, `.${fileName}.${process.pid}.${require('node:crypto').randomUUID()}.tmp`);
-  try {
-    await workbook.xlsx.writeFile(temporaryPath);
-    const previous = await fs.stat(outputPath).catch((error) => {
-      if (error?.code === 'ENOENT') return null;
-      throw error;
-    });
-    if (previous) {
-      const recoveryPath = `${outputPath}.${require('node:crypto').randomUUID()}.recovery.xlsx`;
-      await fs.copyFile(outputPath, recoveryPath, require('node:fs').constants.COPYFILE_EXCL);
-      const current = await fs.stat(outputPath);
-      if (current.mtimeMs !== previous.mtimeMs || current.size !== previous.size) {
-        throw Object.assign(new Error('Existing export changed during recovery snapshot'), {
-          code: 'KTC_EXCEL_CONCURRENT_MODIFICATION'
-        });
-      }
-    }
-    const beforePublish = await fs.stat(outputPath).catch((error) => {
-      if (error?.code === 'ENOENT') return null;
-      throw error;
-    });
-    if ((previous === null) !== (beforePublish === null)
-        || (previous && beforePublish &&
-          (previous.mtimeMs !== beforePublish.mtimeMs || previous.size !== beforePublish.size))) {
-      throw Object.assign(new Error('Existing export changed before replacement'), {
-        code: 'KTC_EXCEL_CONCURRENT_MODIFICATION'
-      });
-    }
-    await fs.rename(temporaryPath, outputPath);
-  } finally {
-    await fs.rm(temporaryPath, { force: true }).catch(() => {});
-  }
+  await publishExcelWorkbook(workbook, outputPath);
   return { archivePath: outputPath, fileName, processCode, templateFile: 'Workbook1.xlsx', templateSheet: sheetName, templateHeaderRow: HEADER_ROW[processCode], dataStartRow: first, reportCount: reports.length, rowCount: ordered.length, removedBrokenFormulas: 0 };
 }
 module.exports = { buildSixProcessWorkbook, SHEETS, COLUMNS };

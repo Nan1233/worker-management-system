@@ -2,7 +2,7 @@
 
 const ExcelJS = require('exceljs');
 const { buildSixProcessWorkbook } = require('./sixProcessWorkbookExportService');
-const fs = require('node:fs/promises');
+const { publishExcelWorkbook } = require('./excelWorkbookPublisherService');
 const path = require('node:path');
 const db = require('../config/db');
 const { resolveTemplatePath, getProcessTemplateContract, normalizeLabel } = require('./excelTemplateContractService');
@@ -284,7 +284,7 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   clearDetailConstants(sheet, contract.dataStartRow, contract.dataEndRow);
   for (let index = 0; index < exportRows.length; index += 1) writeReportRow(sheet, contract.dataStartRow + index, exportRows[index], processCode, mapping);
   const removedBrokenFormulas = clearBrokenAndExternalFormulas(workbook); workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
-  const exportRoot = options.exportRoot || path.join(process.cwd(), 'exports-process'); const [year, month] = String(yearMonth).split('-'); const safeProcessFolder = path.basename(String(options.processName || processCode).split(String.fromCharCode(92)).join('/')).replace(/[<>:"|?*\x00-\x1f]/g, '_').replace(/[. ]+$/, '') || processCode; const folder = path.join(exportRoot, year, safeProcessFolder, month); await fs.mkdir(folder, { recursive: true });
+  const exportRoot = options.exportRoot || path.join(process.cwd(), 'exports-process'); const [year, month] = String(yearMonth).split('-'); const safeProcessFolder = path.basename(String(options.processName || processCode).split(String.fromCharCode(92)).join('/')).replace(/[<>:"|?*\x00-\x1f]/g, '_').replace(/[. ]+$/, '') || processCode; const folder = path.join(exportRoot, year, safeProcessFolder, month);
   const fileName = options.fileName || `Bao-cao-${processCode}-${month}-${year}.xlsx`;
   if (typeof fileName !== 'string' || fileName !== path.basename(fileName)
       || fileName.includes('/') || fileName.includes(String.fromCharCode(92))
@@ -294,40 +294,7 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
     });
   }
   const outputPath = path.join(folder, fileName);
-  const temporaryPath = path.join(folder, `.${fileName}.${process.pid}.${require('node:crypto').randomUUID()}.tmp`);
-  try {
-    await workbook.xlsx.writeFile(temporaryPath);
-    // Keep the existing export recoverable while publishing a newer workbook.
-    // A backup is unique per overwrite and never replaces an earlier backup.
-    const previous = await fs.stat(outputPath).catch((error) => {
-      if (error?.code === 'ENOENT') return null;
-      throw error;
-    });
-    if (previous) {
-      const recoveryPath = `${outputPath}.${require('node:crypto').randomUUID()}.recovery.xlsx`;
-      await fs.copyFile(outputPath, recoveryPath, require('node:fs').constants.COPYFILE_EXCL);
-      const current = await fs.stat(outputPath);
-      if (current.mtimeMs !== previous.mtimeMs || current.size !== previous.size) {
-        throw Object.assign(new Error('Existing export changed during recovery snapshot'), {
-          code: 'KTC_EXCEL_CONCURRENT_MODIFICATION'
-        });
-      }
-    }
-    const beforePublish = await fs.stat(outputPath).catch((error) => {
-      if (error?.code === 'ENOENT') return null;
-      throw error;
-    });
-    if ((previous === null) !== (beforePublish === null)
-        || (previous && beforePublish &&
-          (previous.mtimeMs !== beforePublish.mtimeMs || previous.size !== beforePublish.size))) {
-      throw Object.assign(new Error('Existing export changed before replacement'), {
-        code: 'KTC_EXCEL_CONCURRENT_MODIFICATION'
-      });
-    }
-    await fs.rename(temporaryPath, outputPath);
-  } finally {
-    await fs.rm(temporaryPath, { force: true }).catch(() => {});
-  }
+  await publishExcelWorkbook(workbook, outputPath);
   return { archivePath: outputPath, fileName, processCode, templateFile: path.basename(templatePath), templateSheet: contract.sheet, templateHeaderRow: contract.headerRow, dataStartRow: contract.dataStartRow, reportCount: reports.length, rowCount: exportRows.length, removedBrokenFormulas };
 }
 
