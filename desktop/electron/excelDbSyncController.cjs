@@ -198,10 +198,10 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
               continue;
             }
             acknowledgedIds.add(reportId);
-            if (item.success && item.updated_at && Number.isSafeInteger(reportId) && reportId > 0) {
+            if (item.success === true && typeof item.updated_at === 'string' && item.updated_at.trim() && Number.isSafeInteger(reportId) && reportId > 0) {
               verifiedVersions.set(reportId, item.updated_at);
             }
-            if (!item.success) {
+            if (item.success !== true) {
               fileFailed = true;
               await writeLog('WARN', 'EXCEL_DB_SYNC_ROW_FAILED', { filePath, reportId: item.id, code: item.code, message: item.message });
             }
