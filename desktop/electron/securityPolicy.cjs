@@ -92,8 +92,8 @@ class ReportImportPreviewGuard {
     this.preview = null;
   }
 
-  remember(filePath) {
-    this.preview = { filePath: path.resolve(String(filePath || '')), createdAt: this.now() };
+  remember(filePath, version = null) {
+    this.preview = { filePath: path.resolve(String(filePath || '')), createdAt: this.now(), version };
     return this.preview.filePath;
   }
 
@@ -108,6 +108,13 @@ class ReportImportPreviewGuard {
       return this.#error('KTC_IMPORT_FILE_MISMATCH', 'File áp dụng không khớp file đã được chọn và xem trước.');
     }
     return candidate;
+  }
+
+  assertVersion(filePath, version) {
+    this.assertAllowed(filePath);
+    if (!this.preview.version || this.preview.version !== version) {
+      return this.#error('KTC_IMPORT_PREVIEW_CHANGED', 'File Excel đã thay đổi từ lúc xem trước. Vui lòng xem trước lại.');
+    }
   }
 
   consume(filePath) {

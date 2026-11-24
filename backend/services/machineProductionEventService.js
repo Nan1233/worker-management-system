@@ -300,18 +300,21 @@ async function updateEvent({ id, actor, patch, req = null }) {
     const { expected_updated_at: _expectedVersion, ...safePatch } = patch || {};
     const resulting={...before,...safePatch};
     const ctx=await loadEventContext(connection,{processId:resulting.process_id,machineId:resulting.machine_id,machineCode:resulting.machine_code,productCode:resulting.product_code,workDate:resulting.work_date});
+    await assertActorProcessScope(connection, actor, ctx.process.id);
     if (dimensionsChanged) await assertUniquePhysicalEvent(connection, { processId: ctx.process.id, machineId: ctx.machine.id, productCode: ctx.resolved.productCode, workDate: resulting.work_date, shift: resulting.shift, excludeEventId: before.id });
     const defects=Object.prototype.hasOwnProperty.call(patch||{},'defects')
       ? await authoritativeDefects(connection,ctx.process.id,patch.defects)
       : await q(connection,`SELECT defect_type_id,defect_code,defect_name,quantity,responsible_worker_id FROM machine_production_event_defects WHERE machine_event_id=? ORDER BY id`,[before.id]);
-    const calc=calculateEventPhysical({physicalOkQuantity:resulting.physical_ok_quantity,defects,machineTimeHours:resulting.machine_time_hours,standardOutput:ctx.resolved.standardOutput});
+    const standard = dimensionsChanged ? { output: ctx.resolved.standardOutput, version: ctx.resolved.standardVersionId, machine: ctx.resolved.machineStandardId, source: storedStandardSource(ctx.resolved.source) } : { output: before.standard_output, version: before.standard_version_id, machine: before.machine_standard_id, source: before.standard_source };
+    if (!Number.isFinite(Number(standard.output)) || Number(standard.output) <= 0) throw eventError(422, 'EVENT_STANDARD_SNAPSHOT_INVALID', 'Event thiếu định mức lịch sử hợp lệ');
+    const calc=calculateEventPhysical({physicalOkQuantity:resulting.physical_ok_quantity,defects,machineTimeHours:resulting.machine_time_hours,standardOutput:standard.output});
     if(linked.length){const participantIds=new Set(linked.map((r)=>Number(r.worker_id)));for(const d of defects)if(!participantIds.has(Number(d.responsible_worker_id)))throw eventError(422,'DEFECT_WORKER_NOT_PARTICIPANT','Công nhân chịu trách nhiệm NG phải tham gia event');}
     await connection.query(`UPDATE machine_production_events SET process_id=?,machine_id=?,machine_code=?,product_code=?,work_date=?,shift=?,
       physical_ok_quantity=?,physical_ng_quantity=?,physical_counted_output=?,physical_total_output=?,machine_time_hours=?,maximum_output=?,
       standard_output=?,standard_version_id=?,machine_standard_id=?,standard_source=?,updated_by=?,updated_at=NOW() WHERE id=?`,[
       ctx.process.id,ctx.machine.id,ctx.machine.machine_code,ctx.resolved.productCode,isoDate(resulting.work_date),normalizeShift(resulting.shift),calc.physicalOkQuantity,calc.physicalNgQuantity,
-      calc.physicalCountedOutput,calc.physicalTotalOutput,calc.machineTimeHours,calc.maximumOutput,ctx.resolved.standardOutput,ctx.resolved.standardVersionId,
-      ctx.resolved.machineStandardId,storedStandardSource(ctx.resolved.source),Number(actor.id),before.id]);
+      calc.physicalCountedOutput,calc.physicalTotalOutput,calc.machineTimeHours,calc.maximumOutput,standard.output,standard.version,
+      standard.machine,standard.source,Number(actor.id),before.id]);
     if(Object.prototype.hasOwnProperty.call(patch||{},'defects')){
       await connection.query('DELETE FROM machine_production_event_defects WHERE machine_event_id=?',[before.id]);
       for(const d of defects) await connection.query(`INSERT INTO machine_production_event_defects(machine_event_id,defect_type_id,defect_code,defect_name,quantity,responsible_worker_id) VALUES(?,?,?,?,?,?)`,[before.id,d.defect_type_id,d.defect_code,d.defect_name,d.quantity,d.responsible_worker_id]);

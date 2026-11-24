@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 const db = require("../config/db");
-const { getOrLoadAuthUser, setCachedAuthUser } = require("../utils/authUserCache");
+const { getOrLoadAuthUser } = require("../utils/authUserCache");
 const { effectiveRole, isSuperAdminRole } = require("../utils/roles");
 
 function normalize(value) { return String(value ?? "").trim().toLowerCase(); }
@@ -28,13 +28,14 @@ module.exports = async (req,res,next) => {
     const [scheme,token] = String(req.headers.authorization || "").split(" ");
     if (scheme !== "Bearer" || !token) return res.status(401).json({code:"TOKEN_MISSING",message:"Không có token"});
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
         const decodedUserId = Number(decoded?.id), decodedWorkerId = Number(decoded?.worker_id), decodedUsername = String(decoded?.username || "").trim();
         if ((!Number.isInteger(decodedUserId)||decodedUserId<=0) && (!Number.isInteger(decodedWorkerId)||decodedWorkerId<=0) && !decodedUsername) return res.status(401).json({code:"TOKEN_USER_INVALID",message:"Thông tin tài khoản trong token không hợp lệ"});
-        const cacheKey = Number.isInteger(decodedUserId)&&decodedUserId>0 ? decodedUserId : Number.isInteger(decodedWorkerId)&&decodedWorkerId>0 ? decodedWorkerId : decodedUsername;
-        const currentUser = await getOrLoadAuthUser(cacheKey, () => loadCurrentUser(decoded));
+        // Legacy tokens without a user ID cannot safely share the numeric user cache.
+        const currentUser = Number.isSafeInteger(decodedUserId) && decodedUserId > 0
+            ? await getOrLoadAuthUser(decodedUserId, () => loadCurrentUser(decoded))
+            : await loadCurrentUser(decoded);
         if (!currentUser) return res.status(401).json({code:"TOKEN_USER_NOT_FOUND",message:"Phiên đăng nhập cần được làm mới"});
-        setCachedAuthUser(currentUser);
         const role = effectiveRole(currentUser.role), userStatus = normalize(currentUser.status), workerStatus = normalize(currentUser.worker_status);
         if (userStatus !== "active" || (role === "worker" && (!currentUser.worker_id || workerStatus !== "active"))) return res.status(403).json({code:userStatus!=="active"?"USER_INACTIVE":"WORKER_INACTIVE",message:"Tài khoản đã bị khóa. Vui lòng liên hệ quản lý"});
         // role/is_super_admin come from the DB row; a forged JWT or request body cannot raise them.

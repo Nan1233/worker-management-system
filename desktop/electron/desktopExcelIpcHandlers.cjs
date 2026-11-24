@@ -9,6 +9,9 @@ function sameImportVersion(before, after) {
     && before.mtimeMs === after.mtimeMs && before.ctimeMs === after.ctimeMs
     && before.ino === after.ino && before.dev === after.dev;
 }
+function importVersion(stat) {
+  return JSON.stringify([stat.size, stat.mtimeMs, stat.ctimeMs, stat.ino, stat.dev]);
+}
 function sourceChangedError() {
   const error = new Error('File Excel đã được lưu lại trong lúc import. Không ghi đè; hãy xem trước và import bản mới nhất.');
   error.code = 'KTC_EXCEL_IMPORT_CHANGED';
@@ -87,6 +90,7 @@ async function handlePreviewReportImport(payload = {}) {
   const token = await waitForUsableRendererToken(payload.token || '', 8_000);
   if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
   setCurrentToken(token);
+  reportImportPreviewGuard.clear();
   const picked = await dialog.showOpenDialog(getMainWindow(), {
     title: 'Import báo cáo Excel vào KTC',
     properties: ['openFile'],
@@ -103,7 +107,8 @@ async function handlePreviewReportImport(payload = {}) {
     throw error;
   }
   const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
-  reportImportPreviewGuard.remember(filePath);
+  if (!sameImportVersion(stat, await fs.stat(filePath).catch(() => null))) throw sourceChangedError();
+  reportImportPreviewGuard.remember(filePath, importVersion(stat));
   await writeLog('INFO', 'REPORT_IMPORT_PREVIEW', {
     filePath,
     yearMonth: parsed.yearMonth || null,
@@ -131,6 +136,7 @@ async function handleApplyReportImport(payload = {}) {
   if (!filePath.toLowerCase().endsWith('.xlsx') || !fsSync.existsSync(filePath)) throw new Error('File import không còn tồn tại.');
   const stat = await fs.stat(filePath);
   assertImportFileSize(stat);
+  reportImportPreviewGuard.assertVersion(filePath, importVersion(stat));
   const parsed = await readExcelChanges(filePath);
   if (!parsed?.managed) throw new Error('File import không còn đúng contract KTC. Hãy xuất lại file từ DB trước.');
   const afterRead = await fs.stat(filePath).catch(() => null);

@@ -48,7 +48,9 @@ function deleteCachedAuthUser(userId) {
 }
 
 async function getOrLoadAuthUser(userId, loader) {
-  const cacheKey = keyFor(userId);
+  const id = Number(userId);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  const cacheKey = keyFor(id);
   const cached = authUserCache.get(cacheKey);
   if (cached) return cached;
 
@@ -59,9 +61,9 @@ async function getOrLoadAuthUser(userId, loader) {
     .then(loader)
     .then((user) => {
       const normalized = normalizeAuthUser(user);
-      if (normalized && (invalidationEpochs.get(cacheKey) || 0) === loadEpoch) {
-        authUserCache.set(cacheKey, normalized, AUTH_USER_TTL_MS);
-      }
+      if ((invalidationEpochs.get(cacheKey) || 0) !== loadEpoch) return null;
+      if (!normalized || normalized.id !== id) return null;
+      authUserCache.set(cacheKey, normalized, AUTH_USER_TTL_MS);
       return normalized;
     })
     .finally(() => {
