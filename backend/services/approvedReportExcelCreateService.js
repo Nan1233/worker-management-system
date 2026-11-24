@@ -57,6 +57,12 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
   const candidate={...data,worker_id:workerId,process_id:processId,operation_type:operationType,operation_mode:operationMode,machine_no:operationMode==='MANUAL'?null:machineNo,product_name:master.productCode||productName,deduction_time:deductionTime,total_time:actualTime+deductionTime,standard_output:standardOutput,standard_version_id:operationMode==='MACHINE'?null:master.standardVersionId,machine_standard_id:operationMode==='MACHINE'?null:master.machineStandardId,actual_output:actualOutput,tt_ng:ttNg,defects,deductions};
   const validation=validateProductionReport(candidate,{enforceBackDate:false});
   if(!validation.valid) throw httpError(422,'REPORT_VALIDATION_FAILED','Dữ liệu báo cáo không hợp lệ',validation.errors);
+  const rawTrainingPercent = data?.training_percent;
+  if (rawTrainingPercent !== null && rawTrainingPercent !== undefined && String(rawTrainingPercent).trim() !== ''
+      && (!Number.isFinite(Number(rawTrainingPercent)) || Number(rawTrainingPercent) < 0 || Number(rawTrainingPercent) > 100)) {
+    throw httpError(422, 'EXCEL_TRAINING_PERCENT_INVALID', '% học việc phải nằm trong khoảng 0–100');
+  }
+  const trainingPercentSnapshot = Number(Number(validation.normalized.training_percent).toFixed(2));
 
   const conn=await db.promise().getConnection();
   try{
@@ -75,8 +81,8 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
     await conn.query(`SELECT logical_key FROM production_report_duplicate_locks WHERE logical_key=? FOR UPDATE`,[logicalDuplicateKey]);
     const [dups]=await conn.query(`SELECT id FROM production_reports WHERE worker_id=? AND process_id=? AND work_date=? AND shift=? AND machine_no <=> ? AND product_name <=> ? AND status <> 'deleted' LIMIT 1`,[workerId,processId,validation.normalized.work_date,validation.normalized.shift,validation.normalized.machine_no,validation.normalized.product_name]);
     if(dups.length) throw httpError(409,'DUPLICATE_PRODUCTION_REPORT',`Đã có báo cáo #${dups[0].id} cùng công nhân/ngày/ca/máy/sản phẩm`);
-    const [ins]=await conn.query(`INSERT INTO production_reports (source_temp_id,worker_id,process_id,work_date,entry_date,shift,operation_type,operation_mode,machine_no,product_name,total_time,actual_time,deduction_time,standard_output,standard_version_id,machine_standard_id,actual_output,tt_ok,tt_ng,note,extra_data,status,reviewed_by,approved_at,updated_by) VALUES (NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'approved',?,NOW(),?)`,[
-      workerId,processId,validation.normalized.work_date,new Date().toISOString().slice(0,10),validation.normalized.shift,operationType,operationMode,validation.normalized.machine_no,validation.normalized.product_name,validation.normalized.total_time,validation.normalized.actual_time,validation.normalized.deduction_time,validation.normalized.standard_output,candidate.standard_version_id||null,candidate.machine_standard_id||null,validation.normalized.actual_output,validation.normalized.tt_ok,validation.normalized.tt_ng,validation.normalized.note,JSON.stringify(data.extra_data||{}),userId,userId]);
+    const [ins]=await conn.query(`INSERT INTO production_reports (source_temp_id,worker_id,process_id,work_date,entry_date,shift,operation_type,operation_mode,machine_no,product_name,total_time,actual_time,deduction_time,standard_output,standard_version_id,machine_standard_id,training_percent_snapshot,exclude_kqd_from_tt_snapshot,actual_output,tt_ok,tt_ng,note,extra_data,status,reviewed_by,approved_at,updated_by) VALUES (NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'approved',?,NOW(),?)`,[
+      workerId,processId,validation.normalized.work_date,new Date().toISOString().slice(0,10),validation.normalized.shift,operationType,operationMode,validation.normalized.machine_no,validation.normalized.product_name,validation.normalized.total_time,validation.normalized.actual_time,validation.normalized.deduction_time,validation.normalized.standard_output,candidate.standard_version_id||null,candidate.machine_standard_id||null,trainingPercentSnapshot,0,validation.normalized.actual_output,validation.normalized.tt_ok,validation.normalized.tt_ng,validation.normalized.note,JSON.stringify(data.extra_data||{}),userId,userId]);
     const id=Number(ins.insertId);
     if (validation.normalized.defects.length) {
       const values = validation.normalized.defects.flatMap((d) => [id, d.defect_type_id, d.quantity]);

@@ -4,7 +4,18 @@ const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
 const { hostname } = require('node:os');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
+
+async function fileHash(filePath) {
+  const digest = createHash('sha256');
+  for await (const chunk of fsSync.createReadStream(filePath)) digest.update(chunk);
+  return digest.digest('hex');
+}
+function sameFileVersion(a, b) {
+  if (!a || !b) return a === b;
+  return a.size === b.size && a.mtimeMs === b.mtimeMs
+    && a.ctimeMs === b.ctimeMs && a.dev === b.dev && a.ino === b.ino;
+}
 
 // Factory keeps environment-specific logging, backup policy and path handling injectable.
 function createExcelAtomicWriter({ writeLog, getExportRoot, getDocumentsRoot, safeFolderName,
@@ -81,8 +92,11 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
       conflict.code = 'KTC_EXCEL_CONCURRENT_MODIFICATION';
       throw conflict;
     }
+    const [sourceHash, recoveryHash] = await Promise.all([
+      fileHash(filePath), fileHash(recoveryPath)
+    ]);
     const afterCopy = await fs.stat(filePath);
-    if (afterCopy.mtimeMs !== originalStat.mtimeMs || afterCopy.size !== originalStat.size) {
+    if (!sameFileVersion(originalStat, afterCopy) || sourceHash !== recoveryHash) {
       const conflict = new Error('Workbook changed during recovery snapshot');
       conflict.code = 'KTC_EXCEL_CONCURRENT_MODIFICATION';
       throw conflict;
@@ -105,9 +119,7 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
         if (error?.code === 'ENOENT') return null;
         throw error;
       });
-      if ((originalStat === null) !== (currentStat === null)
-          || (originalStat && currentStat &&
-            (originalStat.mtimeMs !== currentStat.mtimeMs || originalStat.size !== currentStat.size))) {
+      if (!sameFileVersion(originalStat, currentStat)) {
         const conflict = new Error('File Excel đã được chỉnh sửa sau khi bắt đầu xuất. Không ghi đè thay đổi mới.');
         conflict.code = 'KTC_EXCEL_CONCURRENT_MODIFICATION';
         throw conflict;
@@ -195,12 +207,31 @@ async function withWorkbookLock(filePath, task) {
     }
     throw error;
   }
+  const lockToken = randomUUID();
   try {
-    await handle.writeFile(JSON.stringify({ pid: process.pid, hostname: hostname(), createdAt: new Date().toISOString() }));
+    await handle.writeFile(JSON.stringify({
+      pid: process.pid, hostname: hostname(), lockToken, createdAt: new Date().toISOString()
+    }));
     return await task();
   } finally {
-    await handle.close().catch(() => {});
-    await fs.rm(lockPath, { force: true }).catch(() => {});
+    // A manually cleared lock may have been recreated by another KTC process.
+    // Never unlink that other process's lock during this task's cleanup.
+    try {
+      const currentOwner = JSON.parse(await fs.readFile(lockPath, 'utf8'));
+      const [heldStat, currentStat] = await Promise.all([handle.stat(), fs.stat(lockPath)]);
+      if (currentOwner?.lockToken === lockToken
+          && heldStat.dev === currentStat.dev && heldStat.ino === currentStat.ino) {
+        await fs.rm(lockPath, { force: true });
+      } else {
+        await writeLog('WARN', 'KTC_EXCEL_WRITE_LOCK_OWNER_CHANGED', { lockPath, currentOwner });
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        await writeLog('WARN', 'KTC_EXCEL_WRITE_LOCK_CLEANUP_FAILED', { lockPath, ...normalizeError(error) }).catch(() => {});
+      }
+    } finally {
+      await handle.close().catch(() => {});
+    }
   }
 }
 
@@ -208,9 +239,10 @@ async function withWorkbookLock(filePath, task) {
 // pending replacement can race with a newer export and overwrite its data.
 const fileQueues = new Map();
 function atomicOverwrite(filePath, buffer, syncDate) {
-  const key = path.resolve(filePath);
+  const resolved = path.resolve(filePath);
+  const key = process.platform === 'win32' ? resolved.toLowerCase() : resolved;
   const previous = fileQueues.get(key) || Promise.resolve();
-  const operation = previous.catch(() => {}).then(() => withWorkbookLock(key, () => performAtomicOverwrite(key, buffer, syncDate)));
+  const operation = previous.catch(() => {}).then(() => withWorkbookLock(resolved, () => performAtomicOverwrite(resolved, buffer, syncDate)));
   const settled = operation.then(() => {}, () => {});
   fileQueues.set(key, settled);
   void settled.then(() => {
