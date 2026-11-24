@@ -1,5 +1,7 @@
 'use strict';
 
+const { calculateNetHours } = require('../../shared/productionMetricPrimitives.cjs');
+
 const { parseJsonArray } = require('./machineAccountingJson');
 const { classifyGiaCongMachineSource } = require('./giaCongMachineSource');
 const { calculateMachineLineDeductionHours } = require('./giaCongMachineDeductionHours');
@@ -97,7 +99,7 @@ function buildGiaCongMachineAccounting(report, physicalEventsById) {
     source,
     grossHours,
     deductionHours,
-    netHours: Math.max(0, grossHours - deductionHours),
+    netHours: calculateNetHours(grossHours, deductionHours) ?? 0,
     deductions
   };
 }

@@ -5,6 +5,8 @@ const { calculateProductionRates } = require('./productionRates.cjs');
 
 const {
   DEFAULT_SETTINGS,
+  parseStoredTrainingSnapshot,
+  calculateNetHours,
   asNumber,
   asInteger,
   normalizeTrainingPercent,
@@ -21,7 +23,7 @@ function calculateNg(report = {}) {
     const total = asInteger(report.tt_ng);
     return { allNg: total, countedNg: total };
   }
-  const allNg = details.reduce((sum, item) => sum + defectQuantity(item), 0);
+  const allNg = asInteger(report.tt_ng) ?? details.reduce((sum, item) => sum + defectQuantity(item), 0);
   return { allNg, countedNg: allNg };
 }
 
@@ -42,7 +44,7 @@ function calculateActualTime(report = {}, settings = {}, workingTime = null, ded
   const deduction = deductionTime === null ? asNumber(report.deduction_time) : asNumber(deductionTime);
 
   if (resolved.actual_time_formula === 'WORKING_MINUS_DEDUCTION') {
-    return working === null ? null : Math.max(0, working - (deduction || 0));
+    return working === null ? null : calculateNetHours(working, deduction ?? 0);
   }
   if (resolved.actual_time_formula === 'MACHINE_LINES_SUM') {
     const sum = machineLineHours(report);
@@ -81,11 +83,8 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   const ng = calculateNg(report);
   const fallbackEnteredOutput = ok !== null && ng.countedNg !== null ? ok + ng.countedNg : null;
   const enteredOutput = asInteger(report.actual_output ?? fallbackEnteredOutput);
-  const hasSnapshotField = Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot');
-  const snapshotMissing = hasSnapshotField && (report.training_percent_snapshot === null || report.training_percent_snapshot === undefined || String(report.training_percent_snapshot).trim() === '');
-  const trainingPercent = snapshotMissing
-    ? null
-    : normalizeTrainingPercent(hasSnapshotField ? report.training_percent_snapshot : report.training_percent);
+  const trainingPercent = parseStoredTrainingSnapshot(report.training_percent_snapshot);
+  const snapshotMissing = trainingPercent === null;
   const factor = trainingPercent === null ? null : trainingPercent / 100;
   const standard = asNumber(report.standard_output);
   const machinePerformance = report.machinePerformance || report.machine_performance || null;

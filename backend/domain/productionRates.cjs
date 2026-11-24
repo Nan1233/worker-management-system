@@ -1,5 +1,7 @@
 'use strict';
 
+const { safeRatio, calculatePlannedOutput } = require('../../shared/productionMetricPrimitives.cjs');
+
 // Pure production-rate calculation. Machine snapshots override worker-level
 // training calculations and must remain authoritative for shared machines.
 function calculateProductionRates({
@@ -15,12 +17,7 @@ function calculateProductionRates({
   machinePerformance,
   asNumber
 }) {
-  const canCalculatePlan = standard !== null
-    && actualTime !== null
-    && (!applyTrainingPercent || factor !== null);
-  let plannedOutput = canCalculatePlan
-    ? standard * actualTime * (applyTrainingPercent ? factor : 1)
-    : null;
+  let plannedOutput = calculatePlannedOutput(standard, actualTime, applyTrainingPercent ? factor : 1);
 
   let outputPerHour = null;
   let achievement = null;
@@ -29,23 +26,17 @@ function calculateProductionRates({
     // Physical machine snapshots take precedence over worker-level formulas.
     adjustedOutput = asNumber(machinePerformance.counted_output);
     plannedOutput = asNumber(machinePerformance.maximum_output);
-    outputPerHour = actualTime && adjustedOutput !== null
-      ? adjustedOutput / actualTime
-      : null;
-    achievement = plannedOutput ? adjustedOutput / plannedOutput : null;
+    outputPerHour = safeRatio(adjustedOutput, actualTime);
+    achievement = safeRatio(adjustedOutput, plannedOutput);
   } else {
     const perHourNumerator = outputPerHourFormula === 'ENTERED_OUTPUT_DIV_ACTUAL_TIME'
       ? enteredOutput
       : adjustedOutput;
 
-    outputPerHour = actualTime && perHourNumerator !== null
-      ? perHourNumerator / actualTime
-      : null;
+    outputPerHour = safeRatio(perHourNumerator, actualTime);
 
     achievement = achievementFormula === 'OUTPUT_PER_HOUR_DIV_STANDARD'
-      && outputPerHour !== null
-      && standard
-      ? outputPerHour / standard
+      ? safeRatio(outputPerHour, standard)
       : null;
   }
 

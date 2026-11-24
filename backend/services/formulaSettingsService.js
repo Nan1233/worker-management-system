@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const AuditService = require('./auditService');
+const { DEFAULT_SETTINGS: METRIC_DEFAULTS } = require('../../shared/productionMetricPrimitives.cjs');
 
 const DEFAULT_SETTINGS = Object.freeze({
   scope_code: 'GLOBAL',
@@ -8,12 +9,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   process_name: 'Áp dụng chung',
   effective_from: null,
   effective_to: null,
-  apply_training_percent: 1,
-  output_formula: 'ENTERED_X_TRAINING',
-  output_per_hour_formula: 'ADJUSTED_OUTPUT_DIV_ACTUAL_TIME',
-  achievement_formula: 'OUTPUT_PER_HOUR_DIV_STANDARD',
-  ng_rate_formula: 'NG_DIV_OK_PLUS_NG',
-  actual_time_formula: 'DATABASE_SNAPSHOT',
+  ...METRIC_DEFAULTS,
   threshold_red: 80,
   threshold_orange: 95,
   threshold_yellow: 100,
@@ -54,7 +50,7 @@ function normalizeSettings(input = {}, base = DEFAULT_SETTINGS) {
     ...input,
     effective_from: normalizeDate(input.effective_from ?? base.effective_from),
     effective_to: normalizeDate(input.effective_to ?? base.effective_to),
-    apply_training_percent: input.apply_training_percent === false || Number(input.apply_training_percent) === 0 ? 0 : 1,
+    apply_training_percent: Number(input.apply_training_percent ?? base.apply_training_percent) === 0 ? 0 : 1,
     threshold_red: normalizePercent(input.threshold_red, Number(base.threshold_red)),
     threshold_orange: normalizePercent(input.threshold_orange, Number(base.threshold_orange)),
     threshold_yellow: normalizePercent(input.threshold_yellow, Number(base.threshold_yellow)),
