@@ -1,17 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-
-const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-const start = source.indexOf('function byApprovedTypeThenId(');
-const end = source.indexOf('function buildApprovedPostCommitActivities(', start);
-assert.ok(start >= 0 && end > start, 'approved version snapshot builders must exist');
-const ctx = {};
-vm.runInNewContext(source.slice(start, end), ctx);
-const build = vm.runInNewContext('buildApprovedVersionPreloaded', ctx);
+const {buildApprovedVersionPreloaded:build}=require('../models/productionApprovalReviewBuilders');
 
 test('approved snapshot sorts defects by type then row ID and retains quantities', () => {
   const input = [

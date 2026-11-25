@@ -29,13 +29,13 @@ test("proposal review locks the proposal and commits only after the final transi
 
 test("update and approval models must not commit or release a caller-owned transaction", () => {
   const update = source("models/productionTempUpdateModel.js");
-  const approval = source("models/productionTempApprovalModel.js");
+  const approval = source("services/productionApprovalWorkflowService.js");
   assert.match(update, /const ownsTransaction = !options\.connection/);
   assert.match(update, /if \(ownsTransaction\) await commit\(connection\)/);
   assert.match(update, /if \(ownsTransaction\) connection\.release\(\)/);
   assert.match(approval, /const ownsTransaction = !options\.connection/);
   assert.match(approval, /if \(ownsTransaction\) await beginTransaction\(connection\)/);
-  assert.match(approval, /if \(ownsTransaction\) await rollbackReviewTransaction\(connection, error\)/);
+  assert.match(approval, /if \(ownsTransaction && !transactionCommitted\) await rollbackReviewTransaction\(connection, error\)/);
   assert.match(approval, /if \(ownsTransaction\) connection\.release\(\)/);
   assert.match(approval, /options\.postCommitCallbacks\.push\(/);
 });
@@ -43,7 +43,7 @@ test("update and approval models must not commit or release a caller-owned trans
 test("controller passes transaction connection and proposal writes guard pending status", () => {
   const controller = source("controllers/productionTempManagementController.js");
   const routes = source("routes/productionTempRoutes.js");
-  assert.match(controller, /connection: req\.transactionConnection/);
+  assert.match(controller, /transactionConnection:req\.transactionConnection/);
   assert.match(routes, /DELETE FROM report_edit_proposals WHERE id=\? AND status='pending'/);
   assert.match(routes, /UPDATE report_edit_proposals SET reason=\?, proposed_data=\?, updated_at=CURRENT_TIMESTAMP WHERE id=\? AND status='pending'/);
   assert.match(routes, /UPDATE report_edit_proposals SET status=\?, updated_at=CURRENT_TIMESTAMP WHERE id=\? AND status='pending'/);

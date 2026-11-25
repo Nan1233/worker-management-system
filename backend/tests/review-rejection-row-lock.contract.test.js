@@ -7,9 +7,11 @@ const { buildApprovalScopeQuery, buildRejectionScopeQuery } = require('../models
 const { buildRejectedReportUpdate } = require('../models/productionTempRejectionBuilders');
 const { assertApprovalSelectionVisible, assertApprovalSelectionVersions } = require('../models/productionTempApprovalSelection');
 
-const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-const approve = source.slice(source.indexOf('async approveSelected('), source.indexOf('async rejectSelected('));
-const reject = source.slice(source.indexOf('async rejectSelected('));
+const read = name => fs.readFileSync(path.join(__dirname,'..',name),'utf8');
+const approve=read('services/productionApprovalWorkflowService.js');
+const reject=read('services/productionRejectionWorkflowService.js');
+const source=read('models/productionApprovalReviewBuilders.js');
+const repository=read('repositories/productionApprovalReadRepository.js');
 
 test('approval and rejection both lock pending reports with explicit manager process scope', () => {
   for (const [name, body, builder] of [
@@ -29,7 +31,7 @@ test('approval and rejection both lock pending reports with explicit manager pro
     assert.doesNotMatch(admin.sql, /manager_processes mp/, name);
 
     const positions = [
-      'await query(connection, selectionSql, selectionParams)',
+      'await readReviewCandidates(connection, reportIds, reviewerId, isAdmin',
       'assertApprovalSelectionVisible(rows, reportIds)',
       'assertApprovalSelectionVersions(rows, expectedById)',
     ].map(marker => body.indexOf(marker));
@@ -39,13 +41,15 @@ test('approval and rejection both lock pending reports with explicit manager pro
 });
 
 test('rejection SQL is status conditional and CAS-guarded when expected version exists', () => {
-  const row = { id:17 };
+  const row = { id:17,updated_at:'2026-11-20 07:00:00' };
   const guarded = buildRejectedReportUpdate(row, '2026-11-20 08:00:00', 'Thiếu thông tin', 5);
   const unguarded = buildRejectedReportUpdate(row, null, 'Thiếu thông tin', 5);
   assert.match(guarded.sql, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?/);
   assert.deepEqual(guarded.params, ['Thiếu thông tin',5,17,'2026-11-20 08:00:00']);
-  assert.match(unguarded.sql, /WHERE id=\? AND status IN \('pending','need_fix'\)$/);
-  assert.deepEqual(unguarded.params, ['Thiếu thông tin',5,17]);
+  assert.match(unguarded.sql, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?$/);
+  assert.deepEqual(unguarded.params, ['Thiếu thông tin',5,17,row.updated_at]);
+  assert.match(repository,/action === 'reject' \? buildRejectionScopeQuery : buildApprovalScopeQuery/);
+  assert.match(repository,/return qRows\(connection, sql, params\)/);
   assert.match(reject, /assertRejectedTempTransition\(updateResult, row\)/);
   assert.match(source, /!hasExactlyOneAffectedRow\(updateResult\)/);
   assert.match(source, /Number\(result\?\.affectedRows \|\| 0\) === 1/);

@@ -8,6 +8,9 @@ function buildRejectedReportUpdate(row, expected, cleanReason, reviewerId) {
   // Even legacy clients without a version token must not reject a report that
   // changed between the selection query and this conditional UPDATE.
   const version = expected || row.updated_at;
+  if (version == null || String(version).trim() === '') {
+    throw Object.assign(new Error('Thiếu phiên bản báo cáo, vui lòng tải lại.'), {status:409, code:'TEMP_REPORT_VERSION_CONFLICT',isPublic:true});
+  }
   return {
     sql: `UPDATE production_reports_temp
                 SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW()

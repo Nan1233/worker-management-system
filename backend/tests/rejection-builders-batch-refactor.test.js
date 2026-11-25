@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../services/productionRejectionWorkflowService.js'), 'utf8');
 const {
   buildRejectedReportUpdate: update,
   buildRejectedReportVersion: version,
@@ -12,23 +12,24 @@ const {
 } = require('../models/productionTempRejectionBuilders');
 
 test('rejection UPDATE preserves optimistic version condition and positional values', () => {
-  const row = { id: 17 };
+  const row = { id: 17, updated_at:'2026-10-30 11:00:00' };
   const withVersion = update(row, '2026-10-30 12:00:00', 'Thiếu số lượng', 9);
   assert.match(withVersion.sql, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?$/);
   assert.deepEqual(Array.from(withVersion.params), ['Thiếu số lượng', 9, 17, '2026-10-30 12:00:00']);
   const withoutVersion = update(row, null, 'Lỗi', 9);
-  assert.match(withoutVersion.sql, /WHERE id=\? AND status IN \('pending','need_fix'\)$/);
-  assert.deepEqual(Array.from(withoutVersion.params), ['Lỗi', 9, 17]);
+  assert.match(withoutVersion.sql, /WHERE id=\? AND status IN \('pending','need_fix'\) AND updated_at=\?$/);
+  assert.deepEqual(Array.from(withoutVersion.params), ['Lỗi', 9, 17,row.updated_at]);
   assert.equal((withVersion.sql.match(/\?/g) || []).length, withVersion.params.length);
   assert.equal((withoutVersion.sql.match(/\?/g) || []).length, withoutVersion.params.length);
 });
 
-test('falsy expected versions retain original unguarded branch', () => {
+test('absent client version uses the locked row version and fails closed if unavailable', () => {
   for (const expected of ['', null, undefined, 0, false]) {
-    const result = update({ id: '007' }, expected, '', 0);
-    assert.equal(result.params.length, 3);
-    assert.equal(result.params[2], '007');
-    assert.doesNotMatch(result.sql, /AND updated_at=\?/);
+    const row = {id:'007',updated_at:'2026-10-30 11:00:00'};
+    const result = update(row, expected, '', 0);
+    assert.deepEqual(result.params,['',0,'007',row.updated_at]);
+    assert.match(result.sql, /AND updated_at=\?/);
+    assert.throws(()=>update({id:7},expected,'',0),{code:'TEMP_REPORT_VERSION_CONFLICT'});
   }
 });
 
@@ -65,12 +66,11 @@ test('rejection notification preserves recipients, link, shift fallback and mess
 });
 
 test('rejection retains transactional ordering, guarded status update and post-commit delivery', () => {
-  const reject = source.slice(source.indexOf('async rejectSelected('));
+  const reject = source.slice(source.indexOf('async function rejectSelected('));
   const positions = [
     'await beginTransaction(connection)',
-    'await query(connection, selectionSql, selectionParams)',
-    'buildRejectedReportUpdate(row, expected, cleanReason, reviewerId)',
-    'const updateResult = await query(connection,updateSql,updateParams)',
+    'await readReviewCandidates(connection, reportIds, reviewerId, isAdmin',
+    'const updateResult = await transitionRejectedTemp(connection, row, expected, cleanReason, reviewerId)',
     'assertRejectedTempTransition(updateResult, row)',
     'recordRejectedTempVersion(row, cleanReason, reviewerId, connection)',
     'buildRejectedReportActivity(row, cleanReason, reviewerId)',
@@ -106,5 +106,8 @@ test('rejection helpers are separate from transactional connection lifecycle', (
   assert.match(source, /await beginTransaction\(connection\)/);
   assert.match(source, /await commit\(connection\)/);
   assert.match(source, /await rollbackReviewTransaction\(connection, error\)/);
-  assert.match(source, /buildRejectedReportUpdate\(row, expected, cleanReason, reviewerId\)/);
+  assert.match(source, /transitionRejectedTemp\(connection, row, expected, cleanReason, reviewerId\)/);
+  const repo = fs.readFileSync(path.join(__dirname,'../repositories/productionRejectionRepository.js'),'utf8');
+  assert.match(repo,/buildRejectedReportUpdate\(report, expectedUpdatedAt, reason, reviewerId\)/);
+  assert.match(repo,/return query\(connection, sql, params\)/);
 });

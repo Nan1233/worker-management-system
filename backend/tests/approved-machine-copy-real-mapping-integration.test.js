@@ -5,31 +5,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
-function extract(startToken, endToken) {
-  const start = source.indexOf(startToken);
-  const end = source.indexOf(endToken, start);
-  assert.ok(start >= 0 && end > start, startToken + ' must exist');
-  return source.slice(start, end);
-}
-const helpers = [
-  extract('function buildApprovedMachineDefectsInsert(', 'function buildApprovedMachineLinesInsert('),
-  extract('function buildApprovedMachineLinesRead(', 'function buildApprovedVersionRequest('),
-  extract('function verifyApprovedMachineLineCopy(', '// Copies the temp machine lines'),
-  extract('function buildApprovedMachineDefectRows(', '// Keep the approved machine-line INSERT'),
-  extract('async function copyMachineLinesToApproved(', '// Keep standard resolver warm-up input aligned'),
-].join('\n');
+const sourcePath=path.join(__dirname,'../repositories/productionApprovalMachineRepository.js');
+const source=fs.readFileSync(sourcePath,'utf8');
+const {createRequire}=require('node:module');
+const localRequire=createRequire(sourcePath);
 
 function setup({ approved, failAt = null }) {
   const connection = { transaction: true };
   const calls = [];
   const context = {
-    buildApprovedMachineLinesInsert: (lines, reportId) => ({
-      sql: 'INSERT_LINES', params: [reportId, lines.length],
-    }),
     query: async (conn, sql, params) => {
       assert.strictEqual(conn, connection);
-      calls.push({ sql, params: Array.from(params) });
+      calls.push({ sql: sql.startsWith('INSERT INTO production_report_machine_lines')?'INSERT_LINES':sql, params: Array.from(params) });
       if (failAt && sql.includes(failAt)) throw new Error('SQL failure: ' + failAt);
     },
     qRows: async (conn, sql, params) => {
@@ -39,8 +26,14 @@ function setup({ approved, failAt = null }) {
       return approved;
     },
   };
-  vm.runInNewContext(helpers, context);
-  return { copy: vm.runInNewContext('copyMachineLinesToApproved', context), calls, connection };
+  const module={exports:{}};
+  const mockedRequire=spec=>{
+    if(spec==='../models/productionTempModelShared')return {query:context.query};
+    if(spec==='./productionApprovalReadRepository')return {qRows:context.qRows};
+    return localRequire(spec);
+  };
+  vm.runInNewContext('(function(require,module,exports){'+source+'\n})')(mockedRequire,module,module.exports);
+  return {copy:module.exports.copyMachineLinesToApproved,calls,connection};
 }
 
 const lines = [

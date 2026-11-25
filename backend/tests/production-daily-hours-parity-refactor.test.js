@@ -81,7 +81,9 @@ test('standard/training snapshots and physical event aggregation remain separate
     const training = fs.readFileSync(path.join(__dirname, '../services/trainingSnapshotService.js'), 'utf8');
     const machine = fs.readFileSync(path.join(__dirname, '../services/giaCongMachineAccounting.js'), 'utf8');
     assert.match(standard, /STANDARD_EFFECTIVE_RANGE_CONFLICT/);
-    assert.match(standard, /STANDARD_SNAPSHOT_MISMATCH/);
+    const policy=fs.readFileSync(path.join(__dirname,'../domain/standardSnapshotPolicy.js'),'utf8');
+    assert.match(standard,/assertStandardSnapshotConsistency/);
+    assert.match(policy, /STANDARD_SNAPSHOT_MISMATCH/);
     assert.match(training, /TRAINING_SNAPSHOT_MISSING/);
     assert.match(machine, /seenEvents = new Set\(\)/);
     assert.match(machine, /addGiaCongPhysicalMachineHours/);

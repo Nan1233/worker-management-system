@@ -169,8 +169,9 @@ test('all approved report version creation paths use canonical v2 version creato
   const files = [
     '../services/approvedReportEditService.js',
     '../services/approvedReportExcelCreateService.js',
-    '../models/productionTempApprovalModel.js',
+    '../services/productionApprovalWorkflowService.js',
     '../controllers/productionController.js',
+    '../services/approvedReportRestoreService.js',
     '../controllers/systemController.js'
   ];
   for (const relative of files) {
@@ -198,11 +199,13 @@ test('report_versions remains append-only in active backend code', () => {
 });
 
 test('Part 3 restore delegates complete machine graph replacement and never locks physical event for mutation', () => {
-  const restore = fs.readFileSync(path.join(__dirname, '../services/approvedReportEditService.js'), 'utf8');
+  const restore = fs.readFileSync(path.join(__dirname, '../services/approvedReportRestoreService.js'), 'utf8');
+  const repository=fs.readFileSync(path.join(__dirname,'../repositories/approvedReportRestoreRepository.js'),'utf8');
   const fn = restore.slice(restore.indexOf('async function restoreApprovedReportVersion'));
   assert.match(fn, /replaceApprovedChildrenFromSnapshot/);
-  assert.match(restore, /DELETE FROM production_report_machine_lines/);
-  assert.match(restore, /INSERT INTO production_report_machine_lines/);
+  assert.match(repository, /DELETE FROM production_report_machine_lines/);
+  assert.match(repository, /INSERT INTO production_report_machine_lines/);
+  assert.doesNotMatch(repository, /(?:UPDATE|DELETE FROM) machine_production_events/i);
   assert.doesNotMatch(fn, /machine_production_events.*FOR UPDATE/i);
   assert.doesNotMatch(fn, /(?:UPDATE|DELETE FROM) machine_production_events/i);
 });
@@ -276,7 +279,7 @@ test('approved version creator owns snapshot construction rather than accepting 
 });
 
 test('initial approval no longer hand-builds approved report_versions payload', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../models/productionTempApprovalModel.js'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../services/productionApprovalWorkflowService.js'), 'utf8');
   assert.match(source, /createApprovedReportVersion/);
   assert.doesNotMatch(source, /versionReports, versionDefects, versionDeductions/);
 });

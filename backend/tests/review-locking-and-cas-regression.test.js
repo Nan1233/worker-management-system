@@ -34,14 +34,14 @@ test('approved transition uses selected updated_at and status compare-and-swap',
   assert.deepEqual(Array.from(built.params), [5, 17, '2026-10-30 08:00:00']);
 });
 
-test('rejected transition uses timestamp guard only when supplied and always checks status', () => {
-  const row = { id: 17 };
+test('rejected transition always uses client or locked-row timestamp and checks status', () => {
+  const row = { id: 17, updated_at:'2026-10-30 07:00:00' };
   const expected = '2026-10-30 08:00:00';
   const guarded = rejectedTransition(row, expected, 'Thiếu thông tin', 5);
   const unguarded = rejectedTransition(row, null, 'Thiếu thông tin', 5);
   assert.match(guarded.sql, /status IN \('pending','need_fix'\) AND updated_at=\?/);
   assert.deepEqual(Array.from(guarded.params), ['Thiếu thông tin', 5, 17, expected]);
   assert.match(unguarded.sql, /status IN \('pending','need_fix'\)/);
-  assert.doesNotMatch(unguarded.sql, /AND updated_at=\?/);
-  assert.deepEqual(Array.from(unguarded.params), ['Thiếu thông tin', 5, 17]);
+  assert.match(unguarded.sql, /AND updated_at=\?/);
+  assert.deepEqual(Array.from(unguarded.params), ['Thiếu thông tin', 5, 17,row.updated_at]);
 });
