@@ -1,9 +1,10 @@
 const db = require('../config/db');
+const {readMasterResources,insertMasterResource,updateMasterResource,deactivateMasterResource} = require('../repositories/masterResourceRepository');
 const { assertMasterResourceScope, assertCanManageWorker } = require('../services/masterResourceAuthorization');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
 const { getActorProcessScope, assertProcessScope, assertProcessesScope, scopeSql } = require('../services/processAuthorizationService');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
-const { TABLES, masterWriteFields, PROCESS_BOUND_RESOURCES, LEAD_MANAGER_MASTER_RESOURCES, cleanPayload } = require('../domain/masterResourceDefinition');
+const { TABLES, PROCESS_BOUND_RESOURCES, LEAD_MANAGER_MASTER_RESOURCES, cleanPayload } = require('../domain/masterResourceDefinition');
 
 function authErrorResponse(res, error) {
   if (error?.status === 403 || error?.statusCode === 403) {
@@ -58,16 +59,8 @@ exports.list = async (req, res, next) => {
     if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
     const cfg = config(req,res); if (!cfg) return;
     const scope = await getActorProcessScope(req.user);
-    if (cfg.table === 'processes') {
-      const scoped = scopeSql(scope, 't.id', []);
-      const [rows] = await db.promise().query(`SELECT t.* FROM processes t WHERE 1=1 ${scoped.clause} ORDER BY ${cfg.order}`, scoped.params);
-      return res.json({ success:true, data:rows });
-    }
-    const scoped = scopeSql(scope, 't.process_id', []);
-    const [rows] = await db.promise().query(
-      `SELECT t.*, p.process_code, p.process_name FROM ${cfg.table} t LEFT JOIN processes p ON p.id=t.process_id WHERE 1=1 ${scoped.clause} ORDER BY ${cfg.order}`,
-      scoped.params
-    );
+    const scoped = scopeSql(scope, cfg.table === 'processes' ? 't.id' : 't.process_id', []);
+    const rows = await readMasterResources(db.promise(),cfg,scoped);
     const data = req.params.resource === 'standards'
       ? rows.map((row) => ({ ...row, standard_output: Number(row.standard_output) }))
       : rows;
@@ -101,9 +94,8 @@ exports.create = async (req,res,next) => {
         return res.status(400).json({success:false,code:'PRODUCT_CODE_REQUIRED',message:'Vui lòng nhập mã sản phẩm'});
       }
     }
-    const {fields, values} = masterWriteFields(cfg,payload);
     try {
-      const [result] = await db.promise().query(`INSERT INTO ${cfg.table} (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`, values);
+      const result = await insertMasterResource(db.promise(),cfg,payload);
       return res.status(201).json({success:true,message:'Tạo mới thành công',data:{id:result.insertId}});
     } catch(error) {
       const code = error?.code || error?.cause?.code || error?.details?.code;
@@ -139,8 +131,7 @@ exports.update = async (req,res,next) => {
         const targetMachineCode = 'machine_code' in payload ? payload.machine_code : machineRows[0]?.machine_code;
         await assertGcMachineCode(targetProcessId, targetMachineCode, connection);
       }
-      const {fields,values} = masterWriteFields(cfg,payload);
-      const [result] = await connection.query(`UPDATE ${cfg.table} SET ${fields.map(field => field + '=?').join(', ')} WHERE id=?`,[...values,id]);
+      await updateMasterResource(connection,cfg,id,payload);
       await connection.commit();
       return res.json({success:true,message:'Cập nhật thành công'});
     } catch (error) {
@@ -164,7 +155,7 @@ exports.remove = async (req,res,next) => {
       await connection.beginTransaction();
       const processId=await assertMasterResourceScope(req.user,cfg,id,connection);
       if(processId===null){await connection.rollback();return res.status(404).json({success:false,message:'Không tìm thấy dữ liệu'});}
-      const [result]=await connection.query(`UPDATE ${cfg.table} SET status='inactive' WHERE id=?`,[id]);
+      await deactivateMasterResource(connection,cfg,id);
       await connection.commit();
       return res.json({success:true,message:'Đã ngừng sử dụng dữ liệu'});
     } catch(error){try{await connection.rollback();}catch(_){} if(authErrorResponse(res,error))return; throw error;}
