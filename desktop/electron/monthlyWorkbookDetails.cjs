@@ -61,7 +61,9 @@ function reportDetailItems(report, processCode, kind) {
   });
 
   if (lineItems.length) return lineItems;
-  return lines.length === 1 ? reportItems : [];
+  // Parent defect details are valid for aggregate reconciliation only; projected
+  // machine rows already carry their own line-specific defect arrays.
+  return lines.length === 1 || kind === 'defect' ? reportItems : [];
 }
 
 function detailAliases(item, kind) {

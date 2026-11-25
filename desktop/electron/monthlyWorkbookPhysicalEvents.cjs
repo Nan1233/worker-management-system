@@ -1,4 +1,5 @@
 "use strict";
+const { distinctPhysicalMachineEvents } = require('./physicalMachineEventIdentity.cjs');
 
 // Physical event metadata belongs to the XLSX audit layer, not layout rendering.
 // Reuse the workbook's converters for unchanged number/string semantics.
@@ -77,7 +78,7 @@ function createPhysicalMachineMetadata({ asText, asNumber }) {
 
     const linesByEvent = groupParticipantLinesByEvent(processData?.reports);
     const seen = new Set();
-    for (const event of processData?.physicalMachineEvents || []) {
+    for (const event of distinctPhysicalMachineEvents(processData?.physicalMachineEvents)) {
       const id = Number(event.id || 0);
       if (!Number.isSafeInteger(id)||id<=0||seen.has(id))throw Object.assign(new Error('ID sự kiện máy thiếu hoặc trùng: '+id),{code:'EXCEL_MACHINE_EVENT_ID_INVALID'});
       seen.add(id);

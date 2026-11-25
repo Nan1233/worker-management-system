@@ -1,4 +1,5 @@
 'use strict';
+const { distinctPhysicalMachineEvents } = require('./physicalMachineEventIdentity.cjs');
 
 // GC machine rows contain saved Worker credit, not shared physical-event
 // production. No synthetic report ID, equal division or DB mutation.
@@ -63,7 +64,7 @@ function validateGcPhysicalEvents(processData, yearMonth) {
   const events = new Map();
   const date = value => value instanceof Date ? value.toISOString().slice(0,10) : text(value).slice(0,10);
   const fail = (id, reason) => { throw Object.assign(new Error('Sự kiện máy GC '+id+': '+reason), { code:'EXCEL_MACHINE_EVENT_INVALID' }); };
-  for (const event of processData.physicalMachineEvents || []) {
+  for (const event of distinctPhysicalMachineEvents(processData.physicalMachineEvents)) {
     const id = positiveId(event.id);
     if (!id || events.has(id) || !nonnegative(event.machine_time_hours)) fail(event.id,'ID hoặc giờ máy không hợp lệ');
     if (event.status && text(event.status).toUpperCase() !== 'APPROVED') fail(id,'Chưa được duyệt');

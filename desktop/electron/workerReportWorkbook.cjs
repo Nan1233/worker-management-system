@@ -369,6 +369,10 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   await workbook.xlsx.load(templateBuffer);
   const sheet = workbook.worksheets.find((item) => item.state !== 'hidden') || workbook.worksheets[0];
   if (!sheet) throw new Error('Template công nhân không có worksheet.');
+  if (includeSyncMetadata && (code === 'SX3' || code === 'CVK')) {
+    const { PROCESS_SHEETS } = require('./monthlyWorkbookSchemas.cjs');
+    sheet.name = PROCESS_SHEETS[code].sheet;
+  }
   const headerRow = findHeader(sheet);
   if (code === 'GC') normalizeGcDefectHeaders(sheet, headerRow);
   const columnMap = findColumnMap(sheet, headerRow);

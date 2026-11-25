@@ -22,5 +22,6 @@ test('physical event identity must match worker machine, day and shift', () => {
   const event={id:101,machine_code:'M1',work_date:'2026-11-01',shift:'A',machine_time_hours:4,status:'APPROVED'};
   assert.doesNotThrow(()=>validateGcPhysicalEvents({reports:[report()],physicalMachineEvents:[event]},'2026-11'));
   assert.throws(()=>validateGcPhysicalEvents({reports:[report()],physicalMachineEvents:[{...event,shift:'B'}]},'2026-11'),{code:'EXCEL_MACHINE_EVENT_INVALID'});
-  assert.throws(()=>validateGcPhysicalEvents({reports:[report()],physicalMachineEvents:[event,event]},'2026-11'),{code:'EXCEL_MACHINE_EVENT_INVALID'});
+  assert.doesNotThrow(()=>validateGcPhysicalEvents({reports:[report()],physicalMachineEvents:[event,event]},'2026-11'));
+  assert.throws(()=>validateGcPhysicalEvents({reports:[report()],physicalMachineEvents:[event,{...event,machine_time_hours:5}]},'2026-11'),{code:'EXCEL_MACHINE_EVENT_INVALID'});
 });

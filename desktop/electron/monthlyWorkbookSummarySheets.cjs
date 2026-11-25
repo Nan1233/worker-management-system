@@ -1,4 +1,5 @@
 'use strict';
+const { distinctPhysicalMachineEvents } = require('./physicalMachineEventIdentity.cjs');
 
 const { COLORS } = require('./monthlyWorkbookStyles.cjs');
 const { asText, NUMBER_FORMATS, resolvedNumberFormat } = require('./monthlyWorkbookValues.cjs');
@@ -63,7 +64,7 @@ function addPhysicalTimeSummary(workbook,payload){
   const sheet=workbook.addWorksheet('GIỜ MÁY VẬT LÝ',{views:[{state:'frozen',ySplit:2}]});
   const data=payload.processes?.GC||{};
   const events=new Map();
-  for(const event of data.physicalMachineEvents||[]){
+  for(const event of distinctPhysicalMachineEvents(data.physicalMachineEvents)){
     const id=Number(event.id),raw=event.machine_time_hours,hours=Number(raw);
     if(!Number.isSafeInteger(id)||id<=0||events.has(id)||raw==null||String(raw).trim()===''||!Number.isFinite(hours)||hours<0)throw Object.assign(new Error('Sự kiện máy GC không hợp lệ: '+id),{code:'EXCEL_MACHINE_EVENT_INVALID'});
     events.set(id,hours);
