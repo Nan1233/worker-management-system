@@ -15,6 +15,7 @@ test('legacy company GC rows use worker participation and deduction snapshots', 
     tt_ng: 2,
     actual_output: 102,
     standard_output: 25,
+    training_percent_snapshot: 100,
     training_percent: 100,
     deductions: [{ deduction_type_id: 4, deduction_name: 'Chỉnh máy', hours: 0.5 }],
     machineLines: [

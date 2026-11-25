@@ -97,6 +97,17 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     .filter((item) => item.hours > 0);
   const reportDeductions = positiveDetails(report.deductions);
   const allowReportFallback = lines.length === 1;
+  // Legacy imported reports may have participation lines with no per-line
+  // deduction snapshot at all. A saved report-level Worker deduction can be
+  // used once for the aggregate, never copied to each line or taken from a
+  // physical machine event. Explicit per-line zero is a real snapshot.
+  const legacyAggregateDeduction = lines.length > 1 && report.excelMachineLineId == null
+    && lines.every(line => asNumber(line.deduction_time_hours) === null
+      && asNumber(line.adjustment_minutes) === null
+      && !positiveDetails(line.deductions).length && !positiveDetails(line.deductions_json).length);
+  const legacyParentDeduction = legacyAggregateDeduction
+    ? asNumber(report.deduction_time) ?? (reportDeductions.length ? reportDeductions.reduce((sum,item)=>sum+item.hours,0) : null)
+    : null;
   let workingTime = 0;
   let deductionTime = 0;
   let actualTime = 0;
@@ -146,13 +157,40 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     if (trainingMultiplier !== null && lineStandard !== null && lineStandard > 0) plannedOutput += Math.round(calculatePlannedOutput(lineStandard, workedHours, trainingMultiplier));
   }
 
+  if (legacyParentDeduction !== null) {
+    deductionTime = Math.max(0, legacyParentDeduction);
+    actualTime = calculateNetHours(workingTime, deductionTime);
+    // The parent deduction has no per-machine allocation. A weighted target
+    // cannot be reconstructed when the lines carry different rates.
+    const rates = lines.map(line => asNumber(line.standard_output));
+    const commonRate = rates[0];
+    if (commonRate !== null && commonRate > 0 && rates.every(rate=>rate===commonRate)) {
+      nominalTarget = calculatePlannedOutput(commonRate,actualTime);
+      plannedOutput = calculatePlannedOutput(commonRate,actualTime,resolved.apply_training_percent?factor:1);
+    } else {
+      missingStandard = true;
+      nominalTarget = null;
+      plannedOutput = null;
+    }
+  }
+  // Historical lines sometimes contain time only. Do not turn missing
+  // quantities into production zero; use the saved parent aggregate when all
+  // line quantities are absent. Mixed incomplete quantities remain unknown.
+  const quantities = lines.map(line => [asInteger(line.ok_quantity),asInteger(line.ng_quantity)]);
+  if (quantities.every(pair=>pair.every(value=>value===null))) {
+    ok=asInteger(report.tt_ok); allNg=asInteger(report.tt_ng); countedNg=allNg;
+    enteredOutput=asInteger(report.actual_output);
+    adjustedOutput=enteredOutput;
+  } else if (quantities.some(pair=>pair.some(value=>value===null))) {
+    ok=null; allNg=null; countedNg=null; enteredOutput=null; adjustedOutput=null;
+  }
   const outputPerHour = safeRatio(adjustedOutput, actualTime);
   const plannedAvailable = !missingStandard && (!resolved.apply_training_percent || factor !== null);
   const resolvedPlannedOutput = plannedAvailable ? plannedOutput : null;
   // Keep nominal units/hour distinct from the training-adjusted target.
   const standard = missingStandard ? null : safeRatio(nominalTarget, actualTime);
   const achievement = safeRatio(adjustedOutput, resolvedPlannedOutput);
-  const ngDenominator = ok + allNg;
+  const ngDenominator = ok === null || allNg === null ? null : ok + allNg;
   const ngRate = resolved.ng_rate_formula === 'NG_DIV_ENTERED_OUTPUT'
     ? safeRatio(allNg, enteredOutput)
     : safeRatio(allNg, ngDenominator);

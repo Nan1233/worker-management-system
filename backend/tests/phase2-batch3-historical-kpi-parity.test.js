@@ -170,3 +170,25 @@ test('mixed present and missing physical events is explicitly partial and never 
   assert.equal(result.grossHours, 8);
   assert.equal(result.netHours, 8);
 });
+
+
+test('legacy GC aggregate deduction is applied once, physical time is never substituted',()=>{
+  const report={process_code:'GC',operation_mode:'MACHINE',total_time:4,actual_time:3.5,deduction_time:0.5,
+    tt_ok:100,tt_ng:2,actual_output:102,training_percent_snapshot:50,
+    machineLines:[{machine_time_hours:2,standard_output:25},{machine_time_hours:2,standard_output:25}],
+    machineAccounting:{grossHours:8,netHours:7}};
+  for(const calculate of [backend.calculateProductionMetrics,desktop.calculateProductionMetrics]){
+    const metrics=calculate(report);
+    assert.equal(metrics.workingTime,4);
+    assert.equal(metrics.actualTime,3.5);
+    assert.equal(metrics.deductionTime,0.5);
+    assert.equal(metrics.adjustedOutput,102);
+    assert.equal(metrics.plannedOutput,43.75);
+    assert.equal(metrics.standard,25);
+    const explicit=calculate({...report,machineLines:report.machineLines.map(line=>({...line,deduction_time_hours:0}))});
+    assert.equal(explicit.actualTime,4);
+    assert.equal(explicit.deductionTime,0);
+    const mixed=calculate({...report,machineLines:[{machine_time_hours:2,standard_output:25},{machine_time_hours:2,standard_output:40}]});
+    assert.equal(mixed.plannedOutput,null);
+  }
+});
