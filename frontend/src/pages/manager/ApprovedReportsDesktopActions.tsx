@@ -31,9 +31,10 @@ export default function ApprovedReportsDesktopActions({ onOpenReport }: { onOpen
         setExportMessage("");
         try {
             const result = await window.ktcDesktop.syncAllExcel(token, selectedDate());
-            setExportMessage(result?.success
-                ? "Đã xuất các file Excel riêng theo từng công đoạn vào thư mục KTC trên máy."
-                : (result?.message || result?.reason || "Xuất Excel chưa hoàn tất; kiểm tra file đang mở và nhật ký Desktop."));
+            setExportMessage(result?.message || result?.reason || (result?.skipped
+                ? "Không có báo cáo đã duyệt để xuất."
+                : result?.success ? "Đã xuất các file Excel riêng theo từng công đoạn vào thư mục KTC trên máy."
+                : "Xuất Excel chưa hoàn tất; kiểm tra file đang mở và nhật ký Desktop."));
         } catch (error: unknown) {
             setExportMessage(error instanceof Error ? error.message : "Không thể xuất Excel.");
         } finally {
@@ -59,9 +60,9 @@ export default function ApprovedReportsDesktopActions({ onOpenReport }: { onOpen
         setSyncMessage("");
         try {
             const result = await window.ktcDesktop.syncAllExcel(token, date);
-            if (result?.success) {
+            if (result?.success && !result.skipped && !result.partialSuccess) {
                 setSyncSuccess(true);
-                setSyncMessage("Đã cập nhật Excel thành công.");
+                setSyncMessage(result.message || "Đã cập nhật Excel thành công.");
             } else {
                 setSyncSuccess(false);
                 setSyncMessage(result?.message || result?.reason || "Cập nhật Excel không thành công.");

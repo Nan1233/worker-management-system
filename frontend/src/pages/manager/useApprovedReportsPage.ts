@@ -136,7 +136,7 @@ export function useApprovedReportsPage(onOpenReport?: (reportId: number) => void
         void load();
     };
 
-    const {reportImportPreview, reportImportStatus, reportImportBusy, previewExcelImport, applyExcelImport} = useApprovedReportExcelImport(load);
+    const {reportImportPreview, reportImportStatus, reportImportBusy, previewExcelImport, applyExcelImport, cancelExcelImport} = useApprovedReportExcelImport(load);
 
-    return { date, setDate, range, setRange, searchKeyword, setSearchKeyword, process, setProcess, shift, setShift, reports, loading, error, page, setPage, pages, total, counts, detail, detailLoading, detailError, detailReportRef, processes, shifts, quick, openDetail, closeDetail, resetFilters, refreshReports, reportImportPreview, reportImportStatus, reportImportBusy, previewExcelImport, applyExcelImport };
+    return { date, setDate, range, setRange, searchKeyword, setSearchKeyword, process, setProcess, shift, setShift, reports, loading, error, page, setPage, pages, total, counts, detail, detailLoading, detailError, detailReportRef, processes, shifts, quick, openDetail, closeDetail, resetFilters, refreshReports, reportImportPreview, reportImportStatus, reportImportBusy, previewExcelImport, applyExcelImport, cancelExcelImport };
 }

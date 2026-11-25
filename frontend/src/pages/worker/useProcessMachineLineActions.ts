@@ -45,8 +45,12 @@ export function useProcessMachineLineActions({
         setMachineLines((current) => resizeMachineLineItems(current, count, maxMachineCount));
     };
 
-    const updateMachineLine = (index: number, patch: Partial<MachineLineState>) => {
-        setMachineLines((current) => patchMachineLineItem(current, index, patch));
+    const updateMachineLine = (index: number, patch: Partial<MachineLineState>, expected?: { machineCode: string; productCode: string }) => {
+        setMachineLines((current) => {
+            const line = current[index];
+            if (!line || (expected && (line.machineCode.trim() !== expected.machineCode || line.productCode.trim() !== expected.productCode))) return current;
+            return patchMachineLineItem(current, index, patch);
+        });
     };
 
     const toggleMachineDefect = (lineIndex: number, key: string) => {

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 /** Reject dialog view; confirmations and API writes remain in Reports. */
 type PendingRejectDialogProps = {
     rejectDialogOpen: boolean;
@@ -18,10 +19,25 @@ export default function PendingRejectDialog(props: PendingRejectDialogProps) {
         rejectDialogOpen, rejectTargetIds, rejectReason, rejectNote, rejecting,
         loading, error, closeRejectDialog, setRejectReason, setRejectNote, rejectTargets
     } = props;
+    const dialogRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        if (!rejectDialogOpen) return;
+        const previous = document.activeElement;
+        dialogRef.current?.querySelector<HTMLElement>("select")?.focus();
+        return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
+    }, [rejectDialogOpen]);
     if (!rejectDialogOpen) return null;
     return (
 <div role="presentation" onClick={e => { if (e.target === e.currentTarget) closeRejectDialog(); }} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,35,60,.42)", display: "grid", placeItems: "center", padding: 16 }}>
-            <section className="pending-reject-dialog" role="dialog" aria-modal="true" aria-labelledby="reject-dialog-title" aria-describedby="reject-dialog-description" style={{ width: "min(100%, 480px)", background: "#fff", borderRadius: 14, boxShadow: "0 20px 60px rgba(15,35,60,.25)", padding: 22 }}>
+            <section ref={dialogRef} className="pending-reject-dialog" aria-busy={rejecting} tabIndex={-1} onKeyDown={event => {
+                if (event.key === "Escape" && !rejecting) { event.preventDefault(); closeRejectDialog(); }
+                if (event.key !== "Tab") return;
+                const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), select:not(:disabled), textarea:not(:disabled)") || []);
+                const first = controls[0], last = controls[controls.length - 1];
+                if (!first) { event.preventDefault(); dialogRef.current?.focus(); return; }
+                if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { event.preventDefault(); last.focus(); }
+                else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) { event.preventDefault(); first.focus(); }
+            }} role="dialog" aria-modal="true" aria-labelledby="reject-dialog-title" aria-describedby="reject-dialog-description" style={{ width: "min(100%, 480px)", background: "#fff", borderRadius: 14, boxShadow: "0 20px 60px rgba(15,35,60,.25)", padding: 22, maxHeight: "calc(100dvh - 32px)", overflowY: "auto", boxSizing: "border-box" }}>
                 <h2 id="reject-dialog-title" style={{ margin: "0 0 6px", color: "#12385f", fontSize: 20 }}>Từ chối báo cáo</h2>
                 <p id="reject-dialog-description" style={{ margin: "0 0 16px", color: "#526b88", fontSize: 13 }}>Đang chọn <strong>{rejectTargetIds.length}</strong> báo cáo. Chọn lý do trước khi xác nhận.</p>
                 <label htmlFor="pending-reject-reason" style={{ display: "block", fontSize: 13, color: "#244564", marginBottom: 6, fontWeight: 700 }}>Lý do từ chối <span style={{ color: "#b42323" }}>*</span></label>

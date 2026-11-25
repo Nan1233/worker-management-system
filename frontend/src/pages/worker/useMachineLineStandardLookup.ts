@@ -8,7 +8,7 @@ type Params = {
     processCode: string;
     processId: number;
     workDate: string;
-    updateMachineLine: (index: number, patch: Partial<MachineLineState>) => void;
+    updateMachineLine: (index: number, patch: Partial<MachineLineState>, expected?: { machineCode: string; productCode: string }) => void;
 };
 
 /**
@@ -33,6 +33,7 @@ export function useMachineLineStandardLookup({
         const requestSeq = (requestSequences.current[index] || 0) + 1;
         requestSequences.current[index] = requestSeq;
         const isCurrentRequest = () => requestSequences.current[index] === requestSeq;
+        const expected = { machineCode: normalizedMachine, productCode: normalizedProduct };
 
         // MÀI, ĐO and CÁN can resolve a default product standard without a machine.
         if (!normalizedProduct || (!normalizedMachine && !["MAI", "DO", "CAN"].includes(processCode))) {
@@ -58,6 +59,7 @@ export function useMachineLineStandardLookup({
                     normalizedProduct,
                     workDate,
                 ),
+                workDate,
             );
             if (!isCurrentRequest()) return;
             const output = Number(resolved.resolved_output_per_hour || 0);
@@ -67,7 +69,7 @@ export function useMachineLineStandardLookup({
                 standardSource: resolved.standard_source,
                 standardLoading: false,
                 standardError: output > 0 ? "" : "Định mức bằng 0",
-            });
+            }, expected);
         } catch (error) {
             if (!isCurrentRequest()) return;
             updateMachineLine(index, {
@@ -76,7 +78,7 @@ export function useMachineLineStandardLookup({
                 standardSource: null,
                 standardLoading: false,
                 standardError: getApiError(error, "Không lấy được định mức").message,
-            });
+            }, expected);
         }
     };
 

@@ -4,7 +4,7 @@ import { validateMachineLines } from "./processPageValidation";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById, updateReport, updateTempReport } from "../../services/productionService";
-import { resolveProductStandard } from "../../services/masterDataService";
+import { useMachineLineStandardLookup } from "./useMachineLineStandardLookup";
 import type { ProductionReport } from "../../types/production";
 import { getApiError } from "../../utils/apiError";
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
@@ -21,7 +21,6 @@ import { useProcessMasterData } from "./useProcessMasterData";
 import { createEmptyMachineLine, initialDeduction, initialForm, type DeductionState, type FormState, type MachineLineState, type NgKey } from "./processPageConfig";
 import { buildProductionReportPayload } from "./processReportSubmission";
 import { filterProductsForSelection, toProductAutocompleteOptions } from "./productSuggestionRules";
-import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
 import { MAX_TOTAL_WORK_MINUTES, parseFlexibleTime } from "./processFormUtils";
 import { getMaxMachineCount, toggleMachineDefectLine, updateMachineDefectLine } from "./processMachineLines";
 
@@ -306,7 +305,7 @@ export function useWorkerReportEdit() {
 
   const updateForm = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
   const onFormChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => updateForm(event.target.name || event.target.id, event.target.value);
-  const updateLine = (index: number, patch: Partial<MachineLineState>) => setMachineLines((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
+  const updateLine = (index: number, patch: Partial<MachineLineState>, expected?: { machineCode: string; productCode: string }) => setMachineLines((current) => current.map((line, i) => i === index && (!expected || (line.machineCode.trim() === expected.machineCode && line.productCode.trim() === expected.productCode)) ? { ...line, ...patch } : line));
   const toggleMachineDefect = (index: number, key: string) => setMachineLines((current) => current.map((line, i) => i === index ? toggleMachineDefectLine(line, key) : line));
   const updateMachineDefectValue = (index: number, key: string, value: string) => setMachineLines((current) => current.map((line, i) => i === index ? updateMachineDefectLine(line, key, value) : line));
   const machineCount = Math.max(1, machineLines.length);
@@ -317,15 +316,9 @@ export function useWorkerReportEdit() {
   const machineAutocompleteOptions = editMachineOptions.map((m) => ({ value: s(m.machine_code), label: s(m.machine_code), workType: m.gc_work_type }));
   const getMachineProductOptions = (machineCode: string) => filterProductsForSelection({ products: editProductOptions, mode: "MACHINE", machineCode, machineOptions: editMachineOptions, useEncodedMachineSuffix: capabilities.processCode === "GC" });
   const getMachineProductAutocompleteOptions = (machineCode: string) => toProductAutocompleteOptions(getMachineProductOptions(machineCode));
-  const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {
-    if (!machineCode.trim() || !productCode.trim()) { updateLine(index, { standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardLoading: false, standardError: "" }); return; }
-    updateLine(index, { standardLoading: true, standardError: "" });
-    try {
-      const resolved = await getCachedResolvedProductStandard(processId, machineCode.trim(), productCode.trim(), () => resolveProductStandard(processId, machineCode.trim(), productCode.trim(), form.workDate));
-      const output = n(resolved.resolved_output_per_hour);
-      updateLine(index, { standardOutputPerHour: output, standardTimeSeconds: resolved.standard_time_seconds, standardSource: resolved.standard_source, standardLoading: false, standardError: output > 0 ? "" : "Định mức bằng 0" });
-    } catch (error: unknown) { updateLine(index, { standardLoading: false, standardError: getApiError(error, "Không lấy được định mức").message }); }
-  };
+  const { refreshMachineLineStandard } = useMachineLineStandardLookup({
+    processCode: capabilities.processCode, processId, workDate: form.workDate, updateMachineLine: updateLine,
+  });
 
   const syncDeductionTime = (next: DeductionState) => {
     const minutes = Object.values(next).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);

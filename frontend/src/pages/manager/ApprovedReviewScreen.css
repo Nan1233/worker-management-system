@@ -96,3 +96,16 @@
 .approved-review-screen .pending-list-card .pending-reference-table tbody td.report-pp-cell { border: 0 !important; outline: 0 !important; box-shadow: none !important; }
 .approved-review-screen .pending-list-card .pending-reference-table tbody td.report-productivity-cell span,
 .approved-review-screen .pending-list-card .pending-reference-table tbody td.report-pp-cell span { border: 0 !important; outline: 0 !important; box-shadow: none !important; }
+
+/* Excel import review: bounded scroll and readable before/after values. */
+.approved-excel-preview { flex: 1 1 100%; min-width: 0; border-top: 1px solid #dbe6f2; padding-top: 12px; }
+.approved-excel-preview h3 { margin: 0 0 6px; font-size: 15px; }
+.approved-excel-preview p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.approved-excel-preview-error { color: #a12626; font-weight: 600; }
+.approved-excel-preview-scroll { overflow: auto; max-height: 340px; border: 1px solid #dbe6f2; border-radius: 8px; }
+.approved-excel-preview-scroll table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 13px; }
+.approved-excel-preview-scroll caption { text-align: left; padding: 8px; font-weight: 600; }
+.approved-excel-preview-scroll th, .approved-excel-preview-scroll td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #e4eaf2; overflow-wrap: anywhere; max-width: 300px; }
+.approved-excel-preview-scroll thead th { position: sticky; top: 0; background: #eef4fb; z-index: 1; }
+.approved-excel-preview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 10px; }
+.approved-excel-preview button:focus-visible, .approved-excel-preview-scroll:focus-visible { outline: 2px solid #1769aa; outline-offset: 2px; }

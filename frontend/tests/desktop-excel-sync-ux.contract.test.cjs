@@ -17,5 +17,5 @@ test('desktop sync prevents concurrent clicks and displays accessible result', (
   assert.match(source, /syncLockRef\.current = true/);
   assert.match(source, /syncLockRef\.current = false/);
   assert.match(source, /role="status" aria-live="polite"/);
-  assert.match(source, /setSyncMessage\("Đã cập nhật Excel thành công\."\)/);
+  assert.match(source, /setSyncMessage\(result\.message \|\| "Đã cập nhật Excel thành công\."\)/);
 });

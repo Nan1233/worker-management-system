@@ -73,6 +73,7 @@ declare global {
 
     interface DesktopExcelSyncResult {
         success: boolean;
+        partialSuccess?: boolean;
         skipped?: boolean;
         code?: string;
         reason?: string;
