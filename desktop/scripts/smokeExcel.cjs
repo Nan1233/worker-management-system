@@ -23,6 +23,7 @@ function report(overrides = {}) {
     machine_no: 'M-01',
     product_name: 'QC5-1657',
     training_percent: 100,
+    training_percent_snapshot:100,
     standard_output: 617.1,
     total_time: 8,
     actual_time: 7.5,
@@ -78,10 +79,12 @@ function report(overrides = {}) {
       ],
       reports: [
         report({ id: 1, worker_code: '599' }),
-        report({ id: 2, worker_code: '600', work_date: '2026-08-02', actual_output: 0, training_percent: 0 }),
+        report({ id: 2, worker_code: '600', work_date: '2026-08-02', actual_output: 0, training_percent: 0, training_percent_snapshot:0 }),
         report({
           id: 3, worker_code: '601', work_date: '2026-08-03', tt_ng: 18, actual_output: 63,
-          machine_no: '', machineLines: [{ machine_code: 'CUT-10', product_code: 'GC-PROD' }],
+          operation_mode:'MACHINE', machine_no: '',
+          machineLines: [{id:301,report_id:3,machine_code:'CUT-10',product_code:'GC-PROD',
+            machine_time_hours:8,deduction_time_hours:0.5,ok_quantity:45,ng_quantity:18,standard_output:617.1}],
           defects: [
             { defect_type_id: 11, defect_type_code: 'CAT01', defect_code: 'CAT01', defect_name: 'Cao su không đứt', quantity: 1 },
             { defect_type_id: 12, defect_type_code: 'CAT02', defect_code: 'CAT02', defect_name: 'Cắt lẹm', quantity: 1 },
@@ -223,21 +226,41 @@ function report(overrides = {}) {
     assert.ok(gcWorkbook, 'Phải có workbook riêng cho công đoạn GC');
     const actualWorkbook = new ExcelJS.Workbook();
     await actualWorkbook.xlsx.load(gcWorkbook.buffer);
-    const actualSheet = actualWorkbook.worksheets.find((item) => item.state !== 'hidden') || actualWorkbook.worksheets[0];
+    const {WORKBOOK1_FORMS}=require('../electron/originalProcessTemplateRegistry.cjs');
+    const form=WORKBOOK1_FORMS.GC;
+    const actualSheet=actualWorkbook.getWorksheet(form.sheet);
     assert.ok(actualSheet, 'Không mở được workbook từ luồng xuất thực tế');
     const actualHeaders = [];
     for (let c = 1; c <= actualSheet.columnCount; c += 1) {
-      actualHeaders.push(String(actualSheet.getRow(built.headerRow).getCell(c).value ?? '').trim());
+      actualHeaders.push(String(actualSheet.getRow(form.header).getCell(c).value ?? '').trim());
     }
-    for (const legacy of ['KQD', 'Vỡ cao su', 'K xước cong gãy', 'Cao su xoay', 'Cắt không đứt', 'Chân ngắn dài']) {
-      assert.ok(!actualHeaders.includes(legacy), `Luồng xuất thực tế vẫn còn cột NG cũ: ${legacy}`);
+    // The production export uses the approved Workbook1 paper layout, not
+    // the legacy generic template's header text or header row. Assert the
+    // same 18 identities and values in their actual positional columns.
+    const sync=actualWorkbook.getWorksheet('_KTC_SYNC');
+    assert.ok(sync&&sync.state==='veryHidden');
+    let sourceRow=null;
+    for(let r=3;r<=sync.rowCount;r++){
+      if(Number(sync.getCell(r,1).value)===3){
+        sourceRow=Number(sync.getCell(r,5).value);
+        assert.equal(Number(sync.getCell(r,9).value),301);
+      }
     }
-    for (const header of actualHeaders) {
-      assert.ok(!/^NG:\\s/.test(header), `Luồng xuất thực tế không được nối thêm cột NG: ${header}`);
-      assert.ok(!/^Trừ H:\\s*(?:0|1|6|7|26|27|3|22|23)(?:\\s|$)/i.test(header), `Luồng xuất thực tế vẫn có cột Trừ H số: ${header}`);
+    assert.ok(sourceRow>=form.first,'Missing GC approved machine row lineage');
+    const toCol=value=>value.split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0);
+    const first=toCol(form.defects[0]),last=toCol(form.defects[1]);
+    assert.equal(last-first+1,18);
+    for(let i=0;i<18;i++){
+      assert.ok(actualHeaders[first+i-1], 'Missing Workbook1 defect header '+encodedHeaders[i][0]);
+      assert.equal(Number(actualSheet.getCell(sourceRow,first+i).value),1,'Wrong Workbook1 NG '+encodedHeaders[i][0]);
     }
-    assert.equal(encodedHeaders.filter(([, label]) => actualHeaders.includes(label)).length, 18,
-      'Luồng xuất thực tế phải có đúng đủ 18 cột NG mã hóa');
+    assert.equal(Number(actualSheet.getCell(sourceRow,toCol('AF')).value),45);
+    assert.equal(Number(actualSheet.getCell(sourceRow,toCol('AG')).value),18);
+    assert.equal(String(actualSheet.getCell(sourceRow,toCol('F')).value),'CUT-10');
+    for(const header of actualHeaders){
+      assert.ok(!/^NG:\s/.test(header),'Unexpected appended legacy NG header '+header);
+      assert.ok(!/^Trừ H:\s*(?:0|1|6|7|26|27|3|22|23)(?:\s|$)/i.test(header),'Unexpected numeric deduction header '+header);
+    }
 
     console.log('[PASS] Worker Excel smoke test: direct builder + actual GC export route + 18 CAT/LONG headers + no legacy NG/numeric Trừ H + print area');
   } finally {
