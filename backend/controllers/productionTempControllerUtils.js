@@ -1,9 +1,6 @@
 'use strict';
 
-const toPositiveInteger = (value) => {
-    const numberValue = Number(value);
-    return Number.isSafeInteger(numberValue) && numberValue > 0 ? numberValue : null;
-};
+const { toPositiveInteger } = require('../utils/positiveInteger');
 
 const { normalizeOperationType, normalizeOperationMode } = require('../domain/operationNormalization');
 const { publicError } = require('../utils/httpError');

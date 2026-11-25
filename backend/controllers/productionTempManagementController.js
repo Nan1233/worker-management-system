@@ -1,14 +1,6 @@
 const db = require("../config/db");
 const { omitUnsentCollections, preserveStoredMachineData } = require("../utils/editPayload");
-const { TtlCache } = require("../utils/cache");
-const { normalizeManagerReportFilters, managerReportCacheKey } = require("./managerReportListUtils");
-const managerListCache = new TtlCache({ maxEntries: 300 });
-const MANAGER_LIST_TTL_MS = 15000;
-
-function invalidateManagerReportLists() {
-    managerListCache.deleteByPrefix("manager:pending:");
-    managerListCache.deleteByPrefix("manager:approved:");
-}
+const { getCachedManagerReports, invalidateManagerReportLists } = require("../services/managerReportListCacheService");
 const ProductionTemp = require("../models/productionTempModel");
 const { publicMessage } = require("../utils/httpError");
 const { hasPermission } = require("../services/permissionService");
@@ -34,27 +26,12 @@ const {
     assertReviewBatchSize
 } = require("../services/managerReportPaginationService");
 
-// Keep the pending and approved list cache keyed by actor, role, filters and mode.
-async function getCachedManagerReports(kind, req, userId) {
-    const filters = normalizeManagerReportFilters(req.query, kind === "pending");
-    const cacheKey = managerReportCacheKey(kind, req.user?.role, userId, filters);
-    let data = managerListCache.get(cacheKey);
-    if (data === undefined) {
-        const isAdmin = req.user?.role === "admin";
-        data = kind === "pending"
-            ? await ProductionTemp.getPending(userId, filters, isAdmin)
-            : await ProductionTemp.getApproved(userId, filters, isAdmin);
-        managerListCache.set(cacheKey, data, MANAGER_LIST_TTL_MS);
-    }
-    return data;
-}
-
 exports.getPendingReports = async (req, res) => {
     try {
         const userId = toPositiveInteger(req.user?.id);
         if (!userId) return res.status(401).json({ success: false, message: "Thông tin đăng nhập không hợp lệ" });
 
-        const data = await getCachedManagerReports("pending", req, userId);
+        const data = await getCachedManagerReports("pending", {query:req.query,actor:req.user}, userId);
         return res.status(200).json({
             success: true,
             data: data.items,
@@ -73,7 +50,7 @@ exports.getApprovedReports = async (req, res) => {
         const userId = toPositiveInteger(req.user?.id);
         if (!userId) return res.status(401).json({ success: false, message: "Thông tin đăng nhập không hợp lệ" });
 
-        const data = await getCachedManagerReports("approved", req, userId);
+        const data = await getCachedManagerReports("approved", {query:req.query,actor:req.user}, userId);
         return res.status(200).json({
             success: true,
             data: data.items,
