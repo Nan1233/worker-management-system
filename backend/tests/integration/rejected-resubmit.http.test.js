@@ -67,7 +67,7 @@ test('worker is notified with a link to the report detail', opts, async () => {
   await reject(id, 'Thiếu thông tin');
   const [notes] = await state.db.query("SELECT type, link_url, message FROM notifications WHERE entity_id=? AND type='report_rejected'", [id]);
   assert.equal(notes.length, 1);
-  assert.equal(notes[0].link_url, `/worker/history/${id}?source=temp`);
+  assert.equal(notes[0].link_url, `/worker/history/${id}?source=pending`);
   // The work date must read as a date (2026-10-07), not as "Wed Oct 07".
   assert.match(notes[0].message, /Báo cáo ngày \d{4}-\d{2}-\d{2}, ca B/);
   assert.doesNotMatch(notes[0].message, /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/);

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, type ChangeEvent, type Dispatch, type FocusEvent, type SetStateAction } from "react";
+import { useEffect, type ChangeEvent, type Dispatch, type FocusEvent, type SetStateAction } from "react";
 import type { FormState, NgKey, OperationMode } from "../processPageConfig";
 import AppIcon from "../../../components/common/AppIcon";
 import { isNoStandardLongWork } from "../productSuggestionRules";
@@ -6,36 +6,30 @@ import { isNoStandardLongWork } from "../productSuggestionRules";
 interface NgOption { key: NgKey; code: string; label: string; }
 interface Props {
     form: FormState; activeNgOptions: NgOption[]; selectedNg: NgKey[]; showNg: boolean; setShowNg: Dispatch<SetStateAction<boolean>>;
-    usesMultiMachineLines: boolean; operationMode: OperationMode; qualityLocked?: boolean; formatIntegerDisplay: (value: string) => string;
+    usesMultiMachineLines: boolean; operationMode: OperationMode; operationType: "CUT" | "LONG"; preserveHistoricalNg?: boolean; qualityLocked?: boolean; formatIntegerDisplay: (value: string) => string;
     onTtOkChange: (event: ChangeEvent<HTMLInputElement>) => void; onTtOkInput?: (rawValue: string) => void; onNumberBlur: (event: FocusEvent<HTMLInputElement>) => void;
     onToggleNg: (key: NgKey, checked: boolean) => void; onNgValue: (key: NgKey, value: string) => void; onOtherNgName: (value: string) => void;
 }
 const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase();
 const CVK_WORK_TYPES = new Set(["CVK", "XUATNHAP", "KTCD", "TAIPP"]);
 
-export default function ProcessQualitySection({ form, activeNgOptions, selectedNg, showNg, setShowNg, usesMultiMachineLines, operationMode, qualityLocked: qualityLockedProp, formatIntegerDisplay, onTtOkChange, onTtOkInput, onNumberBlur, onToggleNg, onNgValue, onOtherNgName }: Props) {
+export default function ProcessQualitySection({ form, activeNgOptions, selectedNg, showNg, setShowNg, usesMultiMachineLines, operationMode, operationType: gcOperation, preserveHistoricalNg = false, qualityLocked: qualityLockedProp, formatIntegerDisplay, onTtOkChange, onTtOkInput, onNumberBlur, onToggleNg, onNgValue, onOtherNgName }: Props) {
     // Keep hook order stable when the process or execution mode changes in-place.
     const shouldHide = CVK_WORK_TYPES.has(String(form.workType ?? "").trim().toUpperCase())
         || isNoStandardLongWork(form.productName)
         || usesMultiMachineLines;
     const qualityLocked = qualityLockedProp ?? usesMultiMachineLines;
     const hasCanonicalGcDefects = activeNgOptions.some((item) => /^(CAT|LONG)\d+$/.test(normalizeCode(item.code)));
-    const [gcOperation, setGcOperation] = useState<"CUT" | "LONG">("CUT");
-    useLayoutEffect(() => {
-        if (shouldHide || !hasCanonicalGcDefects || typeof document === "undefined") return;
-        const activeOperationButton = document.querySelector<HTMLElement>(".worker-mode-panel .worker-mode-group:first-child .worker-choice-row button.active");
-        const nextOperation = activeOperationButton?.textContent?.trim() === "Lồng" ? "LONG" : "CUT";
-        setGcOperation((current) => current === nextOperation ? current : nextOperation);
-    }, [shouldHide, hasCanonicalGcDefects]);
     const visibleNgOptions = hasCanonicalGcDefects ? activeNgOptions.filter((item) => {
         const code = normalizeCode(item.code);
-        return item.key === "__otherNg" || (gcOperation === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG"));
+        return item.key === "__otherNg" || (preserveHistoricalNg && selectedNg.includes(item.key))
+            || (gcOperation === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG"));
     }) : activeNgOptions;
     useEffect(() => {
-        if (shouldHide || qualityLocked || !hasCanonicalGcDefects) return;
+        if (shouldHide || qualityLocked || preserveHistoricalNg || !hasCanonicalGcDefects) return;
         const visibleKeys = new Set(visibleNgOptions.map((item) => item.key));
         selectedNg.filter((key) => !visibleKeys.has(key)).forEach((key) => onToggleNg(key, false));
-    }, [gcOperation, hasCanonicalGcDefects, qualityLocked, visibleNgOptions, selectedNg, onToggleNg, shouldHide]);
+    }, [gcOperation, hasCanonicalGcDefects, qualityLocked, preserveHistoricalNg, visibleNgOptions, selectedNg, onToggleNg, shouldHide]);
     if (shouldHide) return null;
     // XLBV workers need readable defect names; retain encoded labels for other processes.
     const getDisplayLabel = (item: NgOption) => {

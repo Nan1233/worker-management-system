@@ -13,7 +13,7 @@ interface Props {
     inlineExtraFields?: ReactNode;
     processCode: string;
     form: FormState; setForm: Dispatch<SetStateAction<FormState>>; onFormChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
-    isCutLongProcess: boolean; isInspectionProcess: boolean; isCvkMode: boolean; setIsCvkMode: Dispatch<SetStateAction<boolean>>; operationType: OperationType; setOperationType: Dispatch<SetStateAction<OperationType>>; operationMode: OperationMode; setOperationMode: Dispatch<SetStateAction<OperationMode>>; cutExecutionMode: CutExecutionMode; setCutExecutionMode: Dispatch<SetStateAction<CutExecutionMode>>;
+    preserveLoadedMode?: boolean; isCutLongProcess: boolean; isInspectionProcess: boolean; isCvkMode: boolean; setIsCvkMode: Dispatch<SetStateAction<boolean>>; operationType: OperationType; setOperationType: Dispatch<SetStateAction<OperationType>>; operationMode: OperationMode; setOperationMode: Dispatch<SetStateAction<OperationMode>>; cutExecutionMode: CutExecutionMode; setCutExecutionMode: Dispatch<SetStateAction<CutExecutionMode>>;
     usesMultiMachineLines: boolean; usesSingleMachine: boolean; productAutocompleteOptions: AutocompleteOption[]; getMachineProductAutocompleteOptions: (machineCode: string) => AutocompleteOption[]; productOptions: ProductStandardOption[]; machineAutocompleteOptions: AutocompleteOption[]; machineOptions?: unknown[]; loadingMasterData: boolean; machineCount: number; maxMachineCount: number; machineLines: MachineLineState[]; resizeMachineLines: (count: number) => void; updateMachineLine: (index: number, patch: Partial<MachineLineState>) => void; refreshMachineLineStandard: (index: number, machineCode: string, productCode: string) => Promise<void>; getMachineNgTotal: (line: MachineLineState) => number; activeNgOptions: NgOption[]; activeDeductionOptions: DeductionOption[]; toggleMachineDefect: (lineIndex: number, key: string) => void; updateMachineDefectValue: (lineIndex: number, key: string, value: string) => void;
 }
 const CVK_WORK_TYPES = [{ value: "XUATNHAP", label: "Xuất nhập" }, { value: "KTCD", label: "Kiểm tra công đoạn" }, { value: "TAIPP", label: "Tái phế phẩm" }] as const;
@@ -21,7 +21,7 @@ const normalizeDefectCode = (value: unknown): string => String(value ?? "").trim
 type CutExecutionMode = "AUTO" | "NON_AUTO";
 type LongExecutionMode = "MANUAL" | "MACHINE";
 
-export default function ProcessBasicInfoSection({ inlineExtraFields, processCode, form, setForm, onFormChange, isCutLongProcess, isInspectionProcess, isCvkMode, setIsCvkMode, operationType, setOperationType, operationMode, setOperationMode, cutExecutionMode, setCutExecutionMode, usesMultiMachineLines, usesSingleMachine, productAutocompleteOptions, getMachineProductAutocompleteOptions, productOptions, machineAutocompleteOptions, machineOptions, loadingMasterData, machineCount, maxMachineCount, machineLines, resizeMachineLines, updateMachineLine, refreshMachineLineStandard, getMachineNgTotal, activeNgOptions, activeDeductionOptions, toggleMachineDefect, updateMachineDefectValue }: Props) {
+export default function ProcessBasicInfoSection({ inlineExtraFields, preserveLoadedMode = false, processCode, form, setForm, onFormChange, isCutLongProcess, isInspectionProcess, isCvkMode, setIsCvkMode, operationType, setOperationType, operationMode, setOperationMode, cutExecutionMode, setCutExecutionMode, usesMultiMachineLines, usesSingleMachine, productAutocompleteOptions, getMachineProductAutocompleteOptions, productOptions, machineAutocompleteOptions, machineOptions, loadingMasterData, machineCount, maxMachineCount, machineLines, resizeMachineLines, updateMachineLine, refreshMachineLineStandard, getMachineNgTotal, activeNgOptions, activeDeductionOptions, toggleMachineDefect, updateMachineDefectValue }: Props) {
     const [longExecutionMode, setLongExecutionMode] = useState<LongExecutionMode>(operationMode === "MACHINE" ? "MACHINE" : "MANUAL");
     const [openMachineDeductionIndex, setOpenMachineDeductionIndex] = useState<number | null>(null);
     const [openMachineNgIndex, setOpenMachineNgIndex] = useState<number | null>(null);
@@ -30,7 +30,7 @@ export default function ProcessBasicInfoSection({ inlineExtraFields, processCode
     const isEpProcess = String(processCode || "").trim().toUpperCase() === "EP";
     const isCanEpProcess = isCanProcess || isEpProcess;
     const isMachineNgEditableProcess = ["MAI", "DO", "CAN", "EP"].includes(String(processCode || "").trim().toUpperCase());
-    useEffect(() => { if (!isCutLongProcess || operationType !== "CUT") return; if (operationMode !== "MACHINE") setOperationMode("MACHINE"); }, [isCutLongProcess, operationType, operationMode, setOperationMode]);
+    useEffect(() => { if (preserveLoadedMode || !isCutLongProcess || operationType !== "CUT") return; if (operationMode !== "MACHINE") setOperationMode("MACHINE"); }, [preserveLoadedMode, isCutLongProcess, operationType, operationMode, setOperationMode]);
     useEffect(() => { if (operationType !== "LONG") return; setLongExecutionMode(operationMode === "MACHINE" ? "MACHINE" : "MANUAL"); }, [operationMode, operationType]);
 
     // Cắt/Lồng + Máy: OK/NG của người luôn là tổng OK/NG của toàn bộ máy.

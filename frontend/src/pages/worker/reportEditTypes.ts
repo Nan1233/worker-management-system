@@ -112,8 +112,11 @@ export function unwrapReportEditResponse(payload: unknown): ReportEditRecord | n
     if (!Number.isSafeInteger(id) || id <= 0
         || !Number.isSafeInteger(processId) || processId <= 0
         || typeof record.work_date !== "string"
-        || !/^\\d{4}-\\d{2}-\\d{2}/.test(record.work_date)
+        || !/^\d{4}-\d{2}-\d{2}(?:$|T| )/.test(record.work_date)
         || typeof record.shift !== "string" || !record.shift.trim()) return null;
+    const day = record.work_date.slice(0,10);
+    const date = new Date(day + "T00:00:00Z");
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0,10) !== day) return null;
     // Reject malformed numeric data instead of treating it as zero on save.
     const numbers = ["actual_time", "total_time", "deduction_time", "standard_output",
         "actual_output", "tt_ok", "tt_ng"] as const;

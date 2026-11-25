@@ -159,13 +159,18 @@ export function useWorkerReportEdit() {
     let alive = true;
     const load = async () => {
       setFormReady(false);
+      setLoading(true);
+      setReport(null);
+      setError("");
+      setChangeReason("");
+      originalUpdatedAtRef.current = null;
       hydratedReportRef.current = null;
       try {
         const reportId = Number(id);
         if (!Number.isInteger(reportId) || reportId <= 0) throw new Error("ID báo cáo không hợp lệ.");
         const raw = await getReportById(reportId, managerRoute ? source : "pending");
         const data = unwrapReportEditResponse(raw);
-        if (!data) throw new Error("Không tải được báo cáo hợp lệ (thiếu ID, công đoạn, ngày/ca hoặc dữ liệu máy). Vui lòng tải lại.");
+        if (!data || Number(data.id) !== reportId) throw new Error("Không tải được báo cáo hợp lệ (thiếu ID, công đoạn, ngày/ca hoặc dữ liệu máy). Vui lòng tải lại.");
         if (!alive) return;
         originalUpdatedAtRef.current = source === "approved" ? (data.updated_at || null) : null;
         // Commit only the fully prepared report once. Intermediate report identities
@@ -208,6 +213,7 @@ export function useWorkerReportEdit() {
         const loadedWorkType = s(data.extra_data?.work_type || data.work_type || "");
          const resolvedWorkType = String(data.process_code || "").trim().toUpperCase() === "CVK" ? (loadedWorkType || "XUATNHAP") : loadedWorkType;
          setWorkType(resolvedWorkType);
+         setIsCvkMode(String(data.process_code || "").trim().toUpperCase() === "CVK" || data.extra_data?.non_product_work === true);
          setForm((current) => ({ ...current, workType: resolvedWorkType }));
         setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).filter(([key]) => key !== "adjustment_count" && key !== "work_type").map(([key, value]) => [key, value == null ? "" : String(value)])));
         setReport({ ...data, __edit_machine_lines: editMachineLines });
@@ -285,8 +291,8 @@ export function useWorkerReportEdit() {
       if (key) hydratedDeductions.push({ key, minutes: String(Math.round(n(minutes))) });
     });
     setSelectedDeduction(hydratedDeductions.map(({ key }) => key));
-    setDeductions((current) => {
-      const next: DeductionState = { ...current };
+    setDeductions(() => {
+      const next: DeductionState = { ...initialDeduction };
       hydratedDeductions.forEach(({ key, minutes }) => { next[key] = minutes; });
       return next;
     });

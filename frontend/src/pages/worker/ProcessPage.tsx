@@ -485,6 +485,7 @@ const machineAutocompleteOptions =
 
                 {!isCvkMode && (
                 <ProcessQualitySection
+                    operationType={operationType}
                     form={form}
                     activeNgOptions={activeNgOptions}
                     selectedNg={selectedNg}
