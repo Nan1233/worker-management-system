@@ -7,6 +7,7 @@ const {
   DEFAULT_SETTINGS,
   parseStoredTrainingSnapshot,
   calculateNetHours,
+  calculateGcMachineLineMetrics,
   asNumber,
   asInteger,
   normalizeTrainingPercent,
@@ -87,6 +88,10 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   const snapshotMissing = trainingPercent === null;
   const factor = trainingPercent === null ? null : trainingPercent / 100;
   const standard = asNumber(report.standard_output);
+  if (String(report.process_code ?? '').trim().toUpperCase() === 'GC' && String(report.operation_mode ?? '').trim().toUpperCase() === 'MACHINE') {
+    const metrics = calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor, snapshotMissing);
+    if (metrics) return metrics;
+  }
   const machinePerformance = report.machinePerformance || report.machine_performance || null;
   const hasMachinePerformance = Number(machinePerformance?.machine_count || 0) > 0;
 
