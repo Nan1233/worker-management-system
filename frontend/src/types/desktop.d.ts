@@ -61,6 +61,8 @@ declare global {
     }
 
     interface DesktopReportImportResult {
+        /** Source workbook changed after confirmation; never overwrite it. */
+        sourceChanged?: boolean;
         detected: number;
         succeeded: number;
         failed: number;

@@ -6,11 +6,7 @@ export function useApprovedReportExcelImport(reload: () => Promise<void>) {
     const [reportImportPreview, setReportImportPreview] = useState<{ filePath?: string; fileName?: string; detected: number; creates?: number; updates?: number } | null>(null);
     const [reportImportStatus, setReportImportStatus] = useState<{ tone: "success" | "warning" | "error"; message: string } | null>(null);
     const [reportImportBusy, setReportImportBusy] = useState(false);
-    const desktopImportApi = () => (window as Window & { ktcDesktop?: {
-        isDesktop?: boolean;
-        previewReportImport?: (token: string) => Promise<any>;
-        applyReportImport?: (token: string, filePath: string) => Promise<any>;
-    } }).ktcDesktop;
+    const desktopImportApi = () => window.ktcDesktop;
 
     const previewExcelImport = async () => {
         const desktop = desktopImportApi();
@@ -48,6 +44,7 @@ export function useApprovedReportExcelImport(reload: () => Promise<void>) {
         setReportImportBusy(true); setReportImportStatus(null);
         try {
             const result = await desktop.applyReportImport(token, reportImportPreview.filePath);
+            if (Number(result?.succeeded || 0) > 0) invalidateApprovedReportCache();
             if (result?.sourceChanged) {
                 setReportImportPreview(null);
                 setReportImportStatus({ tone: "warning", message: "File đã thay đổi trong lúc import. Hãy xem trước bản mới nhất; không tự động ghi đè file." });
@@ -59,9 +56,8 @@ export function useApprovedReportExcelImport(reload: () => Promise<void>) {
             } else {
                 setReportImportStatus({ tone: "success", message: "Import thành công " + Number(result.succeeded) + " báo cáo." });
                 setReportImportPreview(null);
-                invalidateApprovedReportCache();
-                await reload();
             }
+            if (Number(result?.succeeded || 0) > 0) await reload();
         } catch (error) {
             setReportImportStatus({ tone: "error", message: error instanceof Error ? error.message : "Không thể import báo cáo." });
 
