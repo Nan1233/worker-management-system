@@ -160,7 +160,8 @@
           "excelSyncContract.cjs",
           "productionOutput.cjs",
           "productionMetricPrimitives.cjs",
-          "monthlyExcelContract.cjs"
+          "monthlyExcelContract.cjs",
+          "gcSplitReconciliation.cjs"
         ]
       }
     ]

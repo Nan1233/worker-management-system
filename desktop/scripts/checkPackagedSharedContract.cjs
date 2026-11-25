@@ -23,6 +23,12 @@ if (!hasSharedContract) {
   throw new Error('[KTC] electron-builder phải đóng gói ../shared/excelSyncContract.cjs vào resources/shared.');
 }
 
+const splitSource = path.resolve(__dirname, '../../shared/gcSplitReconciliation.cjs');
+if (!fs.existsSync(splitSource) || !entries.some(entry => entry?.from === '../shared'
+    && entry.to === 'shared' && (entry.filter?.includes('gcSplitReconciliation.cjs') || entry.filter?.includes('**/*')))) {
+  throw new Error('[KTC] Thiếu shared GC split reconciliation trong resources/shared.');
+}
+
 const runtimeConsumers = [
   path.resolve(__dirname, '../electron/monthlyWorkbookLocal.cjs'),
   path.resolve(__dirname, '../electron/excelDbSync.cjs')

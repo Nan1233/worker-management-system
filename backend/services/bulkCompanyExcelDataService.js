@@ -7,6 +7,7 @@ const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
 const { resolveReportDefects } = require('../domain/gcWorkerDefectResolver.cjs');
 
 const { PROCESS_CODES, normalizeYearMonth } = require('../../shared/monthlyExcelContract.cjs');
+const { reconcileGcSplitReports } = require('../../shared/gcSplitReconciliation.cjs');
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
 
 function monthRange(yearMonth) {
@@ -123,7 +124,17 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     ? 'pr.extra_data AS extra_data'
     : 'NULL AS extra_data';
 
-  const reports = await query(
+  // Keep approved GC parents in the candidate set until reconciliation. The
+  // correlated count also detects children outside this month/scope or not approved.
+  const childReference = "JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR)";
+  const gcCode = "UPPER(TRIM(p.process_code)) = 'GC'";
+  const gcChildCount = supportsExtraData
+    ? `CASE WHEN ${gcCode} THEN (SELECT COUNT(*) FROM production_reports split_child WHERE ${childReference}) ELSE 0 END`
+    : '0';
+  const nonGcParentFilter = supportsExtraData
+    ? `AND (${gcCode} OR NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE ${childReference}))`
+    : '';
+  const candidates = await query(
     `SELECT
         pr.id, pr.source_temp_id, pr.worker_id, pr.process_id,
         pr.work_date, ${entryDateSelect},
@@ -135,7 +146,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         pr.kqd_dap_lai, pr.kqd_tuot, pr.vo_do_long, pr.xuoc_do_long,
         pr.cong_gay, pr.xoay, pr.khong_dut, pr.bavia_hut, pr.ppcm,
         pr.loi_cao_su, pr.ng_kich_thuoc, pr.cat_lem,
-        pr.note, ${extraDataSelect}, pr.status, pr.review_note,
+        pr.note, ${extraDataSelect}, ${gcChildCount} AS gc_split_child_count, pr.status, pr.review_note,
         pr.reviewed_by, pr.approved_at, pr.created_at, pr.updated_at,
         w.worker_code,
         pr.training_percent_snapshot,
@@ -148,12 +159,16 @@ async function loadBulkCompanyReports(yearMonth, actor) {
        LEFT JOIN processes p ON p.id = pr.process_id
        LEFT JOIN production_reports_temp temp ON temp.id = pr.source_temp_id
       WHERE LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
-        AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))
+        ${nonGcParentFilter}
         AND pr.work_date >= ? AND pr.work_date < ?
         AND pr.process_id IN (${processPlaceholders})
       ORDER BY pr.work_date, w.worker_code, pr.machine_no, pr.created_at, pr.id`,
     [start, next, ...processIds]
   );
+
+  const isGc = report => String(report.process_code || '').trim().toUpperCase() === 'GC';
+  const verifiedGc = new Set(reconcileGcSplitReports(candidates.filter(isGc)).map(report => Number(report.id)));
+  const reports = candidates.filter(report => !isGc(report) || verifiedGc.has(Number(report.id)));
 
   for (const report of reports) {
     // Fail closed: today's worker master cannot reconstruct training percent
