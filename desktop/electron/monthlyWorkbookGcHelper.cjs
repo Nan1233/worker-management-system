@@ -1,6 +1,7 @@
 'use strict';
 const { asText } = require('./monthlyWorkbookValues.cjs');
 const { COLORS } = require('./monthlyWorkbookStyles.cjs');
+const { rowIdentityKey } = require('./gcMachineExportRows.cjs');
 const GC_HELPER_SHEET = 'TAY MÁY CẮT LỒNG';
 function createGcModeHelper({ applyCellStyle, solidFill, applyAllBorders }) {
 function operationTypeLabel(value) {
@@ -17,13 +18,13 @@ function operationModeLabel(value) {
   return '';
 }
 
-function addGcModeHelperSheet(workbook, dataSheet, processData, columns) {
+function addGcModeHelperSheet(workbook, dataSheet, processData, columns, renderedRows = null) {
   const helper = workbook.addWorksheet(GC_HELPER_SHEET, { views: [{ state: 'frozen', ySplit: 3, showGridLines: false }] });
   helper.mergeCells('A1:J1');
   helper.getCell('A1').value = 'BỔ SUNG THÔNG TIN TAY/MÁY - CẮT/LỒNG';
   applyCellStyle(helper.getCell('A1'), { fill: COLORS.navy, fontColor: COLORS.white, bold: true, size: 15, border: false });
   helper.mergeCells('A2:J2');
-  helper.getCell('A2').value = 'Sheet này tự cập nhật từ CẮT LỒNG ngay khi file Excel thay đổi. Với dòng mới, chỉ cần bổ sung Loại thao tác, Chế độ và Máy nếu chọn MÁY.';
+  helper.getCell('A2').value = 'Dòng MÁY đã duyệt chỉ để đối chiếu; sửa số liệu máy trên ứng dụng. Dòng TAY mới cần bổ sung loại thao tác và chế độ.';
   applyCellStyle(helper.getCell('A2'), { fill: COLORS.blueLight, fontColor: COLORS.navy, bold: false, size: 10, border: false, align: 'left' });
   const headers = ['Dòng nguồn','ID','Mã NV','Ca','Mã SP','Loại thao tác','Chế độ','Máy','Trạng thái','Thiếu thông tin'];
   headers.forEach((h,i)=>{ helper.getCell(3,i+1).value=h; applyCellStyle(helper.getCell(3,i+1), { fill: COLORS.blue, fontColor: COLORS.white, bold: true }); });
@@ -51,8 +52,10 @@ function addGcModeHelperSheet(workbook, dataSheet, processData, columns) {
   const dataSheetName = String(dataSheet.name || 'CẮT LỒNG').replace(/'/g, "''");
   const sourceRef = (row, col) => `'${dataSheetName}'!${dataSheet.getColumn(col).letter}${row}`;
 
-  for (let sourceRow = 6; sourceRow <= MAX_AUTO_SOURCE_ROW; sourceRow += 1) {
-    const outRow = sourceRow - 2;
+  const firstSourceRow = renderedRows instanceof Map ? 5 : 6;
+  const existingByRow = new Map((processData?.reports||[]).map(report=>[renderedRows?.get(rowIdentityKey(report))?.row,report]));
+  for (let sourceRow = firstSourceRow; sourceRow <= MAX_AUTO_SOURCE_ROW; sourceRow += 1) {
+    const outRow = sourceRow - firstSourceRow + 4;
     const sttRef = sourceRef(sourceRow, 1);
     const validExpr = `AND(ISNUMBER(${sttRef}),${sttRef}>0)`;
     const formula = (expr) => ({ formula: `IF(${validExpr},${expr},\"\")` });
@@ -73,6 +76,16 @@ function addGcModeHelperSheet(workbook, dataSheet, processData, columns) {
     }
     helper.getCell(outRow, 8).value = machineCol ? formula(sourceRef(sourceRow, machineCol)) : '';
 
+    const existing = existingByRow.get(sourceRow);
+    if(existing){
+      helper.getCell(outRow,1).value=sourceRow;
+      // A machine row is not a unique report edit target. Source-row lineage
+      // lives in _KTC_SYNC, not a duplicated helper report ID.
+      helper.getCell(outRow,2).value=existing.excelMachineLineId==null?Number(existing.id):'';
+      helper.getCell(outRow,6).value=operationTypeLabel(existing.operation_type);
+      helper.getCell(outRow,7).value=operationModeLabel(existing.operation_mode);
+      helper.getCell(outRow,8).value=asText(existing.machine_no);
+    }
     // Status is calculated from the helper cells themselves so manual selections in F:G:H
     // immediately update the message without any EXE action.
     helper.getCell(outRow, 9).value = { formula: `IF($A${outRow}=\"\",\"\",IF(OR($F${outRow}=\"\",$G${outRow}=\"\",AND($G${outRow}=\"MÁY\",$H${outRow}=\"\")),\"THIẾU THÔNG TIN\",\"ĐỦ THÔNG TIN\"))` };
@@ -89,7 +102,7 @@ function addGcModeHelperSheet(workbook, dataSheet, processData, columns) {
     helper.getCell(outRow, 7).protection = { locked:false };
     helper.getCell(outRow, 8).protection = { locked:false };
   }
-  applyAllBorders(helper, { fromRow:3, toRow:MAX_AUTO_SOURCE_ROW - 2, fromCol:1, toCol:10 });
+  applyAllBorders(helper, { fromRow:3, toRow:MAX_AUTO_SOURCE_ROW - firstSourceRow + 4, fromCol:1, toCol:10 });
   return helper;
 }
 

@@ -1,7 +1,8 @@
 'use strict';
 const { PROCESS_CODES, normalizeYearMonth }=require('./monthlyExcelContract.cjs');
 const { assertApprovedDatabasePayload }=require('./monthlyWorkbookReportData.cjs');
-const { splitMetadata, reconcileGcSplitReports } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'gcSplitReconciliation.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'gcSplitReconciliation.cjs') : '../../shared/gcSplitReconciliation.cjs');
+const { reconcileGcSplitReports } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'gcSplitReconciliation.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'gcSplitReconciliation.cjs') : '../../shared/gcSplitReconciliation.cjs');
+const { validateGcMachineReports } = require('./gcMachineExportRows.cjs');
 function processRows(payload) {
   const processes = payload?.processes || {};
   return PROCESS_CODES.map((code) => {
@@ -35,7 +36,6 @@ function prepareMonthlyPayload(source,date){
     return [code,{...data,reports:(data.reports||[]).map(report=>({...report}))}];
   }))};
   const ids=new Set();
-  const blocked=[];
   for(const {processCode,data} of processRows(payload)){
     for(const report of data.reports){
       const id=Number(report.id);
@@ -49,22 +49,8 @@ function prepareMonthlyPayload(source,date){
     hydrateReportDetails(data);
     if(processCode!=='GC')continue;
     data.reports=reconcileGcSplitReports(data.reports);
-    for(const report of data.reports){
-      const machineNames=[...new Set(String(report.machine_no||'').split(/[,;\r\n]+/).map(value=>value.trim()).filter(Boolean))];
-      const lines=Array.isArray(report.machineLines)?report.machineLines:Array.isArray(report.machine_lines)?report.machine_lines:[];
-      const lineNames=[...new Set(lines.map(line=>String(line.machine_code||line.machine_no||line.machine_name||'').trim()).filter(Boolean))];
-      // This paper template has one identity per DB report. Do not duplicate
-      // that identity across machine rows or fabricate a per-machine split.
-      const normalizedNames=[...new Set([...machineNames,...lineNames].map(name=>name.toUpperCase()))];
-      const invalidLine=lines.some(line=>!String(line.machine_code||line.machine_no||line.machine_name||'').trim()
-        || !Number.isSafeInteger(Number(line.id)) || Number(line.id)<=0
-        || (line.report_id!=null && Number(line.report_id)!==Number(report.id)));
-      if(machineNames.length>1||lineNames.length>1||lines.length>1||normalizedNames.length>1||invalidLine||splitMetadata(report).split_status==='SPLIT_PARENT') {
-        blocked.push({reportId:report.id,machines:normalizedNames,reason:invalidLine?'INVALID_MACHINE_LINE_IDENTITY':'MULTI_MACHINE_OR_CONFLICTING_IDENTITY'});
-      }
-    }
+    validateGcMachineReports(data.reports);
   }
-  if(blocked.length)throw Object.assign(new Error('GC còn '+blocked.length+' báo cáo cần đối soát dữ liệu từng máy: '+blocked.slice(0,20).map(item=>item.reportId).join(', ')),{code:'GC_EXPORT_SPLIT_REQUIRED',details:blocked});
   return payload;
 }
 module.exports={prepareMonthlyPayload,processRows};

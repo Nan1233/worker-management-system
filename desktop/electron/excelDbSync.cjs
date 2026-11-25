@@ -92,17 +92,27 @@ function parseMeta(workbook) {
   const reports = new Map();
   for (let row = 3; row <= metaSheet.rowCount; row += 1) {
     const id = Number(metaSheet.getCell(row, 1).value);
-    if (!Number.isInteger(id) || id <= 0) continue;
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      if(metaSheet.getCell(row,1).value!=null)throw Object.assign(new Error('ID metadata không hợp lệ.'),{code:'EXCEL_SYNC_META_INVALID'});
+      continue;
+    }
+    const rawLine=metaSheet.getCell(row,9).value;
+    const machineLineId=rawLine==null||rawLine===''?null:Number(rawLine);
+    if(machineLineId!==null&&(config.rowIdentityMode!=='KTC_SYNC_ROW_V2'||config.processCode!=='GC'||!Number.isSafeInteger(machineLineId)||machineLineId<=0))throw Object.assign(new Error('ID dòng máy không hợp lệ.'),{code:'EXCEL_SYNC_META_INVALID'});
+    const identity=machineLineId===null?id:'machine:'+id+':'+machineLineId;
     // Duplicate IDs in hidden lineage can silently overwrite an earlier
     // snapshot and route edits to the wrong approved report. Fail closed.
-    if (reports.has(id)) {
+    if (reports.has(identity)) {
       const error = new Error('Sheet _KTC_SYNC chứa ID báo cáo trùng. Hãy xuất lại Excel từ DB.');
       error.code = 'EXCEL_SYNC_DUPLICATE_META_ID';
       throw error;
     }
     let original = {};
-    try { original = JSON.parse(String(metaSheet.getCell(row, 4).value || '{}')); } catch {}
-    reports.set(id, {
+    try { original = JSON.parse(String(metaSheet.getCell(row, 4).value || '{}')); } catch {throw Object.assign(new Error('Snapshot metadata không hợp lệ.'),{code:'EXCEL_SYNC_META_INVALID'});}
+    if(!original||typeof original!=='object'||Array.isArray(original))throw Object.assign(new Error('Snapshot metadata không hợp lệ.'),{code:'EXCEL_SYNC_META_INVALID'});
+    if(machineLineId!==null&&(!Array.isArray(original.excel_readonly_cells)||!original.excel_readonly_cells.length))throw Object.assign(new Error('Thiếu snapshot dòng máy.'),{code:'EXCEL_SYNC_META_INVALID'});
+    reports.set(identity, {
+      reportId:id,machineLineId,
       expectedUpdatedAt: metaSheet.getCell(row, 2).value || null,
       operationMode: asText(metaSheet.getCell(row, 3).value).toUpperCase(),
       sourceRow: Number(metaSheet.getCell(row, 5).value || 0),
@@ -131,7 +141,7 @@ async function readExcelChanges(filePath) {
   const gcHelper = meta.config.processCode === 'GC' ? parseGcHelperSheet(workbook) : null;
   let helperDirty = false;
   const idColumn = meta.config.columns.find((col) => col.key === 'id');
-  const paperRows = !idColumn && meta.config.rowIdentityMode === 'KTC_SYNC_ROW_V1';
+  const paperRows = !idColumn && ['KTC_SYNC_ROW_V1','KTC_SYNC_ROW_V2'].includes(meta.config.rowIdentityMode);
   if (!idColumn && !paperRows) {
     // Legacy paper exports cannot be safely joined to report IDs. Require a
     // fresh export rather than guessing by row position or worker name.
@@ -161,7 +171,7 @@ async function readExcelChanges(filePath) {
       continue;
     }
     const id = Number(sheet.getCell(row, idColumn.index).value);
-    if (Number.isInteger(id) && id > 0) {
+    if (Number.isSafeInteger(id) && id > 0) {
       if (rowById.has(id)) {
         const error = new Error('File Excel chứa ID báo cáo lặp.');
         error.code = 'EXCEL_SYNC_DUPLICATE_ID';
@@ -204,7 +214,17 @@ async function readExcelChanges(filePath) {
     const current = currentByKey(sheet, row, meta.config.columns);
     current.workDate = rowDate.get(row) || null;
     if(explicitIdentity && (asText(current.workerCode)!==reportMeta.workerCode || current.workDate!==reportMeta.workDate))throw Object.assign(new Error('Mã công nhân hoặc ngày của dòng Excel không khớp snapshot.'),{code:'EXCEL_SYNC_ROW_IDENTITY_MISMATCH'});
-    const helperItem = gcHelper ? (gcHelper.byId.get(id) || gcHelper.bySourceRow.get(row)) : null;
+    const helperItem = gcHelper ? (gcHelper.bySourceRow.get(row) || gcHelper.byId.get(id)) : null;
+    if(reportMeta.machineLineId!==null){
+      const snapshot=reportMeta.original.excel_readonly_cells;
+      const cellValue=value=>value instanceof Date?value.toISOString():value==null?null:value;
+      const changed=snapshot.some(([column,before])=>!Number.isSafeInteger(column)||column<1||!same(cellValue(sheet.getCell(row,column).value),before));
+      const helperChanged=helperItem&&((helperItem.operationType&&helperItem.operationType!==normalizeOperationType(reportMeta.original.operation_type))
+        ||(helperItem.operationMode&&helperItem.operationMode!==normalizeOperationMode(reportMeta.original.operation_mode))
+        ||(helperItem.machine&&helperItem.machine!==asText(reportMeta.original.machine_no)));
+      if(changed||helperChanged)throw Object.assign(new Error('Dòng máy GC '+reportMeta.machineLineId+' chỉ để đối chiếu. Hãy sửa báo cáo máy trên ứng dụng.'),{code:'EXCEL_SYNC_MACHINE_LINE_READ_ONLY'});
+      continue;
+    }
     if (helperItem?.operationType) current.operationType = helperDisplayType(helperItem.operationType);
     if (helperItem?.operationMode) current.operationMode = helperDisplayMode(helperItem.operationMode);
     if (helperItem?.machine) current.machine = helperItem.machine;
@@ -254,7 +274,7 @@ async function readExcelChanges(filePath) {
     ]);
     for (const [key, afterRaw] of Object.entries(candidate)) {
       if (!isExcelMutableField(key) || !availablePatch.has(key)) continue;
-      const beforeRaw = explicitIdentity && reportMeta.original.excel_baseline && Object.prototype.hasOwnProperty.call(reportMeta.original.excel_baseline,key) ? reportMeta.original.excel_baseline[key] : original[key];
+      const beforeRaw = reportMeta.original.excel_baseline && Object.prototype.hasOwnProperty.call(reportMeta.original.excel_baseline,key) ? reportMeta.original.excel_baseline[key] : original[key];
       const before = fieldValue(key, beforeRaw);
       const after = fieldValue(key, afterRaw);
       if (!same(before, after)) {

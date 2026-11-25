@@ -79,7 +79,7 @@ function createPhysicalMachineMetadata({ asText, asNumber }) {
     const seen = new Set();
     for (const event of processData?.physicalMachineEvents || []) {
       const id = Number(event.id || 0);
-      if (!id || seen.has(id)) continue;
+      if (!Number.isSafeInteger(id)||id<=0||seen.has(id))throw Object.assign(new Error('ID sự kiện máy thiếu hoặc trùng: '+id),{code:'EXCEL_MACHINE_EVENT_ID_INVALID'});
       seen.add(id);
       const deduction = machineEventDeductionSnapshot(linesByEvent.get(id) || []);
       sheet.addRow([

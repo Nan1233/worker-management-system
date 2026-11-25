@@ -3,6 +3,7 @@
 const { COLORS } = require('./monthlyWorkbookStyles.cjs');
 const { asText, NUMBER_FORMATS, resolvedNumberFormat } = require('./monthlyWorkbookValues.cjs');
 const { PROCESS_SHEETS } = require('./monthlyWorkbookSchemas.cjs');
+const { linesOf } = require('./gcMachineExportRows.cjs');
 
 function createMonthlySummarySheets({
   applyCellStyle, applyAllBorders, sortReports, formulaSettingsFor,
@@ -52,6 +53,37 @@ function addSummary(workbook, payload, yearMonth) {
   }
   sheet.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1 };
   applyAllBorders(sheet, { fromRow: 4, toRow: rowNumber - 1, fromCol: 1, toCol: columns.length });
+  addPhysicalTimeSummary(workbook,payload);
+  return sheet;
+}
+
+// These totals describe distinct approved machine events, not the sum of
+// Worker credit rows. Missing event links make coverage incomplete.
+function addPhysicalTimeSummary(workbook,payload){
+  const sheet=workbook.addWorksheet('GIỜ MÁY VẬT LÝ',{views:[{state:'frozen',ySplit:2}]});
+  const data=payload.processes?.GC||{};
+  const events=new Map();
+  for(const event of data.physicalMachineEvents||[]){
+    const id=Number(event.id),raw=event.machine_time_hours,hours=Number(raw);
+    if(!Number.isSafeInteger(id)||id<=0||events.has(id)||raw==null||String(raw).trim()===''||!Number.isFinite(hours)||hours<0)throw Object.assign(new Error('Sự kiện máy GC không hợp lệ: '+id),{code:'EXCEL_MACHINE_EVENT_INVALID'});
+    events.set(id,hours);
+  }
+  let missing=0,unlinked=0,workerRows=0;
+  for(const report of data.reports||[]){
+    if(asText(report.operation_mode).toUpperCase()!=='MACHINE')continue;
+    const lines=linesOf(report);
+    if(!lines.length)missing++;
+    for(const line of lines){
+      workerRows++;
+      const id=Number(line.machine_event_id||0);
+      if(!id)unlinked++;else if(!events.has(id))missing++;
+    }
+  }
+  sheet.addRow(['Số sự kiện máy đã duyệt','Tổng giờ máy đã xác nhận','Dòng công nhân–máy','Dòng chưa liên kết','Liên kết thiếu','Phạm vi']);
+  sheet.addRow([events.size,[...events.values()].reduce((a,b)=>a+b,0),workerRows,unlinked,missing,missing||unlinked?'CHƯA ĐẦY ĐỦ':'SỰ KIỆN ĐÃ DUYỆT']);
+  sheet.addRow(['Giờ máy chỉ cộng theo event ID; giờ trên dòng công nhân là giờ tham gia theo máy, không phải thời gian chấm công.']);
+  [26,28,24,22,22,28].forEach((width,index)=>{sheet.getColumn(index+1).width=width;applyCellStyle(sheet.getCell(1,index+1),{fill:COLORS.blue,fontColor:COLORS.white,bold:true});});
+  sheet.getCell(2,2).numFmt=NUMBER_FORMATS.DECIMAL;
   return sheet;
 }
 

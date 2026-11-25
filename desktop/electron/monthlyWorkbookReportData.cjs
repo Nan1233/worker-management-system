@@ -140,7 +140,8 @@ function compareReportsForWorkbook(left, right) {
     || reportTimeKey(left).localeCompare(reportTimeKey(right))
     || asText(left.worker_code).localeCompare(asText(right.worker_code), undefined, { numeric: true })
     || machineDisplay(left).localeCompare(machineDisplay(right), undefined, { numeric: true })
-    || Number(left.id || 0) - Number(right.id || 0);
+    || Number(left.id || 0) - Number(right.id || 0)
+    || Number(left.excelMachineLineId || 0) - Number(right.excelMachineLineId || 0);
 }
 
 function sortReports(reports) {

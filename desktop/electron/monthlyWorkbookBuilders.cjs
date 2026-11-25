@@ -1,5 +1,6 @@
 'use strict';
 const ExcelJS = require('exceljs');
+const { projectGcMachineRows } = require('./gcMachineExportRows.cjs');
 const { PROCESS_SHEETS } = require('./monthlyWorkbookSchemas.cjs');
 const { FORMS: ORIGINAL_KTC_FORMS, WORKBOOK1_FORMS, renderOriginalProcessTemplate } = require('./originalProcessExcelTemplate.cjs');
 const { processWorkbookFileName, summaryWorkbookFileName } = require('./monthlyWorkbookNaming.cjs');
@@ -44,8 +45,9 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
   const yearMonth = String(payload.yearMonth || date || '').slice(0, 7);
   const processData = payload.processes?.[code] || {};
   if (WORKBOOK1_FORMS[code] || ORIGINAL_KTC_FORMS[code]) {
+    const renderedData = code === 'GC' ? {...processData,reports:projectGcMachineRows(processData.reports||[])} : processData;
     const original = await renderOriginalProcessTemplate({
-      ExcelJS, code, processData, yearMonth, settings: formulaSettingsFor(payload,code),
+      ExcelJS, code, processData:renderedData, yearMonth, settings: formulaSettingsFor(payload,code),
       helpers: { sortReports, dateKey, processDetailTypes, reportSnapshot, settingsForReport,
         parseExtraData, detailMap, reportDetailItems }, onTemplateLoaded
     });
@@ -54,9 +56,9 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
       // Its row 6 references match Workbook1's row 5 date separator + first report.
       const mappedColumns = Array.from({ length: Math.max(...original.mapping.map(x => x.index)) },
         (_, index) => ({ key: original.mapping.find(field => field.index === index + 1)?.key || '' }));
-      addGcModeHelperSheet(original.workbook, original.sheet, processData, mappedColumns);
+      addGcModeHelperSheet(original.workbook, original.sheet, renderedData, mappedColumns, original.reportRowIdentity);
     }
-    addExcelDbSyncMetadata(original.workbook, code, config, processData, yearMonth, original.mapping, original.reportRowIdentity);
+    addExcelDbSyncMetadata(original.workbook, code, config, renderedData, yearMonth, original.mapping, original.reportRowIdentity);
     addPhysicalMachineEventsMetadata(original.workbook, processData);
     const buffer = Buffer.from(await original.workbook.xlsx.writeBuffer());
     const originalCols = {};
@@ -65,7 +67,7 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
         originalCols[field.key] = field.index;
       }
     }
-    return {buffer, result:original.result, processCode:code, processName:config.title,
+    return {buffer, result:{...original.result,reportCount:(processData.reports||[]).length,renderedRowCount:original.result.reportCount}, processCode:code, processName:config.title,
       fileName:processWorkbookFileName(code,date,payload), formulaReplacementCount:0,
       templateKind:WORKBOOK1_FORMS[code] ? "workbook1-sheet" : "original-company", columnContract:{cols:originalCols}};
   }

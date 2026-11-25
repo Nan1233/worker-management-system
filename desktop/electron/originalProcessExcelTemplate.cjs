@@ -9,6 +9,7 @@ const { FORMS, WORKBOOK1_FORMS } = require('./originalProcessTemplateRegistry.cj
 const { trimOriginalTemplateSheet } = require('./originalTemplateSheetTrimming.cjs');
 const { cloneExcelStyle } = require('./excelStyleClone.cjs');
 const { reportWorkDate, reportRowValues } = require('./originalProcessReportProjection.cjs');
+const { rowIdentityKey } = require('./gcMachineExportRows.cjs');
 const norm = (value) => String(value == null ? "" : value)
   .normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D")
   .toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -264,7 +265,9 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     const snapshot=helpers.reportSnapshot(report,helpers.settingsForReport(report,settings,processData?.formulaSettingsByDate||processData?.settingsByDate||{}));
     const extra=helpers.parseExtraData(report);
     const values = reportRowValues({ snapshot, day, stt: ++dayStt, code, report, extra });
-    reportRowIdentity.set(Number(report.id),{row:targetRowIndex,day,stt:dayStt});
+    const identityKey=rowIdentityKey(report);
+    if(reportRowIdentity.has(identityKey))throw new Error('Trùng định danh dòng Excel: '+identityKey);
+    reportRowIdentity.set(identityKey,{row:targetRowIndex,day,stt:dayStt});
     for (const [col,key] of Object.entries(config.fields)) {
       const value=key.startsWith("extra:")?extra[key.slice(6)]:values[key];
       if(value!==undefined && value!==null) {
