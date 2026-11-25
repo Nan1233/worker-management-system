@@ -10,10 +10,10 @@ async function listApprovedReports({ actor, query }) {
   const filters = normalizeApprovedReportFilters(query);
   const scope = await getActorProcessScope(actor);
   const scoped = scopeSql(scope, 'pr.process_id');
-  const { rows, linesByReport, processes, total } = await readApprovedReportPage(db.promise(), filters, scoped);
+  const { rows, linesByReport, deductionsByReport, processes, total } = await readApprovedReportPage(db.promise(), filters, scoped);
   const data = rows.map(row => {
     const machine_lines = linesByReport.get(String(row.id)) || [];
-    const kpi = projectApprovedReportKpi({ ...row, machine_lines });
+    const kpi = projectApprovedReportKpi({ ...row, machine_lines, deductions: deductionsByReport.get(String(row.id)) || [] });
     return { ...row, machine_lines, training_percent: kpi.trainingPercent, kpi };
   });
   return { success:true, data, ...(processes !== undefined ? { processes } : {}), pagination:paginationMeta({page:filters.page,pageSize:filters.pageSize,total}) };

@@ -89,6 +89,7 @@ async function readApprovedReportPage(executor, filters, scoped) {
     // Hydrate worker-credit lines in one bounded query, never physical event totals.
     const ids = dataRows.map(row => row.id);
     const linesByReport = new Map();
+    const deductionsByReport = new Map();
     if (ids.length) {
       const [lines] = await executor.query(
         `SELECT * FROM production_report_machine_lines WHERE report_id IN (${ids.map(()=>'?').join(',')}) ORDER BY id`, ids
@@ -97,6 +98,17 @@ async function readApprovedReportPage(executor, filters, scoped) {
         const key = String(line.report_id);
         if (!linesByReport.has(key)) linesByReport.set(key, []);
         linesByReport.get(key).push(line);
+      }
+    }
+    // GC legacy single-line reports may have worker deductions only at parent level.
+    const gcIds = dataRows.filter(row => String(row.process_code || '').toUpperCase() === 'GC' && (linesByReport.get(String(row.id)) || []).length === 1).map(row => row.id);
+    if (gcIds.length) {
+      const [deductions] = await executor.query(
+        `SELECT report_id,hours FROM production_report_deductions WHERE report_id IN (${gcIds.map(()=>'?').join(',')})`,gcIds);
+      for (const item of deductions) {
+        const key = String(item.report_id);
+        if (!deductionsByReport.has(key)) deductionsByReport.set(key, []);
+        deductionsByReport.get(key).push(item);
       }
     }
     // Populate the process dropdown from ALL approved reports the actor may
@@ -119,6 +131,6 @@ async function readApprovedReportPage(executor, filters, scoped) {
       processes = processRows || [];
     }
 
-    return { rows:dataRows, linesByReport, processes, total:Number(countRows[0]?.total || 0) };
+    return { rows:dataRows, linesByReport, deductionsByReport, processes, total:Number(countRows[0]?.total || 0) };
 }
 module.exports = { readApprovedReportPage };

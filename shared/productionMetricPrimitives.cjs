@@ -111,9 +111,8 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
 
   for (const line of lines) {
     const machineHours = positiveHours(line.machine_time_hours);
-    const lineDeductions = positiveDetails(
-      parseArray(line.deductions).length ? line.deductions : line.deductions_json
-    );
+    const explicitDeductions = positiveDetails(line.deductions);
+    const lineDeductions = explicitDeductions.length ? explicitDeductions : positiveDetails(line.deductions_json);
     const reportLineDeductions = lineDeductions.length
       ? lineDeductions
       : (allowReportFallback ? reportDeductions : []);
@@ -235,8 +234,14 @@ function calculateStoredProductionMetrics(report = {}, settings = {}) {
     return { trainingPercent, trainingFactor: factor, trainingSnapshotAvailable: !snapshotMissing, workingTime: null, deductionTime: null, actualTime: null, ok: null, allNg: null, countedNg: null, enteredOutput: null, adjustedOutput: null, standard: null, plannedOutput: null, outputPerHour: null, achievement: null, ngRate: null, hasMachinePerformance: false };
   }
 
-  const machinePerformance = report.machinePerformance || report.machine_performance || null;
-  const hasMachinePerformance = Number(machinePerformance?.machine_count || 0) > 0;
+  // Prefer persisted line targets regardless of whether the caller enriched
+  // the report with a presentation-only machinePerformance object.
+  const lines = Array.isArray(report.machineLines) ? report.machineLines : Array.isArray(report.machine_lines) ? report.machine_lines : [];
+  const hasMachinePerformance = String(report.operation_mode ?? '').trim().toUpperCase() === 'MACHINE' && lines.length > 0;
+  const storedMachineTargets = lines.map(line => asNumber(line.maximum_output));
+  const machineTarget = storedMachineTargets.every(value => value !== null && value >= 0)
+    ? storedMachineTargets.reduce((sum, value) => sum + value, 0)
+    : null;
 
   const adjustedOutput = calculateStoredAdjustedOutput({
     enteredOutput,
@@ -255,7 +260,7 @@ function calculateStoredProductionMetrics(report = {}, settings = {}) {
     // Machine performance is itself a backend snapshot. Preserve it when it
     // exists, otherwise use the DB report fields above.
     outputPerHour = safeRatio(adjustedOutput, actualTime);
-    plannedOutput = asNumber(machinePerformance.maximum_output);
+    plannedOutput = machineTarget;
     achievement = safeRatio(adjustedOutput, plannedOutput);
   } else {
     outputPerHour = safeRatio(adjustedOutput, actualTime);

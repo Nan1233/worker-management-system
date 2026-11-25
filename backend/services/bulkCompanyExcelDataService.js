@@ -385,8 +385,8 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         const eventLines = (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean);
         // Keep report-level deductions as Worker credit. Physical machine
         // deductions stay under machineAccounting and must not overwrite them.
-        const deductions = tempDeductions.length ? tempDeductions : persistedDeductions;
-        const reportDefects = tempDefects.length ? tempDefects : persistedDefects;
+        const deductions = persistedDeductions;
+        const reportDefects = persistedDefects;
         const defects = resolveReportDefects({
           processCode: code,
           operationMode: report.operation_mode,
