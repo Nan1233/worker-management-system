@@ -6,6 +6,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const {execFileSync}=require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
 const excluded = new Set(['.git', 'node_modules', 'dist', 'build', '.gradle', '.wrangler', 'coverage', 'playwright-report', 'test-results']);
@@ -19,7 +20,15 @@ function walk(dir) {
     } else if (entry.isFile()) files.push(path.join(dir, entry.name));
   }
 }
-walk(root);
+// Prefer tracked files, including small compatibility shims and assets.
+// Do not scan local secrets, caches, build products or untracked workbooks.
+try {
+  const tracked=execFileSync('git',['ls-files','-z'],{cwd:root,encoding:'utf8',maxBuffer:32*1024*1024}).split('\0').filter(Boolean);
+  for(const name of tracked){const file=path.join(root,name);if(fs.existsSync(file)&&fs.lstatSync(file).isFile()&&!fs.lstatSync(file).isSymbolicLink())files.push(file);}
+} catch {
+  // Source archive without .git: never infer safe deletions from this result.
+  walk(root);
+}
 const relative = file => path.relative(root, file).replace(/\\/g, '/');
 const all = new Set(files.map(relative));
 // Static import analysis is a review aid, not a deletion oracle.
@@ -54,13 +63,13 @@ for (const file of files) {
       } else unresolved.push({ file: rel, spec });
     }
   }
-  if (/require\s*\(\s*(?!['"])/.test(text) || /import\s*\(\s*(?!['"])/.test(text)) dynamic.push(rel);
+  if ([...text.matchAll(/\b(?:require|import)\s*\(([^\n]*)/g)].some(match=>!/^['"]/.test(match[1].trimStart()))) dynamic.push(rel);
   imports.set(rel, [...dependencies].sort());
 }
 const hashes = new Map();
 for (const file of files) {
   const stat = fs.statSync(file);
-  if (stat.size < 1024) continue;
+  if (stat.size === 0) continue;
   const hash = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
   if (!hashes.has(hash)) hashes.set(hash, []);
   hashes.get(hash).push(relative(file));
@@ -74,11 +83,27 @@ const withinDirectoryDuplicates = duplicates.filter(group => {
 const crossDirectoryDuplicates = duplicates.filter(group => new Set(group.map(file => path.posix.dirname(file))).size > 1);
 const versioned = files.map(relative).filter(f => /(?:^|[._-])v\d+(?:[._-]|$)/i.test(path.basename(f)));
 const noStaticInbound = [...imports.keys()].filter(f => !(inbound.get(f) || []).length).sort();
+// Explicit runtime references from package scripts and workflows are separate
+// from imports. A basename match is only an advisory candidate.
+const manifestRefs=new Map();
+const manifests=files.filter(file=>/(?:^|\/)(?:package\.json|wrangler\.(?:toml|jsonc?)|[^/]+\.ya?ml)$/.test(relative(file)));
+for(const file of manifests){
+  const contents=fs.readFileSync(file,'utf8');
+  const rel=relative(file);
+  for(const candidate of noStaticInbound){
+    if(contents.includes(candidate)||contents.includes(path.posix.basename(candidate))){
+      if(!manifestRefs.has(candidate))manifestRefs.set(candidate,[]);
+      manifestRefs.get(candidate).push(rel);
+    }
+  }
+}
 const result = {
   note: 'Static analysis only. No-static-inbound does NOT imply unused: entrypoints, dynamic imports, scripts, package.json, native assets and runtime lookup are not resolved.',
   files: files.length, analyzedSourceFiles: imports.size,
   versioned, duplicates, withinDirectoryDuplicates, crossDirectoryDuplicates, unresolved, dynamic,
   noStaticInbound,
+  manifestReferences:Object.fromEntries(manifestRefs),
+  reviewCandidates:noStaticInbound.filter(file=>!manifestRefs.has(file)),
 };
 if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result, null, 2) + '\n');
 else {

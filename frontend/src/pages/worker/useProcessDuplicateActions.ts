@@ -48,7 +48,7 @@ export function useProcessDuplicateActions({
         submitLockRef.current = false;
         setSubmitting(false);
         navigate("/worker", { replace: true });
-    }, [navigate, process, setDuplicatePrompt]);
+    }, [navigate, process, setDuplicatePrompt, isRestoringDraftRef, resetVersionRef, draftSaveTimerRef, clientRequestIdRef, pendingSplitPayloadsRef, duplicatePrimaryCompletedRef, duplicateForceRequestIdRef, submitLockRef, setSubmitting]);
 
     const handleCreateDuplicateAnyway = async () => {
         if (submitLockRef.current || !duplicatePrompt) return;

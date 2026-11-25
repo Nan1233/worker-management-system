@@ -137,7 +137,7 @@ test('successful duplicate creation/update clears the draft and invalidates pend
   assert.match(cleanup, /clearProcessDraftAsync\(process\)/);
   assert.match(finish, /clearSubmittedProcessDraft\(/);
   assert.ok(finish.indexOf('clearSubmittedProcessDraft(') < finish.indexOf('navigate("/worker"'));
-  assert.match(finish, /\[navigate, process, setDuplicatePrompt\]/);
+  assert.match(finish, /\[navigate, process, setDuplicatePrompt,[^\]]*clientRequestIdRef[^\]]*setSubmitting\]/);
   const create = page.slice(end, page.indexOf('const handleUpdateExistingReport', end));
   const update = page.slice(page.indexOf('const handleUpdateExistingReport', end), page.indexOf('// Separate-run duplicate creation', end));
   assert.match(create, /showToast\([\s\S]*?finishDuplicateAction\(\)/);

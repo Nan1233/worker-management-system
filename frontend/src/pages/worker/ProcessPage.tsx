@@ -10,8 +10,6 @@ import {
 } from "react-router-dom";
 
 
-import type { ProductionReport } from "../../types/production";
-
 import type { ProductStandardOption } from "../../services/masterDataService";
 
 import { useToast } from "../../components/feedback/toastContext";
@@ -226,7 +224,7 @@ const machineAutocompleteOptions =
 
         setSelectedNg(aggregate.selectedNg);
         setForm((current) => applyMachineAggregateToForm(current, aggregate, machineLines.length, activeNgOptions));
-    }, [usesMultiMachineLines, machineLines, activeNgOptions]);
+    }, [usesMultiMachineLines, machineLines, activeNgOptions, setForm, setSelectedNg]);
 
     useProcessSingleStandardLookup(processInfo.id, form, setForm);
 

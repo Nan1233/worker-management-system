@@ -1,5 +1,5 @@
 import { resolveCutExecutionMode } from "./cutExecutionMode.js";
-import { getWorkerEditWindow, WORKER_EDIT_TIME_LIMIT_ENABLED, formatRemaining } from "./reportEditWindow";
+import { getWorkerEditWindow, WORKER_EDIT_TIME_LIMIT_ENABLED } from "./reportEditWindow";
 import { validateMachineLines } from "./processPageValidation";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -18,12 +18,12 @@ import { getWorkerDeclaredDefects } from "../../utils/workerDeclaredDefects";
 import { detectIncompleteMachineData } from "../../utils/machineLinesIntegrity";
 import { buildApprovedMachineNotePatch, isApprovedMachineReport } from "../../utils/approvedMachineEditPatch";
 import { useProcessMasterData } from "./useProcessMasterData";
-import { createEmptyMachineLine, getWorkerAllowedWorkDates, initialDeduction, initialForm, type DeductionState, type FormState, type MachineLineState, type NgKey } from "./processPageConfig";
+import { createEmptyMachineLine, initialDeduction, initialForm, type DeductionState, type FormState, type MachineLineState, type NgKey } from "./processPageConfig";
 import { buildProductionReportPayload } from "./processReportSubmission";
 import { filterProductsForSelection, toProductAutocompleteOptions } from "./productSuggestionRules";
 import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
-import { formatIntegerDisplay, MAX_TOTAL_WORK_MINUTES, parseFlexibleTime } from "./processFormUtils";
-import { getMachineNgTotal, getMaxMachineCount, toggleMachineDefectLine, updateMachineDefectLine } from "./processMachineLines";
+import { MAX_TOTAL_WORK_MINUTES, parseFlexibleTime } from "./processFormUtils";
+import { getMaxMachineCount, toggleMachineDefectLine, updateMachineDefectLine } from "./processMachineLines";
 
 const n = (v: unknown) => Number(v || 0);
 const s = (v: unknown) => String(v ?? "");
@@ -139,7 +139,7 @@ export function useWorkerReportEdit() {
     sourceLines.forEach((line) => add(line.machine_code, line.machine_id));
     s(report?.machine_no).split(",").forEach((value) => add(value));
     return result;
-  }, [machineOptions, sourceLines, report]);
+  }, [machineOptions, sourceLines, report, processId]);
 
   const editProductOptions = useMemo(() => {
     const result: ProductStandardOption[] = [...productOptions];
@@ -153,7 +153,7 @@ export function useWorkerReportEdit() {
     sourceLines.forEach((line) => add(line.product_code));
     s(report?.product_name).split(",").forEach(add);
     return result;
-  }, [productOptions, sourceLines, report]);
+  }, [productOptions, sourceLines, report, processId]);
 
   useEffect(() => {
     let alive = true;

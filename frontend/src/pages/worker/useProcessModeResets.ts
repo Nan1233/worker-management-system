@@ -33,7 +33,7 @@ export function useProcessModeResets({
         setMachineLines((current) => current.map((line) => line.productCode
             ? { ...line, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" }
             : line));
-    }, [operationType, isCutLongProcess]);
+    }, [operationType, isCutLongProcess, isRestoringDraftRef, setForm, setMachineLines]);
 
     useEffect(() => {
         if (isRestoringDraftRef.current) return;
@@ -41,7 +41,7 @@ export function useProcessModeResets({
         setForm((current) => ({ ...current, productName: "", standardOutput: "", machineNo: "" }));
         setMachineLines([createEmptyMachineLine()]);
         setMachineCount(1);
-    }, [operationMode, isCutLongProcess, isInspectionProcess]);
+    }, [operationMode, isCutLongProcess, isInspectionProcess, isRestoringDraftRef, setForm, setMachineLines, setMachineCount]);
 
     useEffect(() => {
         if (isRestoringDraftRef.current) return;
@@ -51,13 +51,13 @@ export function useProcessModeResets({
         setOperationMode(
             getInitialOperationMode(getProcessCapabilities(processCode))
         );
-    }, [process, processCode]);
+    }, [process, processCode, isRestoringDraftRef, setExtraData, setMachineLines, setMachineCount, setOperationMode]);
 
     useEffect(() => {
         if (!usesSingleMachine) {
             setForm((current) => current.machineNo ? { ...current, machineNo: "" } : current);
         }
-    }, [usesSingleMachine]);
+    }, [usesSingleMachine, setForm]);
 
 
 }
