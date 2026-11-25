@@ -69,9 +69,10 @@ for (const [name, source] of [['main', mainSource], ['renderer monitor', rendere
 }
 for (const [file, dependency] of [
   ['main.cjs', "require('./productionExcelExport.cjs')"],
-  ['productionExcelExport.cjs', "require('./excelExportContractPatch.v6.cjs')"],
-  ['excelExportContractPatch.v6.cjs', "require('./workerReportWorkbook.cjs')"],
-  ['workerReportWorkbook.cjs', "require('./workerReportTemplateLocal.v2.cjs')"],
+  ['productionExcelExport.cjs', "require('./productionMonthlyWorkbookBuilder.cjs')"],
+  ['excelExportContractPatch.v6.cjs', "require('./productionMonthlyWorkbookBuilder.cjs')"],
+  ['productionMonthlyWorkbookBuilder.cjs', "require('./workerReportWorkbook.cjs')"],
+  ['workerReportTemplateLocal.v2.cjs', "require('./workerReportWorkbook.cjs')"],
 ]) {
   assert.ok(fs.readFileSync(at('desktop', 'electron', file), 'utf8').includes(dependency),
     `Stable Excel export chain is broken: ${file}`);

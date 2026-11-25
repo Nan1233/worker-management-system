@@ -51,6 +51,9 @@ test('monthly workbook renderer reexports naming API and retains sync/template c
   assert.match(source, /summaryWorkbookFileName,/);
   assert.match(source, /EXCEL_SYNC_CONTRACT_VERSION/);
   assert.match(source, /addExcelDbSyncMetadata/);
-  assert.match(source, /renderOriginalProcessTemplate/);
-  assert.match(source, /_KTC_SYNC/);
+  const builders = fs.readFileSync(path.join(__dirname, '../electron/monthlyWorkbookBuilders.cjs'), 'utf8');
+  const metadata = fs.readFileSync(path.join(__dirname, '../electron/monthlyWorkbookSyncMetadata.cjs'), 'utf8');
+  assert.match(builders, /renderOriginalProcessTemplate/);
+  assert.match(builders, /addExcelDbSyncMetadata/);
+  assert.match(metadata, /_KTC_SYNC/);
 });

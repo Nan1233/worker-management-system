@@ -4,6 +4,15 @@ on:
   push:
     branches: [refactor/ktc-local-cleanup]
     paths:
+      - 'shared/**'
+      - 'backend/services/**'
+      - 'backend/domain/**'
+      - 'backend/repositories/**'
+      - 'desktop/electron/**'
+      - 'desktop/tests/**'
+      - 'frontend/tests/**'
+      - 'frontend/src/**'
+      - 'scripts/checkRepositoryLayout.cjs'
       - .github/workflows/ktc-three-part-isolated-acceptance.yml
       - backend/scripts/waitForIsolatedTidb.cjs
       - backend/tests/authorization-f09-scope.test.js

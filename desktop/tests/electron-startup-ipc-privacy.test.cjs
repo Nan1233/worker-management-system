@@ -38,13 +38,9 @@ test('launcher uses structured log sanitizer and keeps crash monitor, startup ma
   assert.match(launcher, /uncaughtExceptionMonitor/);
   assert.match(launcher, /process\.on\('unhandledRejection'/);
   assert.match(launcher, /STARTUP_MAIN_REQUIRE_BEGIN/);
-  const patches = ["require('./excelExportContractPatch.v5.cjs')",
-    "require('./compactGcExcelPatch.cjs')",
-    "require('./excelReportDateSubmissionPatch.cjs')",
-    "require('./excelExportContractPatch.v6.cjs')",
-    "require('./main.cjs')"];
-  for (let i = 1; i < patches.length; i++)
-    assert.ok(launcher.indexOf(patches[i-1]) < launcher.indexOf(patches[i]));
+  assert.doesNotMatch(launcher, /require\(['"]\.\/(?:excelExportContractPatch|compactGcExcelPatch|excelReportDateSubmissionPatch)/);
+  assert.ok(launcher.indexOf('STARTUP_MAIN_REQUIRE_BEGIN') < launcher.indexOf("require('./main.cjs')"));
+  assert.ok(launcher.indexOf("require('./main.cjs')") < launcher.indexOf('STARTUP_MAIN_REQUIRE_END'));
 });
 
 test('preload exposes only fixed IPC methods and subscribes/unsubscribes safely', () => {
@@ -92,9 +88,11 @@ test('preload exposes only fixed IPC methods and subscribes/unsubscribes safely'
 
 test('main process keeps Electron sandbox, isolation and trusted navigation', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8');
-  assert.match(main, /contextIsolation:\s*true/);
-  assert.match(main, /nodeIntegration:\s*false/);
-  assert.match(main, /sandbox:\s*true/);
+  const window = fs.readFileSync(path.join(__dirname, '../electron/desktopWindow.cjs'), 'utf8');
+  assert.match(main, /createDesktopWindowFactory\(/);
+  assert.match(window, /contextIsolation:\s*true/);
+  assert.match(window, /nodeIntegration:\s*false/);
+  assert.match(window, /sandbox:\s*true/);
   assert.match(main, /isTrustedRendererNavigation/);
   assert.match(main, /ReportImportPreviewGuard/);
   assert.match(main, /isSafeExternalUrl/);

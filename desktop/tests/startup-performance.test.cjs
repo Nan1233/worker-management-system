@@ -13,8 +13,10 @@ test('startup does not clear Chromium cache or service-worker storage', () => {
 });
 
 test('startup logs window ready-to-show latency', () => {
-  assert.match(main, /WINDOW_READY_TO_SHOW/);
-  assert.match(main, /process\.hrtime\.bigint\(\)/);
+  const window = fs.readFileSync(path.join(__dirname, '../electron/desktopWindow.cjs'), 'utf8');
+  assert.match(main, /createDesktopWindowFactory\(/);
+  assert.match(window, /WINDOW_READY_TO_SHOW/);
+  assert.match(window, /process\.hrtime\.bigint\(\)/);
 });
 
 test('remote frontend navigation permits HTTP cache reuse and records latency', () => {

@@ -141,7 +141,7 @@ test('generic CVK workbook is readable as a managed Excel sync source without co
     assert.ok(idCol && okCol, 'generic CVK must have sync ID and OK columns');
     const sheet = workbook.getWorksheet(meta.sheetName);
     let targetRow = null;
-    for (let row = 6; row <= sheet.rowCount; row += 1) {
+    for (let row = Number(meta.firstDataRow); row <= sheet.rowCount; row += 1) {
       if (Number(sheet.getCell(row, idCol.index).value) === 24011) { targetRow = row; break; }
     }
     assert.ok(targetRow, 'synthetic report row is still associated with its database ID');

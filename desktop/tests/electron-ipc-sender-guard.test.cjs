@@ -43,6 +43,9 @@ test('IPC rejects untrusted URLs, protocol tricks and unexpected file pages', ()
 test('all production-capable Electron IPC handlers use the shared main-frame guard', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8');
   const launcher = fs.readFileSync(path.join(__dirname, '../electron/launcher.cjs'), 'utf8');
+  const folders = fs.readFileSync(path.join(__dirname, '../electron/ipc/folderIpc.cjs'), 'utf8');
+  const mainHandlers = main + '\n' + folders;
+  assert.match(main, /registerFolderIpc\(\{ ipcMain, protectedDesktopIpc,/);
   const expectedMain = [
     'ktc-preview-excel-db-sync', 'ktc-preview-report-import', 'ktc-apply-report-import',
     'ktc-apply-excel-db-sync', 'ktc-save-excel', 'ktc-sync-all-excel',
@@ -54,10 +57,10 @@ test('all production-capable Electron IPC handlers use the shared main-frame gua
     'ktc-choose-export-root', 'ktc-save-statistics-excel',
   ];
   const records = (source) => [...source.matchAll(/ipcMain\.handle\('([^']+)',\s*([^\n]+)/g)];
-  assert.equal(records(main).length, expectedMain.length);
+  assert.equal(records(mainHandlers).length, expectedMain.length);
   assert.equal(records(launcher).length, expectedLauncher.length);
   for (const [source, names, wrapper] of [
-    [main, expectedMain, 'protectedDesktopIpc('],
+    [mainHandlers, expectedMain, 'protectedDesktopIpc('],
     [launcher, expectedLauncher, 'protectedLauncherIpc(']
   ]) for (const channel of names) {
     const match = records(source).find(x=>x[1]===channel);

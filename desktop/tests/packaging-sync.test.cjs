@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, '..');
 const source = (relative) => fs.readFileSync(path.resolve(root, relative), 'utf8');
 
 test('approved reports page size is 20 in frontend bundled into EXE', () => {
-  const approved = source('../frontend/src/pages/manager/ApprovedReports.tsx');
+  const approved = source('../frontend/src/pages/manager/useApprovedReportsPage.ts');
   assert.match(approved, /getApprovedReports\(\{\s*\.\.\.filters,\s*page,\s*pageSize:\s*20\s*\}\)/);
   const build = source('scripts/buildBundledFrontend.cjs');
   assert.match(build, /build:cloudflare:test/);
