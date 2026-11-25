@@ -108,7 +108,7 @@ const { logPendingFiles, listExcelFiles } = createExcelFileDiscovery({ writeLog,
 
 
 
-const { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb } = createExcelDbSyncController({
+const { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb, isAcknowledgedWorkbookVersion } = createExcelDbSyncController({
   authenticatedFetch: (...args) => deferred.call('authenticatedFetch', ...args), API_BASE_URL, listExcelFiles, getExportRoot, readExcelChanges,
   writeLog, normalizeError, waitForUsableRendererToken: (...args) => deferred.call('waitForUsableRendererToken', ...args), sendRenderer,
   enqueueManualExcelSync: (...args) => deferred.call('enqueueManualExcelSync', ...args), isQuitting: () => quitting, isSyncRunning: () => deferred.call('isSyncRunning'),
@@ -120,7 +120,7 @@ const { performSyncSingleMonth } = createMonthlyDesktopExport({
   waitForUsableRendererToken: (...args) => deferred.call('waitForUsableRendererToken', ...args),
   getCurrentToken: () => currentToken, setCurrentToken: (value) => { currentToken = value; },
   fetchCompanyData, buildSplitMonthlyWorkbooksLocal, getAppPath: () => app.getAppPath(),
-  PROCESS_SHEETS, safeFileName, atomicOverwrite, normalizeError, cleanupLegacyMonthlyLayout,
+  PROCESS_SHEETS, safeFileName, atomicOverwrite, normalizeError, cleanupLegacyMonthlyLayout, readExcelChanges, isAcknowledgedWorkbookVersion,
 });
 
 const {

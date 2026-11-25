@@ -58,6 +58,16 @@ function loadCreateModelHarness() {
     loadTempReportSnapshot: async (id) => ({ id }),
     createReportVersion: async () => 1,
   });
+  // Extracted repositories capture their injected DB/query dependencies when loaded.
+  // Recreate them per fixture; otherwise a retry can query the prior fixture.
+  for (const dependency of [
+    '../repositories/productionSubmissionRequestRepository',
+    '../repositories/productionSubmissionProcessRepository',
+    '../repositories/approvedReportDuplicateRepository',
+    '../services/productionSubmissionRollback',
+    '../services/productionSubmissionMasterDetails',
+    '../services/productionSubmissionQueue'
+  ]) delete require.cache[require.resolve(dependency)];
   delete require.cache[submissionServicePath];
   delete require.cache[modelPath];
   const model = require(modelPath);
@@ -162,13 +172,14 @@ test('same client_request_id retry retains idempotent prior-result behavior', as
 });
 
 test('arbitrary force_create without a server duplicate challenge cannot bypass duplicate protection', async () => {
-  const { model, rows } = loadCreateModelHarness();
+  const { model, rows, rolledBack } = loadCreateModelHarness();
   await model.createCompleteReport(payload({ client_request_id: 'A' }));
   await assert.rejects(
     () => model.createCompleteReport(payload({ client_request_id: 'B', force_create: true })),
     (error) => error?.code === 'DUPLICATE_CONFIRMATION_REQUIRED' && error?.status === 409
   );
   assert.equal(rows.length, 1);
+  assert.equal(rolledBack.length, 1, 'duplicate rejection rolls back the owned transaction');
 });
 
 test('server-issued duplicate challenge allows an explicit separate run while retaining the logical lock', async () => {

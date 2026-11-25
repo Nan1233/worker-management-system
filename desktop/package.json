@@ -161,7 +161,8 @@
           "productionOutput.cjs",
           "productionMetricPrimitives.cjs",
           "monthlyExcelContract.cjs",
-          "gcSplitReconciliation.cjs"
+          "gcSplitReconciliation.cjs",
+          "excelStyleClone.cjs"
         ]
       }
     ]

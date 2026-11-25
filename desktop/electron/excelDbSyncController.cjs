@@ -248,7 +248,8 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       // during the HTTP requests. Re-read the newest workbook next cycle.
       const latestStat = await fs.stat(filePath).catch(() => null);
       const changedDuringSync = !sameFileVersion(latestStat, stat);
-      excelDbSyncState.set(filePath, { stat: fileFailed || changedDuringSync ? state.stat : stat, versions: state.versions });
+      excelDbSyncState.set(filePath, { stat: fileFailed || changedDuringSync ? state.stat : stat, versions: state.versions,
+        acknowledgedStat: !fileFailed && !changedDuringSync ? stat : null });
       // A rebuild overwrites the local workbook. Never rebuild a month while
       // any of its edits failed or the workbook changed during the request.
       if (/^\d{4}-(?:0[1-9]|1[0-2])$/.test(parsedMonth)
@@ -284,7 +285,10 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
 
 
   function acknowledgeRebuild(month) { pendingRebuildMonths.delete(month); }
-  return { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb, acknowledgeRebuild };
+  function isAcknowledgedWorkbookVersion(filePath, stat) {
+    return sameFileVersion(excelDbSyncState.get(filePath)?.acknowledgedStat, stat);
+  }
+  return { postExcelChanges, previewEditedExcelFilesToDb, syncEditedExcelFilesToDb, acknowledgeRebuild, isAcknowledgedWorkbookVersion };
 }
 
 module.exports = { createExcelDbSyncController, operationIdForChange };

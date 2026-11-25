@@ -9,7 +9,7 @@ function createMonthlyDesktopExport({
   writeLog, getExportRoot, logPendingFiles, waitForUsableRendererToken,
   getCurrentToken, setCurrentToken, fetchCompanyData, buildSplitMonthlyWorkbooksLocal,
   getAppPath, PROCESS_SHEETS, safeFileName, atomicOverwrite,
-  normalizeError, cleanupLegacyMonthlyLayout,
+  normalizeError, cleanupLegacyMonthlyLayout, readExcelChanges, isAcknowledgedWorkbookVersion = () => false,
 }) {
 async function performSyncSingleMonth({ date, source }) {
   const startedAt = Date.now();
@@ -34,12 +34,16 @@ async function performSyncSingleMonth({ date, source }) {
   const files = [];
   const expectedFileCount = MONTHLY_FILE_COUNT;
   try {
-    // Excel -> DB không tự chạy trong lúc export. DB đã duyệt là nguồn dữ liệu duy nhất.
-    await writeLog('INFO', 'EXCEL_DB_PRECHECK_SKIPPED_FOR_DB_EXPORT', {
-      date,
-      source,
-      reason: 'DB_IS_AUTHORITATIVE_FOR_EXCEL_EXPORT'
-    });
+    // Export never writes to DB automatically. Before replacing an existing
+    // workbook, inspect its edits or an exact acknowledged sync version.
+    const beforeReplace = async (filePath, stat) => {
+      if (source === 'excel-db-rebuild' && isAcknowledgedWorkbookVersion(filePath, stat)) return;
+      if (typeof readExcelChanges !== 'function') throw new Error('Thiếu bộ kiểm tra Excel trước khi ghi đè.');
+      const parsed = await readExcelChanges(filePath);
+      if (parsed?.managed && (!Array.isArray(parsed.changes) || parsed.changes.length)) {
+        throw Object.assign(new Error('Excel có chỉnh sửa chưa đồng bộ: '+path.basename(filePath)), {code:'EXCEL_EXPORT_UNSYNCED_EDITS'});
+      }
+    };
 
     const companyData = await fetchCompanyData(date);
     assertApprovedDatabasePayload(companyData);
@@ -156,6 +160,12 @@ async function performSyncSingleMonth({ date, source }) {
       throw Object.assign(new Error('Tên workbook bị trùng; chưa ghi file nào.'), { code: 'MONTHLY_WORKBOOK_NAME_COLLISION' });
     }
 
+    // Inspect every target before the first write; repeat inside each atomic lock.
+    for (const name of targetNames) {
+      const target=path.join(folder,name);
+      const stat=await fs.stat(target).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+      if(stat)await beforeReplace(target,stat);
+    }
     const summaryFilePath = path.join(
       folder,
       safeFileName(
@@ -166,7 +176,7 @@ async function performSyncSingleMonth({ date, source }) {
     const summaryWrite = await atomicOverwrite(
       summaryFilePath,
       built.summary.buffer,
-      date
+      date, {beforeReplace}
     );
     files.push({
       category: 'MONTHLY_SUMMARY',
@@ -198,7 +208,7 @@ async function performSyncSingleMonth({ date, source }) {
           `${processBuilt.processCode || 'PROCESS'}_${month}-${year}.xlsx`
         )
       );
-      const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date);
+      const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date, {beforeReplace});
 
       files.push({
         category: 'MONTHLY_PROCESS',

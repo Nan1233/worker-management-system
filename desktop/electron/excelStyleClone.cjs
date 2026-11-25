@@ -1,5 +1,6 @@
 'use strict';
-
-// Compatibility entry point for Electron workbooks; implementation is shared
-// with the backend's Excel rendering helpers.
-module.exports = require('../../shared/excelStyleClone.cjs');
+const fs = require('node:fs');
+const path = require('node:path');
+const packaged = typeof process.resourcesPath === 'string'
+  ? path.join(process.resourcesPath, 'shared', 'excelStyleClone.cjs') : null;
+module.exports = require(packaged && fs.existsSync(packaged) ? packaged : '../../shared/excelStyleClone.cjs');

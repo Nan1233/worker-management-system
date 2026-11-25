@@ -67,9 +67,11 @@ async function backupExistingExcel(filePath, syncDate) {
 
 
 
-async function performAtomicOverwrite(filePath, buffer, syncDate) {
+async function performAtomicOverwrite(filePath, buffer, syncDate, options = {}) {
   const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const guardedStat = await fs.stat(filePath).catch(error => { if(error.code==='ENOENT')return null; throw error; });
+  if (guardedStat && options.beforeReplace) await options.beforeReplace(filePath, guardedStat);
   const backupPath = await backupExistingExcel(filePath, syncDate);
   // The backup must be the exact version we are about to replace. A workbook
   // edited after backup creation must not be overwritten with an older export.
@@ -77,6 +79,7 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
     if (error?.code === 'ENOENT') return null;
     throw error;
   });
+  if (!sameFileVersion(guardedStat, originalStat)) throw Object.assign(new Error('Excel đã thay đổi trong khi kiểm tra trước khi xuất.'),{code:'KTC_EXCEL_CONCURRENT_MODIFICATION'});
   // A once-per-day backup may be older than the current workbook. Keep a
   // unique recovery copy for every overwrite, including later edits that day.
   const recoveryPath = originalStat ? path.join(
@@ -239,11 +242,11 @@ async function withWorkbookLock(filePath, task) {
 // Serialize writes to the same destination. Without this queue, an older
 // pending replacement can race with a newer export and overwrite its data.
 const fileQueues = new Map();
-function atomicOverwrite(filePath, buffer, syncDate) {
+function atomicOverwrite(filePath, buffer, syncDate, options = {}) {
   const resolved = path.resolve(filePath);
   const key = process.platform === 'win32' ? resolved.toLowerCase() : resolved;
   const previous = fileQueues.get(key) || Promise.resolve();
-  const operation = previous.catch(() => {}).then(() => withWorkbookLock(resolved, () => performAtomicOverwrite(resolved, buffer, syncDate)));
+  const operation = previous.catch(() => {}).then(() => withWorkbookLock(resolved, () => performAtomicOverwrite(resolved, buffer, syncDate, options)));
   const settled = operation.then(() => {}, () => {});
   fileQueues.set(key, settled);
   void settled.then(() => {

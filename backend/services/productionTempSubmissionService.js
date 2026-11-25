@@ -286,15 +286,17 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         let tempId;
         const createdIds = [];
         const parentConnection = await getConnection();
+        let transactionOpen = false;
         try {
             // Keep the report parent and every child row in ONE transaction.
             // Committing the parent first allowed a detail-write failure to leave
             // a partial report marked need_fix; a retry with the same request ID
             // then incorrectly returned that incomplete row as a successful duplicate.
             await beginReadCommittedTransaction(parentConnection);
+            transactionOpen = true;
             await createModel.lockClientRequestId(workerId, requestId, parentConnection);
             const race = await findExistingClientRequest(data, parentConnection);
-            if (race) { await commit(parentConnection); return idempotent(race); }
+            if (race) { await commit(parentConnection); transactionOpen = false; return idempotent(race); }
             await createModel.lockLogicalDuplicateKey(data.logical_duplicate_key, parentConnection);
             await assertNoLogicalDuplicate(data, parentConnection);
             if (machineLines.length) {
@@ -361,7 +363,9 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                     await createModel.replaceMachineLines(tempId, machineLines, parentConnection, { isNewReport: true }); // inserted in this transaction: no old lines to read/delete
                 }
                 await commit(parentConnection);
+                transactionOpen = false;
             } catch (error) {
+                transactionOpen = false;
                 await rollbackOrThrow(parentConnection, error);
                 if (error?.code === "ER_DUP_ENTRY") { const existing = await findExistingClientRequest(data); if (existing) return idempotent(existing); }
                 if (is1205(error)) return recoverAfter1205(data);
@@ -370,6 +374,11 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                 e.code = error?.code || "REPORT_PERSIST_FAILED";
                 e.isPublic = true; e.details = error?.details || { temp_report_id: tempId || null }; throw e;
             }
+        } catch (error) {
+            // Lock, duplicate and capacity checks run before persistence. They
+            // still own an open transaction and must roll back before release.
+            if (transactionOpen) await rollbackOrThrow(parentConnection, error);
+            throw error;
         } finally { parentConnection.release(); }
 
         // Audit/version work stays separate so an audit failure cannot undo an

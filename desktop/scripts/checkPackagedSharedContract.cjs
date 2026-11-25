@@ -29,6 +29,13 @@ if (!fs.existsSync(splitSource) || !entries.some(entry => entry?.from === '../sh
   throw new Error('[KTC] Thiếu shared GC split reconciliation trong resources/shared.');
 }
 
+for (const name of ['productionMetricPrimitives.cjs','monthlyExcelContract.cjs','excelStyleClone.cjs']) {
+  if (!fs.existsSync(path.resolve(__dirname, '../../shared', name))
+      || !entries.some(entry => entry?.from === '../shared' && entry.to === 'shared'
+        && (entry.filter?.includes(name) || entry.filter?.includes('**/*')))) {
+    throw new Error('[KTC] Thiếu module đóng gói: '+name);
+  }
+}
 const runtimeConsumers = [
   path.resolve(__dirname, '../electron/monthlyWorkbookLocal.cjs'),
   path.resolve(__dirname, '../electron/excelDbSync.cjs')
