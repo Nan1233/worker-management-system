@@ -7,6 +7,27 @@ const { cloneExcelStyle } = require('./excelStyleClone.cjs');
 function createWorkerReportDateGrouping({
   findColumnMap, pickExact, applyReportRow, writeValue, number, asDate,
 }) {
+function findDataStartRow(sheet, headerRow) {
+  // A production row is identified by its positive integer STT, not a
+  // date separator (Excel may store a date as a Date object).
+  for (let r = headerRow + 1; r <= sheet.rowCount; r++) {
+    const cell = sheet.getCell(r, 1);
+    const value = cell.value;
+    if ((typeof value === 'number' || typeof value === 'string')
+        && /^\d+$/.test(String(value).trim()) && Number(value) > 0
+        && !/[dmy]/i.test(String(cell.numFmt || '').replace(/"[^"]*"/g, ''))) return r;
+  }
+  const first = sheet.getCell(headerRow + 1, 1);
+  return first.value instanceof Date ? headerRow + 2 : headerRow + 1;
+}
+
+function cloneRowStyle(sheet, source, target) {
+  if (source.height != null) target.height = source.height;
+  for (let c = 1; c <= sheet.columnCount; c++) {
+    target.getCell(c).style = cloneExcelStyle(source.getCell(c).style || {});
+  }
+}
+
 function findDateSeparatorRow(sheet, headerRow, dataStartRow) {
   for (let r = headerRow + 1; r < dataStartRow; r += 1) {
     const row = sheet.getRow(r);
@@ -161,6 +182,6 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
 
 
 
-return { findDateSeparatorRow, writeGroupedByDate };
+return { findDataStartRow, cloneRowStyle, findDateSeparatorRow, writeGroupedByDate };
 }
 module.exports = { createWorkerReportDateGrouping };

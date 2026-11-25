@@ -322,7 +322,7 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
 // date (the pink "Sep-02" row). When present, the export writes one such row
 // per work date and restarts STT at 1 under each date.
 const { createWorkerReportDateGrouping } = require('./workerReportDateGrouping.cjs');
-const { findDateSeparatorRow, writeGroupedByDate } = createWorkerReportDateGrouping({
+const { findDataStartRow, cloneRowStyle, findDateSeparatorRow, writeGroupedByDate } = createWorkerReportDateGrouping({
   findColumnMap, pickExact, applyReportRow, writeValue, number, asDate,
 });
 

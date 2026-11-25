@@ -127,7 +127,8 @@ async function performAtomicOverwrite(filePath, buffer, syncDate) {
       await fs.rename(temporaryPath, filePath);
       // Pending chỉ là bản chờ khi file đang khóa. Khi lần đồng bộ mới đã ghi
       // thành công từ dữ liệu DB mới nhất, xóa pending cũ để tránh áp dụng dữ liệu cũ.
-      await fs.rm(`${filePath}.pending.xlsx`, { force: true }).catch(() => {});
+      // Retain pending workbooks: they may contain unreviewed operator edits.
+      // Only an explicit operator action may remove or replace them.
       return { saved: true, pendingPath: null, backupPath, recoveryPath };
     } catch (error) {
       lastError = error;

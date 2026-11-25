@@ -186,7 +186,7 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
       updateColumns.push('updated_by=?');
       updateValues.push(userId);
     }
-    updateColumns.push('updated_at=GREATEST(NOW(6), DATE_ADD(updated_at, INTERVAL 1 MILLISECOND))');
+    updateColumns.push('updated_at=GREATEST(NOW(6), DATE_ADD(COALESCE(updated_at, NOW(6)), INTERVAL 1000 MICROSECOND))');
     await connection.query(
       `UPDATE production_reports SET ${updateColumns.join(',')} WHERE id=?`,
       [...updateValues, Number(reportId)]

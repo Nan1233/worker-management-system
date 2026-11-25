@@ -157,7 +157,7 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
       return target.report[field] ?? null;
     });
     await connection.query(
-      `UPDATE production_reports SET ${parentFields.map((field) => `${field}=?`).join(',')}, updated_at=GREATEST(NOW(6), DATE_ADD(updated_at, INTERVAL 1 MILLISECOND)) WHERE id=?`,
+      `UPDATE production_reports SET ${parentFields.map((field) => `${field}=?`).join(',')}, updated_at=GREATEST(NOW(6), DATE_ADD(COALESCE(updated_at, NOW(6)), INTERVAL 1000 MICROSECOND)) WHERE id=?`,
       [...parentValues, id]
     );
 

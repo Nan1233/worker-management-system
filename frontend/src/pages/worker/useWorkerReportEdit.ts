@@ -171,10 +171,11 @@ export function useWorkerReportEdit() {
         // Commit only the fully prepared report once. Intermediate report identities
         // could trigger a second hydration after an operator starts editing.
         const rawMachineLines = Array.isArray(data.machine_lines) ? data.machine_lines : Array.isArray(data.machineLines) ? data.machineLines : [];
-        const isMachineReport = String(data.operation_mode || "").toUpperCase() === "MACHINE" || rawMachineLines.length > 0;
+        const declaredMode = String(data.operation_mode || "").trim().toUpperCase();
+        const isMachineReport = declaredMode === "MACHINE" || (declaredMode !== "MANUAL" && rawMachineLines.length > 0);
         const legacyMachine = s(data.machine_no).split(",").map((v) => v.trim()).filter(Boolean)[0] || "";
         const legacyProduct = s(data.product_name).split(",").map((v) => v.trim()).filter(Boolean)[0] || "";
-        const editMachineLines = rawMachineLines.length ? rawMachineLines : (legacyMachine || legacyProduct ? [{ machine_code: legacyMachine, product_code: legacyProduct, machine_time_hours: data.actual_time, ok_quantity: data.tt_ok, ng_quantity: data.tt_ng, standard_output: data.standard_output }] : []);
+        const editMachineLines = rawMachineLines.length ? rawMachineLines : (isMachineReport && (legacyMachine || legacyProduct) ? [{ machine_code: legacyMachine, product_code: legacyProduct, machine_time_hours: data.actual_time, ok_quantity: data.tt_ok, ng_quantity: data.tt_ng, standard_output: data.standard_output }] : []);
         // Với báo cáo theo máy, machine_time_hours là tổng thời gian (thực tế + trừ giờ).
         // Các cột tổng hợp phải được tính lại từ từng dòng máy, không lấy các trường legacy
         // ở cấp báo cáo vì các trường đó có thể bằng 0 hoặc mang ý nghĩa gross khác nhau.
@@ -203,7 +204,7 @@ export function useWorkerReportEdit() {
         setOperationType(normalizedOperation === "LONG" || normalizedOperation === "NEST" || normalizedOperation === "LÔNG" || normalizedOperation === "LỒNG" ? "LONG" : "CUT");
         const loadedMachineCode = s(firstLine?.machine_code || data.machine_no).trim().toUpperCase().replace(/^MÁY\s*/i, "");
         setCutExecutionMode(resolveCutExecutionMode(loadedMachineCode));
-        setOperationMode(data.operation_mode === "MACHINE" || (Array.isArray(data.machine_lines) ? data.machine_lines.length : Array.isArray(data.machineLines) ? data.machineLines.length : 0) > 0 ? "MACHINE" : "MANUAL");
+        setOperationMode(isMachineReport ? "MACHINE" : "MANUAL");
         const loadedWorkType = s(data.extra_data?.work_type || data.work_type || "");
          const resolvedWorkType = String(data.process_code || "").trim().toUpperCase() === "CVK" ? (loadedWorkType || "XUATNHAP") : loadedWorkType;
          setWorkType(resolvedWorkType);
