@@ -1,12 +1,13 @@
 'use strict';
 const { asText, asNumber, asInteger, asDate, asDateTime, dateKey } = require('./monthlyWorkbookValues.cjs');
+const { APPROVED_DATA_SOURCE } = require('./monthlyExcelContract.cjs');
 const { COLORS } = require('./monthlyWorkbookStyles.cjs');
 const { PROCESS_TEMPLATE_SCHEMAS } = require('./monthlyWorkbookSchemas.cjs');
 const { calculateProductionMetrics, DEFAULT_SETTINGS, calculateNg } = require('./productionCalculationEngine.cjs');
 const { detailMap, reportDetailItems } = require('./monthlyWorkbookDetails.cjs');
 
 function assertApprovedDatabasePayload(payload) {
-  if (!payload || payload.dataSource !== 'tidb.production_reports.approved') {
+  if (!payload || payload.dataSource !== APPROVED_DATA_SOURCE) {
     throw new Error('Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
   }
   for (const [code, data] of Object.entries(payload.processes || {})) {

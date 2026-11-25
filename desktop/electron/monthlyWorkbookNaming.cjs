@@ -4,25 +4,9 @@
 // so filenames can be regression-tested without touching production workbooks.
 // Tên file cố định để thư mục tháng luôn sắp xếp đúng thứ tự công đoạn.
 // Không dùng dấu tiếng Việt trong tên file để tránh lỗi đường dẫn ở Excel/Windows cũ.
-const PROCESS_FILE_PREFIXES = Object.freeze({
-  CAN: '01_CAN',
-  EP: '02_EP',
-  XLBV: '03_XU_LY_BAVIA',
-  GC: '04_CAT_LONG',
-  MAI: '05_MAI',
-  DO: '06_DO',
-  K1: '07_KIEM_1',
-  K2: '08_KIEM_2',
-  SX3: '09_SAN_XUAT_3',
-  CVK: '10_CONG_VIEC_KHAC'
-});
-
-function monthlyFileSuffix(date, payload) {
-  const yearMonth = String(payload?.yearMonth || date || '').slice(0, 7);
-  const [year, month] = yearMonth.split('-');
-  if (!/^\d{4}$/.test(year || '') || !/^\d{2}$/.test(month || '')) {
-    throw new Error(`Tháng xuất Excel không hợp lệ: ${yearMonth}`);
-  }
+const { PROCESS_FILE_PREFIXES, normalizeYearMonth } = require('./monthlyExcelContract.cjs');
+function monthlyFileSuffix(date,payload) {
+  const [year,month]=normalizeYearMonth(payload?.yearMonth||date).split('-');
   return `${month}-${year}`;
 }
 

@@ -8,8 +8,9 @@ const buildOriginalProcessWorkbookLocal = monthly.buildCompanyOriginalProcessWor
 if (typeof buildOriginalProcessWorkbookLocal !== 'function') {
   throw new Error('Missing unwrapped original company Excel template builder.');
 }
-const ORIGINAL_COMPANY_CODES = new Set(['GC', 'MAI', 'DO', 'K1', 'K2', 'CAN', 'EP', 'XLBV']);
-const WORKBOOK1_CODES = new Set(['GC', 'MAI', 'DO', 'CAN', 'EP', 'XLBV']);
+const { PROCESS_EXPORTS, MONTHLY_FILE_COUNT, normalizeYearMonth } = require('./monthlyExcelContract.cjs');
+const { assertApprovedDatabasePayload } = require('./monthlyWorkbookReportData.cjs');
+const ORIGINAL_COMPANY_CODES = new Set(Object.keys(PROCESS_EXPORTS).filter(code => PROCESS_EXPORTS[code].templateKind!=='worker-template'));
 
 const { buildWorkerProcessWorkbook, PROCESS_CODES, PROCESS_FILE_PREFIXES } = require('./workerReportWorkbook.cjs');
 
@@ -173,41 +174,16 @@ function sameNumber(a, b, tolerance = 0.01) {
 // skip those reports: use their detail arrays, then reconcile against legacy and
 // machine-line sources so NG is not silently lost from the Excel export.
 function hydrateReportDetails(processData) {
-  const types = Array.isArray(processData?.deductionTypes) ? processData.deductionTypes : [];
-  for (const report of Array.isArray(processData?.reports) ? processData.reports : []) {
-    const raw = report?.rawDetail || {};
-    const hasRawDetail = Boolean(report?.rawDetail);
-    const deductionRows = Array.isArray(raw.deductionRows) && raw.deductionRows.length
-      ? raw.deductionRows
-      : (Array.isArray(report?.deductions) ? report.deductions : (Array.isArray(raw.deductionRows) ? raw.deductionRows : []));
-    const tempDeductionRows = Array.isArray(raw.tempDeductionRows) ? raw.tempDeductionRows : [];
-    const expectedDeductionHours = Number(report.deduction_time) || 0;
-    const selectedDeductionRows = hasRawDetail && expectedDeductionHours > 0
-      && !sameNumber(sumPositive(deductionRows, 'hours'), expectedDeductionHours)
-      && sameNumber(sumPositive(tempDeductionRows, 'hours'), expectedDeductionHours)
-      ? tempDeductionRows
-      : deductionRows;
-    report.deductions = normalizeDeductions(selectedDeductionRows, report, report.machineLines || [], types);
-
-    const defectRows = Array.isArray(raw.defectRows) && raw.defectRows.length
-      ? raw.defectRows
-      : (Array.isArray(report?.defects) ? report.defects : (Array.isArray(raw.defectRows) ? raw.defectRows : []));
-    const tempDefectRows = Array.isArray(raw.tempDefectRows) ? raw.tempDefectRows : [];
-    const expectedDefects = Math.trunc(Number(report.tt_ng) || 0);
-    const selectedDefectRows = hasRawDetail && expectedDefects > 0
-      && Math.trunc(sumPositive(defectRows, 'quantity')) !== expectedDefects
-      && Math.trunc(sumPositive(tempDefectRows, 'quantity')) === expectedDefects
-      ? tempDefectRows
-      : defectRows;
-    report.defects = mergeDefects(report, selectedDefectRows, report.machineLines || []);
-    report.excelDeductionsSource = hasRawDetail && selectedDeductionRows === tempDeductionRows
-      ? 'production_temp_deductions_fallback'
-      : (hasRawDetail ? 'production_report_deductions' : 'api_payload_or_normalized');
-    report.excelDefectsSource = hasRawDetail && selectedDefectRows === tempDefectRows && selectedDefectRows.length
-      ? 'production_temp_defects_fallback'
-      : (selectedDefectRows.length
-        ? (hasRawDetail ? 'production_report_defects' : 'api_payload_or_normalized')
-        : (report.defects.length ? 'legacy_columns_normalized' : 'none'));
+  const types=Array.isArray(processData?.deductionTypes)?processData.deductionTypes:[];
+  for(const report of Array.isArray(processData?.reports)?processData.reports:[]){
+    const raw=report.rawDetail||{};
+    const deductionRows=Array.isArray(raw.deductionRows)?raw.deductionRows:(report.deductions||[]);
+    const defectRows=Array.isArray(raw.defectRows)?raw.defectRows:(report.defects||[]);
+    // Never recover approved details from editable temporary reports.
+    report.deductions=normalizeDeductions(deductionRows,report,report.machineLines||[],types);
+    report.defects=mergeDefects(report,defectRows,report.machineLines||[]);
+    report.excelDeductionsSource='approved_snapshot';
+    report.excelDefectsSource='approved_snapshot';
   }
 }
 
@@ -297,10 +273,12 @@ function filterVerifiedGcSplitParents(reports) {
 }
 
 async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
-  if (!payload || payload.dataSource !== 'tidb.production_reports.approved') {
-    throw new Error('Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
-  }
-  const sourceRows = processRows(payload);
+  assertApprovedDatabasePayload(payload);
+  const requestedMonth=normalizeYearMonth(date);
+  if(payload.yearMonth && normalizeYearMonth(payload.yearMonth)!==requestedMonth)throw new Error('Sai kỳ dữ liệu Excel.');
+  // Work on copies: preparing Excel rows must never mutate the API payload.
+  payload={...payload,processes:Object.fromEntries(Object.entries(payload.processes||{}).map(([code,data])=>[code,{...data,reports:(data?.reports||[]).map(report=>({...report}))}]))};
+  const sourceRows=processRows(payload);
   const processes = [];
   for (const item of sourceRows) {
     const processData = item.data || {};
@@ -344,7 +322,7 @@ async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
           date,
           processData
         });
-    const expectedTemplateKind = WORKBOOK1_CODES.has(item.processCode) ? 'workbook1-sheet' : 'original-company';
+    const expectedTemplateKind = PROCESS_EXPORTS[item.processCode].templateKind;
     if (ORIGINAL_COMPANY_CODES.has(item.processCode) && built.templateKind !== expectedTemplateKind) {
       throw new Error('Không thể xuất ' + item.processCode + ': không dùng đúng mẫu ' + expectedTemplateKind + '.');
     }
@@ -354,6 +332,6 @@ async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
     processes.push(built);
   }
   const summary = await monthly.buildMonthlySummaryWorkbookLocal({ date, payload });
-  return { mode: 'PROCESS_WORKBOOKS', processes, summary, expectedFileCount: processes.length + 1 };
+  return { mode: 'PROCESS_WORKBOOKS', processes, summary, expectedFileCount: MONTHLY_FILE_COUNT };
 }
 module.exports = { buildWorkerSplit, PROCESS_CODES, PROCESS_FILE_PREFIXES };

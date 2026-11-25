@@ -6,10 +6,11 @@ const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService')
 const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
 const { resolveReportDefects } = require('../domain/gcWorkerDefectResolver.cjs');
 
-const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3','CVK'];
+const { PROCESS_CODES, normalizeYearMonth } = require('../../shared/monthlyExcelContract.cjs');
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
 
 function monthRange(yearMonth) {
+  yearMonth = normalizeYearMonth(yearMonth);
   const [year, month] = String(yearMonth).split('-').map(Number);
   const start = `${yearMonth}-01`;
   const nextDate = new Date(year, month, 1);

@@ -1,19 +1,11 @@
 // Stable sheet mapping and baseline template definitions for KTC workbooks.
 // Preserve insertion order, labels and field types; workbook formatting/writing
 // belongs to the monthlyWorkbook* modules; these frozen contracts must not be mutated.
-const PROCESS_SHEETS = Object.freeze({
-  CAN: { sheet: 'CÁN', title: 'CÁN', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
-  EP: { sheet: 'ÉP', title: 'ÉP', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
-  XLBV: { sheet: 'XỬ LÝ BAVIA', title: 'XỬ LÝ BAVIA', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
-  GC: { sheet: 'CẮT LỒNG', title: 'CẮT/LỒNG', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
-  MAI: { sheet: 'MÀI', title: 'MÀI', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
-  DO: { sheet: 'ĐO', title: 'ĐO', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
-  K1: { sheet: 'KIỂM 1', title: 'KIỂM 1', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
-  K2: { sheet: 'KIỂM 2', title: 'KIỂM 2', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
-  SX3: { sheet: 'SẢN XUẤT 3', title: 'SẢN XUẤT 3', deductionGroup: 'LỖI MÁY / THỜI GIAN TRỪ', defectGroup: 'NG PART' },
-  CVK: { sheet: 'CÔNG VIỆC KHÁC', title: 'CÔNG VIỆC KHÁC (CVK)', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' }
-});
-
+const { PROCESS_EXPORTS, PROCESS_CODES } = require('./monthlyExcelContract.cjs');
+const PROCESS_SHEETS = Object.freeze(Object.fromEntries(PROCESS_CODES.map(code => {
+  const {sheet,title}=PROCESS_EXPORTS[code];
+  return [code,Object.freeze({sheet,title,deductionGroup:code==='SX3'?'LỖI MÁY / THỜI GIAN TRỪ':'CHI TIẾT THỜI GIAN TRỪ',defectGroup:code==='SX3'?'NG PART':'CHI TIẾT NG'})];
+})));
 
 // Danh mục cố định đọc từ desktop/assets/templates/file-mau.xlsx.
 // Mỗi công đoạn có cấu trúc riêng; master DB và dữ liệu thực tế được ghép thêm

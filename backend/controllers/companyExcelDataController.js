@@ -1,3 +1,4 @@
+const { APPROVED_DATA_SOURCE, MONTHLY_FILE_COUNT } = require('../../shared/monthlyExcelContract.cjs');
 const db = require('../config/db');
 const { loadBulkCompanyReports, PROCESS_CODES } = require('../services/bulkCompanyExcelDataService');
 const { getSettingsMap } = require('../services/formulaSettingsService');
@@ -104,9 +105,9 @@ async function buildCompanyData(yearMonth, actor) {
   return {
     yearMonth,
     mode: 'SPLIT_MONTHLY_WORKBOOKS',
-    expectedFileCount: PROCESS_CODES.length + 1,
+    expectedFileCount: MONTHLY_FILE_COUNT,
     calculationContractVersion: 2,
-    dataSource: 'tidb.production_reports.approved',
+    dataSource: APPROVED_DATA_SOURCE,
     sourceTables: [
       'production_reports',
       'production_report_deductions',
@@ -155,7 +156,7 @@ async function getCompanyData(yearMonth, actor) {
 
 exports.get = async (req, res) => {
   const selectedDate = String(req.query?.date || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(selectedDate)) {
     return res.status(400).json({ success: false, message: 'Ngày xuất Excel không hợp lệ' });
   }
 

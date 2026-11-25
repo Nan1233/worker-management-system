@@ -1,6 +1,8 @@
 'use strict';
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { assertApprovedDatabasePayload } = require('./monthlyWorkbookReportData.cjs');
+const { normalizeYearMonth, MONTHLY_FILE_COUNT } = require('./monthlyExcelContract.cjs');
 
 // Monthly desktop export: data must come exclusively from approved TiDB reports.
 function createMonthlyDesktopExport({
@@ -39,6 +41,9 @@ async function performSyncSingleMonth({ date, source }) {
     });
 
     const companyData = await fetchCompanyData(date);
+    assertApprovedDatabasePayload(companyData);
+    const requestedMonth=normalizeYearMonth(date);
+    if (companyData.yearMonth && normalizeYearMonth(companyData.yearMonth)!==requestedMonth) throw new Error('Sai kỳ dữ liệu Excel.');
     const processCounts = Object.fromEntries(
       Object.entries(companyData?.processes || {}).map(([code, data]) => [
         code,
@@ -119,7 +124,7 @@ async function performSyncSingleMonth({ date, source }) {
     await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_START', {
       date,
       folder,
-      expectedFileCount: Object.keys(PROCESS_SHEETS).length + 1,
+      expectedFileCount: MONTHLY_FILE_COUNT,
       excelEngine: 'desktop-local'
     });
 
