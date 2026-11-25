@@ -211,7 +211,8 @@ async function loadProcessMonthReports(value, processId, options = {}) {
       report.machineAccounting = buildGiaCongMachineAccounting(report, physicalEventsById);
       report.machinePerformance = report.machinePerformance || null;
       if (report.machinePerformance) report.machinePerformance.total_machine_hours = report.machineAccounting.grossHours;
-      report.deductions = report.machineAccounting.deductions;
+      // Physical-machine details are separate from worker-credit deductions.
+      report.machineDeductions = report.machineAccounting.deductions;
     }
     report.dataSource = 'production_reports';
     report.isApprovedDatabaseRecord = true;

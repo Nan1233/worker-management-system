@@ -77,6 +77,10 @@ function parseArray(value) {
   }
 }
 
+function deductionDetailHours(item) {
+  return Math.max(0, asNumber(item?.hours ?? item?.time ?? (item?.minutes != null ? Number(item.minutes) / 60 : item?.deduction_minutes != null ? Number(item.deduction_minutes) / 60 : 0)) || 0);
+}
+
 function positiveHours(value) {
   return Math.max(0, asNumber(value) || 0);
 }
@@ -89,7 +93,7 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
   if (!lines.length) return null;
 
   const positiveDetails = (value) => parseArray(value)
-    .map((item) => ({ ...item, hours: positiveHours(item?.hours) }))
+    .map((item) => ({ ...item, hours: deductionDetailHours(item) }))
     .filter((item) => item.hours > 0);
   const reportDeductions = positiveDetails(report.deductions);
   const allowReportFallback = lines.length === 1;
@@ -102,6 +106,7 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
   let enteredOutput = 0;
   let adjustedOutput = 0;
   let plannedOutput = 0;
+  let nominalTarget = 0;
   let missingStandard = false;
 
   for (const line of lines) {
@@ -125,7 +130,8 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     const lineNg = Math.max(0, asInteger(line.ng_quantity) || 0);
     const lineCountedNg = lineNg;
     const lineStandard = asNumber(line.standard_output);
-    if (workedHours > 0 && (lineStandard === null || lineStandard < 0)) missingStandard = true;
+    if (workedHours > 0 && (lineStandard === null || lineStandard <= 0)) missingStandard = true;
+    if (lineStandard !== null && lineStandard > 0) nominalTarget += lineStandard * workedHours;
     const trainingMultiplier = resolved.apply_training_percent
       ? (factor === null ? null : factor)
       : 1;
@@ -138,15 +144,14 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     countedNg += lineCountedNg;
     enteredOutput += lineOk + lineNg;
     adjustedOutput += lineOk + lineCountedNg;
-    if (trainingMultiplier !== null && lineStandard !== null && lineStandard >= 0) plannedOutput += Math.round(calculatePlannedOutput(lineStandard, workedHours, trainingMultiplier));
+    if (trainingMultiplier !== null && lineStandard !== null && lineStandard > 0) plannedOutput += Math.round(calculatePlannedOutput(lineStandard, workedHours, trainingMultiplier));
   }
 
   const outputPerHour = safeRatio(adjustedOutput, actualTime);
   const plannedAvailable = !missingStandard && (!resolved.apply_training_percent || factor !== null);
   const resolvedPlannedOutput = plannedAvailable ? plannedOutput : null;
-  const standard = actualTime > 0 && resolvedPlannedOutput !== null
-    ? resolvedPlannedOutput / actualTime
-    : null;
+  // Keep nominal units/hour distinct from the training-adjusted target.
+  const standard = missingStandard ? null : safeRatio(nominalTarget, actualTime);
   const achievement = safeRatio(adjustedOutput, resolvedPlannedOutput);
   const ngDenominator = ok + allNg;
   const ngRate = resolved.ng_rate_formula === 'NG_DIV_ENTERED_OUTPUT'
@@ -293,6 +298,7 @@ module.exports = {
   calculateStoredProductionMetrics,
   calculateGcMachineLineMetrics,
   calculateNetHours,
+  deductionDetailHours,
   calculatePlannedOutput,
   parseStoredTrainingSnapshot,
   safeRatio,

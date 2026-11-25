@@ -116,15 +116,6 @@ function setFormula(row, column, formula, result, format) {
   if (format) cell.numFmt = format;
 }
 
-function plannedOutputFormula(rowNumber) {
-  const parts = [];
-  for (let headerRow = 5; headerRow <= 17; headerRow += 2) {
-    const valueRow = headerRow + 1;
-    parts.push(`H${rowNumber}*F${rowNumber}*SUMIF('KẾ HOẠCH'!$B$${headerRow}:$CK$${headerRow},AA${rowNumber},'KẾ HOẠCH'!$B$${valueRow}:$CK$${valueRow})`);
-  }
-  return parts.join('+');
-}
-
 function clearGiaCongRow(row, layout) {
   for (let column = 1; column <= layout.lastReportColumn; column += 1) {
     row.getCell(column).value = null;
@@ -151,7 +142,7 @@ function writeGiaCongRow(sheet, rowNumber, report, layout, sequence) {
   ));
   setCell(row, fixed.machine, getMachineText(report));
   setCell(row, fixed.shift, safeText(report.shift).toUpperCase());
-  setCell(row, fixed.training, metrics.trainingPercent / 100, '0%');
+  setCell(row, fixed.training, metrics.trainingPercent == null ? null : metrics.trainingPercent / 100, '0%');
   setCell(row, fixed.totalTime, metrics.totalTime, '0.00');
 
   writeDetailColumns(row, report, layout, [], []);
@@ -160,14 +151,15 @@ function writeGiaCongRow(sheet, rowNumber, report, layout, sequence) {
   setFormula(row, fixed.actualTime, `MAX(0,G${rowNumber}-J${rowNumber})`, metrics.actualTime, '0.00');
   setCell(row, fixed.changeCount, metrics.changeCount, '0');
   setCell(row, fixed.product, safeText(report.product_code || report.product_name));
-  setFormula(row, fixed.standardOutput, plannedOutputFormula(rowNumber), metrics.standardOutput * metrics.actualTime * (metrics.trainingPercent / 100), '#,##0.00');
+  // Approved targets come from the stored standard and training snapshot, not a mutable planning sheet.
+  setCell(row, fixed.standardOutput, metrics.plannedOutput, '#,##0.00');
   setCell(row, fixed.actualOutput, metrics.actualOutput, '#,##0');
-  setFormula(row, fixed.achievement, `IFERROR(AC${rowNumber}/AB${rowNumber},0)`, metrics.achievement, '0.00%');
+  if (metrics.achievement != null) setFormula(row, fixed.achievement, `IFERROR(AC${rowNumber}/AB${rowNumber},0)`, metrics.achievement, '0.00%');
   setCell(row, fixed.workDate, workDate, 'dd/mm/yyyy');
-  setFormula(row, fixed.outputPerHour, `IFERROR(AC${rowNumber}/H${rowNumber},0)`, metrics.outputPerHour, '#,##0');
+  if (metrics.outputPerHour != null) setFormula(row, fixed.outputPerHour, `IFERROR(AC${rowNumber}/H${rowNumber},0)`, metrics.outputPerHour, '#,##0');
   setCell(row, fixed.ok, metrics.ok, '#,##0');
   setFormula(row, fixed.totalNg, `SUM(AJ${rowNumber}:BB${rowNumber})`, metrics.totalNg, '#,##0');
-  setFormula(row, fixed.ngRate, `IFERROR(AH${rowNumber}/AC${rowNumber},0)`, metrics.ngRate, '0.00%');
+  if (metrics.ngRate != null) setFormula(row, fixed.ngRate, `IFERROR(AH${rowNumber}/AC${rowNumber},0)`, metrics.ngRate, '0.00%');
 }
 
 function writeRow(sheet, rowNumber, report, layout, deductionTypes, defectTypes, sequence) {
@@ -194,7 +186,7 @@ function writeRow(sheet, rowNumber, report, layout, deductionTypes, defectTypes,
     setCell(row, fixed.relatedGrindingMachine, reportExtraValue(report, 'grinding_machine_no'));
   }
   setCell(row, fixed.shift, safeText(report.shift));
-  setCell(row, fixed.training, metrics.trainingPercent / 100, '0%');
+  setCell(row, fixed.training, metrics.trainingPercent == null ? null : metrics.trainingPercent / 100, '0%');
   setCell(row, fixed.totalTime, metrics.totalTime, '0.00');
   setCell(row, fixed.actualTime, metrics.actualTime, '0.00');
   setCell(row, fixed.changeCount, metrics.changeCount, '0');

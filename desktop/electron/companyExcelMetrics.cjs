@@ -12,7 +12,7 @@ function createCompanyExcelMetrics({ num, normalizeCode }) {
     return {
       ok: metrics.ok, totalNg: metrics.allNg, actualTime: metrics.actualTime,
       totalTime: metrics.workingTime, trainingPercent: metrics.trainingPercent,
-      standardOutput: metrics.standard, actualOutput: metrics.adjustedOutput,
+      standardOutput: metrics.standard, plannedOutput: metrics.plannedOutput, actualOutput: metrics.adjustedOutput,
       outputPerHour: metrics.outputPerHour, achievement: metrics.achievement,
       ngRate: metrics.ngRate, deductionTotal: metrics.deductionTime, changeCount
     };

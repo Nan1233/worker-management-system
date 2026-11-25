@@ -14,7 +14,8 @@ export const reportCodes = (r: ProductionReport, kind: "machine" | "product"): s
 
 export const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 export const text = (v: unknown, fallback = "—") => v === null || v === undefined || v === "" ? fallback : String(v);
-export const fmt = (v: unknown) => num(v).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+const nullableNumber = (v: unknown): number | null => v == null || String(v).trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v);
+export const fmt = (v: unknown) => nullableNumber(v)?.toLocaleString("vi-VN", { maximumFractionDigits: 2 }) ?? "—";
 export const pct = (v: unknown) => v == null ? "—" : `${fmt(v)}%`;
 export const dateText = (v: unknown) => { const s = String(v || "").slice(0, 10); const [y, m, d] = s.split("-"); return y && m && d ? `${d}/${m}/${y}` : s || "—"; };
 export const dateValue = (v: Date) => `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
@@ -30,28 +31,29 @@ export const kpi = (r: ProductionReport) => {
     const x = r as ProductionReport & Record<string, unknown>;
     const canonical = x.kpi as Record<string, unknown> | undefined;
     if (canonical) {
-        const percent = (v: unknown) => num(v) * 100;
+        const percent = (v: unknown) => { const value = nullableNumber(v); return value === null ? null : value * 100; };
         return {
-            ok: num(canonical.ok), ng: num(canonical.allNg), actual: num(canonical.adjustedOutput),
-            actualTime: num(canonical.actualTime), totalTime: num(canonical.workingTime),
-            ttDinhMuc: num(canonical.plannedOutput), nangSuat: percent(canonical.achievement),
+            ok: nullableNumber(canonical.ok), ng: nullableNumber(canonical.allNg), actual: nullableNumber(canonical.adjustedOutput),
+            actualTime: nullableNumber(canonical.actualTime), totalTime: nullableNumber(canonical.workingTime),
+            ttDinhMuc: nullableNumber(canonical.plannedOutput), nangSuat: percent(canonical.achievement),
             dat: percent(canonical.okRate), pp: percent(canonical.ngRate),
-            hv: canonical.trainingPercent == null ? null : num(canonical.trainingPercent),
+            hv: canonical.trainingPercent == null ? null : nullableNumber(canonical.trainingPercent),
             ngTypeCount: Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count))
         };
     }
     // Older API responses may expose stored fields, but never derive new KPIs here.
     return {
-        ok: num(x.tt_ok), ng: num(x.tt_ng), actual: num(x.actual_output),
-        actualTime: num(x.actual_time), totalTime: num(x.total_time),
-        ttDinhMuc: num(x.tt_dinh_muc), nangSuat: num(x.nang_suat_percent),
-        dat: num(x.ok_rate_percent), pp: num(x.pp_percent),
-        hv: x.training_percent_snapshot == null ? null : num(x.training_percent_snapshot),
+        ok: nullableNumber(x.tt_ok), ng: nullableNumber(x.tt_ng), actual: nullableNumber(x.actual_output),
+        actualTime: nullableNumber(x.actual_time), totalTime: nullableNumber(x.total_time),
+        ttDinhMuc: nullableNumber(x.tt_dinh_muc), nangSuat: nullableNumber(x.nang_suat_percent),
+        dat: nullableNumber(x.ok_rate_percent), pp: nullableNumber(x.pp_percent),
+        hv: x.training_percent_snapshot == null ? null : nullableNumber(x.training_percent_snapshot),
         ngTypeCount: Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count))
     };
 };
 
-export const metricStyle = (type: "productivity" | "pp", value: number, ngTypeCount = 0): CSSProperties => {
+export const metricStyle = (type: "productivity" | "pp", value: number | null, ngTypeCount = 0): CSSProperties => {
+    if (value === null) return {};
     if (type === "productivity" && (value <= 75 || value > 100)) return { backgroundColor: "#ffd6e7", color: "#9b123f", fontWeight: 800, border: "1px solid #ff9fbe" };
     if (type === "pp" && (value === 0 || ngTypeCount === 1)) return { backgroundColor: "#fff0b8", color: "#795600", fontWeight: 800, border: "1px solid #e3ad20" };
     return {};

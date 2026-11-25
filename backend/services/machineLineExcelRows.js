@@ -1,6 +1,6 @@
 'use strict';
 
-const { calculateNetHours } = require('../../shared/productionMetricPrimitives.cjs');
+const { calculateNetHours, deductionDetailHours } = require('../../shared/productionMetricPrimitives.cjs');
 const { parseExcelDetailArray } = require('./excelDetailArray');
 
 const { calculateMachineLinePerformance } = require('./machinePerformanceService');
@@ -17,7 +17,7 @@ const normalizeDeductions = (line) => parseArray(line.deductions ?? line.deducti
     deduction_type_id: Number(item?.deduction_type_id ?? item?.id) || undefined,
     deduction_code: String(item?.deduction_code ?? item?.code ?? '').trim(),
     deduction_name: String(item?.deduction_name ?? item?.name ?? '').trim(),
-    hours: Math.max(0, toNumber(item?.hours ?? item?.time ?? (item?.minutes != null ? Number(item.minutes) / 60 : item?.deduction_minutes != null ? Number(item.deduction_minutes) / 60 : 0)))
+    hours: deductionDetailHours(item)
   }))
   .filter((item) => item.hours > 0);
 

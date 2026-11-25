@@ -8,7 +8,7 @@ const { parseExcelDetailArray } = require('./excelDetailArray');
 // produce one row. Report-level deduction details/totals are used only as a safe
 // fallback when there is exactly one machine line, never copied across machines.
 
-const { calculateNetHours, calculatePlannedOutput, parseStoredTrainingSnapshot } = require('../../shared/productionMetricPrimitives.cjs');
+const { calculateNetHours, calculatePlannedOutput, parseStoredTrainingSnapshot, deductionDetailHours } = require('../../shared/productionMetricPrimitives.cjs');
 const planned = (standard, hours, report) => {
   const snapshot = parseStoredTrainingSnapshot(report.training_percent_snapshot);
   const value = calculatePlannedOutput(standard, hours, snapshot === null ? null : snapshot / 100);
@@ -28,7 +28,7 @@ const normalizeDeductions = (items) => parseArray(items)
     deduction_type_id: Number(item?.deduction_type_id ?? item?.id) || undefined,
     deduction_code: String(item?.deduction_code ?? item?.deduction_type_code ?? item?.code ?? '').trim(),
     deduction_name: String(item?.deduction_name ?? item?.name ?? '').trim(),
-    hours: Math.max(0, toNumber(item?.hours))
+    hours: deductionDetailHours(item)
   }))
   .filter((item) => item.hours > 0);
 
@@ -51,7 +51,8 @@ const baseOf = (report) => ({
 });
 
 function machineLineRow(report, line, reportLevelDeductions = [], allowReportTotalFallback = false) {
-  const lineDeductions = normalizeDeductions(line.deductions ?? line.deductions_json);
+  const primaryDeductions = normalizeDeductions(line.deductions);
+  const lineDeductions = primaryDeductions.length ? primaryDeductions : normalizeDeductions(line.deductions_json);
   // Approved reports created through legacy/import flows may persist details only
   // at report level. They are safe to reuse only when this report has exactly one
   // machine line; copying them to multiple lines would duplicate worker deductions.
@@ -147,7 +148,7 @@ function missingMachineRow(report) {
     totalHours: 0,
     workedHours: 0,
     deductionHours: 0,
-    standard: 0,
+    standard: null,
     deductions: [],
     warnings: [...row.warnings, 'MACHINE_TIME_UNAVAILABLE_NO_MACHINE_LINES']
   };
@@ -161,7 +162,7 @@ function buildGcWorkerRows(report) {
   }
 
   const hasLineBreakdown = lines.some(
-    (line) => normalizeDeductions(line.deductions_json).length > 0
+    (line) => normalizeDeductions(line.deductions).length > 0 || normalizeDeductions(line.deductions_json).length > 0
   );
   const singleMachineLine = lines.length === 1;
   const safeReportFallback = singleMachineLine && !hasLineBreakdown
