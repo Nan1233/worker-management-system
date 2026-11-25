@@ -9,7 +9,7 @@ const { validateMachineLines } = require("../services/machineLineValidationServi
 const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require("../services/factoryMachineRuleService");
 const { getProcessMachinePolicy } = require("../services/processMachinePolicy");
 const { validateProcessExtraData } = require("../services/processExtraDataValidationService");
-const { envEnabled } = require("../utils/featureFlags");
+const { approveReports, rejectReports } = require("../services/pendingReportReviewService");
 const {
     toPositiveInteger,
     validateWorkerWorkDate,
@@ -22,9 +22,6 @@ const { gcWorkTypeFromOperationType, gcWorkTypeLabel } = require("../utils/gcMac
 const { assertWorkerOwnership } = require("../services/processAuthorizationService");
 const { validateProductionReport } = require("../utils/reportValidation");
 const { calculateProductionOutput } = require("../../shared/productionOutput.cjs");
-const {
-    assertReviewBatchSize
-} = require("../services/managerReportPaginationService");
 
 exports.getPendingReports = async (req, res) => {
     try {
@@ -123,46 +120,7 @@ exports.getTempReportDetail = async (req, res) => {
 exports.approveSelectedReports = async (req, res) => {
     try {
         const targets = normalizeReviewTargets(req.body);
-        assertReviewBatchSize(targets);
-        const ids = targets.map((item) => item.id);
-        if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
-        const reviewerId = toPositiveInteger(req.user?.id);
-        if (!(await hasPermission(req.user, "REPORT_APPROVE"))) {
-            return res.status(403).json({ success:false, code:"PERMISSION_DENIED", message:"Bạn không có quyền duyệt hoặc từ chối báo cáo" });
-        }
-        const [scopeRows] = await db.promise().query(
-            `SELECT DISTINCT process_id FROM production_reports_temp WHERE id IN (${ids.map(() => "?").join(",")})`,
-            ids
-        );
-        await assertProcessesScope(req.user, scopeRows.map((row) => row.process_id), { action:"REPORT_APPROVE" });
-        if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người duyệt không hợp lệ" });
-
-        const result = await ProductionTemp.approveSelected(targets, reviewerId, req.user?.role === "admin");
-        invalidateManagerReportLists();
-
-        // Desktop owns workbook generation. Do not enqueue server-side Excel jobs
-        // unless a legacy feature has been explicitly enabled.
-        const googleSyncEnabled = envEnabled('ENABLE_GOOGLE_SHEET_SYNC');
-        const serverExcelEnabled = envEnabled('ENABLE_SERVER_HEAVY_EXCEL') && envEnabled('ENABLE_EXCEL_EXPORT_WORKER');
-        let syncQueued = false;
-
-        if (googleSyncEnabled || serverExcelEnabled) {
-            try {
-                const SyncJobService = require('../services/syncJobService');
-                await SyncJobService.enqueueForApprovedDates(result.dates);
-                syncQueued = true;
-
-                if (envEnabled('INLINE_SYNC_TRIGGER')) {
-                    setImmediate(() => {
-                        SyncJobService.processReadyJobs(1).catch((inlineError) => {
-                            console.error('INLINE SYNC PROCESS ERROR:', inlineError);
-                        });
-                    });
-                }
-            } catch (queueError) {
-                console.error('CREATE SYNC JOB ERROR:', queueError);
-            }
-        }
+        const {result,syncQueued} = await approveReports({actor:req.user,targets});
 
         return res.status(200).json({
             success: true,
@@ -194,25 +152,8 @@ exports.approveSelectedReports = async (req, res) => {
 exports.rejectSelectedReports = async (req, res) => {
     try {
         const targets = normalizeReviewTargets(req.body);
-        assertReviewBatchSize(targets);
-        const ids = targets.map((item) => item.id);
-        if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
-        const reviewerId = toPositiveInteger(req.user?.id);
         const reason = String(req.body?.reason || "").trim();
-        if (!(await hasPermission(req.user, "REPORT_APPROVE"))) {
-            return res.status(403).json({ success:false, code:"PERMISSION_DENIED", message:"Bạn không có quyền duyệt hoặc từ chối báo cáo" });
-        }
-        const [scopeRows] = await db.promise().query(
-            `SELECT DISTINCT process_id FROM production_reports_temp WHERE id IN (${ids.map(() => "?").join(",")})`,
-            ids
-        );
-        await assertProcessesScope(req.user, scopeRows.map((row) => row.process_id), { action:"REPORT_REJECT" });
-
-        if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người xử lý không hợp lệ" });
-        if (!reason) return res.status(400).json({ success: false, message: "Vui lòng nhập lý do từ chối" });
-
-        const result = await ProductionTemp.rejectSelected(targets, reviewerId, reason, req.user?.role === "admin");
-        invalidateManagerReportLists();
+        const result = await rejectReports({actor:req.user,targets,reason});
         return res.status(200).json({ success: true, message: "Đã từ chối báo cáo", data: result });
     } catch (error) {
         console.error(`REJECT SELECTED REPORTS ERROR: requestId=${req.requestId || ""} status=${error.status || 400} code=${error.code || ""} errno=${error.errno || ""}`, error);
