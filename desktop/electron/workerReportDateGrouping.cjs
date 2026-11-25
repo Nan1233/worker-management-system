@@ -1,5 +1,6 @@
 'use strict';
 const { groupedWorkHours, plannedAchievementRate } = require('./workerReportPlannedOutput.cjs');
+const { settingsForReport } = require('./monthlyWorkbookReportData.cjs');
 const { cloneExcelStyle } = require('./excelStyleClone.cjs');
 
 // Group worker rows by production date while preserving template styling and formulas.
@@ -111,10 +112,11 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
-      writeValue(row, contract.cols.workTime, groupedWorkHours(report));
+      const settings=settingsForReport(report,processData.formulaSettings||{},processData.formulaSettingsByDate||{});
+      writeValue(row, contract.cols.workTime, groupedWorkHours(report,settings));
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
-        cell.value = plannedAchievementRate(report);
+        cell.value = plannedAchievementRate(report,settings);
         cell.numFmt = percentFormat;
       }
       rowNumber += 1;

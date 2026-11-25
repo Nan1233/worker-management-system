@@ -39,7 +39,7 @@ function syncOriginalPatch(report) {
 
 const { addPhysicalMachineEventsMetadata } = createPhysicalMachineMetadata({ asText, asNumber });
 
-function addExcelDbSyncMetadata(workbook, code, processConfig, processData, yearMonth, templateMapping = null) {
+function addExcelDbSyncMetadata(workbook, code, processConfig, processData, yearMonth, templateMapping = null, renderedRows = null) {
   const deductionTypes = processDetailTypes(code, processData, 'deductionTypes', 'deductions', 'deduction');
   const defectTypes = processDetailTypes(code, processData, 'defectTypes', 'defects', 'defect');
   const columns = makeColumns(code, deductionTypes, defectTypes);
@@ -57,15 +57,16 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
   const reportRows = new Map();
   const reportOrdinals = new Map();
   if (paperForm) {
-    let nextRow = sourceFirstDataRow - 2;
-    let lastDate = null;
-    let dayStt = 0;
-    for (const report of sortReports(processData?.reports || [])) {
-      const day = dateKey(report.work_date);
-      if (day !== lastDate) { nextRow += 1; lastDate = day; dayStt = 0; }
-      const id = Number(report.id);
-      reportRows.set(id, ++nextRow);
-      reportOrdinals.set(id, ++dayStt);
+    // Do not re-sort reports or independently reconstruct row coordinates.
+    // The renderer records the exact identity of each actual written row.
+    if (!(renderedRows instanceof Map)) throw new Error('Thiếu ánh xạ dòng từ bộ dựng Excel.');
+    for (const report of processData?.reports || []) {
+      const id=Number(report.id), identity=renderedRows.get(id);
+      if(!identity || !Number.isSafeInteger(identity.row) || identity.row<sourceFirstDataRow || !identity.day || identity.stt<1 || reportRows.has(id)) {
+        throw new Error('Ánh xạ dòng Excel không hợp lệ cho báo cáo '+id);
+      }
+      reportRows.set(id,identity.row);
+      reportOrdinals.set(id,identity.stt);
     }
   }
   const sheet = workbook.addWorksheet('_KTC_SYNC');
@@ -90,7 +91,7 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
       JSON.stringify(syncOriginalPatch(report)),
       paperForm ? reportRows.get(Number(report.id)) ?? null : null,
       paperForm ? asText(report.worker_code) : null,
-      paperForm ? dateKey(report.work_date) : null,
+      paperForm ? renderedRows.get(Number(report.id)).day : null,
       paperForm ? reportOrdinals.get(Number(report.id)) ?? null : null
     ]);
   }

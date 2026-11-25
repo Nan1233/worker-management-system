@@ -206,6 +206,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     row.eachCell({includeEmpty:false},cell=>{if(cell.type!==ExcelJS.ValueType.Merge)cell.value=null;});
   }
   let rowIndex=workbook1 ? config.first-1 : config.first;
+  const reportRowIdentity = new Map();
   const workbook1DataRows = [];
   const workbook1SeparatorRows = [];
   let currentDay=null;
@@ -260,9 +261,10 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
         if(snapshot?.fill)row.getCell(col).fill=cloneExcelStyle(snapshot.fill);
       }
     }
-    const snapshot=helpers.reportSnapshot(report,helpers.settingsForReport(report,settings,processData?.settingsByDate||{}));
+    const snapshot=helpers.reportSnapshot(report,helpers.settingsForReport(report,settings,processData?.formulaSettingsByDate||processData?.settingsByDate||{}));
     const extra=helpers.parseExtraData(report);
     const values = reportRowValues({ snapshot, day, stt: ++dayStt, code, report, extra });
+    reportRowIdentity.set(Number(report.id),{row:targetRowIndex,day,stt:dayStt});
     for (const [col,key] of Object.entries(config.fields)) {
       const value=key.startsWith("extra:")?extra[key.slice(6)]:values[key];
       if(value!==undefined && value!==null) {
@@ -560,6 +562,6 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   sheet.views=[{state:"frozen",ySplit:config.header,xSplit:3,showGridLines:false}];
   workbook.creator="KTC Production Control";
   workbook.modified=new Date();
-  return {workbook,sheet,result:{processCode:code,reportCount:reports.length,templateKind:"original-company",templatePath:filename},mapping};
+  return {workbook,sheet,result:{processCode:code,reportCount:reports.length,templateKind:"original-company",templatePath:filename},mapping,reportRowIdentity};
 }
 module.exports={FORMS,WORKBOOK1_FORMS,TEMPLATE_ROOT,templatePath,renderOriginalProcessTemplate};

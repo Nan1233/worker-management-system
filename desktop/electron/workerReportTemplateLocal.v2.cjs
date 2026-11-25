@@ -4,6 +4,7 @@ const ExcelJS = require('exceljs');
 const { cloneExcelStyle } = require('./excelStyleClone.cjs');
 const { resolveWorkerParticipationTimes } = require('./exportMachineTime.cjs');
 const { calculateProductionMetrics } = require('./productionCalculationEngine.cjs');
+const { settingsForReport } = require('./monthlyWorkbookReportData.cjs');
 const { processWorkbookFileName } = require('./monthlyWorkbookNaming.cjs');
 const { calculateDetailTotals } = require('./workerReportDetailTotals.cjs');
 
@@ -271,7 +272,7 @@ function applyReportRow(row, report, contract, processData, index) {
     cell.value = asSubmissionDateTime(report.submitted_at);
     cell.numFmt = 'dd/mm/yyyy hh:mm:ss';
   }
-  const metrics = calculateProductionMetrics(report);
+  const metrics = calculateProductionMetrics(report,settingsForReport(report,processData.formulaSettings||{},processData.formulaSettingsByDate||{}));
   const { plannedOutput: planned, trainingPercent } = metrics;
   if (contract.cols.training) {
     const cell = row.getCell(contract.cols.training);
@@ -431,7 +432,7 @@ contract.cols.workTime = workTimeColumn;
   }
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const outputBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
-  return { buffer: outputBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: reports.length, templateFile: TEMPLATE_NAME, templatePath, templateSheet: sheet.name, headerRow, dataStartRow, layout,
+  return { buffer: outputBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: reports.length, templateKind: 'worker-template', templateFile: TEMPLATE_NAME, templatePath, templateSheet: sheet.name, headerRow, dataStartRow, layout,
     columnContract: {
       cols: contract.cols,
       detailColumns: contract.detailColumns,

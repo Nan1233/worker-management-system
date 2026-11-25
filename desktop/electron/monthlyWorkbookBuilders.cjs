@@ -56,7 +56,7 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
         (_, index) => ({ key: original.mapping.find(field => field.index === index + 1)?.key || '' }));
       addGcModeHelperSheet(original.workbook, original.sheet, processData, mappedColumns);
     }
-    addExcelDbSyncMetadata(original.workbook, code, config, processData, yearMonth, original.mapping);
+    addExcelDbSyncMetadata(original.workbook, code, config, processData, yearMonth, original.mapping, original.reportRowIdentity);
     addPhysicalMachineEventsMetadata(original.workbook, processData);
     const buffer = Buffer.from(await original.workbook.xlsx.writeBuffer());
     const originalCols = {};
