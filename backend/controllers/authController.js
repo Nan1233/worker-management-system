@@ -14,7 +14,7 @@ const ACCESS_TOKEN_EXPIRES_IN =
 const REFRESH_TOKEN_TTL_DAYS = Math.max(1, Number(process.env.REFRESH_TOKEN_TTL_DAYS || 90));
 
 const {REFRESH_COOKIE_NAME,parseCookie,getRequestRefreshToken,setRefreshCookie,clearRefreshCookie,shouldReturnRefreshToken}=require('../utils/authRefreshCookie');
-const {resolveLoginAccount}=require('../services/loginAccountResolutionService');
+const {verifyLoginCredentials}=require('../services/loginCredentialService');
 
 function getRefreshTokenExpiresAt() {
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
@@ -168,132 +168,11 @@ async function issueLoginSession(req, res, user) {
 
 }
 
-exports.login = async (req, res) => {
+exports.login = async (req,res) => {
     try {
-        const username =
-            typeof req.body?.username === "string"
-                ? req.body.username.trim()
-                : "";
-
-        const password =
-            typeof req.body?.password === "string"
-                ? req.body.password
-                : "";
-
-        const accessType =
-            req.body?.access_type === "worker" ||
-            req.body?.access_type === "management"
-                ? req.body.access_type
-                : null;
-
-        if (!username) {
-            return res.status(400).json({
-                success: false,
-                message: "Vui lòng nhập mã nhân viên"
-            });
-        }
-
-        if (!process.env.JWT_SECRET) {
-            console.error("Thiếu biến môi trường JWT_SECRET");
-
-            return res.status(500).json({
-                success: false,
-                message: "Cấu hình xác thực chưa hợp lệ"
-            });
-        }
-
-        const resolvedAccount = await resolveLoginAccount(username, accessType);
-
-        if (resolvedAccount.ambiguous) {
-            // Keep detailed diagnostics server-side only. Public failures must
-            // not confirm whether an employee code belongs to any account.
-            console.error("AUTH_ACCOUNT_AMBIGUOUS", {
-                candidateCount: resolvedAccount.usernames.length
-            });
-        }
-        if (resolvedAccount.ambiguous || !resolvedAccount.user) {
-            return res.status(401).json({
-                success: false,
-                code: "INVALID_CREDENTIALS",
-                message: "Thông tin đăng nhập không hợp lệ"
-            });
-        }
-
-        const user = resolvedAccount.user;
-        const userIsInactive = user.status !== "active";
-        const workerIsInactive =
-            user.role === "worker" &&
-            user.worker_status !== "active";
-
-        if (userIsInactive || workerIsInactive) {
-            // Avoid revealing account status during unauthenticated login.
-            return res.status(401).json({
-                success: false,
-                code: "INVALID_CREDENTIALS",
-                message: "Thông tin đăng nhập không hợp lệ"
-            });
-        }
-
-        /*
-         * Luồng mới:
-         * - Công nhân: chỉ cần mã nhân viên.
-         * - Quản lý/tổ trưởng/admin: bắt buộc thêm mật khẩu.
-         *
-         * Nếu client cũ chưa gửi access_type, vẫn giữ cách đăng nhập
-         * bằng username + password để không làm hỏng desktop cũ.
-         */
-        if (accessType === "worker") {
-            if (user.role !== "worker") {
-                return res.status(401).json({
-                    success: false,
-                    code: "INVALID_CREDENTIALS",
-                    message: "Thông tin đăng nhập không hợp lệ"
-                });
-            }
-
-            return issueLoginSession(req, res, user);
-        }
-
-        if (accessType === "management") {
-            if (
-                !["super_admin", "admin", "admin_ops", "manager", "lead"].includes(
-                    user.role
-                )
-            ) {
-                return res.status(401).json({
-                    success: false,
-                    code: "INVALID_CREDENTIALS",
-                    message: "Thông tin đăng nhập không hợp lệ"
-                });
-            }
-
-            if (!password) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Vui lòng nhập mật khẩu quản lý"
-                });
-            }
-        } else if (!password) {
-            return res.status(400).json({
-                success: false,
-                message: "Thiếu mật khẩu"
-            });
-        }
-
-        const passwordIsValid = await bcrypt.compare(
-            password,
-            user.password
-        );
-
-        if (!passwordIsValid) {
-            return res.status(401).json({
-                success: false,
-                code: "INVALID_CREDENTIALS",
-                message: "Thông tin đăng nhập không hợp lệ"
-            });
-        }
-
-        return issueLoginSession(req, res, user);
+        const result=await verifyLoginCredentials(req.body);
+        if (!result.user) return res.status(result.status).json(result.payload);
+        return await issueLoginSession(req,res,result.user);
     } catch (error) {
         console.error("AUTH_LOGIN_ERROR", {
             code: typeof error?.code === "string" ? error.code : "AUTH_LOGIN_FAILED",

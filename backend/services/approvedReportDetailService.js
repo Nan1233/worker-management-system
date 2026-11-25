@@ -39,7 +39,7 @@ async function getApprovedReportDetail({ reportId, actor }) {
     const mergedDefects=mergeDefects(report,defects,normalizedMachineLines);
     const normalizedDeductions=normalizeDeductions(deductions,report);
 
-    const kpi=projectApprovedReportKpi({...report,machine_lines:normalizedMachineLines,deductions:normalizedDeductions,defects:mergedDefects});
+    const kpi=projectApprovedReportKpi({...report,machine_lines:machineLines,deductions,defects});
 
     return {
         ...report,

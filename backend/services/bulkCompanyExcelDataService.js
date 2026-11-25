@@ -202,33 +202,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     deductionRows.push(...d); defectRows.push(...f); machineLineRows.push(...m); machineDefectRows.push(...md); eventDefectRows.push(...ed);
   }
 
-  let tempDeductionRows = [];
-  let tempDefectRows = [];
-  const sourceTempIds = [...new Set(
-    reports.map((report) => Number(report.source_temp_id)).filter((id) => Number.isInteger(id) && id > 0)
-  )];
-  if (sourceTempIds.length) {
-    const p = sourceTempIds.map(() => '?').join(',');
-    [tempDeductionRows, tempDefectRows] = await Promise.all([
-      query(
-        `SELECT ptd.temp_report_id, ptd.deduction_type_id, dt.deduction_code, dt.deduction_name, ptd.hours
-           FROM production_temp_deductions ptd
-           LEFT JOIN deduction_types dt ON dt.id=ptd.deduction_type_id
-          WHERE ptd.temp_report_id IN (${p})
-          ORDER BY ptd.temp_report_id,COALESCE(dt.sort_order,999999),ptd.deduction_type_id`,
-        sourceTempIds
-      ),
-      query(
-        `SELECT ptd.temp_report_id, ptd.defect_type_id, dt.defect_code, dt.defect_name, ptd.quantity
-           FROM production_temp_defects ptd
-           LEFT JOIN defect_types dt ON dt.id=ptd.defect_type_id
-          WHERE ptd.temp_report_id IN (${p})
-          ORDER BY ptd.temp_report_id,COALESCE(dt.sort_order,999999),ptd.defect_type_id`,
-        sourceTempIds
-      )
-    ]);
-  }
-
   const deductionByReport = mapDetails(deductionRows, reportIds, (row) => ({
     deduction_type_id: Number(row.deduction_type_id),
     deduction_type_code: row.deduction_code,
@@ -241,38 +214,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     defect_name: row.defect_name,
     quantity: Number(row.quantity) || 0
   }));
-  // Resolve temp -> approved report IDs once. Repeated Array.find() inside both
-  // detail loops made this O(reports × detail rows) for larger monthly exports.
-  const reportIdBySourceTempId = new Map(
-    reports
-      .filter((report) => Number(report.source_temp_id) > 0)
-      .map((report) => [Number(report.source_temp_id), Number(report.id)])
-  );
-  const tempDeductionByReport = new Map();
-  for (const row of tempDeductionRows) {
-    const id = reportIdBySourceTempId.get(Number(row.temp_report_id));
-    if (!id) continue;
-    if (!tempDeductionByReport.has(id)) tempDeductionByReport.set(id, []);
-    tempDeductionByReport.get(id).push({
-      deduction_type_id: Number(row.deduction_type_id),
-      deduction_type_code: row.deduction_code,
-      deduction_name: row.deduction_name,
-      hours: Number(row.hours) || 0
-    });
-  }
-  const tempDefectByReport = new Map();
-  for (const row of tempDefectRows) {
-    const id = reportIdBySourceTempId.get(Number(row.temp_report_id));
-    if (!id) continue;
-    if (!tempDefectByReport.has(id)) tempDefectByReport.set(id, []);
-    tempDefectByReport.get(id).push({
-      defect_type_id: Number(row.defect_type_id),
-      defect_type_code: row.defect_code,
-      defect_name: row.defect_name,
-      quantity: Number(row.quantity) || 0
-    });
-  }
-
   const machineDefectsByLine = groupMachineDefects(machineDefectRows, 'machine_line_id');
   const eventDefectsByEvent = groupMachineDefects(eventDefectRows, 'machine_event_id');
   const machineLinesByReport = new Map();
@@ -378,8 +319,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
                 : Math.max(0, Number(line.machine_time_hours) || 0)
             };
           });
-        const tempDeductions = tempDeductionByReport.get(reportId) || [];
-        const tempDefects = tempDefectByReport.get(reportId) || [];
         const persistedDeductions = deductionByReport.get(reportId) || [];
         const persistedDefects = defectByReport.get(reportId) || [];
         const eventLines = (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean);

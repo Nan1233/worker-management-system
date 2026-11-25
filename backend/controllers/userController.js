@@ -1,3 +1,4 @@
+const {createUserAccount}=require('../services/userAccountWriteService');
 const bcrypt = require('bcrypt');
 const ExcelJS = require('exceljs');
 const db = require('../config/db');
@@ -110,62 +111,9 @@ exports.getUserById = async (req, res) => {
   finally { connection.release(); }
 };
 
-exports.createUser = async (req, res) => {
-  const connection = await db.promise().getConnection();
+exports.createUser = async (req,res,next) => {
   try {
-    const username = String(req.body?.username || '').trim();
-    const password = String(req.body?.password || '');
-    const fullName = String(req.body?.full_name || '').trim();
-    const role = String(req.body?.role || '').trim();
-    if (!username || !fullName || password.length < 6 || !role) return res.status(400).json({ success:false, message:'Tên đăng nhập, họ tên, vai trò và mật khẩu tối thiểu 6 ký tự là bắt buộc' });
-    if (!manageableRoles(req.user?.role).includes(role)) return res.status(403).json({ success:false, message:`Bạn không được tạo tài khoản vai trò ${role}` });
-    const workerCode = String(req.body?.worker_code || '').trim();
-    if (role === 'worker' && !workerCode) return res.status(400).json({ success:false, message:'Mã công nhân là bắt buộc khi tạo công nhân' });
-    const trainingPercent = req.body?.training_percent === '' || req.body?.training_percent == null ? 100 : Number(req.body.training_percent);
-    if (role === 'worker' && (!Number.isFinite(trainingPercent) || trainingPercent < 0 || trainingPercent > 100)) return res.status(400).json({ success:false, message:'% học việc phải từ 0 đến 100' });
-    const processIds = normalizeProcessIds(req.body?.process_ids);
-    await connection.beginTransaction();
-    await validateProcessAssignment(connection, req.user, processIds, true);
-
-    const [usernameRows] = await connection.query(
-      `SELECT id,username,full_name,role,status FROM users WHERE username=? LIMIT 1`,
-      [username]
-    );
-    if (usernameRows.length) {
-      await connection.rollback();
-      const existing = usernameRows[0];
-      const roleLabel = existing.role === 'admin' ? 'quản trị viên' : existing.role === 'manager' ? 'quản lý' : existing.role === 'lead' ? 'tổ trưởng' : 'công nhân';
-      return res.status(409).json({ success:false, code:'USERNAME_ALREADY_EXISTS', message:`Tên đăng nhập "${username}" đã được sử dụng bởi tài khoản ${roleLabel}${existing.full_name ? ` (${existing.full_name})` : ''}. Vui lòng dùng tên đăng nhập khác.` });
-    }
-
-    if (role === 'worker') {
-      const [workerCodeRows] = await connection.query(
-        `SELECT w.id,w.worker_code,u.username,u.full_name,u.role FROM workers w LEFT JOIN users u ON u.id=w.user_id WHERE w.worker_code=? LIMIT 1`,
-        [workerCode]
-      );
-      if (workerCodeRows.length) {
-        await connection.rollback();
-        const existing = workerCodeRows[0];
-        return res.status(409).json({ success:false, code:'WORKER_CODE_ALREADY_EXISTS', message:`Mã công nhân "${workerCode}" đã tồn tại${existing.full_name ? ` (${existing.full_name})` : ''}${existing.username ? ` với tài khoản "${existing.username}"` : ''}. Vui lòng kiểm tra lại.` });
-      }
-    }
-
-    const hash = await bcrypt.hash(password, 10);
-    const [userResult] = await connection.query('INSERT INTO users (username,password,full_name,role,status) VALUES (?,?,?,?,?)', [username,hash,fullName,role,normalizeStatus(req.body?.status)]);
-    let workerId = null;
-    if (role === 'worker') {
-      const [workerResult] = await connection.query(`INSERT INTO workers (user_id,worker_code,phone,department,position,training_percent,status) VALUES (?,?,?,?,?,?,?)`, [userResult.insertId,workerCode,req.body?.phone || null,req.body?.department || 'Sản xuất',req.body?.position || 'Công nhân',trainingPercent,normalizeStatus(req.body?.status)]);
-      workerId = workerResult.insertId;
-    }
-    await replaceProcessAssignments(connection, role, userResult.insertId, workerId, processIds);
-    await connection.commit();
-    return res.status(201).json({ success:true, message:'Đã tạo tài khoản' });
-  } catch (error) {
-    try { await connection.rollback(); } catch {}
-    if (error?.status) return res.status(error.status).json({ success:false, message:error.message });
-    if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ success:false, code:'DUPLICATE_USER_DATA', message:'Tên đăng nhập hoặc mã công nhân đã tồn tại. Vui lòng kiểm tra lại.' });
-    return publicError(res, error, 'Không thể tạo tài khoản');
-  } finally {
-    connection.release();
-  }
+    const result=await createUserAccount({actor:req.user,body:req.body});
+    return res.status(result.status).json(result.payload);
+  }catch(error){return next(error);}
 };
