@@ -1,5 +1,5 @@
 const db = require("../config/db");
-const { calculateStoredProductionMetrics, safeRatio } = require("../../shared/productionMetricPrimitives.cjs");
+const { projectApprovedReportKpi } = require("../domain/approvedReportKpi.cjs");
 const { mergeDefects, normalizeDeductions, workerDeclaredDefects } = require("../utils/reportDetailNormalizer");
 const { calculateReportPerformance } = require("../services/machinePerformanceService");
 const { envEnabled } = require("../utils/featureFlags");
@@ -186,7 +186,7 @@ exports.getReportById=async(req,res)=>{
     const mergedDefects=mergeDefects(report,defects,normalizedMachineLines);
     const normalizedDeductions=normalizeDeductions(deductions,report);
 
-    const metrics=calculateStoredProductionMetrics({...report,machine_lines:normalizedMachineLines,deductions:normalizedDeductions,defects:mergedDefects});
+    const kpi=projectApprovedReportKpi({...report,machine_lines:normalizedMachineLines,deductions:normalizedDeductions,defects:mergedDefects});
     return res.status(200).json({
       success:true,
       data:{
@@ -198,7 +198,7 @@ exports.getReportById=async(req,res)=>{
         ...(machineLinesLoadFailed?{machine_lines_load_failed:true}:{}),
         ...performance,
         machine_lines:normalizedMachineLines,
-        kpi:{...metrics,okRate:safeRatio(metrics.ok,metrics.ok != null && metrics.allNg != null ? metrics.ok+metrics.allNg : null)}
+        kpi
       }
     });
   }catch(error){
