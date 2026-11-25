@@ -92,18 +92,21 @@ test('approved collection/date/by-date controllers apply backend process scope',
 });
 
 test('approved detail manager/lead asserts report process scope; worker keeps ownership rule', () => {
-  const src = fs.readFileSync(path.join(__dirname,'../controllers/productionController.js'),'utf8');
-  assert.match(src, /role==='worker'[\s\S]*assertWorkerOwnership\(req\.user,minimal\.worker_id\)/);
-  assert.match(src, /\['manager','lead','admin_ops'\]\.includes\(role\)[\s\S]*assertProcessScope\(req\.user,minimal\.process_id/);
+  const src = fs.readFileSync(path.join(__dirname,'../services/approvedReportDetailService.js'),'utf8');
+  assert.match(src, /role==='worker'[\s\S]*assertWorkerOwnership\(actor,minimal\.worker_id\)/);
+  assert.match(src, /\['manager','lead','admin_ops'\]\.includes\(role\)[\s\S]*assertProcessScope\(actor,minimal\.process_id/);
+  assert.match(src,/hasPermission\(actor,'REPORT_APPROVED_VIEW'\)/);
 });
 
 test('web edit, delete and restore all guard process before approved mutation', () => {
   const controller = fs.readFileSync(path.join(__dirname,'../controllers/productionController.js'),'utf8');
   const service = fs.readFileSync(path.join(__dirname,'../services/approvedReportEditService.js'),'utf8');
   assert.match(controller, /updateApprovedReport\([\s\S]*actor\s*:\s*req\.user/);
-  assert.ok(controller.indexOf("assertProcessScope(req.user, lockedRows[0].process_id") < controller.indexOf("UPDATE production_reports"));
+  const deleteGuard=controller.indexOf("assertProcessScope(req.user,lockedRows[0].process_id");
+  assert.ok(deleteGuard>=0 && deleteGuard < controller.indexOf("UPDATE production_reports"));
   assert.match(service, /SELECT \* FROM production_reports WHERE id=\? FOR UPDATE[\s\S]*assertProcessScope\(actor, lockedRows\[0\]\.process_id/);
-  assert.match(service, /restoreApprovedReportVersion[\s\S]*SELECT \* FROM production_reports WHERE id=\? FOR UPDATE[\s\S]*assertProcessScope\(actor, currentRow\.process_id/);
+  const restore=fs.readFileSync(path.join(__dirname,'../services/approvedReportRestoreService.js'),'utf8');
+  assert.match(restore, /restoreApprovedReportVersion[\s\S]*SELECT \* FROM production_reports WHERE id=\? FOR UPDATE[\s\S]*assertProcessScope\(actor, currentRow\.process_id/);
 });
 
 test('Excel update and create carry actor and resolve DB process before mutation', () => {

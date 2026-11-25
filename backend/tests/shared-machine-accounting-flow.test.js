@@ -105,7 +105,7 @@ test('same worker repeated activity remains one distinct worker in capacity SQL'
 
 test('worker report approval copies machine_event_id and cannot fabricate physical event', () => {
   const createModel = fs.readFileSync(path.join(root, 'models/productionTempCreateModel.js'), 'utf8');
-  const approval = fs.readFileSync(path.join(root, 'models/productionTempApprovalModel.js'), 'utf8');
+  const approval = fs.readFileSync(path.join(root, 'services/productionApprovalSnapshotValidationService.js'), 'utf8');
   assert.match(createModel, /report_id, machine_event_id, machine_id/);
   assert.match(createModel, /line\.machine_event_id \|\| null/);
   assert.match(approval, /assertApprovedEventForTempLine/);
@@ -113,16 +113,17 @@ test('worker report approval copies machine_event_id and cannot fabricate physic
 });
 
 test('dashboard machine metrics aggregate approved physical events, not worker credits', () => {
-  const source = fs.readFileSync(path.join(root, 'controllers/dashboardController.js'), 'utf8');
+  const source = fs.readFileSync(path.join(root, 'repositories/dashboardSummaryRepository.js'), 'utf8');
   assert.match(source, /FROM machine_production_events e/);
   assert.match(source, /SUM\(e\.physical_counted_output\)/);
-  assert.doesNotMatch(source.match(/SELECT COUNT\(DISTINCT e\.machine_id\)[\s\S]*?\),\n\s*db\.promise/)?.[0] || '', /SUM\(ml\.counted_output\)/);
+  assert.match(source,/FROM production_report_machine_lines ml[\s\S]*ml\.machine_event_id IS NULL/);
+  assert.match(source,/FROM machine_production_events e WHERE e\.status='approved'/);
 });
 
 test('Excel company payload carries physical events separately from worker reports', () => {
   const backend = fs.readFileSync(path.join(root, 'controllers/companyExcelDataController.js'), 'utf8');
   const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
-  const desktop = fs.readFileSync(path.join(repo, 'desktop/electron/monthlyWorkbookLocal.cjs'), 'utf8');
+  const desktop = fs.readFileSync(path.join(repo, 'desktop/electron/monthlyWorkbookSyncMetadata.cjs'), 'utf8');
   assert.match(loader, /physicalMachineEvents/);
   assert.match(loader, /FROM machine_production_events e/);
   assert.match(backend, /processes: processData/);
@@ -159,7 +160,9 @@ test('GC process code is resolved from the database when the client sends only p
   assert.match(source, /const resolvedProcessCode = String\(processRows\?\.\[0\]\?\.process_code/);
   assert.match(source, /if \(resolvedProcessCode\) \{\s*data\.process_code = resolvedProcessCode;/);
   assert.match(source, /const reportMachineLines = String\(data\.process_code \|\| ""\)[\s\S]*=== "MAI"[\s\S]*\? machineLines[\s\S]*groupMaiMachineProductLines\(machineLines\)/);
-  assert.match(source, /const authoritativeProcess = await query\(db/);
+  assert.match(source, /const authoritativeProcess = await findSubmissionProcessCode\(data\.process_id\)/);
+  const processRepo=fs.readFileSync(path.join(root,'repositories/productionSubmissionProcessRepository.js'),'utf8');
+  assert.match(processRepo,/SELECT process_code FROM processes WHERE id=\?/);
   assert.match(source, /data\.process_code = authoritativeCode;/);
   assert.match(source, /data\._resolved_process_code = authoritativeCode;/);
   assert.match(source, /const splitMachines = shouldSplitMachineReports\(data, reportMachineLines\)/);
@@ -188,16 +191,16 @@ test('company Excel passes GC machine mode into canonical accounting for legacy 
   assert.match(loader, /buildGiaCongMachineAccounting\([\s\S]*?operation_mode:\s*report\.operation_mode/);
 });
 
-test('bulk company Excel indexes temp report IDs once for deduction and defect hydration', () => {
+test('bulk company Excel uses approved details indexed by approved report ID, not mutable temp reports', () => {
   const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
-  assert.match(loader, /const reportIdBySourceTempId = new Map/);
-  assert.match(loader, /reportIdBySourceTempId\.get\(Number\(row\.temp_report_id\)\)/);
+  assert.match(loader, /deductionByReport\.get\(reportId\)/);
+  assert.doesNotMatch(loader, /production_temp_(?:defects|deductions)\b/);
   assert.doesNotMatch(loader, /reports\.find\(\(item\) => Number\(item\.source_temp_id\)/);
 });
 
 test('bulk company Excel preserves worker deductions separately from physical machine deductions', () => {
   const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
-  assert.match(loader, /const deductions = tempDeductions\.length \? tempDeductions : persistedDeductions/);
+  assert.match(loader, /const deductions = persistedDeductions/);
   assert.match(loader, /machineDeductions: machineAccounting\?\.deductions \|\| \[\]/);
   assert.doesNotMatch(loader, /deductions = machineDeductions/);
   assert.doesNotMatch(loader, /machineLines,\s*deductions,\s*total_time/);

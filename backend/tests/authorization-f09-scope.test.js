@@ -51,7 +51,7 @@ test('F09 immediate assignment change affects next authorization without new JWT
 test('master collections are DB-scoped and master writes assert existing/resulting process', () => {
   const src = read('controllers/adminMasterController.js');
   assert.match(src, /getActorProcessScope\(req\.user\)/);
-  assert.match(src, /scopeSql\(scope, 't\.process_id'/);
+  assert.match(src, /scopeSql\(scope, cfg\.table === 'processes' \? 't\.id' : 't\.process_id'/);
   assert.match(src, /assertProcessScope\(req\.user, payload\.process_id[\s\S]*MASTER_CREATE/);
   assert.match(src, /assertMasterResourceScope\(req\.user, cfg, id, connection\)/);
   assert.match(src, /MASTER_UPDATE_TARGET/);
@@ -142,7 +142,7 @@ test('audit, system health and notification endpoints enforce role and scope con
 
 test('no shared default password remains; management account creation requires explicit password', () => {
   const routes = read('routes/userRoutes.js');
-  const create = read('controllers/userController.js');
+  const create = read('controllers/userCreateController.js');
   const promotion = read('controllers/workerPromotionController.js');
   const adminUi = read('../frontend/src/pages/admin/Workers.tsx');
   const managerUi = read('../frontend/src/pages/manager/Workers.tsx');
@@ -181,8 +181,11 @@ test('approved edit/delete/restore use permission, role, scope and audit contrac
   assert.match(routes, /router\.delete\("\/:id"[\s\S]*checkRole\("admin","admin_ops","manager","lead"\)[\s\S]*permission\("REPORT_DELETE"\)/);
   assert.match(service, /hasPermission\(actor, 'REPORT_APPROVED_EDIT'\)/);
   assert.match(service, /assertProcessScope\(actor, lockedRows\[0\]\.process_id/);
-  assert.match(service, /assertProcessScope\(actor, currentRow\.process_id/);
-  assert.match(service, /REPORT_RESTORED/);
+  const restore=read('services/approvedReportRestoreService.js');
+  assert.match(restore,/hasPermission\(actor, 'REPORT_APPROVED_EDIT'\)/);
+  assert.match(restore, /assertProcessScope\(actor, currentRow\.process_id/);
+  assert.match(restore, /assertProcessScope\(actor, target\.report\.process_id/);
+  assert.match(restore, /REPORT_RESTORED/);
   assert.match(controller, /hasPermission\(req\.user,'REPORT_DELETE'\)/);
   assert.match(controller, /assertProcessScope\(req\.user,lockedRows\[0\]\.process_id/);
   assert.match(controller, /REPORT_DELETED/);
@@ -194,16 +197,22 @@ test('pending approve/reject and edit require functional permission plus process
   assert.match(routes, /approve-selected[\s\S]*permission\("REPORT_APPROVE"\)/);
   assert.match(routes, /reject-selected[\s\S]*permission\("REPORT_APPROVE"\)/);
   assert.match(routes, /router\.put\("\/:id"[\s\S]*permission\("REPORT_PENDING_EDIT","REPORT_APPROVE","WORKER_ENTRY"\)/);
-  assert.match(ctrl, /hasPermission\(req\.user, "REPORT_APPROVE"\)/);
-  assert.match(ctrl, /assertProcessesScope\(req\.user, scopeRows\.map\(\(row\) => row\.process_id\)/);
-  assert.match(ctrl, /requiredPermission[\s\S]*REPORT_PENDING_EDIT/);
-  assert.match(ctrl, /assertProcessesScope\(req\.user, \[current\.process_id\], \{ action:"REPORT_PENDING_EDIT" \}\)/);
-  assert.match(ctrl, /WORKER_OWNERSHIP_FORBIDDEN/);
+  const review=read('services/pendingReportReviewService.js');
+  const edit=read('services/pendingReportEditService.js');
+  assert.match(ctrl,/approveReports/);
+  assert.match(ctrl,/rejectReports/);
+  assert.match(ctrl,/editPendingReport\(/);
+  assert.match(review, /hasPermission\(actor,\s*"REPORT_APPROVE"\)/);
+  assert.match(review, /assertProcessesScope\(actor,await findPendingProcessIds\(db\.promise\(\),ids\)/);
+  assert.match(edit, /requiredPermission[\s\S]*REPORT_PENDING_EDIT/);
+  assert.match(edit, /hasPermission\(actor, requiredPermission\)/);
+  assert.match(edit, /assertProcessesScope\(actor, \[current\.process_id\], \{ action:"REPORT_PENDING_EDIT" \}\)/);
+  assert.match(edit, /WORKER_OWNERSHIP_FORBIDDEN/);
 });
 
 test('transactional approval scope SQL requires manager_processes and limits editable statuses', () => {
   // SQL lives in the pure query-builder module after the approval-model split.
-  const approval = read('models/productionTempApprovalModel.js');
+  const approval = read('repositories/productionApprovalReadRepository.js');
   assert.match(approval, /buildApprovalScopeQuery/);
   const { buildApprovalScopeQuery } = require('../models/productionTempApprovalQueries');
   const scoped = buildApprovalScopeQuery([71, 72], 9, false);
@@ -262,7 +271,10 @@ test('process Excel list and explicit process export are scoped server-side', ()
   const svc = read('services/processExcelExportService.js');
   assert.match(ctrl, /listProcessesForMonth\(selectedDate\.slice\(0,7\), \{ actor:req\.user \}\)/);
   assert.match(ctrl, /assertProcessScope\(req\.user, processId, \{ action:'PROCESS_EXPORT' \}\)/);
-  assert.match(svc, /listProcessesForMonth\(value, options = \{\}\)[\s\S]*getActorProcessScope\(options\.actor\)/);
+  const catalog=read('services/excelProcessCatalogService.js');
+  assert.match(svc,/require\('\.\/excelProcessCatalogService'\)/);
+  assert.match(catalog, /listProcessesForMonth\(value, options = \{\}\)[\s\S]*getActorProcessScope\(options\.actor\)/);
+  assert.match(catalog,/scopeSql\(scope, 'p\.id'/);
   assert.match(svc, /loadProcessMonthReports\(value, processId, options = \{\}\)[\s\S]*assertProcessScope\(options\.actor, processId/);
 });
 
