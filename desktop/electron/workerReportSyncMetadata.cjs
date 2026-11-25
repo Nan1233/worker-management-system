@@ -2,7 +2,7 @@
 const { syncOriginalPatch, addPhysicalMachineEventsMetadata }=require('./monthlyWorkbookSyncMetadata.cjs');
 const { normalizeEditable, normalizeOperationMode, excelDateToIso }=require('./excelDbSyncValues.cjs');
 const { detailId }=require('./monthlyWorkbookDetails.cjs');
-const { EXCEL_CONTRACT_VERSION:EXCEL_SYNC_CONTRACT_VERSION }=require('./monthlyWorkbookLocal.cjs');
+const { EXCEL_SYNC_CONTRACT_VERSION } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs') : '../../shared/excelSyncContract.cjs');
 const { normalizeYearMonth }=require('./monthlyExcelContract.cjs');
 
 function syncColumns(contract,code) {

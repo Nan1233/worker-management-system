@@ -32,6 +32,7 @@ async function performSyncSingleMonth({ date, source }) {
   setCurrentToken(token);
 
   const files = [];
+  let expectedFileCount = MONTHLY_FILE_COUNT;
   try {
     // Excel -> DB không tự chạy trong lúc export. DB đã duyệt là nguồn dữ liệu duy nhất.
     await writeLog('INFO', 'EXCEL_DB_PRECHECK_SKIPPED_FOR_DB_EXPORT', {
@@ -138,9 +139,10 @@ async function performSyncSingleMonth({ date, source }) {
     });
 
     const isWorkerSingleFile = built?.mode === 'WORKER_REPORT_SINGLE_FILE';
+    expectedFileCount=isWorkerSingleFile?Number(built.expectedFileCount||1):MONTHLY_FILE_COUNT;
     if (isWorkerSingleFile) {
       const actualCount = Array.isArray(built.processes) ? built.processes.length : 0;
-      const expectedCount = Number.isFinite(Number(built.expectedFileCount)) ? Number(built.expectedFileCount) : actualCount;
+      const expectedCount = expectedFileCount;
       if (actualCount !== expectedCount) {
         throw Object.assign(new Error('Số workbook không khớp: yêu cầu ' + expectedCount + ', tạo được ' + actualCount + '.'),
           { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' });
@@ -276,12 +278,11 @@ async function performSyncSingleMonth({ date, source }) {
     });
   }
 
-  const expectedFileCount = files.filter((file) => file.category === 'MONTHLY_PROCESS').length === 1 ? 1 : Object.keys(PROCESS_SHEETS).length + 1;
   const success = files.length === expectedFileCount && files.every((file) => file.success === true);
   if (success) await cleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean), writeLog);
   const result = {
     success,
-    partialSuccess: false,
+    partialSuccess: !success && files.some(file=>file.success===true),
     message: success
       ? `Đã cập nhật ${expectedFileCount} file Excel tháng trực tiếp trên máy (không qua Render).`
       : 'Không thể cập nhật file Excel tháng. Xem desktop.log để biết chi tiết.',
