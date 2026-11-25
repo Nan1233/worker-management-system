@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
+const { calculateStoredProductionMetrics, safeRatio } = require('../../shared/productionMetricPrimitives.cjs');
 const { getActorProcessScope, scopeSql } = require('../services/processAuthorizationService');
 
 const clampInt = (value, fallback, min, max) => {
@@ -92,61 +93,7 @@ exports.getApprovedReports = async (req, res) => {
     // Derive target only from persisted report/machine-line snapshots, never live standards.
     // Canonical production_reports has no tt_dinh_muc column; referencing it breaks the list.
     const [dataRows] = await db.promise().query(
-      `SELECT pr.*, p.process_name, w.worker_code, u.full_name,
-              CASE WHEN pr.training_percent_snapshot BETWEEN 0 AND 100 THEN pr.training_percent_snapshot ELSE NULL END AS training_percent,
-              CASE
-                WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
-                 AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE(NULLIF(pr.total_time,0),(
-                  SELECT SUM(GREATEST(0,ml.machine_time_hours))
-                    FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
-                ),0)
-                ELSE pr.total_time
-              END AS total_time,
-              CASE
-                WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
-                 AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE(NULLIF(pr.actual_time,0),(
-                  SELECT SUM(GREATEST(0,COALESCE(ml.machine_time_hours,0)-COALESCE(ml.deduction_time_hours,0)))
-                    FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
-                ),0)
-                ELSE pr.actual_time
-              END AS actual_time,
-              CASE
-                WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
-                 AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE(NULLIF(pr.deduction_time,0),(
-                  SELECT SUM(GREATEST(0,COALESCE(ml.deduction_time_hours,0)))
-                    FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
-                ),0)
-                ELSE pr.deduction_time
-              END AS deduction_time,
-              CASE
-                WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
-                 AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                THEN COALESCE((
-                  SELECT SUM(
-                    GREATEST(0,COALESCE(ml.machine_time_hours,0)-COALESCE(ml.deduction_time_hours,0))
-                    * GREATEST(0,COALESCE(ml.standard_output,0))
-                  )
-                    FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
-                ),0)
-                ELSE GREATEST(0,COALESCE(pr.actual_time,0)) * GREATEST(0,COALESCE(pr.standard_output,0))
-              END AS tt_dinh_muc,
-              CASE
-                WHEN UPPER(COALESCE(pr.operation_mode,''))='MACHINE'
-                 AND EXISTS (SELECT 1 FROM production_report_machine_lines ml WHERE ml.report_id=pr.id)
-                 AND COALESCE(pr.standard_output,0)=0
-                THEN COALESCE((
-                  SELECT SUM(
-                           GREATEST(0,COALESCE(ml.machine_time_hours,0)-COALESCE(ml.deduction_time_hours,0))
-                           * GREATEST(0,COALESCE(ml.standard_output,0))
-                         )
-                         / NULLIF(SUM(GREATEST(0,COALESCE(ml.machine_time_hours,0)-COALESCE(ml.deduction_time_hours,0))),0)
-                    FROM production_report_machine_lines ml WHERE ml.report_id=pr.id
-                ),0)
-                ELSE pr.standard_output
-              END AS standard_output,
+      `SELECT pr.*, p.process_code, p.process_name, w.worker_code, u.full_name,
               COALESCE((SELECT COUNT(DISTINCT d.defect_type_id)
                           FROM production_report_defects d
                          WHERE d.report_id=pr.id AND d.quantity>0), 0) AS worker_ng_type_count,
@@ -171,6 +118,29 @@ exports.getApprovedReports = async (req, res) => {
       params,
     );
 
+    // Hydrate worker-credit lines in one bounded query, never physical event totals.
+    const ids = dataRows.map(row => row.id);
+    const linesByReport = new Map();
+    if (ids.length) {
+      const [lines] = await db.promise().query(
+        'SELECT * FROM production_report_machine_lines WHERE report_id IN (?) ORDER BY id', [ids]
+      );
+      for (const line of lines) {
+        const key = String(line.report_id);
+        if (!linesByReport.has(key)) linesByReport.set(key, []);
+        linesByReport.get(key).push(line);
+      }
+    }
+    const reports = dataRows.map(row => {
+      const machine_lines = linesByReport.get(String(row.id)) || [];
+      const metrics = calculateStoredProductionMetrics({ ...row, machine_lines });
+      return {
+        ...row, machine_lines,
+        training_percent: metrics.trainingPercent,
+        kpi: { ...metrics, okRate: safeRatio(metrics.ok, metrics.adjustedOutput) }
+      };
+    });
+
     // Populate the process dropdown from ALL approved reports the actor may
     // view, not the 20 rows on the current page (nor the current date/shift).
     // The scope clause is mandatory so managers cannot discover other teams.
@@ -194,7 +164,7 @@ exports.getApprovedReports = async (req, res) => {
     const total = Number(countRows[0]?.total || 0);
     return res.json({
       success: true,
-      data: dataRows || [],
+      data: reports,
       ...(processes !== undefined ? { processes } : {}),
       pagination: {
         page,

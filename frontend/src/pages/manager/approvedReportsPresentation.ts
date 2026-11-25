@@ -28,6 +28,18 @@ export const rangeFor = (value: string, type: "day" | "week" | "month" | "year")
 
 export const kpi = (r: ProductionReport) => {
     const x = r as ProductionReport & Record<string, unknown>;
+    const canonical = x.kpi as Record<string, unknown> | undefined;
+    if (canonical) {
+        const percent = (v: unknown) => num(v) * 100;
+        return {
+            ok: num(canonical.ok), ng: num(canonical.allNg), actual: num(canonical.adjustedOutput),
+            actualTime: num(canonical.actualTime), totalTime: num(canonical.workingTime),
+            ttDinhMuc: num(canonical.plannedOutput), nangSuat: percent(canonical.achievement),
+            dat: percent(canonical.okRate), pp: percent(canonical.ngRate),
+            hv: canonical.trainingPercent == null ? null : num(canonical.trainingPercent),
+            ngTypeCount: Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count))
+        };
+    }
     const machineLines = Array.isArray(x.machine_lines) ? x.machine_lines as Record<string, unknown>[] : [];
     const isGcMachine = String(x.process_code ?? '').toUpperCase() === 'GC' && String(x.operation_mode ?? '').toUpperCase() === 'MACHINE' && machineLines.length > 0;
     const ok = isGcMachine ? machineLines.reduce((sum, line) => sum + num(line.ok_quantity), 0) : num(x.tt_ok);
