@@ -27,3 +27,11 @@ export const guide:Partial<Record<Resource,string>>={
 };
 export const normalizedCode=(v:unknown)=>String(v??'').trim().toLocaleUpperCase('vi-VN');
 export function parseProcessIds(value:unknown):string[]{if(Array.isArray(value))return value.map(String);return String(value||'').split(',').map(item=>item.trim()).filter(Boolean)}
+
+/** Users may belong to several processes; do not filter on a single legacy field. */
+export function matchesMasterProcess(row:Row,resource:Resource,filter:string):boolean {
+ if(!filter)return true;
+ if(resource==='processes')return String(row.id)===filter;
+ if(resource==='users')return parseProcessIds(row.process_ids).includes(filter)||String(row.process_id??'')===filter;
+ return String(row.process_id??'')===filter;
+}

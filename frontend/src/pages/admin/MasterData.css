@@ -36,3 +36,8 @@
 .master-catalog-page .modal-card input:disabled,.master-catalog-page .modal-card select:disabled{opacity:.6;cursor:not-allowed}
 @media(max-width:900px){.master-catalog-page .master-toolbar{display:flex!important;flex-wrap:wrap!important}.master-catalog-page .master-toolbar>input{flex:2 1 250px;width:auto!important}.master-catalog-page .master-toolbar>select{flex:1 1 155px}}
 @media(max-width:560px){.master-catalog-page .master-heading{flex-wrap:wrap!important}.master-catalog-page .master-heading .primary{width:100%;min-height:42px!important}.master-catalog-page .master-toolbar>input,.master-catalog-page .master-toolbar>select{flex:1 1 100%;min-width:0}.master-catalog-page .master-toolbar>button{flex:1 1 auto;min-height:40px}.master-catalog-page .modal-card{max-height:calc(100dvh - 16px)}.master-catalog-page .modal-card input,.master-catalog-page .modal-card select{font-size:16px}}
+
+.master-catalog-page .modal-card:focus-visible,.master-catalog-page .master-tabs button:focus-visible{outline:2px solid #176fe8;outline-offset:-2px}
+.master-catalog-page .master-tabs{max-width:100%;overscroll-behavior-x:contain}
+.master-catalog-page .master-table-wrap{min-width:0}
+@media(max-width:560px){.master-catalog-page .actions button{min-height:40px}.master-catalog-page .process-options{max-height:36dvh;overflow-y:auto}}

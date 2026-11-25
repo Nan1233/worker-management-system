@@ -300,7 +300,7 @@ const machineAutocompleteOptions =
         updateDeductionValue,
         handleToggleDeduction,
     } = useProcessDeductionActions({
-        form, setForm, setDeductions, setSelectedDeduction, showToast,
+        form, deductions, setForm, setDeductions, setSelectedDeduction, showToast,
     });
 
     // =====================================================

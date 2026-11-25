@@ -53,7 +53,7 @@ export default function Permissions(){
   const selected=data?.users.find(u=>String(u.id)===userId);
   const userOverrides=userId?data?.userOverrides?.[userId]||{}:{};
   const change=async(kind:"role"|"user",target:string,code:string,allowed:boolean|null)=>{
-    if(savingLockRef.current||savingKey||loading||!data)return;
+    if(savingLockRef.current||savingKey||loading||error||!data)return;
     savingLockRef.current=true;
     const key=`${kind}:${target}:${code}`;
     setSavingKey(key);setFeedback("");setError("");
@@ -90,7 +90,7 @@ export default function Permissions(){
           <p>Chỉ các quyền mà vai trò hỗ trợ mới có thể cấp. “Mặc định” trả quyền về cấu hình hệ thống.</p></div>
           <input className="permission-search" type="search" aria-label="Tìm quyền" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Tìm tên quyền, mã hoặc nhóm..."/>
         </div>
-        <div className="permission-table-wrap" role="region" aria-label="Ma trận phân quyền theo vai trò, có thể cuộn ngang" tabIndex={0}>
+        <div className="permission-table-wrap" role="region" aria-label="Ma trận phân quyền theo vai trò, có thể cuộn ngang" aria-busy={loading||Boolean(savingKey)} tabIndex={0}>
           <table><caption className="permission-table-caption">Ma trận phân quyền theo vai trò</caption>
             <thead><tr><th>Chức năng</th>{adjustableRoles.map(role=><th key={role}>{roleLabel(role)}</th>)}</tr></thead>
             <tbody>{modules.length?modules.map(([module,items])=><Fragment key={module}>
@@ -102,7 +102,7 @@ export default function Permissions(){
                   const overridden=Boolean(row && Object.prototype.hasOwnProperty.call(row.overrides||{},permission.code));
                   const current=overridden?row?.overrides[permission.code]:row?.defaults[permission.code];
                   const key=`role:${role}:${permission.code}`;
-                  return <td key={role}><select aria-label={`${permission.name} – ${roleLabel(role)}`} disabled={loading||Boolean(savingKey)||!supported} value={!supported?"na":overridden?String(current):"default"} data-kind="role" data-target={role} data-code={permission.code} onChange={handlePermissionChange}>
+                  return <td key={role}><select aria-label={`${permission.name} – ${roleLabel(role)}`} disabled={loading||Boolean(savingKey)||Boolean(error)||!supported} value={!supported?"na":overridden?String(current):"default"} data-kind="role" data-target={role} data-code={permission.code} onChange={handlePermissionChange}>
                     <option value="default">Mặc định ({row?.defaults[permission.code]?"Cho phép":"Từ chối"})</option>
                     <option value="true">Cho phép</option><option value="false">Từ chối</option>
                     {!supported&&<option value="na">Không áp dụng</option>}
@@ -126,7 +126,7 @@ export default function Permissions(){
           const overridden=Object.prototype.hasOwnProperty.call(userOverrides,permission.code);
           const key=`user:${userId}:${permission.code}`;
           return <label key={permission.code} className={!supported?"is-disabled":""}><span><strong>{permission.name}</strong><small>{permission.code}</small></span>
-            <select disabled={!supported||Boolean(savingKey)||loading} value={!supported?"na":overridden?String(userOverrides[permission.code]):"default"} data-kind="user" data-target={userId} data-code={permission.code} onChange={handlePermissionChange}>
+            <select disabled={!supported||Boolean(savingKey)||loading||Boolean(error)} value={!supported?"na":overridden?String(userOverrides[permission.code]):"default"} data-kind="user" data-target={userId} data-code={permission.code} onChange={handlePermissionChange}>
               <option value="default">Theo vai trò</option><option value="true">Cho phép</option><option value="false">Từ chối</option>{!supported&&<option value="na">Không áp dụng</option>}
             </select>{savingKey===key&&<small>Đang lưu...</small>}
           </label>;

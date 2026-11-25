@@ -3,6 +3,7 @@ import { getMachinesByProcess, getProductStandardsByProcess } from "./masterData
 import { getDeductionOptionsByProcess, getDefectOptionsByProcess } from "./productionService";
 import { isOfflineLikeError, readOfflineSnapshot, writeOfflineSnapshot } from "./offlinePersistentCache";
 import { getSessionCached, clearSessionCache } from "./sessionCache";
+import { clearProductStandardRequestCache } from "./productStandardRequestCache";
 import { normalizeProcessId } from "../utils/processAccess";
 
 const TTL_MS = 30 * 60 * 1000;
@@ -108,5 +109,6 @@ export function bumpMasterDataEpoch(): number {
     // Ignore storage failures; the current request can still use the new namespace.
   }
   clearSessionCache();
+  clearProductStandardRequestCache();
   return next;
 }
