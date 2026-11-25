@@ -44,7 +44,7 @@ function getMetrics(report) {
   const achievement = safeRatio(outputPerHour, standardOutput) ?? 0;
   const ngRate = safeRatio(totalNg, ok + totalNg) ?? 0;
   const deductionTotal = isGiaCongMachine ? workerDeductionTime : sumDetails(report.deductions, 'hours');
-  const gcMetrics = isGiaCongMachine && machineLines.length ? calculateProductionMetrics(report) : null;
+  const gcMetrics = calculateProductionMetrics(report);
   const changeCount = (report.deductions || []).filter((item) =>
     normalizeCode(item.deduction_type_code || item.deduction_code || item.code || item.deduction_name) === 'CHUYEN_MA' && num(item.hours) > 0
   ).length;

@@ -7,7 +7,7 @@ const { buildCompanyWorkbook } = require('./companyExcelExportService');
 const { assertReportVolume } = require('./excelExportGuards');
 const { buildMachineExcelRows } = require('./machineLineExcelRows');
 const { removeQuietly, cleanupOldExports } = require('./exportFileMaintenance');
-const { trainingFactor } = require('../utils/trainingPercent');
+const { calculateStoredProductionMetrics } = require('../../shared/productionMetricPrimitives.cjs');
 
 const TEMPLATE_PATH = path.join(__dirname, '../templates/bao-cao-mai-do-export.xlsx');
 const PROCESS_CODES = new Set(['MAI', 'DO']);
@@ -250,12 +250,13 @@ const fillMaiSheet = (sheet, reports, yearMonth) => {
     }
     dayReports.forEach((report, index) => {
       const row = sheet.getRow(rowNumbers[index]);
-      const trainingFactorValue = trainingFactor(report.training_percent);
-      const actualTime = toNumber(report.actual_time);
-      const standardRate = toNumber(report.standard_output);
-      const plannedOutput = actualTime * trainingFactorValue * standardRate;
-      const actualOutput = toNumber(report.actual_output);
-      const totalNg = toNumber(report.tt_ng);
+      const metrics = calculateStoredProductionMetrics(report);
+      const trainingFactorValue = metrics.trainingFactor;
+      const actualTime = metrics.actualTime;
+      const standardRate = metrics.standard;
+      const plannedOutput = metrics.plannedOutput;
+      const actualOutput = metrics.adjustedOutput;
+      const totalNg = metrics.allNg;
 
       setInputCell(row, 2, report.worker_code);
       setInputCell(row, 4, shiftToCompanyValue(report.shift));
@@ -330,12 +331,13 @@ const fillDoSheet = (sheet, reports, yearMonth) => {
     }
     dayReports.forEach((report, index) => {
       const row = sheet.getRow(rowNumbers[index]);
-      const trainingFactorValue = trainingFactor(report.training_percent);
-      const actualTime = toNumber(report.actual_time);
-      const standardRate = toNumber(report.standard_output);
-      const plannedOutput = actualTime * trainingFactorValue * standardRate;
-      const actualOutput = toNumber(report.actual_output);
-      const totalNg = toNumber(report.tt_ng);
+      const metrics = calculateStoredProductionMetrics(report);
+      const trainingFactorValue = metrics.trainingFactor;
+      const actualTime = metrics.actualTime;
+      const standardRate = metrics.standard;
+      const plannedOutput = metrics.plannedOutput;
+      const actualOutput = metrics.adjustedOutput;
+      const totalNg = metrics.allNg;
 
       setInputCell(row, 2, report.worker_code);
       setInputCell(row, 4, shiftToCompanyValue(report.shift));

@@ -4,6 +4,7 @@
 // Column positions follow the reviewed Workbook1 worksheet contract.
 // Validate the physical sheet bounds before writing any report values.
 const ExcelJS = require('exceljs');
+const { calculateStoredProductionMetrics } = require('../../shared/productionMetricPrimitives.cjs');
 const path = require('node:path');
 const { publishExcelWorkbook } = require('./excelWorkbookPublisherService');
 const { normalizeLabel } = require('./excelTemplateContractService');
@@ -129,18 +130,17 @@ async function buildSixProcessWorkbook(reports, yearMonth, options = {}) {
       cell.value = value ?? null;
       if (typeof value === 'string') cell.numFmt = '@';
     };
-    const gross = num(report.total_time), net = num(report.actual_time ?? report.total_time);
-    const output = num(report.actual_output), ok = num(report.tt_ok ?? output), ng = num(report.tt_ng);
-    const standard = num(report.standard_output), target = standard * net;
+    const metrics = calculateStoredProductionMetrics(report);
+    const { workingTime: gross, actualTime: net, adjustedOutput: output, ok, allNg: ng, standard } = metrics;
     put('seq', seq); put('submitted', date(report.created_at || report.submitted_at));
     put('worker', report.worker_code); put('name', report.full_name || report.worker_name);
-    put('training', report.training_percent); put('machine', report.machine_no);
+    put('training', metrics.trainingPercent); put('machine', report.machine_no);
     put('shift', report.shift); put('gross', gross); put('net', net); put('deducted', Math.max(0, gross - net));
     put('product', report.product_code || report.product_name);
     put('standard', standard); put('output', output);
-    put('rate', target > 0 ? output / target : 0); put('date', date(report.work_date, true));
-    put('perHour', net > 0 ? output / net : 0);
-    put('ok', ok); put('ng', ng); put('ngRate', output > 0 ? ng / output : 0);
+    put('rate', metrics.achievement); put('date', date(report.work_date, true));
+    put('perHour', metrics.outputPerHour);
+    put('ok', ok); put('ng', ng); put('ngRate', metrics.ngRate);
     fillDetails(row, header, report, 1, sheet.columnCount, detailColumns);
     // Standard ExcelJS worksheets are non-streaming; committing rows is not
     // required and may discard later template/formula adjustments.

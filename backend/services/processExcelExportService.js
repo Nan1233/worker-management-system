@@ -107,7 +107,7 @@ async function loadProcessMonthReports(value, processId, options = {}) {
         pr.reviewed_by, pr.approved_at, pr.created_at, pr.updated_at,
         w.worker_code, w.training_percent AS worker_training_percent,
         pr.training_percent_snapshot,
-        COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent,
+        CASE WHEN pr.training_percent_snapshot BETWEEN 0 AND 100 THEN pr.training_percent_snapshot ELSE NULL END AS training_percent,
         w.position, w.department,
         u.full_name, p.process_name, p.process_code
        FROM production_reports AS pr
@@ -139,17 +139,8 @@ async function loadProcessMonthReports(value, processId, options = {}) {
       && report.training_percent_snapshot !== undefined
       && String(report.training_percent_snapshot).trim() !== '';
     if (!hasTrainingSnapshot) {
-      // Legacy approved reports did not persist the immutable snapshot. Keep
-      // them exportable, but prefer the worker master % currently shown in the
-      // worker list instead of silently replacing it with 100%.
-      report.training_percent = Number.isFinite(Number(report.worker_training_percent))
-        ? Number(report.worker_training_percent)
-        : 100;
-      report.trainingSnapshotSource = report.worker_training_percent !== null
-        && report.worker_training_percent !== undefined
-        ? 'LEGACY_WORKER_MASTER'
-        : 'LEGACY_DEFAULT_100';
-      delete report.training_percent_snapshot;
+      report.training_percent = null;
+      report.trainingSnapshotSource = 'MISSING_SNAPSHOT';
     } else {
       assertTrainingSnapshotAvailable(report);
       report.trainingSnapshotSource = 'IMMUTABLE_SNAPSHOT';
