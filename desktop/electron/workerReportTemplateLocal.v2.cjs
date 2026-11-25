@@ -3,7 +3,8 @@
 const ExcelJS = require('exceljs');
 const { cloneExcelStyle } = require('./excelStyleClone.cjs');
 const { resolveWorkerParticipationTimes } = require('./exportMachineTime.cjs');
-const { plannedOutputFor } = require('./workerReportPlannedOutput.cjs');
+const { calculateProductionMetrics } = require('./productionCalculationEngine.cjs');
+const { processWorkbookFileName } = require('./monthlyWorkbookNaming.cjs');
 const { calculateDetailTotals } = require('./workerReportDetailTotals.cjs');
 
 const { TEMPLATE_NAME, PROCESS_CODES, PROCESS_FILE_PREFIXES,
@@ -154,7 +155,8 @@ function clearDataRows(sheet, startRow, count, columnCount) {
     const row = sheet.getRow(r);
     for (let c = 1; c <= columnCount; c += 1) {
       const cell = row.getCell(c);
-      if (!(typeof cell.value === 'string' && cell.value.startsWith('='))) cell.value = null;
+      if (cell.isMerged && cell.master?.row < startRow) continue;
+      cell.value = null;
     }
   }
 }
@@ -269,34 +271,24 @@ function applyReportRow(row, report, contract, processData, index) {
     cell.value = asSubmissionDateTime(report.submitted_at);
     cell.numFmt = 'dd/mm/yyyy hh:mm:ss';
   }
-  const { planned, trainingPercent } = plannedOutputFor(report);
+  const metrics = calculateProductionMetrics(report);
+  const { plannedOutput: planned, trainingPercent } = metrics;
   if (contract.cols.training) {
     const cell = row.getCell(contract.cols.training);
-    cell.value = trainingPercent / 100;
+    cell.value = trainingPercent == null ? null : trainingPercent / 100;
     cell.numFmt = '0%';
   }
   set(contract.cols.standard, planned);
-  set(contract.cols.time, contract.timeKind === 'TOTAL' ? exportTimes.totalHours : exportTimes.actualHours);
-  if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, exportTimes.actualHours);
-  set(contract.cols.deductionTotal, exportTimes.deductionHours);
-  if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
-    if (contract.timeKind === 'TOTAL') {
-      row.getCell(contract.cols.workTime).value = exportTimes.totalHours;
-    } else {
-      const tL = columnLetter(contract.cols.time);
-      const dL = columnLetter(contract.cols.deductionTotal);
-      row.getCell(contract.cols.workTime).value = {
-        formula: tL + row.number + '+' + dL + row.number,
-        result: exportTimes.totalHours
-      };
-    }
-  }
-  set(contract.cols.ok, number(report.tt_ok ?? report.actual_output));
-  set(contract.cols.ng, number(report.tt_ng));
-  set(contract.cols.output, number(report.actual_output ?? report.tt_ok));
-  set(contract.cols.achievement, number(report.calculationSnapshot?.achievement_rate ?? report.achievement_rate));
-  set(contract.cols.outputPerHour, number(report.calculationSnapshot?.actual_per_hour ?? report.actual_output_per_hour));
-  set(contract.cols.ngRate, number(report.calculationSnapshot?.ng_rate ?? report.ng_rate));
+  set(contract.cols.time, contract.timeKind === 'TOTAL' ? metrics.workingTime : metrics.actualTime);
+  if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, metrics.actualTime);
+  set(contract.cols.deductionTotal, metrics.deductionTime);
+  set(contract.cols.workTime, metrics.workingTime);
+  set(contract.cols.ok, metrics.ok);
+  set(contract.cols.ng, metrics.allNg);
+  set(contract.cols.output, metrics.adjustedOutput);
+  set(contract.cols.achievement, metrics.achievement);
+  set(contract.cols.outputPerHour, metrics.outputPerHour);
+  set(contract.cols.ngRate, metrics.ngRate);
   set(contract.cols.status, report.status);
   set(contract.cols.note, report.note || report.review_note);
   set(contract.cols.id, Number(report.id) || null);
@@ -394,12 +386,10 @@ function normalizeGcDefectHeaders(sheet, headerRow) {
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
   const { templatePath, buffer: templateBuffer } = await getTemplateBuffer(appPath);
   const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
-  const [year, month] = String(date).slice(0, 7).split('-');
-  const code = String(processCode || '').toUpperCase();
-  const prefix = PROCESS_FILE_PREFIXES[code] || code || 'PROCESS';
-  const fileName = `${prefix}_${month}-${year}.xlsx`;
-  if (reports.length === 0) return { buffer: templateBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: 0, templateFile: TEMPLATE_NAME, templatePath, templateSheet: null, headerRow: null, dataStartRow: null };
-
+  const code = String(processCode || '').trim().toUpperCase();
+  const fileName = processWorkbookFileName(code,date);
+  // Even an empty process must pass through rendering; raw templates may
+  // contain sample data or formulas from a previous period.
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(templateBuffer);
   const sheet = workbook.worksheets.find((item) => item.state !== 'hidden') || workbook.worksheets[0];

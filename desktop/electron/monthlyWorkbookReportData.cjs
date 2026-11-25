@@ -61,7 +61,7 @@ function excelOperationModeLabel(value) {
 }
 
 function reportSnapshot(report, settings = {}) {
-  const metrics = report.calculationSnapshot || calculateProductionMetrics(report, settings);
+  const metrics = calculateProductionMetrics(report, settings);
   return {
     id: asNumber(report.id),
     date: asDate(report.work_date),
@@ -75,6 +75,7 @@ function reportSnapshot(report, settings = {}) {
     product: productDisplay(report),
     training: metrics.trainingFactor,
     standard: metrics.standard,
+    plannedOutput: metrics.plannedOutput,
     workingTime: metrics.workingTime,
     actualTime: metrics.actualTime,
     deductionTime: metrics.deductionTime,

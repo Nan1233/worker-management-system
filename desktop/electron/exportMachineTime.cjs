@@ -125,6 +125,9 @@ function resolveExportTimes(report = {}) {
     if (eventId) seenEvents.add(eventId);
 
     const event = eventId ? events.get(eventId) : null;
+    // A linked event missing from the approved physical snapshot must not
+    // be replaced by a worker participation row.
+    if (eventId && !event) continue;
     const lineHours = event
       ? number(event.machine_time_hours)
       : number(line?.excel_machine_time_hours ?? line?.machine_time_hours ?? line?.machineTimeHours);

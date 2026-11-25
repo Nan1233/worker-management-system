@@ -23,7 +23,7 @@ function reportRowValues({ snapshot, day, stt, code, report, extra }) {
     ...snapshot,
     stt,
     date: new Date(Date.UTC(year, month - 1, date)),
-    expectedOutput: (asNumeric(snapshot.standard) || 0) * (asNumeric(snapshot.actualTime) || 0),
+    expectedOutput: asNumeric(snapshot.plannedOutput),
   };
   if (code === 'GC') {
     const nonProduct = extra.non_product_work === true || extra.non_product_work === 1

@@ -104,7 +104,7 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
     const dateRow = sheet.getRow(rowNumber);
     applySnapshot(dateRow, dateSnapshot, columnCount);
     dateRow.getCell(1).value = group.day;
-    dateRow.getCell(1).numFmt = 'mmm-dd';
+    dateRow.getCell(1).numFmt = 'dd/mm/yyyy';
     rowNumber += 1;
     const firstDataRow = rowNumber;
     group.reports.forEach((report, index) => {
@@ -114,10 +114,7 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       writeValue(row, contract.cols.workTime, groupedWorkHours(report));
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
-        cell.value = {
-          formula: `IFERROR(${outputLetter}${rowNumber}/${standardLetter}${rowNumber},0)`,
-          result: plannedAchievementRate(report)
-        };
+        cell.value = plannedAchievementRate(report);
         cell.numFmt = percentFormat;
       }
       rowNumber += 1;

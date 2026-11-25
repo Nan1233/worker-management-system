@@ -1,52 +1,17 @@
 'use strict';
 
-const { resolveWorkerParticipationTimes } = require('./exportMachineTime.cjs');
+const { calculateProductionMetrics }=require('./productionCalculationEngine.cjs');
 
-const hasValue = (value) => value !== null && value !== undefined && String(value).trim() !== '';
-const toNumber = (value) => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  const parsed = Number(String(value ?? '').replace(/,/g, '').trim());
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-/** Calculate the historical planned output independently of workbook rendering. */
-function plannedOutputFor(report) {
-  const trainingPercent = hasValue(report.training_percent_snapshot)
-    ? toNumber(report.training_percent_snapshot)
-    : hasValue(report.training_percent) ? toNumber(report.training_percent) : 100;
-  const exportTimes = resolveWorkerParticipationTimes(report);
-  const effectiveTime = exportTimes.hasMachine
-    ? exportTimes.actualHours
-    : hasValue(report.actual_time)
-      ? toNumber(report.actual_time)
-      : hasValue(report.total_time)
-        ? toNumber(report.total_time) - toNumber(report.deduction_time)
-        : null;
-  const perHour = hasValue(report.standard_output) ? toNumber(report.standard_output) : null;
-  const planned = perHour === null || effectiveTime === null
-    ? null
-    : Math.round(perHour * effectiveTime * (trainingPercent / 100) * 100) / 100;
-  return { planned, trainingPercent };
+// Keep the original public helper names, but delegate all stored metrics to
+// the canonical engine used by the original and generated process workbooks.
+function plannedOutputFor(report,settings={}) {
+  const metrics=calculateProductionMetrics(report,settings);
+  return {planned:metrics.plannedOutput,trainingPercent:metrics.trainingPercent};
 }
-
-/** Convert raw time snapshots into total shift hours for grouped worker exports. */
-function groupedWorkHours(report) {
-  const exportTimes = resolveWorkerParticipationTimes(report);
-  if (exportTimes.hasMachine) return exportTimes.totalHours;
-  const hasExplicitMinutes = (value) => value !== null && value !== undefined && value !== '';
-  const minutes = hasExplicitMinutes(report.total_minutes)
-    ? toNumber(report.total_minutes)
-    : hasExplicitMinutes(report.work_minutes)
-      ? toNumber(report.work_minutes) + toNumber(report.deduction_time) * 60
-      : toNumber(report.total_time ?? report.actual_time) * 60;
-  return minutes / 60;
+function groupedWorkHours(report,settings={}) {
+  return calculateProductionMetrics(report,settings).workingTime;
 }
-
-/** Numeric cached result for the Excel achievement-rate formula. */
-function plannedAchievementRate(report) {
-  const { planned } = plannedOutputFor(report);
-  const actualOutput = toNumber(report.actual_output ?? report.tt_ok);
-  return planned ? actualOutput / planned : 0;
+function plannedAchievementRate(report,settings={}) {
+  return calculateProductionMetrics(report,settings).achievement;
 }
-
-module.exports = { plannedOutputFor, groupedWorkHours, plannedAchievementRate };
+module.exports={plannedOutputFor,groupedWorkHours,plannedAchievementRate};
