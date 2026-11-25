@@ -18,21 +18,15 @@ test('approved reports page size is 20 in frontend bundled into EXE', () => {
   assert.match(pkg.scripts['dist:setup:bundled-fe'], /ktcBundledFrontend=true/);
 });
 
-test('Excel v6 patches main.cjs at load time and must precede its import', () => {
+test('Excel startup uses explicit production entry point without runtime patches', () => {
   const launcher = source('electron/launcher.cjs');
-  const v6 = source('electron/excelExportContractPatch.v6.cjs');
-  assert.match(v6, /patchMainSource\(source\)/);
-  const order = [
-    "require('./excelExportContractPatch.v5.cjs')",
-    "require('./compactGcExcelPatch.cjs')",
-    "require('./excelReportDateSubmissionPatch.cjs')",
-    "require('./excelExportContractPatch.v6.cjs')",
-    "require('./main.cjs')"
-  ];
-  for (let i = 0; i < order.length - 1; i++) {
-    assert.ok(launcher.indexOf(order[i]) >= 0, 'Missing patch: ' + order[i]);
-    assert.ok(launcher.indexOf(order[i]) < launcher.indexOf(order[i + 1]), 'Patch order changed: ' + order[i]);
-  }
+  const main = source('electron/main.cjs');
+  assert.ok(launcher.includes("require('./main.cjs')"));
+  assert.doesNotMatch(launcher, /require\(['"]\.\/(?:excelExportContractPatch|compactGcExcelPatch|excelReportDateSubmissionPatch)/);
+  assert.match(main, /require\('\.\/productionExcelExport\.cjs'\)/);
+  assert.match(main, /require\('\.\/approvedExcelDataClient\.cjs'\)/);
+  assert.equal(require('../electron/excelExportContractPatch.v6.cjs').buildWorkerSplit,
+    require('../electron/productionMonthlyWorkbookBuilder.cjs').buildWorkerSplit);
 });
 
 test('unpacked FE build bypasses repeated portable extraction', () => {

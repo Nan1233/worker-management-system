@@ -3,8 +3,7 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
 
-const monthly = require('../electron/monthlyWorkbookLocal.cjs');
-require('../electron/compactGcExcelPatch.cjs');
+const { buildCompactGc } = require('../electron/compactGcExcelPatch.cjs');
 
 const payload = {
   dataSource: 'tidb.production_reports.approved',
@@ -46,7 +45,7 @@ const payload = {
 };
 
 (async () => {
-  const built = await monthly.buildProcessWorkbookLocal({
+  const built = await buildCompactGc({
     appPath: path.resolve(__dirname, '..'),
     date: '2026-08-01',
     processCode: 'GC',

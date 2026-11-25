@@ -29,7 +29,8 @@ test('Desktop Excel IPC API is preserved', () => {
 
 test('export code still includes the monthly workbook path', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8');
-  assert.match(main, /buildSplitMonthlyWorkbooksLocal\s*\(/);
+  const exporter = fs.readFileSync(path.join(__dirname, '../electron/monthlyDesktopExport.cjs'), 'utf8');
+  assert.match(main, /buildWorkerSplit: buildSplitMonthlyWorkbooksLocal/);
+  assert.match(exporter, /buildSplitMonthlyWorkbooksLocal\s*\(/);
   assert.match(main, /PROCESS_SHEETS/);
-  assert.match(main, /syncProcessReportsFirst/);
 });

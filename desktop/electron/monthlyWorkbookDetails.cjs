@@ -51,16 +51,15 @@ function reportDetailItems(report, processCode, kind) {
   const reportItems = Array.isArray(report?.[reportKey]) ? report[reportKey] : [];
   const isGcMachine = normalize(processCode) === 'GC'
     && normalize(report?.operation_mode) === 'MACHINE';
-  const lines = Array.isArray(report?.machineLines) ? report.machineLines : [];
+  const lines = Array.isArray(report?.machineLines) ? report.machineLines : Array.isArray(report?.machine_lines) ? report.machine_lines : [];
   if (!isGcMachine || !lines.length) return reportItems;
 
   const lineItems = lines.flatMap((line) => {
-    const direct = parseDetailArray(line?.[kind]);
+    const direct = parseDetailArray(line?.[reportKey] ?? line?.[kind]);
     if (direct.length) return direct;
     return parseDetailArray(line?.[kind === 'deduction' ? 'deductions_json' : 'defects_json']);
   });
 
-  if (kind === 'defect') return reportItems.length ? reportItems : lineItems;
   if (lineItems.length) return lineItems;
   return lines.length === 1 ? reportItems : [];
 }

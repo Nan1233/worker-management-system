@@ -2,7 +2,7 @@
 const { PROCESS_CODES, normalizeYearMonth }=require('./monthlyExcelContract.cjs');
 const { assertApprovedDatabasePayload }=require('./monthlyWorkbookReportData.cjs');
 const { reconcileGcSplitReports } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'gcSplitReconciliation.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'gcSplitReconciliation.cjs') : '../../shared/gcSplitReconciliation.cjs');
-const { validateGcMachineReports } = require('./gcMachineExportRows.cjs');
+const { validateGcMachineReports, validateGcPhysicalEvents } = require('./gcMachineExportRows.cjs');
 function processRows(payload) {
   const processes = payload?.processes || {};
   return PROCESS_CODES.map((code) => {
@@ -50,6 +50,7 @@ function prepareMonthlyPayload(source,date){
     if(processCode!=='GC')continue;
     data.reports=reconcileGcSplitReports(data.reports);
     validateGcMachineReports(data.reports);
+    validateGcPhysicalEvents(data, yearMonth);
   }
   return payload;
 }

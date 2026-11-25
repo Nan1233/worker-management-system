@@ -11,7 +11,7 @@ const { createExcelAtomicWriter } = require('./excelAtomicFileWriter.cjs');
 const { createExcelFileDiscovery } = require('./excelFileDiscovery.cjs');
 const { createExcelDbSyncController } = require('./excelDbSyncController.cjs');
 const { createMonthlyDesktopExport } = require('./monthlyDesktopExport.cjs');
-const { createExcelApiClient } = require('./excelApiClient.cjs');
+const { createApprovedExcelDataClient } = require('./approvedExcelDataClient.cjs');
 const { createRendererAuthClient } = require('./rendererAuthClient.cjs');
 const { createDesktopWindowFactory } = require('./desktopWindow.cjs');
 const { createDesktopExcelIpcHandlers } = require('./desktopExcelIpcHandlers.cjs');
@@ -91,9 +91,9 @@ const deferred = createDeferredDesktopServices([
 
 const {
   fetchWithTimeout, fetchCompanyData,
-} = createExcelApiClient({
+} = createApprovedExcelDataClient({
   API_BASE_URL, REQUEST_TIMEOUT_MS,
-  authenticatedFetch: (...args) => deferred.call('authenticatedFetch', ...args), writeLog, normalizeError,
+  authenticatedFetch: (...args) => deferred.call('authenticatedFetch', ...args),
 });
 
 

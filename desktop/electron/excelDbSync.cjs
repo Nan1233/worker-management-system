@@ -100,6 +100,7 @@ function parseMeta(workbook) {
     throw error;
   }
   const reports = new Map();
+  const machineLineIds = new Set();
   for (let row = 3; row <= metaSheet.rowCount; row += 1) {
     const id = Number(metaSheet.getCell(row, 1).value);
     if (!Number.isSafeInteger(id) || id <= 0) {
@@ -109,6 +110,10 @@ function parseMeta(workbook) {
     const rawLine=metaSheet.getCell(row,9).value;
     const machineLineId=rawLine==null||rawLine===''?null:Number(rawLine);
     if(machineLineId!==null&&(config.rowIdentityMode!=='KTC_SYNC_ROW_V2'||config.processCode!=='GC'||!Number.isSafeInteger(machineLineId)||machineLineId<=0))throw Object.assign(new Error('ID dòng máy không hợp lệ.'),{code:'EXCEL_SYNC_META_INVALID'});
+    if (machineLineId !== null) {
+      if (machineLineIds.has(machineLineId)) throw Object.assign(new Error('Trùng ID dòng máy trong metadata.'), {code:'EXCEL_SYNC_DUPLICATE_META_ID'});
+      machineLineIds.add(machineLineId);
+    }
     const identity=machineLineId===null?id:'machine:'+id+':'+machineLineId;
     // Duplicate IDs in hidden lineage can silently overwrite an earlier
     // snapshot and route edits to the wrong approved report. Fail closed.
@@ -233,9 +238,9 @@ async function readExcelChanges(filePath) {
     const changed=Array.isArray(snapshot)&&snapshot.some(item=>!Array.isArray(item)||!Number.isSafeInteger(item[0])||item[0]<1||item[0]>16384||!same(cellValue(sheet.getCell(row,item[0]).value),item[1]));
     if(changed&&reportMeta.machineLineId===null)throw Object.assign(new Error('Cột Excel không có ánh xạ cập nhật duy nhất đã bị sửa. Hãy sửa trên ứng dụng.'),{code:'EXCEL_SYNC_UNMAPPED_COLUMN_READ_ONLY'});
     if(reportMeta.machineLineId!==null){
-      const helperChanged=helperItem&&((helperItem.operationType&&helperItem.operationType!==normalizeOperationType(reportMeta.original.operation_type))
-        ||(helperItem.operationMode&&helperItem.operationMode!==normalizeOperationMode(reportMeta.original.operation_mode))
-        ||(helperItem.machine&&helperItem.machine!==asText(reportMeta.original.machine_no)));
+      const helperChanged=!helperItem || helperItem.operationType!==normalizeOperationType(reportMeta.original.operation_type)
+        || helperItem.operationMode!==normalizeOperationMode(reportMeta.original.operation_mode)
+        || asText(helperItem.machine)!==asText(reportMeta.original.machine_no);
       if(changed||helperChanged)throw Object.assign(new Error('Dòng máy GC '+reportMeta.machineLineId+' chỉ để đối chiếu. Hãy sửa báo cáo máy trên ứng dụng.'),{code:'EXCEL_SYNC_MACHINE_LINE_READ_ONLY'});
       continue;
     }

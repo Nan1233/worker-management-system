@@ -3,7 +3,6 @@ const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
-require('../electron/excelExportContractPatch.v6.cjs');
 const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES, TEMPLATE_NAME } = require('../electron/workerReportWorkbook.cjs');
 
 function report(overrides = {}) {
@@ -200,7 +199,7 @@ function report(overrides = {}) {
     // Exercise the real monthly export wrapper too: it previously passed
     // processCode="ALL", which bypassed GC header normalization even though
     // the direct builder smoke test above passed.
-    const { buildWorkerSplit } = require('../electron/excelExportContractPatch.v6.cjs');
+    const { buildWorkerSplit } = require('../electron/productionMonthlyWorkbookBuilder.cjs');
     const split = await buildWorkerSplit({
       appPath: path.resolve(__dirname, '..'),
       date: '2026-08-01',

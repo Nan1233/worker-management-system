@@ -1,15 +1,12 @@
 'use strict';
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const patchPath = require.resolve('../electron/excelExportContractPatch.v6.cjs');
-// Guard the regression-sensitive mapping behavior in the v6 repair pass.
-test('v6 repair source preserves CVK work_type instead of product_name/product_code', () => {
-  const fs = require('node:fs');
-  const source = fs.readFileSync(patchPath, 'utf8');
-  assert.match(source, /function isNonProductWorkReport\(report\)/);
-  assert.match(source, /flag === true/);
-  assert.match(source, /TAIPP: 'TPP'[\s\S]*XUATNHAP: 'XN'/);
-  assert.match(source, /setIfMapped\(row, cols\.product, productValue\)/);
-  assert.match(source, /JSON\.parse\(extraData\)/);
+const { normalizedWorkTypeLabel, isNonProductWorkReport } = require('../electron/nonProductWorkReport.cjs');
+
+test('CVK preserves work classification instead of product code', () => {
+  assert.equal(normalizedWorkTypeLabel({process_code:'CVK', extra_data:'{"work_type":"TAIPP"}',product_code:'P123'}),'TPP');
+  assert.equal(normalizedWorkTypeLabel({process_code:'CVK', work_type:'XUATNHAP'}),'XN');
+  assert.equal(normalizedWorkTypeLabel({process_code:'CVK', product_code:'P123'}),'');
+  assert.equal(normalizedWorkTypeLabel({process_code:'GC', work_type:'TAIPP'}),'');
+  assert.equal(isNonProductWorkReport({non_product_work:true}),true);
 });

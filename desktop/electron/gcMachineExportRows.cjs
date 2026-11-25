@@ -59,6 +59,32 @@ function validateGcMachineReports(reports) {
   });
 }
 
+function validateGcPhysicalEvents(processData, yearMonth) {
+  const events = new Map();
+  const date = value => value instanceof Date ? value.toISOString().slice(0,10) : text(value).slice(0,10);
+  const fail = (id, reason) => { throw Object.assign(new Error('Sự kiện máy GC '+id+': '+reason), { code:'EXCEL_MACHINE_EVENT_INVALID' }); };
+  for (const event of processData.physicalMachineEvents || []) {
+    const id = positiveId(event.id);
+    if (!id || events.has(id) || !nonnegative(event.machine_time_hours)) fail(event.id,'ID hoặc giờ máy không hợp lệ');
+    if (event.status && text(event.status).toUpperCase() !== 'APPROVED') fail(id,'Chưa được duyệt');
+    if (event.work_date && date(event.work_date).slice(0,7)!==yearMonth) fail(id,'Sai tháng sản xuất');
+    events.set(id,event);
+  }
+  for (const report of processData.reports || []) {
+    for (const line of linesOf(report)) {
+      const id = positiveId(line.machine_event_id);
+      const event = events.get(id);
+      // Legacy/unavailable event links are reported as incomplete, not guessed.
+      if (!event) continue;
+      if ((machineCode(event) && machineCode(event)!==machineCode(line))
+        || (event.work_date && date(event.work_date)!==date(report.work_date))
+        || (event.shift && text(event.shift).toUpperCase()!==text(report.shift).toUpperCase())) {
+        fail(id,'Không khớp máy, ngày hoặc ca của dòng công nhân');
+      }
+    }
+  }
+}
+
 function projectGcMachineRows(reports) {
   validateGcMachineReports(reports);
   return reports.flatMap(report => {
@@ -90,4 +116,4 @@ function projectGcMachineRows(reports) {
   });
 }
 
-module.exports={validateGcMachineReports,projectGcMachineRows,rowIdentityKey,linesOf};
+module.exports={validateGcMachineReports,validateGcPhysicalEvents,projectGcMachineRows,rowIdentityKey,linesOf};
