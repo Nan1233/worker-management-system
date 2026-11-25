@@ -97,7 +97,11 @@ function mergeEditableDetails(current, columns, prefix, originalItems, idField, 
 }
 
 function normalizeEditable(current, columns, operationMode, original = {}) {
-  const trainingRaw = asNumber(current.training);
+  const rawTraining = current.training;
+  const trainingRaw = rawTraining == null || (typeof rawTraining === 'string' && !rawTraining.trim()) ? null : Number(rawTraining?.result ?? rawTraining);
+  if (trainingRaw !== null && (!Number.isFinite(trainingRaw) || trainingRaw < 0 || trainingRaw > 100)) {
+    throw Object.assign(new Error('Giá trị % học việc trong Excel không hợp lệ.'),{code:'EXCEL_SYNC_INVALID_TRAINING'});
+  }
   // Excel Import/Sync phải so sánh cùng một contract field cho cả TAY và MÁY.
   // Trước đây MACHINE return sớm nên thay đổi SL OK / TG thực tế / SP / NG / trừ giờ
   // không bao giờ được phát hiện và Import Center báo sai "không có thay đổi".
@@ -108,7 +112,7 @@ function normalizeEditable(current, columns, operationMode, original = {}) {
     operation_mode: normalizeOperationMode(current.operationMode) || operationMode || null,
     machine_no: asText(current.machine) || null,
     product_name: asText(current.product) || null,
-    training_percent: trainingRaw >= 0 && trainingRaw <= 1 ? trainingRaw * 100 : trainingRaw,
+    training_percent: trainingRaw === null ? original.training_percent ?? null : (trainingRaw <= 1 ? trainingRaw * 100 : trainingRaw),
     actual_time: asNumber(current.actualTime),
     tt_ok: asInteger(current.ok),
     note: asText(current.note),

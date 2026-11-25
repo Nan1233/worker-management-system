@@ -9,7 +9,7 @@ const { assertActorProcessAccess } = require('../services/processAuthorizationSe
 const db = require('../config/db');
 const validate = require('../middleware/validateRequest');
 const companyExcelDataController = require('../controllers/companyExcelDataController');
-const cloudflareExcelExportController = require('../controllers/cloudflareExcelExportController');
+const { listProcesses } = require('../controllers/excelProcessCatalogController');
 const { anyEnvEnabled } = require('../utils/featureFlags');
 
 const roles = checkRole('admin', 'admin_ops', 'manager', 'lead');
@@ -41,7 +41,7 @@ const legacyServerExcelEnabled = () => {
     'ENABLE_SERVER_HEAVY_EXCEL'
   ]);
 
-  if (!requested) return false;
+  if (!requested || isCloudflareWorker()) return false;
 
   const isRender = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID);
   const allowOnRender = anyEnvEnabled(['ALLOW_RENDER_HEAVY_EXCEL']);
@@ -77,27 +77,15 @@ function isCloudflareWorker() {
   return String(process.env.KTC_CLOUDFLARE_WORKER || '').toLowerCase() === 'true';
 }
 
-function isTrustedExcelProxyRequest(req) {
-  return String(req.get('X-KTC-Excel-Proxy') || '') === '1';
+// Only explicitly enabled local Node installations retain the legacy renderer.
+function legacyNodeOnly(handler){
+  return (req,res,next)=>{
+    if(!legacyServerExcelEnabled()) return disabled(req,res);
+    try{return handler(req,res,next);}catch(error){return next(error);}
+  };
 }
-
-function exportExcelController(req, res, next) {
-  // Public Cloudflare request -> proxy to Render.
-  // Private Worker -> Render request -> execute Node/ExcelJS locally on Render.
-  if (isCloudflareWorker() && !isTrustedExcelProxyRequest(req)) {
-    return cloudflareExcelExportController.exportGiaCongExcel(req, res, next);
-  }
-  res.setHeader('X-KTC-Excel-Backend', 'node-render');
-  return legacyController().exportGiaCongExcel(req, res, next);
-}
-
-function exportProcessExcelController(req, res, next) {
-  if (isCloudflareWorker() && !isTrustedExcelProxyRequest(req)) {
-    return cloudflareExcelExportController.exportProcess(req, res, next);
-  }
-  res.setHeader('X-KTC-Excel-Backend', 'node-render');
-  return desktopController().exportProcess(req, res, next);
-}
+const exportExcelController=legacyNodeOnly((req,res,next)=>legacyController().exportGiaCongExcel(req,res,next));
+const exportProcessExcelController=legacyNodeOnly((req,res,next)=>desktopController().exportProcess(req,res,next));
 
 router.get('/export-excel/company-status', authMiddleware, roles, canExport, denyAdminOpsCompanyWide, (req, res) => res.json({
   success: true,
@@ -107,34 +95,17 @@ router.get('/export-excel/company-status', authMiddleware, roles, canExport, den
 }));
 
 router.get('/export-excel/company-data', authMiddleware, roles, canExport, denyAdminOpsCompanyWide, companyExcelDataController.get);
-router.get('/export-excel/processes', authMiddleware, roles, canExport, (req, res, next) => {
-  try { return desktopController().listProcesses(req, res, next); } catch (error) { return next(error); }
-});
+router.get('/export-excel/processes', authMiddleware, roles, canExport, listProcesses);
 
-// Cloudflare Workers do not render XLSX locally. They proxy the authenticated
-// export request to the Node/Render backend, where ExcelJS and the template
-// filesystem are available.
+// Old binary endpoints remain recognizable but are disabled on Cloudflare.
 router.post('/export-excel', authMiddleware, roles, canExport, requireGcProcessScope, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), exportExcelController);
 router.post('/export-excel/process', authMiddleware, roles, canExport, requireRequestedProcessScope, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), exportProcessExcelController);
 
-// Kept as explicit Node/Render targets for compatibility with older clients.
-// The same proxy marker is accepted by the main endpoints above.
-router.post('/export-excel/render-proxy', authMiddleware, roles, canExport, requireGcProcessScope, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), (req, res, next) => {
-  try {
-    res.setHeader('X-KTC-Excel-Backend', 'node-render');
-    return legacyController().exportGiaCongExcel(req, res, next);
-  } catch (error) { return next(error); }
-});
-router.post('/export-excel/process/render-proxy', authMiddleware, roles, canExport, requireRequestedProcessScope, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), (req, res, next) => {
-  try {
-    res.setHeader('X-KTC-Excel-Backend', 'node-render');
-    return desktopController().exportProcess(req, res, next);
-  } catch (error) { return next(error); }
-});
+// Preserve old URLs for older clients without accepting a proxy bypass header.
+router.post('/export-excel/render-proxy', authMiddleware, roles, canExport, requireGcProcessScope, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), exportExcelController);
+router.post('/export-excel/process/render-proxy', authMiddleware, roles, canExport, requireRequestedProcessScope, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), exportProcessExcelController);
 
-router.get('/export-excel/company-files', authMiddleware, roles, canExport, denyAdminOpsCompanyWide, (req, res, next) => {
-  try { return desktopController().listCompanyFiles(req, res, next); } catch (error) { return next(error); }
-});
+router.get('/export-excel/company-files', authMiddleware, roles, canExport, denyAdminOpsCompanyWide, legacyNodeOnly((req,res,next)=>desktopController().listCompanyFiles(req,res,next)));
 router.post('/export-excel/company-build-all', authMiddleware, roles, canExport, denyAdminOpsCompanyWide, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), (req, res, next) => {
   if (!legacyServerExcelEnabled()) return disabled(req, res);
   try { return desktopController().buildAllCompanyFiles(req, res, next); } catch (error) { return next(error); }
@@ -148,12 +119,15 @@ router.post('/export-excel/jobs', authMiddleware, roles, canExport, denyAdminOps
   try { return runtimeRequire('../controllers/excelJobController').create(req, res, next); } catch (error) { return next(error); }
 });
 router.get('/export-excel/jobs', authMiddleware, roles, canExport, denyAdminOpsCompanyWide, (req, res, next) => {
+  if (!legacyServerExcelEnabled()) return disabled(req,res);
   try { return runtimeRequire('../controllers/excelJobController').list(req, res, next); } catch (error) { return next(error); }
 });
 router.get('/export-excel/jobs/:jobId', authMiddleware, roles, canExport, denyAdminOpsCompanyWide, (req, res, next) => {
+  if (!legacyServerExcelEnabled()) return disabled(req,res);
   try { return runtimeRequire('../controllers/excelJobController').get(req, res, next); } catch (error) { return next(error); }
 });
 router.get('/export-excel/jobs/:jobId/download', authMiddleware, roles, canExport, denyAdminOpsCompanyWide, (req, res, next) => {
+  if (!legacyServerExcelEnabled()) return disabled(req,res);
   try { return runtimeRequire('../controllers/excelJobController').download(req, res, next); } catch (error) { return next(error); }
 });
 

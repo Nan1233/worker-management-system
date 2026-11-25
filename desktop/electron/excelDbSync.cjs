@@ -213,7 +213,7 @@ async function readExcelChanges(filePath) {
       operation_mode: normalizeOperationMode(reportMeta.original.operation_mode),
       machine_no: asText(reportMeta.original.machine_no) || null,
       product_name: asText(reportMeta.original.product_name) || null,
-      training_percent: Number(reportMeta.original.training_percent ?? 100),
+      training_percent: reportMeta.original.training_percent == null ? null : Number(reportMeta.original.training_percent),
       actual_time: asNumber(reportMeta.original.actual_time),
       tt_ok: asInteger(reportMeta.original.tt_ok),
       note: asText(reportMeta.original.note),
@@ -249,7 +249,7 @@ async function readExcelChanges(filePath) {
       ...(meta.config.columns.some(col => col.key.startsWith('defect:') && col.typeId) ? ['defects'] : [])
     ]);
     for (const [key, afterRaw] of Object.entries(candidate)) {
-      if (!isExcelMutableField(key) || (paperRows && !availablePatch.has(key))) continue;
+      if (!isExcelMutableField(key) || !availablePatch.has(key)) continue;
       const beforeRaw = original[key];
       const before = fieldValue(key, beforeRaw);
       const after = fieldValue(key, afterRaw);

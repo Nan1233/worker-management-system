@@ -54,32 +54,7 @@ const mapDetails = (rows, reportIds, mapper) => {
   return result;
 };
 
-async function listProcessesForMonth(value, options = {}) {
-  const yearMonth = normalizeYearMonth(value);
-  const { start, next } = monthRange(yearMonth);
-  const scope = options.actor ? await getActorProcessScope(options.actor) : { type:'ALL', processIds:null };
-  const scoped = scopeSql(scope, 'p.id', [start, next]);
-  const rows = await query(
-    `SELECT p.id, p.process_code, p.process_name, COUNT(pr.id) AS report_count
-       FROM processes p
-       LEFT JOIN production_reports pr
-         ON pr.process_id = p.id
-        AND LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
-        AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))
-        AND pr.work_date >= ?
-        AND pr.work_date < ?
-      WHERE LOWER(COALESCE(p.status, 'active')) IN ('active', 'enabled', '1') ${scoped.clause}
-      GROUP BY p.id, p.process_code, p.process_name
-      ORDER BY CASE WHEN UPPER(p.process_code) = 'GC' THEN 0 ELSE 1 END, p.id`,
-    scoped.params
-  );
-
-  return rows.map((row) => ({
-    ...row,
-    id: Number(row.id),
-    report_count: Number(row.report_count || 0)
-  }));
-}
+const { listProcessesForMonth } = require('./excelProcessCatalogService');
 
 async function loadProcessMonthReports(value, processId, options = {}) {
   if (options.actor) await assertProcessScope(options.actor, processId, { action:'PROCESS_EXPORT' });

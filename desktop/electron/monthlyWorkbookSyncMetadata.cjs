@@ -2,6 +2,7 @@
 const { asText, asNumber, asInteger, dateKey } = require('./monthlyWorkbookValues.cjs');
 const { detailId, detailValue, processDetailTypes } = require('./monthlyWorkbookDetails.cjs');
 const { makeColumns } = require('./monthlyWorkbookColumns.cjs');
+const { calculateProductionMetrics } = require('./productionCalculationEngine.cjs');
 const { sortReports } = require('./monthlyWorkbookReportData.cjs');
 const { FORMS: ORIGINAL_KTC_FORMS, WORKBOOK1_FORMS } = require('./originalProcessExcelTemplate.cjs');
 const { createPhysicalMachineMetadata } = require('./monthlyWorkbookPhysicalEvents.cjs');
@@ -21,7 +22,7 @@ function syncOriginalPatch(report) {
     operation_mode: asText(report.operation_mode),
     machine_no: asText(report.machine_no),
     product_name: asText(report.product_name),
-    training_percent: Number.isFinite(Number(report.training_percent)) ? Number(report.training_percent) : 100,
+    training_percent: calculateProductionMetrics(report).trainingPercent,
     actual_time: asNumber(report.actual_time),
     tt_ok: asInteger(report.tt_ok),
     note: asText(report.note),
