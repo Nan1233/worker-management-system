@@ -98,7 +98,7 @@ function matchMasterValue(header, types, values) {
 // Resolve by stable ID/code first; names are only a fallback for legacy reports.
 function masterAliases(item) {
   const keys=[];
-  for(const value of [item?.defect_type_id,item?.type_id,item?.id]) {
+  for(const value of [item?.defect_type_id,item?.type_id]) {
     const n=Number(value);if(Number.isInteger(n)&&n>0)keys.push("id:"+n);
   }
   for(const value of [item?.defect_type_code,item?.defect_code,item?.type_code,item?.code]) {

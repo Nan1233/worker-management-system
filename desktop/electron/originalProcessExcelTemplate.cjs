@@ -165,7 +165,10 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     if(usedDefectKeys.has(key))continue;
     if(workbook1 && !reports.some(report => helpers.reportDetailItems(report,code,"defect").some(item => {
       const quantity = Number(item?.defect_quantity ?? item?.ng_quantity ?? item?.quantity ?? item?.qty ?? item?.value ?? 0);
-      return quantity>0 && masterAliases(item).some(alias => [type.key,...(type.aliases||[])].includes(alias));
+      return quantity>0 && masterAliases(item).some(alias => [type.key,...(type.aliases||[])].some(key => {
+        const [kind, ...parts] = String(key).split(':');
+        return kind + ':' + norm(parts.join(':')) === alias;
+      }));
     }))) continue;
     usedDefectKeys.add(key);
     const label=String(type.label||key);

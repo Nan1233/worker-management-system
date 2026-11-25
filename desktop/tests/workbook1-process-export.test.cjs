@@ -57,11 +57,8 @@ test('Workbook1 maps approved report rows and each process-specific coded NG col
       worker_code:'49-001', full_name:'Nhân viên kiểm thử', shift:'A',
       machine_no:'TEST-01', product_code:'P01', status:'approved',
       dataSource:'production_reports', isApprovedDatabaseRecord:true,
-      calculationSnapshot: {
-        trainingFactor:1, standard:500, workingTime:12, actualTime:10,
-        deductionTime:2, ok:99, allNg:1, countedNg:1, enteredOutput:100,
-        adjustedOutput:100, outputPerHour:10, achievement:0.2, ngRate:0.01
-      },
+      operation_mode:'MANUAL',training_percent_snapshot:100,standard_output:50,
+      total_time:12,actual_time:10,deduction_time:2,tt_ok:99,tt_ng:1,actual_output:100,
       defects:[{defect_type_code:defectCode, defect_type_name:defectCode, defect_quantity:1}],
       deductions:[]
     };
@@ -161,11 +158,9 @@ test('MÀI: repeated days share the same pink separator and table ends after dat
     id, work_date:workDate, created_at:workDate+'T10:00:00',
     worker_code:'49-001',full_name:'Kiểm thử',shift:'A',
     dataSource:'production_reports',isApprovedDatabaseRecord:true,
-    calculationSnapshot: {
-      trainingFactor:1,standard:100,workingTime:8,actualTime:8,deductionTime:0,
-      ok:10,allNg:0,countedNg:0,enteredOutput:10,adjustedOutput:10,
-      outputPerHour:1.25,achievement:0.1,ngRate:0
-    },defects:[],deductions:[]
+    operation_mode:'MANUAL',training_percent_snapshot:100,standard_output:100,
+    total_time:8,actual_time:8,deduction_time:0,tt_ok:10,tt_ng:0,actual_output:10,
+    defects:[],deductions:[]
   });
   const original = new ExcelJS.Workbook();
   await original.xlsx.readFile(source);
@@ -221,9 +216,8 @@ test('ĐO: only day separators are pink, all report rows use original per-column
   const createReport=(id,date)=>({
     id,work_date:date,created_at:date+'T09:00:00',worker_code:'4093',full_name:'Kiểm thử',
     dataSource:'production_reports',isApprovedDatabaseRecord:true,shift:'A',
-    calculationSnapshot:{trainingFactor:1,standard:100,workingTime:8,actualTime:6,
-      deductionTime:2,ok:100,allNg:0,countedNg:0,enteredOutput:100,
-      adjustedOutput:100,outputPerHour:16.67,achievement:1,ngRate:0},
+    operation_mode:'MANUAL',training_percent_snapshot:100,standard_output:100,
+    total_time:8,actual_time:6,deduction_time:2,tt_ok:600,tt_ng:0,actual_output:600,
     defects:[],deductions:[]
   });
   const original=new ExcelJS.Workbook();
@@ -273,12 +267,13 @@ test('All six Workbook1 forms use Gia công percentage bands at thresholds',asyn
       id:301+index,work_date:'2026-11-10',
       worker_code:'49-001',full_name:'Kiểm thử',shift:'A',
       isApprovedDatabaseRecord:true,dataSource:'production_reports',
-      calculationSnapshot:{
-        trainingFactor:1,standard:100,workingTime:8,actualTime:8,
-        deductionTime:0,ok:100,allNg:1,countedNg:1,enteredOutput:100,
-        adjustedOutput:100,outputPerHour:12.5,
-        achievement:scenario.achievement,ngRate:scenario.ngRate
-      },defects:[],deductions:[]
+      operation_mode:'MANUAL',training_percent_snapshot:100,
+      total_time:1,actual_time:1,deduction_time:0,
+      standard_output:100000000,
+      actual_output:Math.round(scenario.achievement*100000000),
+      tt_ng:Math.round(scenario.achievement*100000000*scenario.ngRate),
+      tt_ok:Math.round(scenario.achievement*100000000)-Math.round(scenario.achievement*100000000*scenario.ngRate),
+      defects:[],deductions:[]
     }));
     const built=await buildProcessWorkbookLocal({
       date:'2026-11-01',processCode:code,

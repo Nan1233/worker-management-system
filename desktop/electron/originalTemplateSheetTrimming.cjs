@@ -26,8 +26,10 @@ function trimOriginalTemplateSheet(sheet, lastDataRow, lastDataColumn) {
   }
   for (let r = lastRow + 1; r <= sourceRowCount; r++) {
     const row = sheet.getRow(r);
-    row.eachCell({includeEmpty:true}, cell => {cell.value=null;cell.style={};});
-    row.style={}; row.height=undefined; row.hidden=false;
+    // Assigning an empty values array drops the row's cell models, unlike
+    // assigning null to every cell (ExcelJS can serialize styled empty cells).
+    row.values=[];
+    row.style={}; row.height=undefined; row.hidden=false; row.outlineLevel=0;
   }
   if (sourceRowCount > lastRow) sheet.spliceRows(lastRow+1,sourceRowCount-lastRow);
   if (sourceColumnCount > lastColumn) {
@@ -37,6 +39,12 @@ function trimOriginalTemplateSheet(sheet, lastDataRow, lastDataColumn) {
       }
     }
     sheet.spliceColumns(lastColumn+1,sourceColumnCount-lastColumn);
+  }
+  // Column splicing can revisit otherwise empty trailing rows. Clear them
+  // after the final column operation so they cannot reappear in the XLSX.
+  for (let r=lastRow+1;r<=sheet.rowCount;r++) {
+    const row=sheet.getRow(r);
+    row.values=[]; row.style={}; row.height=undefined; row.hidden=false; row.outlineLevel=0;
   }
 }
 module.exports={trimOriginalTemplateSheet};

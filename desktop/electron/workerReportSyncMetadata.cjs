@@ -17,7 +17,7 @@ function syncColumns(contract,code) {
   // Multiple aliases may share one physical column. Do not expose ambiguous
   // detail mappings as editable DB type IDs.
   for(const [kind,items] of [['deduction',contract.deductions],['defect',contract.defects]]){
-    const entries=items.map(item=>({index:Number(item.column),typeId:detailId(item.type,kind)})).filter(item=>item.typeId&&item.index>0);
+    const entries=items.map(item=>({index:Number(item.column),typeId:detailId(item.type,kind,{master:true})})).filter(item=>item.typeId&&item.index>0);
     for(const item of entries){
       if(entries.filter(other=>other.index===item.index||other.typeId===item.typeId).length!==1)continue;
       result.push({...item,key:kind+':id:'+item.typeId});

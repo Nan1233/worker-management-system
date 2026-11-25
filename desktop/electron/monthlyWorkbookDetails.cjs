@@ -3,10 +3,10 @@ const { asText, asNumber, normalize } = require('./monthlyWorkbookValues.cjs');
 const { PROCESS_TEMPLATE_SCHEMAS } = require('./monthlyWorkbookSchemas.cjs');
 
 // Alias-aware production detail mapping. Machine deductions stay on machine lines.
-function detailId(item, kind) {
-  const value = kind === 'deduction'
-    ? item?.deduction_type_id ?? item?.type_id ?? item?.id
-    : item?.defect_type_id ?? item?.type_id ?? item?.id;
+function detailId(item, kind, { master = false } = {}) {
+  // A report detail row's own primary key is not a defect/deduction master ID.
+  const value = (kind === 'deduction' ? item?.deduction_type_id : item?.defect_type_id)
+    ?? item?.type_id ?? (master ? item?.id : null);
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
 }
@@ -125,7 +125,10 @@ function processDetailTypes(processCode, processData, masterKey, reportKey, kind
   };
   const templateLabels = PROCESS_TEMPLATE_SCHEMAS[processCode]?.[kind === 'deduction' ? 'deductions' : 'defects'] || [];
   for (const label of templateLabels) append({ name: label });
-  for (const item of processData?.[masterKey] || []) append(item);
+  for (const item of processData?.[masterKey] || []) {
+    const id=detailId(item,kind,{master:true});
+    append(id ? {...item,[kind+'_type_id']:id} : item);
+  }
   for (const report of processData?.reports || []) {
     for (const item of reportDetailItems(report, processCode, kind)) append(item);
   }
