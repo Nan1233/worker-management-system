@@ -113,7 +113,11 @@ export default function ApprovedReports({ onOpenReport }: { onOpenReport?: (repo
                 setDetailError("Chi tiết không hợp lệ. Vui lòng tải lại.");
                 return;
             }
-            setDetail(full);
+            // Keep the list KPI only if the detail represents the same stored version.
+            const previous = report as ProductionReport & { kpi?: unknown };
+            const next = full as ProductionReport & { kpi?: unknown };
+            setDetail(next.kpi == null && next.updated_at != null && next.updated_at === previous.updated_at
+                ? { ...full, kpi: previous.kpi } as ProductionReport : full);
         } catch {
             if (detailRequestSeqRef.current === sequence) setDetailError("Không thể tải chi tiết. Vui lòng thử lại.");
         } finally {

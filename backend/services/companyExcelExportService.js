@@ -6,8 +6,7 @@ const { loadProcessMonthReports, normalizeYearMonth } = require('./processExcelE
 const { buildLayoutResolvers, writeDetailColumns } = require('./excelColumnMapping');
 const { writeGcWorkerSheet } = require('./gcWorkerReportExcel');
 const { buildMachineExcelRows } = require('./machineLineExcelRows');
-const { calculateCountedNg } = require('../utils/outputCalculation');
-const { normalizeTrainingPercent, trainingFactor } = require('../utils/trainingPercent');
+const { calculateStoredProductionMetrics } = require('../../shared/productionMetricPrimitives.cjs');
 
 const { assertReportVolume } = require('./excelExportGuards');
 const { removeQuietly, cleanupOldExports } = require('./exportFileMaintenance');
@@ -112,27 +111,8 @@ const detailValue = (items, typeId, valueKey, typeKey) => (items || [])
   .reduce((sum, item) => sum + toNumber(item[valueKey]), 0);
 
 const getReportMetrics = (report) => {
-  const ok = toNumber(report.tt_ok);
-  const allNg = (report.defects || []).reduce((sum, item) => sum + toNumber(item.quantity), 0);
-  const machineMetrics = report.machinePerformance;
-  const actualOutput = machineMetrics?.machine_count > 0
-    ? toNumber(machineMetrics.counted_output)
-    : Number(report.actual_output ?? (ok + calculateCountedNg(report.defects || [])));
-  const standard = machineMetrics?.machine_count > 0 ? 0 : toNumber(report.standard_output);
-  const isGiaCongMachine = String(report.process_code || '').trim().toUpperCase() === 'GC'
-    && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE';
-  const machineAccounting = isGiaCongMachine ? report.machineAccounting : null;
-  const totalTime = machineAccounting ? toNumber(machineAccounting.grossHours) : toNumber(report.total_time);
-  const actualTime = machineAccounting ? toNumber(machineAccounting.netHours) : toNumber(report.actual_time);
-  const plannedOutput = machineMetrics?.machine_count > 0
-    ? toNumber(machineMetrics.maximum_output)
-    : standard * actualTime * trainingFactor(report.training_percent);
-  const outputPerHour = actualTime > 0 ? actualOutput / actualTime : 0;
-  return {
-    ok, allNg, actualOutput, standard, totalTime, actualTime, plannedOutput, outputPerHour,
-    achievement: plannedOutput > 0 ? actualOutput / plannedOutput : 0,
-    ngRate: (ok + allNg) > 0 ? allNg / (ok + allNg) : 0
-  };
+  const metrics = calculateStoredProductionMetrics(report);
+  return { ...metrics, actualOutput: metrics.adjustedOutput, totalTime: metrics.workingTime };
 };
 
 const setCell = (row, column, value, numFmt = null) => {
@@ -286,8 +266,7 @@ const writeReportRow = (sheet, rowNumber, report, layout, mapping, workerLookup)
   }
   setCell(row, fixed.machine, report.machine_no || report.machine_code || '');
   setCell(row, fixed.shift, report.shift || '');
-  const trainingPercent = normalizeTrainingPercent(report.training_percent);
-  const trainingFactorValue = trainingPercent / 100;
+  const trainingFactorValue = metrics.trainingFactor;
   setCell(row, fixed.training, trainingFactorValue, '0%');
   setCell(row, fixed.totalTime, metrics.totalTime, '0.00');
   setCell(row, fixed.product, report.product_code || report.product_name || '');

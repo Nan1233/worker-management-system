@@ -1,5 +1,6 @@
 'use strict';
 
+const { calculateNetHours } = require('../../shared/productionMetricPrimitives.cjs');
 const { parseExcelDetailArray } = require('./excelDetailArray');
 
 const { calculateMachineLinePerformance } = require('./machinePerformanceService');
@@ -52,7 +53,7 @@ function buildMachineExcelRows(reports) {
         product_name: String(line.product_code ?? report.product_name ?? '').trim(),
         product_code: String(line.product_code ?? report.product_code ?? '').trim(),
         total_time: machineHours,
-        actual_time: Math.max(0, machineHours - deductionHours),
+        actual_time: calculateNetHours(machineHours, deductionHours),
         deduction_time: deductionHours,
         standard_output: Math.max(0, toNumber(line.standard_output)),
         actual_output: performance.counted_output,
@@ -63,6 +64,8 @@ function buildMachineExcelRows(reports) {
         // Prevent downstream aggregate KPI objects on the parent report from
         // being repeated on every line. KPI/approval data in storage is untouched.
         machinePerformance: null,
+        machine_performance: null,
+        machine_lines: [line],
         machineAccounting: null,
         machineLines: [line],
         excelMachineLineId: line.id ?? null
