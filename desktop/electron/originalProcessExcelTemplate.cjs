@@ -114,8 +114,11 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     // stable coded defects (MAI_NG_01, DO_NG_01, etc.). Match the exact
     // positional code first; a display-name match cannot resolve code-only
     // payloads and can leave genuine NG quantities blank.
+    const ordinal = d.col-toNumber(config.defects[0])+1;
     const expectedCode = workbook1
-      ? norm(workbook1DefectPrefix[code] + String(d.col-toNumber(config.defects[0])+1).padStart(2,"0"))
+      ? norm(code === 'GC' && ordinal > 10
+        ? 'LONG' + String(ordinal - 10).padStart(2, '0')
+        : workbook1DefectPrefix[code] + String(ordinal).padStart(2, '0'))
       : "";
     const codedMatches = expectedCode ? defectTypes.filter(t=>
       [t.key,...(t.aliases||[])].some(v=> {

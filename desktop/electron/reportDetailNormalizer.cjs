@@ -85,6 +85,7 @@ const deductionAliasCode = (value) => {
 
 function canonicalDefect(item = {}) {
   const rawCode = normalizeKey(item.defect_code || item.defect_type_code || item.code);
+  if (isEncodedGcDefectCode(rawCode)) return { ...item, defect_code: rawCode, defect_name: item.defect_name || item.defect_type_name || GC_FORM_DEFECT_NAMES[rawCode] };
   const aliasCode = LEGACY_MACHINE_KEYS.get(rawCode) || rawCode;
   const nameKey = normalizeKey(item.defect_name || item.name || item.label);
   const canonicalCode = CANONICAL_GC_DEFECTS.has(aliasCode)
@@ -194,11 +195,11 @@ function extractLegacyDefects(extra) {
 function mergeByKey(values, kind) {
   const map = new Map();
   for (const item of Array.isArray(values) ? values : []) {
-    const value = kind === "defect" ? Math.trunc(positiveNumber(item?.quantity)) : positiveNumber(item?.hours);
+    const value = kind === "defect" ? Math.trunc(positiveNumber(item?.quantity ?? item?.defect_quantity ?? item?.ng_quantity ?? item?.qty)) : positiveNumber(item?.hours ?? item?.deduction_hours ?? item?.duration_hours ?? item?.time_hours);
     if (!value) continue;
     const id = kind === "defect" ? Number(item?.defect_type_id ?? item?.id) || 0 : Number(item?.deduction_type_id ?? item?.id) || 0;
-    const code = normalizeKey(kind === "defect" ? (item?.defect_code || item?.code) : (item?.deduction_code || item?.code));
-    const name = normalizeKey(kind === "defect" ? (item?.defect_name || item?.name || item?.label) : (item?.deduction_name || item?.name || item?.label));
+    const code = normalizeKey(kind === "defect" ? (item?.defect_code || item?.defect_type_code || item?.type_code || item?.code) : (item?.deduction_code || item?.deduction_type_code || item?.type_code || item?.code));
+    const name = normalizeKey(kind === "defect" ? (item?.defect_name || item?.defect_type_name || item?.type_name || item?.name || item?.label) : (item?.deduction_name || item?.deduction_type_name || item?.type_name || item?.name || item?.label));
     const key = id ? `ID:${id}` : code ? `CODE:${code}` : `NAME:${name}`;
     const existing = map.get(key);
     if (existing) {
@@ -215,11 +216,11 @@ function reconcileSources(sources, expected, kind) {
   const target = kind === "defect" ? Math.trunc(cleanExpected) : cleanExpected;
   const result = new Map();
   const add = (item) => {
-    const value = kind === "defect" ? Math.trunc(positiveNumber(item?.quantity)) : positiveNumber(item?.hours);
+    const value = kind === "defect" ? Math.trunc(positiveNumber(item?.quantity ?? item?.defect_quantity ?? item?.ng_quantity ?? item?.qty)) : positiveNumber(item?.hours ?? item?.deduction_hours ?? item?.duration_hours ?? item?.time_hours);
     if (!value) return false;
     const id = kind === "defect" ? Number(item?.defect_type_id ?? item?.id) || 0 : Number(item?.deduction_type_id ?? item?.id) || 0;
-    const code = normalizeKey(kind === "defect" ? (item?.defect_code || item?.code) : (item?.deduction_code || item?.code));
-    const name = normalizeKey(kind === "defect" ? (item?.defect_name || item?.name || item?.label) : (item?.deduction_name || item?.name || item?.label));
+    const code = normalizeKey(kind === "defect" ? (item?.defect_code || item?.defect_type_code || item?.type_code || item?.code) : (item?.deduction_code || item?.deduction_type_code || item?.type_code || item?.code));
+    const name = normalizeKey(kind === "defect" ? (item?.defect_name || item?.defect_type_name || item?.type_name || item?.name || item?.label) : (item?.deduction_name || item?.deduction_type_name || item?.type_name || item?.name || item?.label));
     const key = id ? `ID:${id}` : code ? `CODE:${code}` : `NAME:${name}`;
     const existing = result.get(key);
     const currentTotal = [...result.values()].reduce((sum, x) => sum + (kind === "defect" ? x.quantity : x.hours), 0);

@@ -180,7 +180,7 @@ async function readExcelChanges(filePath) {
   for (let row = firstRow; row <= sheet.rowCount; row += 1) {
     const first = sheet.getCell(row, 1).value;
     const parsedDate = excelDateToIso(first);
-    if (parsedDate && !Number.isInteger(Number(first))) { activeDate = parsedDate; continue; }
+    if (parsedDate && (first instanceof Date || (typeof first === 'string' && !/^\d+$/.test(first.trim())))) { activeDate = parsedDate; continue; }
     if (paperRows) {
       if (activeDate) rowDate.set(row, activeDate);
       continue;
@@ -323,7 +323,9 @@ async function readExcelChanges(filePath) {
   for (let row = firstRow; row <= sheet.rowCount; row += 1) {
     // Chỉ coi dòng có STT số nguyên dương là dòng báo cáo mới.
     // Điều này loại bỏ dòng ngày, dòng TỔNG CỘNG và các dòng công thức/trang trí.
-    const stt = Number(sheet.getCell(row, 1).value);
+    const serial = sheet.getCell(row, 1).value;
+    if (serial instanceof Date) continue;
+    const stt = Number(serial);
     if (!Number.isInteger(stt) || stt <= 0) continue;
     if (paperRows && knownPaperRows.has(row)) continue;
     const id = idColumn ? Number(sheet.getCell(row, idColumn.index).value) : 0;

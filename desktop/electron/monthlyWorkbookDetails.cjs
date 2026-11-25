@@ -95,18 +95,34 @@ function processDetailTypes(processCode, processData, masterKey, reportKey, kind
     const aliases = detailAliases(item, kind);
     if (!aliases.length) return;
     const candidateLabel = detailLabel(item, kind) || (kind === 'deduction' ? 'Trừ giờ khác' : 'NG khác');
-    let current = aliases.map((alias) => byAlias.get(alias)).find(Boolean);
+    const stable = aliases.filter(alias => !alias.startsWith('name:'));
+    const compatible = candidate => {
+      const previous = [...candidate.aliases];
+      const ids = stable.filter(a => a.startsWith('id:'));
+      const oldIds = previous.filter(a => a.startsWith('id:'));
+      const codes = stable.filter(a => a.startsWith('code:'));
+      const oldCodes = previous.filter(a => a.startsWith('code:'));
+      return !(ids.length && oldIds.length && !ids.some(a => oldIds.includes(a)))
+        && !(codes.length && oldCodes.length && !codes.some(a => oldCodes.includes(a)));
+    };
+    let current = stable.map(alias => byAlias.get(alias)).find(candidate => candidate && compatible(candidate));
+    if (!current) {
+      const nameMatches = result.filter(candidate => compatible(candidate) &&
+        aliases.some(alias => alias.startsWith('name:') && candidate.aliases.has(alias)));
+      if (nameMatches.length === 1) current = nameMatches[0];
+    }
     if (!current) {
       current = { key: detailKey(item, kind), label: candidateLabel, aliases: new Set(aliases) };
       result.push(current);
     } else {
       aliases.forEach((alias) => current.aliases.add(alias));
+      if (current.key.startsWith('name:') && stable.length) current.key = detailKey(item, kind);
       if (labelQuality(candidateLabel, kind) > labelQuality(current.label, kind)) current.label = candidateLabel;
     }
     current.aliases.forEach((alias) => byAlias.set(alias, current));
   };
   const templateLabels = PROCESS_TEMPLATE_SCHEMAS[processCode]?.[kind === 'deduction' ? 'deductions' : 'defects'] || [];
-  for (const label of templateLabels) append({ code: normalize(label), name: label });
+  for (const label of templateLabels) append({ name: label });
   for (const item of processData?.[masterKey] || []) append(item);
   for (const report of processData?.reports || []) {
     for (const item of reportDetailItems(report, processCode, kind)) append(item);

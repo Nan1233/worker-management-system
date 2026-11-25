@@ -14,7 +14,7 @@ async function listApprovedReports({ actor, query }) {
   const data = rows.map(row => {
     const machine_lines = linesByReport.get(String(row.id)) || [];
     const kpi = projectApprovedReportKpi({ ...row, machine_lines, deductions: deductionsByReport.get(String(row.id)) || [] });
-    return { ...row, machine_lines, training_percent: kpi.trainingPercent, kpi };
+    return { ...row, machine_lines, training_percent: kpi.trainingPercent, tt_dinh_muc: kpi.plannedOutput, kpi };
   });
   return { success:true, data, ...(processes !== undefined ? { processes } : {}), pagination:paginationMeta({page:filters.page,pageSize:filters.pageSize,total}) };
 }

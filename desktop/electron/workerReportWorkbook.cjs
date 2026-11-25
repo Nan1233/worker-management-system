@@ -393,7 +393,7 @@ contract.cols.workTime = workTimeColumn;
       sheet.getColumn(contract.cols.id).hidden=true;
       contract.lastColumn=contract.cols.id;
     }
-    if(!dateRowNumber&&(!contract.cols.date||contract.cols.date===contract.cols.entryDate||contract.cols.date===contract.cols.submittedAt)){
+    if(!contract.cols.date||contract.cols.date===contract.cols.entryDate||contract.cols.date===contract.cols.submittedAt){
       contract.cols.date=Math.max(sheet.columnCount,contract.lastColumn||0)+1;
       sheet.getRow(headerRow).getCell(contract.cols.date).value='Ngày sản xuất';
       sheet.getColumn(contract.cols.date).hidden=true;

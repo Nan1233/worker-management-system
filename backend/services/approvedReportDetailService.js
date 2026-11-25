@@ -49,6 +49,7 @@ async function getApprovedReportDetail({ reportId, actor }) {
         ...(machineLinesLoadFailed?{machine_lines_load_failed:true}:{}),
         ...performance,
         machine_lines:normalizedMachineLines,
+        tt_dinh_muc:kpi.plannedOutput,
         kpi
     };
 }
