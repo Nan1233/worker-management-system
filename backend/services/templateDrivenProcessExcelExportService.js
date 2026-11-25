@@ -1,6 +1,7 @@
 'use strict';
 
 const ExcelJS = require('exceljs');
+const { calculateStoredProductionMetrics } = require('../../shared/productionMetricPrimitives.cjs');
 const { buildSixProcessWorkbook } = require('./sixProcessWorkbookExportService');
 const { publishExcelWorkbook } = require('./excelWorkbookPublisherService');
 const path = require('node:path');
@@ -70,10 +71,9 @@ function asDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
-function metric(report, key) {
-  if (key === 'actual_output') return Number(report?.actual_output ?? 0); if (key === 'standard_output') return Number(report?.standard_output ?? 0); if (key === 'tt_ok') return Number(report?.tt_ok ?? 0); if (key === 'tt_ng') return Number(report?.tt_ng ?? 0);
-  if (key === 'achievement_rate') { const standard = Number(report?.standard_output ?? 0), actual = Number(report?.actual_output ?? 0), time = Number(report?.actual_time ?? report?.total_time ?? 0); return standard > 0 && time > 0 ? actual / (standard * time) : 0; }
-  return Number(report?.[key] ?? 0);
+function metric(report, key, metrics) {
+  const fields = { actual_output: 'adjustedOutput', standard_output: 'standard', tt_ok: 'ok', tt_ng: 'allNg', achievement_rate: 'achievement', total_time: 'workingTime', actual_time: 'actualTime' };
+  return fields[key] ? metrics[fields[key]] : report?.[key] ?? null;
 }
 function writeDefectsAndDeductions(row, report, columnMap, reservedColumns = new Set()) {
   const defects = Array.isArray(report?.defects) ? report.defects : [], deductions = Array.isArray(report?.deductions) ? report.deductions : [];
@@ -94,6 +94,7 @@ function writeDefectsAndDeductions(row, report, columnMap, reservedColumns = new
 }
 function writeReportRow(sheet, rowNumber, report, processCode, mapping) {
   const row = sheet.getRow(rowNumber), c = mapping.cols;
+  const metrics = calculateStoredProductionMetrics(report);
   const set = (column, value) => {
     if (!column) return;
     // Never allow user-entered worker/product/machine text to be interpreted
@@ -106,7 +107,7 @@ function writeReportRow(sheet, rowNumber, report, processCode, mapping) {
       cell.value = value == null ? null : value;
     }
   };
-  set(c.workerCode, report.worker_code); set(c.workerName, report.full_name || report.worker_name); set(c.shift, report.shift); set(c.machine, report.machine_no); set(c.product, report.product_name || rawValue(report, 'product_code')); set(c.workDate, asDate(report.work_date)); set(c.training, report.training_percent_snapshot); set(c.standard, metric(report, 'standard_output')); set(c.actual, metric(report, 'actual_output')); set(c.ok, metric(report, 'tt_ok')); set(c.ng, metric(report, 'tt_ng')); set(c.achievement, metric(report, 'achievement_rate')); set(c.totalTime, metric(report, 'total_time')); if (c.actualTime && c.actualTime !== c.totalTime) set(c.actualTime, metric(report, 'actual_time')); writeDefectsAndDeductions(row, report, mapping.map, new Set(Object.values(c).filter(Boolean)));
+  set(c.workerCode, report.worker_code); set(c.workerName, report.full_name || report.worker_name); set(c.shift, report.shift); set(c.machine, report.machine_no); set(c.product, report.product_name || rawValue(report, 'product_code')); set(c.workDate, asDate(report.work_date)); set(c.training, report.training_percent_snapshot); set(c.standard, metric(report, 'standard_output', metrics)); set(c.actual, metric(report, 'actual_output', metrics)); set(c.ok, metric(report, 'tt_ok', metrics)); set(c.ng, metric(report, 'tt_ng', metrics)); set(c.achievement, metric(report, 'achievement_rate', metrics)); set(c.totalTime, metric(report, 'total_time', metrics)); if (c.actualTime && c.actualTime !== c.totalTime) set(c.actualTime, metric(report, 'actual_time', metrics)); writeDefectsAndDeductions(row, report, mapping.map, new Set(Object.values(c).filter(Boolean)));
 }
 function clearBrokenAndExternalFormulas(workbook) {
   let removed = 0;

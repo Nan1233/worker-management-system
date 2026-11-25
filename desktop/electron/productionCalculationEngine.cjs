@@ -3,22 +3,13 @@
 const {
   DEFAULT_SETTINGS,
   parseStoredTrainingSnapshot,
-  safeRatio,
   calculateNetHours,
-  calculateGcMachineLineMetrics,
-  calculatePlannedOutput,
+  calculateStoredProductionMetrics,
   asNumber,
   asInteger,
   normalizeTrainingPercent,
   trainingFactor
 } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'productionMetricPrimitives.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'productionMetricPrimitives.cjs') : '../../shared/productionMetricPrimitives.cjs');
-
-// Process/operation codes are compared case-insensitively (e.g. 'gc' / 'GC',
-// 'machine' / 'MACHINE'). Restored after 7d2fe072 removed it while
-// calculateProductionMetrics still depends on it.
-function normalizeCode(value) {
-  return String(value ?? '').trim().toUpperCase();
-}
 
 function defectQuantity(item) {
   return asInteger(item?.quantity) || 0;
@@ -81,86 +72,7 @@ function calculateAdjustedOutput({ enteredOutput, ok, countedNg, factor, setting
   return output === null ? null : Math.round(output);
 }
 
-function calculateProductionMetrics(report = {}, settings = {}) {
-  const resolved = resolveSettings(settings);
-
-  // These values are database columns. They are deliberately read directly
-  // and are not recalculated for Excel. This keeps Desktop output identical to
-  // the approved production_reports record.
-  const workingTime = asNumber(report.total_time);
-  const deductionTime = asNumber(report.deduction_time);
-  const actualTime = asNumber(report.actual_time);
-  const ok = asInteger(report.tt_ok);
-  const ng = calculateNg(report);
-  const enteredOutput = asInteger(report.actual_output);
-  const trainingPercent = parseStoredTrainingSnapshot(report.training_percent_snapshot);
-  const snapshotMissing = trainingPercent === null;
-  const factor = trainingPercent === null ? null : trainingPercent / 100;
-  const standard = asNumber(report.standard_output);
-  const isGcMachineReport = normalizeCode(report.process_code) === 'GC'
-    && normalizeCode(report.operation_mode) === 'MACHINE';
-  if (isGcMachineReport) {
-    const gcMetrics = calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor, snapshotMissing);
-    if (gcMetrics) return gcMetrics;
-  }
-
-  const machinePerformance = report.machinePerformance || report.machine_performance || null;
-  const hasMachinePerformance = Number(machinePerformance?.machine_count || 0) > 0;
-
-  const adjustedOutput = calculateAdjustedOutput({
-    enteredOutput,
-    ok,
-    countedNg: ng.countedNg,
-    factor,
-    settings: resolved,
-    databaseOutput: enteredOutput
-  });
-
-  let outputPerHour = null;
-  let achievement = null;
-  let plannedOutput = null;
-
-  if (hasMachinePerformance) {
-    // Machine performance is itself a backend snapshot. Preserve it when it
-    // exists, otherwise use the DB report fields above.
-    outputPerHour = safeRatio(adjustedOutput, actualTime);
-    plannedOutput = asNumber(machinePerformance.maximum_output);
-    achievement = safeRatio(adjustedOutput, plannedOutput);
-  } else {
-    outputPerHour = safeRatio(adjustedOutput, actualTime);
-    achievement = safeRatio(outputPerHour, standard);
-    plannedOutput = calculatePlannedOutput(standard, actualTime, resolved.apply_training_percent ? factor : 1);
-  }
-
-  let ngRate = null;
-  if (resolved.ng_rate_formula === 'NG_DIV_ENTERED_OUTPUT') {
-    ngRate = safeRatio(ng.allNg, enteredOutput);
-  } else {
-    const denominator = ok !== null && ng.allNg !== null ? ok + ng.allNg : null;
-    ngRate = safeRatio(ng.allNg, denominator);
-  }
-
-  return {
-    trainingPercent,
-    trainingFactor: factor,
-    trainingSnapshotAvailable: !snapshotMissing,
-    workingTime,
-    deductionTime,
-    actualTime,
-    ok,
-    allNg: ng.allNg,
-    countedNg: ng.countedNg,
-    detailNg: ng.detailNg,
-    enteredOutput,
-    adjustedOutput,
-    standard,
-    plannedOutput,
-    outputPerHour,
-    achievement,
-    ngRate,
-    hasMachinePerformance
-  };
-}
+const calculateProductionMetrics = calculateStoredProductionMetrics;
 
 module.exports = {
   DEFAULT_SETTINGS,

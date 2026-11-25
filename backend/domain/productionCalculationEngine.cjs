@@ -8,6 +8,7 @@ const {
   parseStoredTrainingSnapshot,
   calculateNetHours,
   calculateGcMachineLineMetrics,
+  calculateStoredProductionMetrics,
   asNumber,
   asInteger,
   normalizeTrainingPercent,
@@ -76,6 +77,7 @@ function calculateAdjustedOutput({ enteredOutput, ok, countedNg, factor, setting
 }
 
 function calculateProductionMetrics(report = {}, settings = {}) {
+  if (String(report.status ?? '').trim().toUpperCase() === 'APPROVED') return calculateStoredProductionMetrics(report, settings);
   const resolved = resolveSettings(settings);
   const workingTime = asNumber(report.total_time);
   const deductionTime = asNumber(report.deduction_time);
