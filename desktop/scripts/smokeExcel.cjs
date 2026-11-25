@@ -3,9 +3,8 @@ const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
-require('../electron/excelReportDateSubmissionPatch.cjs');
 require('../electron/excelExportContractPatch.v6.cjs');
-const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES, TEMPLATE_NAME } = require('../electron/workerReportTemplateLocal.v2.cjs');
+const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES, TEMPLATE_NAME } = require('../electron/workerReportWorkbook.cjs');
 
 function report(overrides = {}) {
   return {

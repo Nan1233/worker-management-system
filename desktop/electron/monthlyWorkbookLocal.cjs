@@ -48,7 +48,7 @@ const { addPhysicalMachineEventsMetadata, addExcelDbSyncMetadata } = require('./
 const { createMonthlyWorkbookBuilders } = require('./monthlyWorkbookBuilders.cjs');
 const {
   buildMonthlyWorkbookLocal, buildProcessWorkbookLocal,
-  buildMonthlySummaryWorkbookLocal, buildSplitMonthlyWorkbooksLocal,
+  buildMonthlySummaryWorkbookLocal,
 } = createMonthlyWorkbookBuilders({
   assertApprovedDatabasePayload, formulaSettingsFor, addCover, addSummary,
   addReconciliationSheet, renderProcessSheet, sortReports, dateKey,
@@ -61,11 +61,11 @@ const { buildReconciliationWorkbook } = require('./monthlyWorkbookReconciliation
 
 module.exports = {
   buildMonthlyWorkbookLocal,
-  // Stable unwrapped entry point consumed by excelExportContractPatch.v6.cjs.
+  // Internal original-template renderer; public entry points always prepare the payload.
   buildCompanyOriginalProcessWorkbookLocal: buildProcessWorkbookLocal,
-  buildProcessWorkbookLocal,
+  buildProcessWorkbookLocal: (args) => require('./productionMonthlyWorkbookBuilder.cjs').buildMonthlyProcessWorkbook(args),
   buildMonthlySummaryWorkbookLocal,
-  buildSplitMonthlyWorkbooksLocal,
+  buildSplitMonthlyWorkbooksLocal: (args) => require('./productionMonthlyWorkbookBuilder.cjs').buildWorkerSplit(args),
   buildReconciliationWorkbook,
   PROCESS_SHEETS,
   PROCESS_FILE_PREFIXES,

@@ -16,6 +16,8 @@ function createDesktopSyncCoordinator({
 async function performSync({ date, source }) {
   const startedAt = Date.now();
   assertDate(date);
+  // An acknowledged Excel edit only rebuilds its own month, not the entire year.
+  if (source === 'excel-db-rebuild') return performSyncSingleMonth({ date, source });
   const [year] = date.split('-');
   const root = getExportRoot();
   const monthResults = [];
@@ -50,7 +52,7 @@ async function performSync({ date, source }) {
     }
   }
 
-  const exportedMonths = monthResults.filter((item) => !item.skipped && item.files.length > 0);
+  const exportedMonths = monthResults.filter((item) => !item.skipped && item.files.some(file => file.success === true && file.saved === true));
   const skippedMonths = monthResults.filter((item) => item.skipped);
   const failedMonths = monthResults.filter((item) => !item.success && !item.skipped);
   const files = monthResults.flatMap((item) => item.files.map((file) => ({

@@ -2,13 +2,10 @@ const { app, BrowserWindow, ipcMain, shell, session, powerMonitor, dialog } = re
 const { registerFolderIpc } = require('./ipc/folderIpc.cjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { buildCompanyExcelLocal } = require('./companyExcelLocal.cjs');
-const { parseDownloadFileName, normalizeProcessInfo } = require('./excelDownloadMetadata.cjs');
 const { createDesktopLogger, normalizeError } = require('./desktopLog.cjs');
 const { normalizeAccessToken, isUsableAccessToken } = require('./authToken.cjs');
 const { PROCESS_SHEETS } = require('./monthlyWorkbookLocal.cjs');
 const { buildWorkerSplit: buildSplitMonthlyWorkbooksLocal } = require('./productionExcelExport.cjs');
-const { getCompanyMonthTarget } = require('./excelDualLayout.cjs');
 const { cleanupLegacyMonthlyLayout } = require('./excelLegacyCleanup.cjs');
 const { createExcelAtomicWriter } = require('./excelAtomicFileWriter.cjs');
 const { createExcelFileDiscovery } = require('./excelFileDiscovery.cjs');
@@ -40,7 +37,6 @@ const {
   safeFolderName,
   safeFileName,
   getExportRoot,
-  getProcessExportPath,
 } = require('./excelPaths.cjs');
 
 
@@ -55,7 +51,6 @@ const AUTO_EXCEL_SYNC_ENABLED = String(process.env.KTC_AUTO_EXCEL_SYNC || '').tr
 const REQUEST_TIMEOUT_MS = Math.max(30_000, Number(process.env.KTC_REQUEST_TIMEOUT_MS) || 120_000);
 const RETRY_DELAY_MS = 1200;
 const RETRY_COUNT = 4;
-const DOWNLOAD_RETRY_COUNT = 2;
 
 let mainWindow = null;
 let currentToken = '';
@@ -97,11 +92,8 @@ const deferred = createDeferredDesktopServices([
 const {
   fetchWithTimeout, fetchCompanyData,
 } = createExcelApiClient({
-  API_BASE_URL, REQUEST_TIMEOUT_MS, DOWNLOAD_RETRY_COUNT, RETRY_DELAY_MS,
-  authenticatedFetch: (...args) => deferred.call('authenticatedFetch', ...args), writeLog, normalizeError, parseDownloadFileName,
-  normalizeProcessInfo, getExportRoot, safeFileName, safeFolderName,
-  getCompanyMonthTarget, buildCompanyExcelLocal, getProcessExportPath,
-  getAppPath: () => app.getAppPath(), wait,
+  API_BASE_URL, REQUEST_TIMEOUT_MS,
+  authenticatedFetch: (...args) => deferred.call('authenticatedFetch', ...args), writeLog, normalizeError,
 });
 
 

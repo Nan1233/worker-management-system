@@ -71,34 +71,7 @@ async function buildProcessWorkbookLocal({ date, payload, processCode, onTemplat
       fileName:processWorkbookFileName(code,date,payload), formulaReplacementCount:0,
       templateKind:WORKBOOK1_FORMS[code] ? "workbook1-sheet" : "original-company", columnContract:{cols:originalCols}};
   }
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'KTC Production Control';
-  workbook.created = new Date();
-  workbook.modified = new Date();
-  const result = renderProcessSheet(
-    workbook,
-    code,
-    config,
-    processData,
-    yearMonth,
-    formulaSettingsFor(payload, code)
-  );
-  if (code === 'GC') {
-    const deductionTypes = processDetailTypes(code, processData, 'deductionTypes', 'deductions', 'deduction');
-    const defectTypes = processDetailTypes(code, processData, 'defectTypes', 'defects', 'defect');
-    addGcModeHelperSheet(workbook, workbook.getWorksheet(config.sheet), processData, makeColumns(code, deductionTypes, defectTypes));
-  }
-  addExcelDbSyncMetadata(workbook, code, config, processData, yearMonth);
-  addPhysicalMachineEventsMetadata(workbook, processData);
-  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
-  return {
-    buffer,
-    result,
-    processCode: code,
-    processName: config.title,
-    fileName: processWorkbookFileName(code, date, payload),
-    formulaReplacementCount: 0
-  };
+  throw new Error(`Không có mẫu gốc cho công đoạn ${code}; sử dụng productionMonthlyWorkbookBuilder.`);
 }
 
 /**
@@ -123,20 +96,10 @@ async function buildMonthlySummaryWorkbookLocal({ date, payload }) {
   };
 }
 
-async function buildSplitMonthlyWorkbooksLocal({ date, payload, onTemplateLoaded }) {
-  assertApprovedDatabasePayload(payload);
-  const summary = await buildMonthlySummaryWorkbookLocal({ date, payload });
-  const processes = [];
-  for (const code of Object.keys(PROCESS_SHEETS)) {
-    processes.push(await buildProcessWorkbookLocal({ date, payload, processCode: code, onTemplateLoaded }));
-  }
-  return { summary, processes };
-}
-
 
 return {
   buildMonthlyWorkbookLocal, buildProcessWorkbookLocal,
-  buildMonthlySummaryWorkbookLocal, buildSplitMonthlyWorkbooksLocal,
+  buildMonthlySummaryWorkbookLocal,
 };
 }
 module.exports = { createMonthlyWorkbookBuilders };

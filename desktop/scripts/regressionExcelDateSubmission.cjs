@@ -3,8 +3,7 @@
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
 
-require('../electron/excelReportDateSubmissionPatch.cjs');
-const { buildWorkerProcessWorkbook } = require('../electron/workerReportTemplateLocal.v2.cjs');
+const { buildWorkerProcessWorkbook } = require('../electron/workerReportWorkbook.cjs');
 
 function baseReport(overrides = {}) {
   return {

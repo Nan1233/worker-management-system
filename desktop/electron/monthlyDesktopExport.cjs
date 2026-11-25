@@ -32,7 +32,7 @@ async function performSyncSingleMonth({ date, source }) {
   setCurrentToken(token);
 
   const files = [];
-  let expectedFileCount = MONTHLY_FILE_COUNT;
+  const expectedFileCount = MONTHLY_FILE_COUNT;
   try {
     // Excel -> DB không tự chạy trong lúc export. DB đã duyệt là nguồn dữ liệu duy nhất.
     await writeLog('INFO', 'EXCEL_DB_PRECHECK_SKIPPED_FOR_DB_EXPORT', {
@@ -138,40 +138,23 @@ async function performSyncSingleMonth({ date, source }) {
       }
     });
 
-    const isWorkerSingleFile = built?.mode === 'WORKER_REPORT_SINGLE_FILE';
-    expectedFileCount=isWorkerSingleFile?Number(built.expectedFileCount||1):MONTHLY_FILE_COUNT;
-    if (isWorkerSingleFile) {
-      const actualCount = Array.isArray(built.processes) ? built.processes.length : 0;
-      const expectedCount = expectedFileCount;
-      if (actualCount !== expectedCount) {
-        throw Object.assign(new Error('Số workbook không khớp: yêu cầu ' + expectedCount + ', tạo được ' + actualCount + '.'),
-          { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' });
-      }
-      for (const processBuilt of built.processes || []) {
-        const filePath = path.join(folder, safeFileName(processBuilt.fileName, 'BAO_CAO_CONG_NHAN_' + month + '-' + year + '.xlsx'));
-        const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date);
-        files.push({
-          category: 'MONTHLY_PROCESS', processId: -1,
-          processCode: processBuilt.processCode || 'ALL',
-          processName: processBuilt.processName || 'Báo cáo công nhân',
-          fileName: path.basename(filePath), filePath, folder,
-          size: processBuilt.buffer.length, saved: writeResult.saved,
-          pendingPath: writeResult.pendingPath, backupPath: writeResult.backupPath,
-          success: writeResult.saved === true, source: 'desktop-local',
-          reportCount: processBuilt.reportCount
-        });
-        await writeLog('INFO', 'MONTHLY_WORKER_TEMPLATE_UPDATED', {
-          date, filePath, saved: writeResult.saved, pendingPath: writeResult.pendingPath || null
-        });
-      }
-    } else {
-      const expectedProcessCodes = Object.keys(PROCESS_SHEETS);
-      const builtProcessCodes = (built.processes || []).map((item) => String(item.processCode || '').toUpperCase());
-      const missingProcessCodes = expectedProcessCodes.filter((code) => !builtProcessCodes.includes(code));
-      if (missingProcessCodes.length || builtProcessCodes.length !== expectedProcessCodes.length) {
-        throw Object.assign(new Error('Thiếu workbook công đoạn: ' + (missingProcessCodes.join(', ') || 'danh sách công đoạn không khớp') + '.'),
-          { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' });
-      }
+    const expectedProcessCodes = Object.keys(PROCESS_SHEETS);
+    const builtProcessCodes = (built?.processes || []).map(item => String(item.processCode || '').toUpperCase());
+    const validBuffer = item => Buffer.isBuffer(item?.buffer) && item.buffer.length >= 4
+      && item.buffer.subarray(0,4).equals(Buffer.from([0x50,0x4b,0x03,0x04]));
+    if (built?.mode !== 'PROCESS_WORKBOOKS' || built.expectedFileCount !== expectedFileCount
+      || builtProcessCodes.length !== expectedProcessCodes.length
+      || new Set(builtProcessCodes).size !== expectedProcessCodes.length
+      || expectedProcessCodes.some(code => !builtProcessCodes.includes(code))
+      || !validBuffer(built.summary) || built.processes.some(item => !validBuffer(item))) {
+      throw Object.assign(new Error('Bộ workbook không đầy đủ hoặc không hợp lệ; chưa ghi file nào.'),
+        { code: 'MONTHLY_PROCESS_WORKBOOKS_INCOMPLETE' });
+    }
+    const targetNames = [safeFileName(built.summary.fileName, `00_TONG_HOP_SAN_XUAT_${month}-${year}.xlsx`),
+      ...built.processes.map(item => safeFileName(item.fileName, `${item.processCode || 'PROCESS'}_${month}-${year}.xlsx`))];
+    if (new Set(targetNames.map(name => name.toLowerCase())).size !== expectedFileCount) {
+      throw Object.assign(new Error('Tên workbook bị trùng; chưa ghi file nào.'), { code: 'MONTHLY_WORKBOOK_NAME_COLLISION' });
+    }
 
     const summaryFilePath = path.join(
       folder,
@@ -246,7 +229,6 @@ async function performSyncSingleMonth({ date, source }) {
       });
     }
 
-    } // End legacy multi-workbook layout.
     await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', {
       date,
       folder,
