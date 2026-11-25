@@ -1,5 +1,5 @@
 'use strict';
-const { validateMasterNumeric } = require('../services/masterNumericValidationService');
+const { validateMasterNumeric } = require('./masterNumericValidation');
 
 const TABLES = {
   processes: { table:'processes', fields:['process_code','process_name','description','status'], required:['process_code','process_name'], order:'process_name' },
