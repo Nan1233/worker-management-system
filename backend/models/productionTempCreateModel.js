@@ -191,9 +191,8 @@ module.exports = {
     },
 
     async findSimilarApprovedReport(input, executor = db) {
-        // Preserve the historical runtime nonlocking lookup; the submission workflow
-        // serializes creation with its logical duplicate lock in the transaction.
-        return findSimilarApprovedReport(input, executor);
+        // Preserve the original model contract for callers using a transaction.
+        return findSimilarApprovedReport(input, executor, { lock: true });
     },
 
     async findSimilarReport(input, executor = db) {
