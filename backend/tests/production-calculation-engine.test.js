@@ -16,7 +16,8 @@ const DEFAULT = {
 
 test('zero training stays zero across adjusted output, SP/h and achievement', () => {
   const metrics = calculateProductionMetrics({
-    training_percent: 0,
+    training_percent_snapshot: 0,
+    training_percent: 95,
     total_time: 8,
     actual_time: 7.5,
     deduction_time: 0.5,
@@ -34,9 +35,10 @@ test('zero training stays zero across adjusted output, SP/h and achievement', ()
   assert.equal(metrics.ngRate, 10 / 600);
 });
 
-test('missing training defaults to 100 percent, not zero', () => {
+test('missing historical training does not fabricate a 100 percent snapshot', () => {
   const metrics = calculateProductionMetrics({
-    training_percent: null,
+    training_percent_snapshot: null,
+    training_percent: 100,
     actual_time: 2,
     standard_output: 100,
     actual_output: 180,
@@ -44,10 +46,11 @@ test('missing training defaults to 100 percent, not zero', () => {
     tt_ng: 5
   }, DEFAULT);
 
-  assert.equal(metrics.trainingPercent, 100);
-  assert.equal(metrics.adjustedOutput, 180);
-  assert.equal(metrics.outputPerHour, 90);
-  assert.equal(metrics.achievement, 0.9);
+  assert.equal(metrics.trainingPercent, null);
+  assert.equal(metrics.trainingSnapshotAvailable, false);
+  assert.equal(metrics.adjustedOutput, null);
+  assert.equal(metrics.outputPerHour, null);
+  assert.equal(metrics.achievement, null);
 });
 
 test('KQD is always counted as ordinary NG; legacy exclusion flags are ignored', () => {

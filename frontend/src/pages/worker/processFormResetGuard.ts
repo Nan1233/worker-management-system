@@ -44,6 +44,8 @@ export function hasProcessReportInput(
             || machineLines.some((line) =>
                 line.machineCode.trim()
                 || line.productCode.trim()
+                || String(line.materialCode ?? "").trim()
+                || String(line.grindingMachineNo ?? "").trim()
                 || hasEnteredQuantity(line.okQuantity)
                 || hasEnteredQuantity(line.ngQuantity)
                 || hasEnteredQuantity(line.hours)

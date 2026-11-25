@@ -44,18 +44,21 @@ test('empty and already-completed suffixes remain empty and cannot duplicate out
 });
 
 test('worker submit wires the correct suffix to network failure and duplicate paths', () => {
-  const source = fs.readFileSync(path.join(worker, 'ProcessPage.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(worker, 'useProcessSubmission.ts'), 'utf8');
   assert.equal((source.match(/pendingSplitPayloadsRef\.current = reportsAwaitingDuplicateConfirmation\(payloads, index\)/g) || []).length, 2);
   assert.match(source, /queueRemainingMachineReports\(reportsUnsentAfterNetworkFailure\(payloads, index\)\)/);
   assert.match(source, /queueRemainingMachineReports\(payloads\);/);
-  const cleanup = source.slice(source.indexOf('const finishDuplicateAction'), source.indexOf('const handleCreateDuplicateAnyway'));
+  const cleanup = fs.readFileSync(path.join(worker, 'processSubmitDraftCompletion.ts'), 'utf8');
+  const actions = fs.readFileSync(path.join(worker, 'useProcessDuplicateActions.ts'), 'utf8');
+  const finish = actions.slice(actions.indexOf('const finishDuplicateAction'), actions.indexOf('const handleCreateDuplicateAnyway'));
   assert.equal((cleanup.match(/resetVersionRef\.current \+= 1/g) || []).length, 1, 'successful duplicate must invalidate autosave once');
   assert.match(cleanup, /clearProcessDraftAsync\(process\)/);
-  assert.ok(cleanup.indexOf('clearProcessDraftAsync(process)') < cleanup.indexOf('navigate("/worker"'));
+  assert.ok(finish.indexOf('clearSubmittedProcessDraft(') >= 0);
+  assert.ok(finish.indexOf('clearSubmittedProcessDraft(') < finish.indexOf('navigate("/worker"'));
 });
 
 test('confirmed primary is never replayed in the duplicate resume branches', () => {
-  const source = fs.readFileSync(path.join(worker, 'ProcessPage.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(worker, 'useProcessDuplicateActions.ts'), 'utf8');
   for (const [first, last] of [
     ['const handleCreateDuplicateAnyway = async () => {', 'const handleUpdateExistingReport = async () => {'],
     ['const handleUpdateExistingReport = async () => {', '// Separate-run duplicate creation'],

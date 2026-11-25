@@ -47,7 +47,7 @@ test('manager and admin-ops native routing uses each clicked report ID, not a ro
 test('bulk approval, rejection, paging and filter selection are still React controlled', () => {
   const reports = read('Reports.tsx');
   for (const required of [
-    'approveSelectedTempReports', 'approveTempReport', 'rejectSelectedTempReports',
+    'approveSelectedTempReports([approvedId])', 'approvePendingReportBatch', 'rejectPendingReportBatch',
     'toggleSelected', 'toggleVisibleSelection', 'selectionScopeRef',
     'setSelectedIds(failedIds)', 'openRejectDialog(selectedIds)',
     'getPendingReports({', 'pageSize: 8', 'setPage(p =>'

@@ -41,7 +41,10 @@ test('approved KPI keeps stored snapshots ahead of machine fallbacks', () => {
     standard_output: 80,
     tt_dinh_muc: 500,
     nang_suat_percent: 75,
-    training_percent: 87.5,
+    training_percent: 99,
+    training_percent_snapshot: 87.5,
+    ok_rate_percent: 90,
+    pp_percent: 10,
     ng_defect_type_count: 2,
     machine_lines: [
       { machine_time_hours: 3, deduction_time_hours: 1, standard_output: 80 },
@@ -55,10 +58,15 @@ test('approved KPI keeps stored snapshots ahead of machine fallbacks', () => {
   });
   const fallback = { ...report, tt_dinh_muc: 0, nang_suat_percent: 0, actual_time: 0, total_time: 0 };
   const actual = p.kpi(fallback);
-  assert.equal(actual.actualTime, 3.5);
-  assert.equal(actual.totalTime, 5);
-  assert.equal(actual.ttDinhMuc, 310);
-  assert.ok(Math.abs(actual.nangSuat - 100 / 310 * 100) < 0.00001);
+  assert.equal(actual.actualTime, 0, 'explicit zero is not missing');
+  assert.equal(actual.totalTime, 0);
+  assert.equal(actual.ttDinhMuc, 0);
+  assert.equal(actual.nangSuat, 0);
+  const canonical = p.kpi({...report, kpi:{ok:90,allNg:10,adjustedOutput:100,actualTime:3.5,workingTime:5,plannedOutput:310,achievement:100/310,okRate:0.9,ngRate:0.1,trainingPercent:50}});
+  assert.equal(canonical.actualTime,3.5);
+  assert.equal(canonical.hv,50);
+  assert.equal(canonical.ttDinhMuc,310);
+  assert.equal(p.kpi({...report, training_percent_snapshot:null}).hv,null);
 });
 
 test('date ranges and warning highlighting preserve existing UI rules', () => {

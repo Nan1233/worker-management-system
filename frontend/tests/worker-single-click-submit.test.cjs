@@ -76,7 +76,7 @@ test('duplicate-report confirmation dialog (a separate business rule, not a gene
 });
 
 test('ProcessPage.handleSubmit still runs frontend validation before calling the backend create API in the same action', () => {
-  const page = read('src/pages/worker/ProcessPage.tsx');
+  const page = read('src/pages/worker/useProcessSubmission.ts');
   const handlerStart = page.indexOf('const handleSubmit =');
   assert.ok(handlerStart >= 0);
   const handlerBody = page.slice(handlerStart, handlerStart + 4000);
@@ -88,7 +88,7 @@ test('ProcessPage.handleSubmit still runs frontend validation before calling the
 });
 
 test('a failed submit keeps the entered form data (no reset/draft-clear/navigate in the catch path)', () => {
-  const page = read('src/pages/worker/ProcessPage.tsx');
+  const page = read('src/pages/worker/useProcessSubmission.ts');
   const handlerStart = page.indexOf('const handleSubmit =');
   const catchStart = page.indexOf('catch (error: unknown)', handlerStart);
   const catchEnd = page.indexOf('finally', catchStart);
@@ -100,7 +100,7 @@ test('a failed submit keeps the entered form data (no reset/draft-clear/navigate
 });
 
 test('submitLockRef still guards against duplicate submits from rapid repeat clicks', () => {
-  const page = read('src/pages/worker/ProcessPage.tsx');
+  const page = read('src/pages/worker/useProcessSubmission.ts');
   const handlerStart = page.indexOf('const handleSubmit =');
   const handlerBody = page.slice(handlerStart, handlerStart + 2000);
   assert.match(handlerBody, /if \(submitLockRef\.current\) return;/);
@@ -111,7 +111,7 @@ test('submitLockRef still guards against duplicate submits from rapid repeat cli
 test('duplicate confirmation signature covers the full worker form snapshot, including machine lines and deductions', () => {
   const page = read('src/pages/worker/ProcessPage.tsx');
   const signatureStart = page.indexOf('const getDuplicateFormSignature');
-  const signatureEnd = page.indexOf('const finishDuplicateAction', signatureStart);
+  const signatureEnd = page.indexOf('= useProcessDuplicateActions(', signatureStart);
   assert.ok(signatureStart >= 0 && signatureEnd > signatureStart, 'duplicate signature helper must exist');
   const signature = page.slice(signatureStart, signatureEnd);
   for (const field of [
@@ -126,15 +126,17 @@ test('duplicate confirmation signature covers the full worker form snapshot, inc
 });
 
 test('successful duplicate creation/update clears the draft and invalidates pending autosave', () => {
-  const page = read('src/pages/worker/ProcessPage.tsx');
+  const page = read('src/pages/worker/useProcessDuplicateActions.ts');
   const start = page.indexOf('const finishDuplicateAction = useCallback(');
   const end = page.indexOf('const handleCreateDuplicateAnyway', start);
   assert.ok(start >= 0 && end > start);
   const finish = page.slice(start, end);
-  assert.match(finish, /resetVersionRef\.current \+= 1/);
-  assert.match(finish, /window\.clearTimeout\(draftSaveTimerRef\.current\)/);
-  assert.match(finish, /clearProcessDraftAsync\(process\)/);
-  assert.ok(finish.indexOf('clearProcessDraftAsync(process)') < finish.indexOf('navigate("/worker"'));
+  const cleanup = read('src/pages/worker/processSubmitDraftCompletion.ts');
+  assert.match(cleanup, /resetVersionRef\.current \+= 1/);
+  assert.match(cleanup, /window\.clearTimeout\(draftSaveTimerRef\.current\)/);
+  assert.match(cleanup, /clearProcessDraftAsync\(process\)/);
+  assert.match(finish, /clearSubmittedProcessDraft\(/);
+  assert.ok(finish.indexOf('clearSubmittedProcessDraft(') < finish.indexOf('navigate("/worker"'));
   assert.match(finish, /\[navigate, process, setDuplicatePrompt\]/);
   const create = page.slice(end, page.indexOf('const handleUpdateExistingReport', end));
   const update = page.slice(page.indexOf('const handleUpdateExistingReport', end), page.indexOf('// Separate-run duplicate creation', end));

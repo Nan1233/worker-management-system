@@ -103,7 +103,9 @@ test('worker page delegates hooks and retains the production payload builder', (
   assert.match(page, /useProcessSingleStandardLookup\(processInfo\.id, form, setForm\)/);
   assert.match(page, /useProcessDraftSaveWarning\(showToast\)/);
   assert.match(page, /buildProductionReportPayloads\(\{/);
-  assert.match(page, /clientRequestIdRef\.current/);
-  assert.match(page, /submitLockRef\.current/);
+  const submission=source('useProcessSubmission.ts');
+  assert.match(page, /useProcessSubmission\(\{/);
+  assert.match(submission, /clientRequestIdRef\.current/);
+  assert.match(submission, /submitLockRef\.current/);
   assert.doesNotMatch(page, /resolveProductStandard\(/);
 });

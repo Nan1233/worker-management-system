@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '../src/pages/worker/ProcessPage.tsx'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../src/pages/worker/useProcessDuplicateActions.ts'), 'utf8');
 const section = (start, end) => {
   const from = source.indexOf(start);
   const to = source.indexOf(end, from + start.length);
@@ -28,6 +28,6 @@ test('duplicate create and update resume pending split payloads without replayin
 test('completed primary is reset on successful finish and new duplicate challenge', () => {
   const finish = section('const finishDuplicateAction = useCallback(', 'const handleCreateDuplicateAnyway = async () => {');
   assert.match(finish, /duplicatePrimaryCompletedRef\.current = false;/);
-  const submit = section('const handleSubmit =', 'showToast("Lưu báo cáo thành công. Các báo cáo đã được gửi chờ duyệt."');
+  const submit = fs.readFileSync(path.join(__dirname, '../src/pages/worker/useProcessSubmission.ts'), 'utf8');
   assert.match(submit, /duplicatePrimaryCompletedRef\.current = false;/);
 });

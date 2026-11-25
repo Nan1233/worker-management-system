@@ -99,7 +99,9 @@ test('shared-machine validator still checks per-line time, defects, and count wi
   assert.equal(validate([line,line,line,line,line]),'Tối đa 4 máy');
 });
 test('ProcessPage continues to check date, shared reports and machine options before pure final rules', () => {
-  const s=fs.readFileSync(path.join(root,'ProcessPage.tsx'),'utf8');
+  const s=fs.readFileSync(path.join(root,'processFullFormValidation.ts'),'utf8');
+  const page=fs.readFileSync(path.join(root,'ProcessPage.tsx'),'utf8');
+  assert.match(page,/validateProcessForm\(\{/);
   const matches=[
     'validateWorkerWorkDate(', 'validateWorkerShift(', 'validateSharedReportNumbers(',
     'validateCustomReasonNames(', 'validateMachineLines(', 'validateManualMachineData(',
@@ -108,5 +110,5 @@ test('ProcessPage continues to check date, shared reports and machine options be
   assert.ok(matches.every(x=>x.pos>=0),JSON.stringify(matches));
   for(let i=1;i<matches.length;i++)assert.ok(matches[i].pos>matches[i-1].pos,
     'Validation order changed: '+matches[i].t);
-  assert.match(s,/buildProductionReportPayloads\(\{/);
+  assert.match(page,/buildProductionReportPayloads\(\{/);
 });
