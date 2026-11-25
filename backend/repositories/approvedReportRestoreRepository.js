@@ -1,5 +1,5 @@
 'use strict';
-const { MACHINE_LINE_FIELDS } = require('../services/approvedVersionSnapshotService');
+const { MACHINE_LINE_FIELDS } = require('../domain/approvedSnapshotSchema');
 
 function dbJson(value) {
   if (value === null || value === undefined || value === '') return null;

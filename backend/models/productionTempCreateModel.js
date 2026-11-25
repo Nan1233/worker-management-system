@@ -3,7 +3,8 @@ const db = require("../config/db");
 
 
 const { query } = require("./productionTempModelShared");
-const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
+const { buildLogicalDuplicateKey } = require("../domain/logicalDuplicateIdentity");
+const { findSimilarApprovedReport } = require("../repositories/approvedReportDuplicateRepository");
 
 const { DAILY_HOURS_ENFORCEMENT_ENABLED, DAILY_HOURS_LIMIT, exceedsDailyHoursLimit } = require("../utils/dailyHoursLimit");
 const { queryCountedDailyHours } = require("../utils/dailyCountedHours");
@@ -189,46 +190,10 @@ module.exports = {
         return rows[0] || null;
     },
 
-    async findSimilarApprovedReport({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) {
-        if (!logicalDuplicateKey) return null;
-        const rows = await query(executor,
-            `SELECT id, worker_id, process_id, work_date, shift, operation_mode, machine_no, product_name, extra_data, status, created_at, updated_at
-             FROM production_reports
-             WHERE worker_id=? AND process_id=? AND work_date=? AND shift=? AND status <> 'deleted'
-             ORDER BY id DESC
-             FOR UPDATE`,
-            [workerId, processId, workDate, shift]
-        );
-        if (!rows.length) return null;
-        const ids = rows.map((row) => Number(row.id)).filter(Boolean);
-        const placeholders = ids.map(() => '?').join(',');
-        const machineRows = ids.length ? await query(executor,
-            `SELECT report_id,machine_code,product_code,sort_order,id
-             FROM production_report_machine_lines
-             WHERE report_id IN (${placeholders})
-             ORDER BY report_id,sort_order,id
-             FOR UPDATE`, ids) : [];
-        const byReport = new Map();
-        for (const line of machineRows) {
-            const reportId = Number(line.report_id);
-            if (!byReport.has(reportId)) byReport.set(reportId, []);
-            byReport.get(reportId).push(line);
-        }
-        for (const row of rows) {
-            const key = buildLogicalDuplicateKey({
-                workerId: row.worker_id,
-                processId: row.process_id,
-                workDate: row.work_date,
-                shift: row.shift,
-                operationMode: row.operation_mode,
-                machineNo: row.machine_no,
-                productName: row.product_name,
-                workType: getStoredWorkType(row.extra_data),
-                machineLines: byReport.get(Number(row.id)) || [],
-            });
-            if (key === logicalDuplicateKey) return { ...row, report_type: 'approved' };
-        }
-        return null;
+    async findSimilarApprovedReport(input, executor = db) {
+        // Preserve the historical runtime nonlocking lookup; the submission workflow
+        // serializes creation with its logical duplicate lock in the transaction.
+        return findSimilarApprovedReport(input, executor);
     },
 
     async findSimilarReport(input, executor = db) {
