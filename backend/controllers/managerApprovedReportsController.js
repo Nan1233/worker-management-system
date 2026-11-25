@@ -137,7 +137,7 @@ exports.getApprovedReports = async (req, res) => {
       return {
         ...row, machine_lines,
         training_percent: metrics.trainingPercent,
-        kpi: { ...metrics, okRate: safeRatio(metrics.ok, metrics.adjustedOutput) }
+        kpi: { ...metrics, okRate: safeRatio(metrics.ok, metrics.ok != null && metrics.allNg != null ? metrics.ok + metrics.allNg : null) }
       };
     });
 

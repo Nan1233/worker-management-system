@@ -226,6 +226,8 @@ function calculateStoredProductionMetrics(report = {}, settings = {}) {
   if (isGcMachineReport) {
     const gcMetrics = calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor, snapshotMissing);
     if (gcMetrics) return gcMetrics;
+    // Parent zeroes are placeholders for GC machine reports without available lines.
+    return { trainingPercent, trainingFactor: factor, trainingSnapshotAvailable: !snapshotMissing, workingTime: null, deductionTime: null, actualTime: null, ok: null, allNg: null, countedNg: null, enteredOutput: null, adjustedOutput: null, standard: null, plannedOutput: null, outputPerHour: null, achievement: null, ngRate: null, hasMachinePerformance: false };
   }
 
   const machinePerformance = report.machinePerformance || report.machine_performance || null;

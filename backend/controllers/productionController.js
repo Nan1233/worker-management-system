@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { calculateStoredProductionMetrics, safeRatio } = require("../../shared/productionMetricPrimitives.cjs");
 const { mergeDefects, normalizeDeductions, workerDeclaredDefects } = require("../utils/reportDetailNormalizer");
 const { calculateReportPerformance } = require("../services/machinePerformanceService");
 const { envEnabled } = require("../utils/featureFlags");
@@ -7,11 +8,11 @@ const { hasPermission } = require('../services/permissionService');
 
 const safeDbError = (res, error, fallback) => { console.error(fallback, error); return res.status(500).json({ success:false, message:process.env.NODE_ENV==='production'?fallback:(error?.message||fallback) }); };
 
-exports.getAllReports=async(req,res)=>{try{const scope=await getActorProcessScope(req.user);const scoped=scopeSql(scope,'pr.process_id');const [rows]=await db.promise().query(`SELECT pr.*,p.process_name,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent FROM production_reports pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id WHERE pr.status='approved' AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))${scoped.clause} ORDER BY pr.created_at DESC`,scoped.params);return res.json(rows);}catch(error){if(error?.code==='PROCESS_SCOPE_FORBIDDEN')return res.status(403).json({success:false,code:error.code,message:error.message});return safeDbError(res,error,'Không thể tải dữ liệu báo cáo');}};
+exports.getAllReports=async(req,res)=>{try{const scope=await getActorProcessScope(req.user);const scoped=scopeSql(scope,'pr.process_id');const [rows]=await db.promise().query(`SELECT pr.*,p.process_name,w.worker_code,u.full_name,CASE WHEN pr.training_percent_snapshot BETWEEN 0 AND 100 THEN pr.training_percent_snapshot ELSE NULL END AS training_percent FROM production_reports pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id WHERE pr.status='approved' AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))${scoped.clause} ORDER BY pr.created_at DESC`,scoped.params);return res.json(rows);}catch(error){if(error?.code==='PROCESS_SCOPE_FORBIDDEN')return res.status(403).json({success:false,code:error.code,message:error.message});return safeDbError(res,error,'Không thể tải dữ liệu báo cáo');}};
 
 exports.getReportDates=async(req,res)=>{try{const scope=await getActorProcessScope(req.user);const scoped=scopeSql(scope,'pr.process_id');const [rows]=await db.promise().query(`SELECT DISTINCT pr.work_date FROM production_reports pr WHERE pr.status='approved' AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))${scoped.clause} ORDER BY pr.work_date DESC`,scoped.params);return res.json(rows);}catch(error){if(error?.code==='PROCESS_SCOPE_FORBIDDEN')return res.status(403).json({success:false,code:error.code,message:error.message});return safeDbError(res,error,'Không thể tải ngày báo cáo');}};
 
-exports.getReportsByDate=async(req,res)=>{try{const scope=await getActorProcessScope(req.user);if(req.query.process_id)await assertProcessScope(req.user,req.query.process_id,{action:'REPORT_APPROVED_VIEW'});const params=[req.query.date];let extra='';if(req.query.process_id){extra+=' AND pr.process_id=?';params.push(Number(req.query.process_id));}const scoped=scopeSql(scope,'pr.process_id',params);const [rows]=await db.promise().query(`SELECT pr.*,p.process_name,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent FROM production_reports pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id WHERE pr.work_date=? AND pr.status='approved' AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))${extra}${scoped.clause} ORDER BY pr.created_at DESC`,scoped.params);return res.json(rows);}catch(error){if(error?.code==='PROCESS_SCOPE_FORBIDDEN')return res.status(403).json({success:false,code:error.code,message:error.message});return safeDbError(res,error,'Không thể tải dữ liệu báo cáo');}};
+exports.getReportsByDate=async(req,res)=>{try{const scope=await getActorProcessScope(req.user);if(req.query.process_id)await assertProcessScope(req.user,req.query.process_id,{action:'REPORT_APPROVED_VIEW'});const params=[req.query.date];let extra='';if(req.query.process_id){extra+=' AND pr.process_id=?';params.push(Number(req.query.process_id));}const scoped=scopeSql(scope,'pr.process_id',params);const [rows]=await db.promise().query(`SELECT pr.*,p.process_name,w.worker_code,u.full_name,CASE WHEN pr.training_percent_snapshot BETWEEN 0 AND 100 THEN pr.training_percent_snapshot ELSE NULL END AS training_percent FROM production_reports pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id WHERE pr.work_date=? AND pr.status='approved' AND NOT EXISTS (SELECT 1 FROM production_reports split_child WHERE JSON_UNQUOTE(JSON_EXTRACT(split_child.extra_data, '$.split_from_report_id')) = CAST(pr.id AS CHAR))${extra}${scoped.clause} ORDER BY pr.created_at DESC`,scoped.params);return res.json(rows);}catch(error){if(error?.code==='PROCESS_SCOPE_FORBIDDEN')return res.status(403).json({success:false,code:error.code,message:error.message});return safeDbError(res,error,'Không thể tải dữ liệu báo cáo');}};
 
 /**
  * Approved report detail.
@@ -44,7 +45,7 @@ exports.getReportById=async(req,res)=>{
     }
 
     const [reportRows]=await db.promise().query(
-      `SELECT pr.*,p.process_name,p.process_code,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent
+      `SELECT pr.*,p.process_name,p.process_code,w.worker_code,u.full_name,CASE WHEN pr.training_percent_snapshot BETWEEN 0 AND 100 THEN pr.training_percent_snapshot ELSE NULL END AS training_percent
          FROM production_reports pr
          LEFT JOIN workers w ON pr.worker_id=w.id
          LEFT JOIN users u ON w.user_id=u.id
@@ -119,7 +120,7 @@ exports.getReportById=async(req,res)=>{
     const persistedEventDefects=eventIds.length
       ? await optionalQuery(
           'event-defects',
-          `SELECT ed.id,ed.machine_event_id,ed.defect_type_id,ed.defect_code,ed.defect_name,ed.quantity
+          `SELECT ed.id,ed.machine_event_id,ed.defect_type_id,ed.defect_code,ed.defect_name,ed.quantity,ed.responsible_worker_id
              FROM machine_production_event_defects ed
             WHERE ed.machine_event_id IN (${eventIds.map(()=>'?').join(',')})
             ORDER BY ed.machine_event_id,ed.id`,
@@ -136,7 +137,8 @@ exports.getReportById=async(req,res)=>{
         defect_type_id:defect.defect_type_id,
         defect_code:defect.defect_code,
         defect_name:defect.defect_name,
-        quantity:defect.quantity
+        quantity:defect.quantity,
+        responsible_worker_id:defect.responsible_worker_id
       });
     }
 
@@ -168,7 +170,7 @@ exports.getReportById=async(req,res)=>{
       })();
       if(existingFromLine.length)return {...line,defects:existingFromLine,defects_json:JSON.stringify(existingFromLine)};
 
-      const eventDetails=eventDefectsByEvent.get(Number(line.machine_event_id))||[];
+      const eventDetails=(eventDefectsByEvent.get(Number(line.machine_event_id))||[]).filter(defect=>defect.responsible_worker_id != null && Number(defect.responsible_worker_id)===Number(report.worker_id));
       if(eventDetails.length)return {...line,defects:eventDetails,defects_json:JSON.stringify(eventDetails)};
       return {...line,defects:[]};
     });
@@ -184,6 +186,7 @@ exports.getReportById=async(req,res)=>{
     const mergedDefects=mergeDefects(report,defects,normalizedMachineLines);
     const normalizedDeductions=normalizeDeductions(deductions,report);
 
+    const metrics=calculateStoredProductionMetrics({...report,machine_lines:normalizedMachineLines,deductions:normalizedDeductions,defects:mergedDefects});
     return res.status(200).json({
       success:true,
       data:{
@@ -193,7 +196,9 @@ exports.getReportById=async(req,res)=>{
         deductions:normalizedDeductions,
         machine_lines:normalizedMachineLines,
         ...(machineLinesLoadFailed?{machine_lines_load_failed:true}:{}),
-        ...performance
+        ...performance,
+        machine_lines:normalizedMachineLines,
+        kpi:{...metrics,okRate:safeRatio(metrics.ok,metrics.ok != null && metrics.allNg != null ? metrics.ok+metrics.allNg : null)}
       }
     });
   }catch(error){

@@ -15,7 +15,7 @@ export const reportCodes = (r: ProductionReport, kind: "machine" | "product"): s
 export const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 export const text = (v: unknown, fallback = "—") => v === null || v === undefined || v === "" ? fallback : String(v);
 export const fmt = (v: unknown) => num(v).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
-export const pct = (v: unknown) => `${fmt(v)}%`;
+export const pct = (v: unknown) => v == null ? "—" : `${fmt(v)}%`;
 export const dateText = (v: unknown) => { const s = String(v || "").slice(0, 10); const [y, m, d] = s.split("-"); return y && m && d ? `${d}/${m}/${y}` : s || "—"; };
 export const dateValue = (v: Date) => `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
 export const rangeFor = (value: string, type: "day" | "week" | "month" | "year") => {
@@ -40,33 +40,15 @@ export const kpi = (r: ProductionReport) => {
             ngTypeCount: Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count))
         };
     }
-    const machineLines = Array.isArray(x.machine_lines) ? x.machine_lines as Record<string, unknown>[] : [];
-    const isGcMachine = String(x.process_code ?? '').toUpperCase() === 'GC' && String(x.operation_mode ?? '').toUpperCase() === 'MACHINE' && machineLines.length > 0;
-    const ok = isGcMachine ? machineLines.reduce((sum, line) => sum + num(line.ok_quantity), 0) : num(x.tt_ok);
-    const ng = isGcMachine ? machineLines.reduce((sum, line) => sum + num(line.ng_quantity), 0) : num(x.tt_ng);
-    const actual = isGcMachine ? ok + ng : num(x.actual_output ?? (ok + ng));
-    const machineGrossTime = machineLines.reduce((sum, line) => sum + Math.max(0, num(line.machine_time_hours)), 0);
-    const machineNetTime = machineLines.reduce((sum, line) => {
-        const gross = Math.max(0, num(line.machine_time_hours));
-        const deduction = Math.max(0, num(line.deduction_time_hours));
-        return sum + Math.max(0, gross - deduction);
-    }, 0);
-    const machineStandardTime = machineLines.reduce((sum, line) => {
-        const netHours = Math.max(0, num(line.machine_time_hours) - num(line.deduction_time_hours));
-        return sum + (netHours > 0 ? netHours * Math.max(0, num(line.standard_output)) : 0);
-    }, 0);
-    const standard = num(x.standard_output) || num(x.target_output);
-    // KPI uses net productive hours; the visible "Thời gian" field uses gross machine time.
-    const actualTime = isGcMachine ? machineNetTime : num(x.actual_time ?? machineNetTime);
-    const totalTime = isGcMachine ? machineGrossTime : num(x.total_time ?? machineGrossTime);
-    const ttDinhMuc = num(x.tt_dinh_muc ?? (isGcMachine ? machineStandardTime : standard * actualTime));
-    const nangSuat = num(x.nang_suat_percent ?? (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0));
-    const dat = actual > 0 ? ok / actual * 100 : 0;
-    const pp = num(x.pp_percent ?? (ok + ng > 0 ? ng / (ok + ng) * 100 : 0));
-    const rawHv = x.training_percent_snapshot;
-    const hv = rawHv !== null && rawHv !== undefined && String(rawHv).trim() !== '' && Number.isFinite(Number(rawHv)) && Number(rawHv) >= 0 && Number(rawHv) <= 100 ? Number(rawHv) : null;
-    const ngTypeCount = Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count));
-    return { ok, ng, actual, actualTime, totalTime, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount };
+    // Older API responses may expose stored fields, but never derive new KPIs here.
+    return {
+        ok: num(x.tt_ok), ng: num(x.tt_ng), actual: num(x.actual_output),
+        actualTime: num(x.actual_time), totalTime: num(x.total_time),
+        ttDinhMuc: num(x.tt_dinh_muc), nangSuat: num(x.nang_suat_percent),
+        dat: num(x.ok_rate_percent), pp: num(x.pp_percent),
+        hv: x.training_percent_snapshot == null ? null : num(x.training_percent_snapshot),
+        ngTypeCount: Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count))
+    };
 };
 
 export const metricStyle = (type: "productivity" | "pp", value: number, ngTypeCount = 0): CSSProperties => {
