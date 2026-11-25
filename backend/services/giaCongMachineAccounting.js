@@ -64,6 +64,8 @@ function buildGiaCongMachineAccounting(report, physicalEventsById) {
     });
     const eventId = physical.eventId;
     grossHours = physical.grossHours;
+    // A missing physical event must not contribute worker deductions either.
+    if (eventId && !physical.hasPhysicalEvent) return;
     if (physical.hasPhysicalEvent) hasPhysicalEvent = true;
 
     const storedLineDeductions = parseJsonArray(line.deductions_json);

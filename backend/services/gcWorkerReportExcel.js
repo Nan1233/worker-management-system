@@ -101,7 +101,7 @@ function writeGcWorkerSheet(sheet, reports, { deductionTypes = [], defectTypes =
         row.getCell(fixed.tt).value = item.tt;
         row.getCell(fixed.ok).value = item.ok;
         row.getCell(fixed.totalNg).value = item.ng;
-        row.getCell(fixed.achievement).value = {
+        row.getCell(fixed.achievement).value = item.standard == null ? null : {
           formula: `IFERROR(${columnLetter(fixed.tt)}${rowNumber}/${columnLetter(fixed.standard)}${rowNumber},0)`,
           result: item.standard > 0 ? item.tt / item.standard : 0
         };

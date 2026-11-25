@@ -102,6 +102,7 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
   let enteredOutput = 0;
   let adjustedOutput = 0;
   let plannedOutput = 0;
+  let missingStandard = false;
 
   for (const line of lines) {
     const machineHours = positiveHours(line.machine_time_hours);
@@ -123,7 +124,8 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     const lineOk = Math.max(0, asInteger(line.ok_quantity) || 0);
     const lineNg = Math.max(0, asInteger(line.ng_quantity) || 0);
     const lineCountedNg = lineNg;
-    const lineStandard = positiveHours(line.standard_output);
+    const lineStandard = asNumber(line.standard_output);
+    if (workedHours > 0 && (lineStandard === null || lineStandard < 0)) missingStandard = true;
     const trainingMultiplier = resolved.apply_training_percent
       ? (factor === null ? null : factor)
       : 1;
@@ -136,11 +138,11 @@ function calculateGcMachineLineMetrics(report, resolved, trainingPercent, factor
     countedNg += lineCountedNg;
     enteredOutput += lineOk + lineNg;
     adjustedOutput += lineOk + lineCountedNg;
-    if (trainingMultiplier !== null) plannedOutput += Math.round(calculatePlannedOutput(lineStandard, workedHours, trainingMultiplier));
+    if (trainingMultiplier !== null && lineStandard !== null && lineStandard >= 0) plannedOutput += Math.round(calculatePlannedOutput(lineStandard, workedHours, trainingMultiplier));
   }
 
   const outputPerHour = safeRatio(adjustedOutput, actualTime);
-  const plannedAvailable = !resolved.apply_training_percent || factor !== null;
+  const plannedAvailable = !missingStandard && (!resolved.apply_training_percent || factor !== null);
   const resolvedPlannedOutput = plannedAvailable ? plannedOutput : null;
   const standard = actualTime > 0 && resolvedPlannedOutput !== null
     ? resolvedPlannedOutput / actualTime

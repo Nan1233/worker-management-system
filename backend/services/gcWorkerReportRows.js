@@ -8,7 +8,12 @@ const { parseExcelDetailArray } = require('./excelDetailArray');
 // produce one row. Report-level deduction details/totals are used only as a safe
 // fallback when there is exactly one machine line, never copied across machines.
 
-const { trainingFactor } = require('../utils/trainingPercent');
+const { calculateNetHours, calculatePlannedOutput, parseStoredTrainingSnapshot } = require('../../shared/productionMetricPrimitives.cjs');
+const planned = (standard, hours, report) => {
+  const snapshot = parseStoredTrainingSnapshot(report.training_percent_snapshot);
+  const value = calculatePlannedOutput(standard, hours, snapshot === null ? null : snapshot / 100);
+  return value === null ? null : Math.round(value);
+};
 
 const toNumber = (value) => {
   const number = Number(String(value ?? 0).replace(/,/g, '').trim());
@@ -46,7 +51,7 @@ const baseOf = (report) => ({
 });
 
 function machineLineRow(report, line, reportLevelDeductions = [], allowReportTotalFallback = false) {
-  const lineDeductions = normalizeDeductions(line.deductions_json);
+  const lineDeductions = normalizeDeductions(line.deductions ?? line.deductions_json);
   // Approved reports created through legacy/import flows may persist details only
   // at report level. They are safe to reuse only when this report has exactly one
   // machine line; copying them to multiple lines would duplicate worker deductions.
@@ -70,7 +75,7 @@ function machineLineRow(report, line, reportLevelDeductions = [], allowReportTot
   // stored once per event and must not replace or multiply worker credit.
   const machineHours = Math.max(0, toNumber(line.machine_time_hours));
   if (hasPhysicalEvent && physicalMachineHours <= 0) warnings.push('PHYSICAL_MACHINE_EVENT_TIME_MISSING');
-  const workedHours = Math.max(0, machineHours - deductionHours);
+  const workedHours = calculateNetHours(machineHours, deductionHours);
   const ok = Math.max(0, Math.round(toNumber(line.ok_quantity)));
   const ng = Math.max(0, Math.round(toNumber(line.ng_quantity)));
   const defects = normalizeDefects(line.defects ?? line.defects_json);
@@ -84,7 +89,7 @@ function machineLineRow(report, line, reportLevelDeductions = [], allowReportTot
     totalHours: round2(machineHours),
     workedHours: round2(workedHours),
     deductionHours: round2(deductionHours),
-    standard: Math.round(Math.max(0, toNumber(line.standard_output)) * workedHours * trainingFactor(report.training_percent)),
+    standard: planned(line.standard_output, workedHours, report),
     ok, ng, tt: ok + ng,
     deductions, defects, warnings
   };
@@ -112,7 +117,7 @@ function manualRow(report) {
     totalHours: round2(totalHours),
     workedHours: round2(workedHours),
     deductionHours: round2(deductionHours),
-    standard: Math.round(Math.max(0, toNumber(report.standard_output)) * workedHours * trainingFactor(report.training_percent)),
+    standard: planned(report.standard_output, workedHours, report),
     ok, ng, tt: ok + ng,
     deductions, defects, warnings
   };
@@ -150,7 +155,7 @@ function missingMachineRow(report) {
 
 /** All Excel rows of one approved GC report, in line order. */
 function buildGcWorkerRows(report) {
-  const lines = (Array.isArray(report.machineLines) ? report.machineLines : []).slice().sort(lineOrder);
+  const lines = (Array.isArray(report.machineLines) ? report.machineLines : Array.isArray(report.machine_lines) ? report.machine_lines : []).slice().sort(lineOrder);
   if (lines.length === 0) {
     return [hasMachineReference(report) ? missingMachineRow(report) : manualRow(report)];
   }
