@@ -139,13 +139,15 @@ async function readExcelChanges(filePath) {
     error.code = 'EXCEL_SYNC_ROW_IDENTITY_MISSING';
     throw error;
   }
-  const firstRow = paperRows ? Number(meta.config.firstDataRow) - 1 : 6;
-  if (paperRows && (!Number.isSafeInteger(firstRow) || firstRow < 1)) {
+  const firstRow = paperRows ? Number(meta.config.firstDataRow) - 1 : Number(meta.config.firstDataRow || 6);
+  if (!Number.isSafeInteger(firstRow) || firstRow < 1) {
     const error = new Error('Mẫu Excel thiếu thông tin dòng bắt đầu.');
     error.code = 'EXCEL_SYNC_ROW_IDENTITY_INVALID';
     throw error;
   }
 
+  const dateColumn=meta.config.columns.find(col=>col.key==='date');
+  const explicitIdentity=meta.config.rowIdentityMode==='KTC_SYNC_ID_V1';
   const rowById = new Map();
   const rowDate = new Map();
   const knownPaperRows = new Set();
@@ -167,7 +169,8 @@ async function readExcelChanges(filePath) {
       }
       rowById.set(id, row);
     }
-    if (activeDate) rowDate.set(row, activeDate);
+    const explicitDate=explicitIdentity&&dateColumn?excelDateToIso(sheet.getCell(row,dateColumn.index).value):null;
+    if (activeDate || explicitDate) rowDate.set(row, activeDate || explicitDate);
   }
   if (paperRows) {
     for (const [id, saved] of meta.reports.entries()) {
@@ -200,6 +203,7 @@ async function readExcelChanges(filePath) {
     if (!row) continue; // Không dùng Excel để xóa báo cáo; xóa phải qua UI có audit reason.
     const current = currentByKey(sheet, row, meta.config.columns);
     current.workDate = rowDate.get(row) || null;
+    if(explicitIdentity && (asText(current.workerCode)!==reportMeta.workerCode || current.workDate!==reportMeta.workDate))throw Object.assign(new Error('Mã công nhân hoặc ngày của dòng Excel không khớp snapshot.'),{code:'EXCEL_SYNC_ROW_IDENTITY_MISMATCH'});
     const helperItem = gcHelper ? (gcHelper.byId.get(id) || gcHelper.bySourceRow.get(row)) : null;
     if (helperItem?.operationType) current.operationType = helperDisplayType(helperItem.operationType);
     if (helperItem?.operationMode) current.operationMode = helperDisplayMode(helperItem.operationMode);
@@ -250,7 +254,7 @@ async function readExcelChanges(filePath) {
     ]);
     for (const [key, afterRaw] of Object.entries(candidate)) {
       if (!isExcelMutableField(key) || !availablePatch.has(key)) continue;
-      const beforeRaw = original[key];
+      const beforeRaw = explicitIdentity && reportMeta.original.excel_baseline && Object.prototype.hasOwnProperty.call(reportMeta.original.excel_baseline,key) ? reportMeta.original.excel_baseline[key] : original[key];
       const before = fieldValue(key, beforeRaw);
       const after = fieldValue(key, afterRaw);
       if (!same(before, after)) {
@@ -274,14 +278,17 @@ async function readExcelChanges(filePath) {
   // Blank ID + real worker/product data means a manager intentionally added a new Excel row.
   // It is sent as CREATE and the backend remains authoritative for validation/calculation.
   const knownIds = new Set(meta.reports.keys());
-  for (let row = paperRows ? firstRow : 6; row <= sheet.rowCount; row += 1) {
+  for (let row = firstRow; row <= sheet.rowCount; row += 1) {
     // Chỉ coi dòng có STT số nguyên dương là dòng báo cáo mới.
     // Điều này loại bỏ dòng ngày, dòng TỔNG CỘNG và các dòng công thức/trang trí.
     const stt = Number(sheet.getCell(row, 1).value);
     if (!Number.isInteger(stt) || stt <= 0) continue;
     if (paperRows && knownPaperRows.has(row)) continue;
     const id = idColumn ? Number(sheet.getCell(row, idColumn.index).value) : 0;
-    if (Number.isInteger(id) && id > 0) continue;
+    if (Number.isInteger(id) && id > 0) {
+      if(explicitIdentity&&!knownIds.has(id))throw Object.assign(new Error('ID Excel không tồn tại trong metadata.'),{code:'EXCEL_SYNC_UNKNOWN_ID'});
+      continue;
+    }
     const current = currentByKey(sheet, row, meta.config.columns);
     if (paperRows && (asText(current.workerCode) || asText(current.product) || asText(current.shift))) {
       const error = new Error('Dòng mới trong mẫu giấy chưa có ID đồng bộ. Hãy thêm báo cáo qua ứng dụng rồi xuất Excel lại.');
@@ -293,6 +300,7 @@ async function readExcelChanges(filePath) {
     const productName = asText(current.product);
     const shift = asText(current.shift);
     if (!workerCode && !productName && !shift) continue;
+    if(meta.config.allowCreate===false)throw Object.assign(new Error('Mẫu này chỉ hỗ trợ sửa báo cáo đã có. Hãy thêm báo cáo trên ứng dụng.'),{code:'EXCEL_SYNC_CREATE_UNSUPPORTED'});
     if (!workerCode || !productName || !shift) {
       changes.push({
         create: true, id: null, row,

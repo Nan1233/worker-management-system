@@ -384,7 +384,7 @@ function normalizeGcDefectHeaders(sheet, headerRow) {
   return true;
 }
 
-async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
+async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {}, includeSyncMetadata = false }) {
   const { templatePath, buffer: templateBuffer } = await getTemplateBuffer(appPath);
   const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
   const code = String(processCode || '').trim().toUpperCase();
@@ -412,6 +412,20 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
 contract.cols.workTime = workTimeColumn;
   const dataStartRow = findDataStartRow(sheet, headerRow);
   const dateRowNumber = findDateSeparatorRow(sheet, headerRow, dataStartRow);
+  if(includeSyncMetadata){
+    if(!contract.cols.id){
+      contract.cols.id=Math.max(sheet.columnCount,contract.lastColumn||0)+1;
+      sheet.getRow(headerRow).getCell(contract.cols.id).value='ID';
+      sheet.getColumn(contract.cols.id).hidden=true;
+      contract.lastColumn=contract.cols.id;
+    }
+    if(!dateRowNumber&&(!contract.cols.date||contract.cols.date===contract.cols.entryDate||contract.cols.date===contract.cols.submittedAt)){
+      contract.cols.date=Math.max(sheet.columnCount,contract.lastColumn||0)+1;
+      sheet.getRow(headerRow).getCell(contract.cols.date).value='Ngày sản xuất';
+      sheet.getColumn(contract.cols.date).hidden=true;
+      contract.lastColumn=contract.cols.date;
+    }
+  }
   let layout = 'flat';
   if (dateRowNumber) {
     layout = 'grouped-by-date';
@@ -431,6 +445,10 @@ contract.cols.workTime = workTimeColumn;
     clearDataRows(sheet, dataStartRow + reports.length, clearCount, sheet.columnCount);
   }
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
+  if(includeSyncMetadata){
+    const {addWorkerReportSyncMetadata}=require('./workerReportSyncMetadata.cjs');
+    addWorkerReportSyncMetadata(workbook,sheet,{code,date,processData,reports,contract,firstDataRow:dateRowNumber||dataStartRow,grouped:Boolean(dateRowNumber)});
+  }
   const outputBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return { buffer: outputBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: reports.length, templateKind: 'worker-template', templateFile: TEMPLATE_NAME, templatePath, templateSheet: sheet.name, headerRow, dataStartRow, layout,
     columnContract: {

@@ -111,6 +111,7 @@ async function buildWorkerSplit({ appPath, date, payload, onTemplateLoaded }) {
         })
       : await buildWorkerProcessWorkbook({
           appPath,
+          includeSyncMetadata: true,
           processCode: item.processCode,
           processName: processData.processName || processData.process_name || item.processCode,
           date,
