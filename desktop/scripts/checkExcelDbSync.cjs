@@ -1,36 +1,101 @@
+'use strict';
+
+// Check the active module boundaries, not the retired monolithic main/workbook
+// implementation. Real XLSX roundtrip and synthetic diff tests are separate
+// mandatory CI steps; these assertions preserve the wiring/security contract.
 const fs = require('node:fs');
 const path = require('node:path');
+const assert = require('node:assert/strict');
 const root=path.join(__dirname,'..','electron');
-const main=fs.readFileSync(path.join(root,'main.cjs'),'utf8');
-const preload=fs.readFileSync(path.join(root,'preload.cjs'),'utf8');
-const workbook=fs.readFileSync(path.join(root,'monthlyWorkbookLocal.cjs'),'utf8');
-const sync=fs.readFileSync(path.join(root,'excelDbSync.cjs'),'utf8');
-const values=fs.readFileSync(path.join(root,'excelDbSyncValues.cjs'),'utf8');
-if(!/require\(['"]\.\/excelDbSyncValues\.cjs['"]\)/.test(sync)) throw new Error('Excel sync phải dùng cùng chuẩn hóa dữ liệu ở module độc lập');
-if(!/_KTC_SYNC/.test(workbook)) throw new Error('Thiếu metadata sheet _KTC_SYNC');
-if(!/veryHidden/.test(workbook)) throw new Error('_KTC_SYNC phải veryHidden');
-if(!/production\/excel-sync/.test(main)) throw new Error('Desktop chưa gọi API Excel->DB');
-if(!/REPORT_VERSION_CONFLICT|expected_updated_at/.test(sync)) throw new Error('Thiếu optimistic concurrency metadata');
-if(!/ktc-preview-excel-db-sync/.test(main) || !/ktc-apply-excel-db-sync/.test(main)) throw new Error('Thiếu IPC preview/apply Excel -> DB');
-if(!/previewExcelDbSync/.test(preload) || !/applyExcelDbSync/.test(preload)) throw new Error('Preload chưa expose manual Excel -> DB');
-if(/setInterval\(\(\) => void syncEditedExcelFilesToDb/.test(main)) throw new Error('Không được tự động Excel -> DB bằng watcher');
-if(!/EXCEL_DB_PRECHECK_SKIPPED_FOR_DB_EXPORT/.test(main) || !/DB_IS_AUTHORITATIVE_FOR_EXCEL_EXPORT/.test(main)) throw new Error('Thiếu guard xác nhận DB là nguồn dữ liệu duy nhất khi xuất Excel');
-if(!/preview/.test(sync) || !/SL OK/.test(sync)) throw new Error('Thiếu diff preview trước -> sau');
+const read=name=>fs.readFileSync(path.join(root,name),'utf8');
+const main=read('main.cjs');
+const preload=read('preload.cjs');
+const workbook=read('monthlyWorkbookLocal.cjs');
+const builders=read('monthlyWorkbookBuilders.cjs');
+const metadata=read('monthlyWorkbookSyncMetadata.cjs');
+const worker=read('workerReportWorkbook.cjs');
+const workerMetadata=read('workerReportSyncMetadata.cjs');
+const helper=read('monthlyWorkbookGcHelper.cjs');
+const sync=read('excelDbSync.cjs');
+const values=read('excelDbSyncValues.cjs');
+const handlers=read('desktopExcelIpcHandlers.cjs');
+const controller=read('excelDbSyncController.cjs');
+const transport=read('excelSyncTransport.cjs');
+const exporter=read('monthlyDesktopExport.cjs');
+const authority=read('monthlyWorkbookReportData.cjs');
+const atomic=read('excelAtomicFileWriter.cjs');
+const coordinator=read('desktopSyncCoordinator.cjs');
+const monitor=read('desktopRendererMonitoring.cjs');
 
-if(!/Missing Excel columns mean/.test(values) || !/preserved/.test(values)) throw new Error('Thiếu guard giữ nguyên detail DB không có cột trong Excel');
-if(!/if \(!preview\.length\) continue/.test(sync)) throw new Error('Preview phải bỏ report không có field thay đổi thật');
-if(!/changedPatch/.test(sync) || !/patch: changedPatch/.test(sync)) throw new Error('Excel sync phải chỉ gửi field thực sự thay đổi');
-if(!/stableValue/.test(sync)) throw new Error('Thiếu canonical deep comparison chống false diff do thứ tự key');
+assert.match(sync,/require\(['"]\.\/excelDbSyncValues\.cjs['"]\)/,'Excel sync must share value normalization');
+assert.match(workbook,/require\('\.\/monthlyWorkbookSyncMetadata\.cjs'\)/);
+assert.match(workbook,/createMonthlyWorkbookBuilders\(\{/);
+assert.match(builders,/addExcelDbSyncMetadata\(original\.workbook,/);
+assert.match(worker,/addWorkerReportSyncMetadata\(workbook,sheet,/);
+for(const producer of [metadata,workerMetadata]){
+  assert.match(producer,/addWorksheet\('_KTC_SYNC'\)/);
+  assert.match(producer,/\.state\s*=\s*'veryHidden'/);
+  assert.match(producer,/expected_updated_at/);
+  assert.match(producer,/original_json/);
+  assert.match(producer,/EXCEL_SYNC_CONTRACT_VERSION/);
+}
+assert.match(sync,/getWorksheet\('_KTC_SYNC'\)/);
+assert.match(sync,/EXCEL_SYNC_CONTRACT_OUTDATED/);
+assert.match(sync,/EXCEL_SYNC_DUPLICATE_META_ID/);
+assert.match(sync,/expected_updated_at:\s*reportMeta\.expectedUpdatedAt/);
+assert.match(transport,/\/production\/excel-sync/);
+assert.match(transport,/method:\s*'POST'/);
+assert.match(transport,/EXCEL_DB_SYNC_UNVERIFIED_ACK/);
+assert.match(controller,/createExcelSyncTransport\(\{/);
+assert.match(controller,/await postExcelChanges\(chunk\)/);
 
-if (/operationMode === 'MACHINE'\) return patch/.test(sync)) throw new Error('Import Center không được bỏ qua field editable của báo cáo Máy');
-if (!/Máy vẫn có các field tổng hợp/.test(sync)) throw new Error('Thiếu regression guard phát hiện diff SL OK\/TG thực tế cho báo cáo Máy');
+for(const [name,handler] of [['preview','handlePreviewExcelDbSync'],['apply','handleApplyExcelDbSync']]){
+  assert.match(main,new RegExp("ipcMain\\.handle\\('ktc-"+name+"-excel-db-sync', protectedDesktopIpc\\("));
+  assert.ok(main.includes(handler),'Missing trusted IPC handler '+handler);
+  assert.ok(preload.includes("ipcRenderer.invoke('ktc-"+name+"-excel-db-sync'"),'Missing preload '+name);
+}
+assert.match(handlers,/await previewEditedExcelFilesToDb\(\{ yearMonth \}\)/);
+assert.match(handlers,/await syncEditedExcelFilesToDb\(\{ source: 'manual-db-sync', yearMonth \}\)/);
+assert.match(handlers,/reportImportPreviewGuard\.assertAllowed\(payload\.filePath\)/);
+assert.match(handlers,/reportImportPreviewGuard\.assertVersion\(filePath, importVersion\(stat\)\)/);
+assert.match(handlers,/if \(!sourceChanged && failed === 0 && succeeded === changes\.length\)/);
+assert.doesNotMatch([main,coordinator,monitor].join('\n'),/setInterval\([\s\S]{0,100}syncEditedExcelFilesToDb|startExcelDbSyncWatcher/);
+assert.doesNotMatch(exporter,/\bpostExcelChanges\(|\bsyncEditedExcelFilesToDb\(/);
+assert.match(exporter,/assertApprovedDatabasePayload\(companyData\)/);
+assert.match(authority,/payload\.dataSource !== APPROVED_DATA_SOURCE/);
+assert.match(authority,/report\?\.isApprovedDatabaseRecord !== true/);
+assert.match(exporter,/EXCEL_EXPORT_UNSYNCED_EDITS/);
+assert.match(exporter,/isAcknowledgedWorkbookVersion\(filePath, stat\)/);
+assert.match(exporter,/atomicOverwrite\(filePath, processBuilt\.buffer, date, \{beforeReplace\}\)/);
+assert.match(atomic,/await options\.beforeReplace\(filePath, guardedStat\)/);
+assert.match(atomic,/KTC_EXCEL_CONCURRENT_MODIFICATION/);
+assert.match(controller,/if \(!sameFileVersion\(beforePost, stat\)\)/);
+assert.match(controller,/if \(!sameFileVersion\(current, stat\)\)/);
+assert.match(controller,/acknowledgedStat:\s*!fileFailed && !changedDuringSync \? stat : null/);
 
-if(!/TAY MÁY CẮT LỒNG/.test(workbook)) throw new Error('Thiếu sheet phụ TAY MÁY CẮT LỒNG');
-if(!/STT số nguyên dương/.test(workbook) || !/STT số nguyên dương/.test(sync)) throw new Error('Thiếu guard bỏ qua dòng ngày/TỔNG CỘNG khi sync Excel');
-if(!/parseGcHelperSheet/.test(sync) || !/gcMissingFields/.test(sync)) throw new Error('Excel sync chưa đọc/validate metadata Cắt-Lồng từ sheet phụ');
-if(!/Dòng mới CẮT\/LỒNG thiếu/.test(sync)) throw new Error('Thiếu cảnh báo chi tiết metadata dòng mới Cắt/Lồng');
+assert.match(sync,/preview/);
+assert.match(sync,/SL OK/);
+assert.match(values,/Missing Excel columns mean/);
+assert.match(values,/preserved/);
+assert.match(sync,/if \(!preview\.length\) continue/);
+assert.match(sync,/patch: changedPatch/);
+assert.match(values,/function stableValue\(/);
+assert.match(values,/JSON\.stringify\(stableValue\(a\)\)/);
+// Detect machine-field edits, then reject protected machine-line changes;
+// do not silently drop these diffs or pretend that they are editable.
+assert.doesNotMatch(sync,/operationMode === 'MACHINE'\) return patch/);
+assert.match(sync,/EXCEL_SYNC_MACHINE_LINE_READ_ONLY/);
+assert.match(sync,/EXCEL_SYNC_TRAINING_READ_ONLY/);
+assert.match(sync,/EXCEL_SYNC_UNMAPPED_COLUMN_READ_ONLY/);
 
-if(!/MAX_AUTO_SOURCE_ROW/.test(workbook) || !/fullCalcOnLoad/.test(workbook)) throw new Error('Sheet TAY MÁY CẮT LỒNG chưa tự liên kết công thức với sheet chính');
-if(!/value && typeof value === 'object' && value.result !== undefined/.test(values)) throw new Error('Excel sync chưa đọc cached result của ô công thức sheet phụ');
-
-console.log('[KTC] Excel <-> DB manual preview/apply contract OK');
+assert.match(helper,/TAY MÁY CẮT LỒNG/);
+assert.match(builders,/addGcModeHelperSheet\(original\.workbook,/);
+assert.match(helper,/STT số nguyên dương/);
+assert.match(sync,/STT số nguyên dương/);
+assert.match(sync,/parseGcHelperSheet\(workbook\)/);
+assert.match(sync,/gcMissingFields\(/);
+assert.match(sync,/Dòng mới CẮT\/LỒNG thiếu/);
+assert.match(helper,/MAX_AUTO_SOURCE_ROW/);
+assert.match(helper,/fullCalcOnLoad/);
+assert.match(values,/value && typeof value === 'object' && value\.result !== undefined/);
+console.log('[KTC] Excel <-> DB manual preview/apply contract OK (active modules)');
