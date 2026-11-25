@@ -1,55 +1,15 @@
 const db = require('../config/db');
+const { assertMasterResourceScope, assertCanManageWorker } = require('../services/masterResourceAuthorization');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
 const { getActorProcessScope, assertProcessScope, assertProcessesScope, scopeSql } = require('../services/processAuthorizationService');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
-const { validateMasterNumeric } = require('../services/masterNumericValidationService');
-
-const TABLES = {
-  processes: { table:'processes', fields:['process_code','process_name','description','status'], required:['process_code','process_name'], order:'process_name' },
-  defects: { table:'defect_types', fields:['process_id','defect_code','defect_name','sort_order','status'], required:['process_id','defect_code','defect_name'], order:'process_id, sort_order, defect_name' },
-  deductions: { table:'deduction_types', fields:['process_id','deduction_code','deduction_name','sort_order','status'], required:['process_id','deduction_code','deduction_name'], order:'process_id, sort_order, deduction_name' },
-  machines: { table:'machines', fields:['process_id','machine_code','machine_name','status'], required:['process_id','machine_code','machine_name'], order:'process_id, machine_code' },
-  standards: { table:'product_standards', fields:['process_id','work_type','product_code','standard_output','status'], required:['process_id','product_code','standard_output'], order:'process_id, product_code' }
-};
-
-// Serverless TiDB cannot expand object bindings in SQL SET ? statements.
-function masterWriteFields(cfg, payload) {
-  const fields = cfg.fields.filter(field => Object.prototype.hasOwnProperty.call(payload, field));
-  return {fields, values: fields.map(field => payload[field])};
-}
-const PROCESS_BOUND_RESOURCES = new Set(['defects','deductions','machines','standards']);
-const LEAD_MANAGER_MASTER_RESOURCES = new Set(['machines','standards','deductions']);
+const { TABLES, masterWriteFields, PROCESS_BOUND_RESOURCES, LEAD_MANAGER_MASTER_RESOURCES, cleanPayload } = require('../domain/masterResourceDefinition');
 
 function authErrorResponse(res, error) {
   if (error?.status === 403 || error?.statusCode === 403) {
     return res.status(403).json({ success:false, code:error.code || 'PROCESS_SCOPE_FORBIDDEN', message:error.message });
   }
   return null;
-}
-
-async function assertMasterResourceScope(actor, cfg, id, executor) {
-  if (cfg.table === 'processes') {
-    await assertProcessScope(actor, id, { executor, action:'MASTER_RESOURCE' });
-    return Number(id);
-  }
-  const [rows] = await executor.query(`SELECT id, process_id FROM ${cfg.table} WHERE id=? LIMIT 1`, [Number(id)]);
-  if (!rows.length) return null;
-  await assertProcessScope(actor, rows[0].process_id, { executor, action:'MASTER_RESOURCE' });
-  return Number(rows[0].process_id);
-}
-
-async function assertCanManageWorker(actor, workerId, executor, { requireAllAssignments = false } = {}) {
-  if (actor?.role === 'admin') return true;
-  const [assigned] = await executor.query('SELECT process_id FROM worker_processes WHERE worker_id=? ORDER BY process_id', [Number(workerId)]);
-  const targetIds = assigned.map((row) => Number(row.process_id)).filter(Boolean);
-  if (!targetIds.length) throw Object.assign(new Error('Công nhân chưa có công đoạn thuộc phạm vi phụ trách'), { status:403, code:'PROCESS_SCOPE_FORBIDDEN' });
-  const scope = await getActorProcessScope(actor, executor);
-  if (scope.type === 'ALL') return true;
-  const allowed = targetIds.filter((id) => scope.processIds.has(id));
-  if (!allowed.length || (requireAllAssignments && allowed.length !== targetIds.length)) {
-    throw Object.assign(new Error('Công nhân có phân công ngoài phạm vi phụ trách'), { status:403, code:'PROCESS_SCOPE_FORBIDDEN' });
-  }
-  return true;
 }
 
 function requireMasterPermission(req, res) {
@@ -67,17 +27,6 @@ function requireAdminForManagers(req, res) {
     return false;
   }
   return true;
-}
-
-function listManagers(res, next) {
-  db.query(`SELECT u.id, u.username, u.full_name, u.status, u.created_at,
-    GROUP_CONCAT(DISTINCT p.process_name ORDER BY p.process_name SEPARATOR ', ') AS process_names
-    FROM users u
-    LEFT JOIN manager_processes mp ON mp.manager_id=u.id
-    LEFT JOIN processes p ON p.id=mp.process_id
-    WHERE u.role='manager'
-    GROUP BY u.id, u.username, u.full_name, u.status, u.created_at
-    ORDER BY u.full_name, u.username`, (error, rows) => error ? next(error) : res.json({success:true,data:rows}));
 }
 
 async function assertGcMachineCode(processId, machineCode, executor = db.promise()) {
@@ -101,34 +50,6 @@ function config(req, res) {
     return null;
   }
   return value;
-}
-
-function cleanPayload(body, cfg, partial=false) {
-  const payload = {};
-  for (const field of cfg.fields) {
-    if (Object.prototype.hasOwnProperty.call(body || {}, field)) payload[field] = body[field];
-  }
-  if (!partial) {
-    for (const field of cfg.required) {
-      if (payload[field] === undefined || payload[field] === null || String(payload[field]).trim() === '') {
-        const error = new Error(`Thiếu trường bắt buộc: ${field}`); error.status = 400; throw error;
-      }
-    }
-  }
-  if ('status' in payload && !['active','inactive'].includes(payload.status)) {
-    const error = new Error('Trạng thái không hợp lệ'); error.status = 400; throw error;
-  }
-  if ('process_id' in payload) payload.process_id = validateMasterNumeric('process_id', payload.process_id).value;
-  if ('sort_order' in payload) payload.sort_order = validateMasterNumeric('sort_order', payload.sort_order).value;
-  if ('standard_output' in payload) {
-    try {
-      payload.standard_output = validateMasterNumeric('standard_output', payload.standard_output).value;
-    } catch (error) {
-      if (/^MASTER_NUMERIC_/.test(String(error?.code || ''))) error.message = 'Định mức phải là số dương hợp lệ';
-      throw error;
-    }
-  }
-  return payload;
 }
 
 exports.list = async (req, res, next) => {
@@ -161,18 +82,6 @@ exports.create = async (req,res,next) => {
   try {
     if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
     if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
-    if (false) {
-      const username=String(req.body?.username||'').trim();
-      const fullName=String(req.body?.full_name||'').trim();
-      const password=String(req.body?.password||'');
-      if(!username||!fullName||password.length<6) return res.status(400).json({success:false,message:'Username, họ tên và mật khẩu tối thiểu 6 ký tự là bắt buộc'});
-      const hash=await bcrypt.hash(password,10);
-      return db.query("INSERT INTO users (username,password,full_name,role,status) VALUES (?,?,?,'manager',?)",[username,hash,fullName,req.body?.status==='inactive'?'inactive':'active'],(error,result)=>{
-        if(error?.code==='ER_DUP_ENTRY') return res.status(409).json({success:false,message:'Username đã tồn tại'});
-        if(error) return next(error);
-        res.status(201).json({success:true,message:'Tạo manager thành công',data:{id:result.insertId}});
-      });
-    }
     const cfg=config(req,res); if(!cfg) return;
     const payload=cleanPayload(req.body,cfg);
     if (cfg.table === 'processes' && req.user?.role !== 'admin') {
@@ -209,21 +118,6 @@ exports.update = async (req,res,next) => {
   try {
     if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
     if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
-    if (false) {
-      const id=Number(req.params.id); if(!Number.isInteger(id)||id<=0) return res.status(400).json({success:false,message:'ID không hợp lệ'});
-      const payload={};
-      if(Object.prototype.hasOwnProperty.call(req.body||{},'username')) payload.username=String(req.body.username).trim();
-      if(Object.prototype.hasOwnProperty.call(req.body||{},'full_name')) payload.full_name=String(req.body.full_name).trim();
-      if(Object.prototype.hasOwnProperty.call(req.body||{},'status')) payload.status=req.body.status==='inactive'?'inactive':'active';
-      if(req.body?.password){ if(String(req.body.password).length<6) return res.status(400).json({success:false,message:'Mật khẩu tối thiểu 6 ký tự'}); payload.password=await bcrypt.hash(String(req.body.password),10); }
-      if(!Object.keys(payload).length) return res.status(400).json({success:false,message:'Không có dữ liệu cập nhật'});
-      return db.query("UPDATE users SET ? WHERE id=? AND role='manager'",[payload,id],(error,result)=>{
-        if(error?.code==='ER_DUP_ENTRY') return res.status(409).json({success:false,message:'Username đã tồn tại'});
-        if(error) return next(error);
-        if(!result.affectedRows) return res.status(404).json({success:false,message:'Không tìm thấy manager'});
-        res.json({success:true,message:'Cập nhật manager thành công'});
-      });
-    }
     const cfg=config(req,res); if(!cfg) return;
     const id=Number(req.params.id); if(!Number.isInteger(id)||id<=0) return res.status(400).json({success:false,message:'ID không hợp lệ'});
     const payload=cleanPayload(req.body,cfg,true);

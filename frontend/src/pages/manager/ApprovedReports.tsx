@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { getApprovedReports, getReportById, invalidateApprovedReportCache } from "../../services/productionService";
-import { getAccessToken } from "../../utils/authStorage";
+import { useApprovedReportExcelImport } from "./useApprovedReportExcelImport";
 import type { ProductionReport } from "../../types/production";
 import { getToday } from "./managerReportDateLogic";
 import { getAllReportDefects } from "../../utils/reportDetails";
@@ -16,9 +16,6 @@ export default function ApprovedReports({ onOpenReport }: { onOpenReport?: (repo
     const [searchKeyword, setSearchKeyword] = useState(""); const [searchQuery, setSearchQuery] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [processOptions, setProcessOptions] = useState<string[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);
-    const [reportImportPreview, setReportImportPreview] = useState<{ filePath?: string; fileName?: string; detected: number; creates?: number; updates?: number } | null>(null);
-    const [reportImportStatus, setReportImportStatus] = useState<{ tone: "success" | "warning" | "error"; message: string } | null>(null);
-    const [reportImportBusy, setReportImportBusy] = useState(false);
     const [counts, setCounts] = useState({ day: 0, week: 0, month: 0, year: 0 });
     const [detail, setDetail] = useState<ProductionReport | null>(null); const [detailLoading, setDetailLoading] = useState(false); const [detailError, setDetailError] = useState("");
 
@@ -143,68 +140,7 @@ export default function ApprovedReports({ onOpenReport }: { onOpenReport?: (repo
         void load();
     };
 
-    const desktopImportApi = () => (window as Window & { ktcDesktop?: {
-        isDesktop?: boolean;
-        previewReportImport?: (token: string) => Promise<any>;
-        applyReportImport?: (token: string, filePath: string) => Promise<any>;
-    } }).ktcDesktop;
-
-    const previewExcelImport = async () => {
-        const desktop = desktopImportApi();
-        const token = getAccessToken() || "";
-        if (!token) { setReportImportStatus({ tone: "error", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." }); return; }
-        if (!desktop?.isDesktop || typeof desktop.previewReportImport !== "function") {
-            setReportImportStatus({ tone: "warning", message: "Nhập Excel chỉ khả dụng trên ứng dụng KTC Desktop." });
-            return;
-        }
-        setReportImportBusy(true); setReportImportStatus(null); setReportImportPreview(null);
-        try {
-            const preview = await desktop.previewReportImport(token);
-            if (preview?.canceled) { setReportImportPreview(null); return; }
-            if (!preview?.filePath) throw new Error("Không nhận được đường dẫn file import hợp lệ.");
-            setReportImportPreview({ ...preview, filePath: preview.filePath });
-            if (Number(preview.detected || 0) === 0) {
-                setReportImportStatus({ tone: "warning", message: "File không có dòng mới hoặc thay đổi cần import." });
-            } else {
-                setReportImportStatus({ tone: "success", message: "Đã đọc " + Number(preview.detected) + " thay đổi từ " + (preview.fileName || "file Excel") + "." });
-            }
-        } catch (error) {
-            setReportImportStatus({ tone: "error", message: error instanceof Error ? error.message : "Không thể đọc file import." });
-        } finally { setReportImportBusy(false); }
-    };
-
-    const applyExcelImport = async () => {
-        if (!reportImportPreview?.filePath) return;
-        const desktop = desktopImportApi();
-        const token = getAccessToken() || "";
-        if (!token) { setReportImportStatus({ tone: "error", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." }); return; }
-        if (!desktop?.isDesktop || typeof desktop.applyReportImport !== "function") {
-            setReportImportStatus({ tone: "warning", message: "Nhập Excel chỉ khả dụng trên ứng dụng KTC Desktop." });
-            return;
-        }
-        setReportImportBusy(true); setReportImportStatus(null);
-        try {
-            const result = await desktop.applyReportImport(token, reportImportPreview.filePath);
-            if (result?.sourceChanged) {
-                setReportImportPreview(null);
-                setReportImportStatus({ tone: "warning", message: "File đã thay đổi trong lúc import. Hãy xem trước bản mới nhất; không tự động ghi đè file." });
-            } else if (Number(result?.failed || 0) > 0) {
-                setReportImportStatus({ tone: "warning", message: "Import một phần: " + Number(result?.succeeded || 0) + " thành công, " + Number(result.failed) + " lỗi. Có thể kiểm tra và thử lại." });
-            } else if (Number(result?.detected || 0) === 0 || Number(result?.succeeded || 0) === 0) {
-                setReportImportStatus({ tone: "warning", message: "File không có dòng mới hoặc thay đổi cần import." });
-                setReportImportPreview(null);
-            } else {
-                setReportImportStatus({ tone: "success", message: "Import thành công " + Number(result.succeeded) + " báo cáo." });
-                setReportImportPreview(null);
-                invalidateApprovedReportCache();
-                await load();
-            }
-        } catch (error) {
-            setReportImportStatus({ tone: "error", message: error instanceof Error ? error.message : "Không thể import báo cáo." });
-
-
-        } finally { setReportImportBusy(false); }
-    };
+    const {reportImportPreview, reportImportStatus, reportImportBusy, previewExcelImport, applyExcelImport, setReportImportPreview} = useApprovedReportExcelImport(load);
 
     const detailKpi = detail ? kpi(detail) : null;
     const detailAny = detail as (ProductionReport & Record<string, unknown>) | null;
