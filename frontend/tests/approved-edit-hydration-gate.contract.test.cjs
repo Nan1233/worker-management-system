@@ -6,7 +6,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..', 'src', 'pages', 'worker');
 
 test('approved edit waits until defect/deduction master lists are available', () => {
-  const page = fs.readFileSync(path.join(root, 'WorkerReportEditV2.tsx'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'useWorkerReportEdit.ts'), 'utf8') + '\n' + fs.readFileSync(path.join(root, 'WorkerReportEditV2.tsx'), 'utf8');
   assert.match(page, /!masterDetailsReady \|\| hydratedReportRef\.current === report/);
   assert.match(page, /!formReady/);
   assert.match(page, /report \? getCanonicalProcessId\([\s\S]*?\) : 0/);
@@ -27,7 +27,7 @@ test('master data has independent basic and complete detail readiness gates', ()
 });
 
 test('TT OK supports native input and React change without reading delayed DOM events', () => {
-  const page = fs.readFileSync(path.join(root, 'WorkerReportEditV2.tsx'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'useWorkerReportEdit.ts'), 'utf8') + '\n' + fs.readFileSync(path.join(root, 'WorkerReportEditV2.tsx'), 'utf8');
   const quality = fs.readFileSync(path.join(root, 'components/ProcessQualitySection.tsx'), 'utf8');
   assert.match(page, /const applyTtOkInput = \(raw: string\)/);
   assert.match(page, /const typedOk = raw\.replace\(/);
@@ -37,7 +37,7 @@ test('TT OK supports native input and React change without reading delayed DOM e
   assert.match(quality, /onChange=\{qualityLocked \? undefined : onTtOkChange\}/);
 });
 test('hydration does not dispatch other state from inside a form state updater', () => {
-  const page = fs.readFileSync(path.join(root, 'WorkerReportEditV2.tsx'), 'utf8');
+  const page = fs.readFileSync(path.join(root, 'useWorkerReportEdit.ts'), 'utf8') + '\n' + fs.readFileSync(path.join(root, 'WorkerReportEditV2.tsx'), 'utf8');
   assert.match(page, /setSelectedNg\(hydratedNg\.map/);
   assert.match(page, /setSelectedDeduction\(hydratedDeductions\.map/);
   const ngHydration = page.slice(page.indexOf('setSelectedNg(hydratedNg.map'), page.indexOf('setMachineLines(', page.indexOf('setSelectedNg(hydratedNg.map')));

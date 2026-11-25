@@ -44,7 +44,8 @@ const asDate = (value) => {
   const source = String(value).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(source)) return null;
   const [year, month, day] = source.split('-').map(Number);
-  return new Date(year, month - 1, day);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.toISOString().slice(0,10) === source ? date : null;
 };
 const asDateTime = (value) => {
   if (!value) return null;
@@ -69,9 +70,9 @@ function localDateKey(value) {
   if (!date || Number.isNaN(date.getTime())) return '';
 
   return [
-    date.getFullYear(),
-    pad2(date.getMonth() + 1),
-    pad2(date.getDate())
+    date.getUTCFullYear(),
+    pad2(date.getUTCMonth() + 1),
+    pad2(date.getUTCDate())
   ].join('-');
 }
 

@@ -8,9 +8,12 @@ const read = p => fs.readFileSync(path.join(root,p),'utf8');
 test('worker process does not gate on company network and queues offline', () => {
   const src = read('src/pages/worker/ProcessPage.tsx');
   assert.doesNotMatch(src, /getCompanyNetworkAccess|ProcessNetworkGate|networkAllowed|networkChecking/);
-  assert.match(src, /if \(!navigator\.onLine\)/);
-  assert.match(src, /queueRemainingMachineReports\(payloads\)/);
-  assert.match(src, /tự gửi khi có Internet/);
+  const submission = read('src/pages/worker/useProcessSubmission.ts');
+  assert.match(src, /useProcessSubmission\(/);
+  assert.doesNotMatch(submission, /getCompanyNetworkAccess|ProcessNetworkGate|networkAllowed|networkChecking/);
+  assert.match(submission, /if \(!navigator\.onLine\)/);
+  assert.match(submission, /queueRemainingMachineReports\(payloads\)/);
+  assert.match(submission, /tự gửi khi có Internet/);
 });
 
 test('worker and master data have persistent offline fallback', () => {

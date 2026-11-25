@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const source = fs.readFileSync(path.join(__dirname, '../src/pages/manager/ApprovedReports.tsx'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../src/pages/manager/useApprovedReportsPage.ts'), 'utf8');
 
 test('approved report page load performs only its paginated table request', () => {
   const start = source.indexOf('const load = useCallback(async () => {');

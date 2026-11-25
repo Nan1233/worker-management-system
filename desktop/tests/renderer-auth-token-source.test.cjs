@@ -1,15 +1,10 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.resolve(__dirname,'../electron/main.cjs'),'utf8');
-const beginning = source.indexOf('async function readRendererAccessToken() {');
-const ending = source.indexOf('\nasync function resolveDesktopToken(',beginning);
-assert.ok(beginning > -1 && ending > beginning,'Desktop reader must exist');
-const fnSource = source.slice(beginning,ending);
+const {createRendererAuthClient} = require('../electron/rendererAuthClient.cjs');
+const loadReader = context => createRendererAuthClient({getWindow:()=>context.mainWindow,normalizeAccessToken:context.normalizeAccessToken}).readRendererAccessToken;
 
 test('Electron reads hosted frontend sessionStorage first and falls back to localStorage',async () => {
   let rendererScript='';
@@ -26,7 +21,7 @@ test('Electron reads hosted frontend sessionStorage first and falls back to loca
     },
     normalizeAccessToken:token=>String(token||'').trim()
   };
-  const load = vm.runInNewContext(fnSource+'\nreadRendererAccessToken',context);
+  const load = loadReader(context);
   assert.equal(await load(),'SESSION_ACCESS_TOKEN');
   assert.match(rendererScript,/sessionStorage/);
   assert.match(rendererScript,/localStorage/);
@@ -46,6 +41,6 @@ test('Electron still reads legacy native localStorage when sessionStorage is emp
     },
     normalizeAccessToken:token=>String(token||'').trim()
   };
-  const load=vm.runInNewContext(fnSource+'\nreadRendererAccessToken',context);
+  const load=loadReader(context);
   assert.equal(await load(),'LEGACY_NATIVE_ACCESS_TOKEN');
 });

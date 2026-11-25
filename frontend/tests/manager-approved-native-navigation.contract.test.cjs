@@ -9,7 +9,7 @@ const read = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8')
 
 test('approved manager rows navigate by stable report ID without DOM index/refetch', () => {
   const workspace = read('src/pages/manager/ManagerReportWorkspaceFix.tsx');
-  const approved = read('src/pages/manager/ApprovedReports.tsx');
+  const approved = read('src/pages/manager/ApprovedReports.tsx') + '\n' + read('src/pages/manager/useApprovedReportsPage.ts');
   const desktop = read('src/pages/manager/ApprovedReportsDesktopActions.tsx');
 
   assert.match(workspace, /ManagerApprovedReportsWorkspaceFix/);
