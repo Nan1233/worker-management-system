@@ -1,49 +1,12 @@
 const getDb = () => require('../config/db');
 const getAuditService = () => require('./auditService');
 const { createStandardResolver } = require('./standardResolutionService');
-const { calculateProductionOutput } = require('../../shared/productionOutput.cjs');
+const { eventError, isoDate, normalizeShift, positiveHours, nonNegativeInteger, calculateEventPhysical } = require('../domain/machineProductionEvent');
 const { canonicalMachineNumber, GC_SHARED_MACHINE_NUMBERS, getGcMachineRule } = require('./factoryMachineRuleService');
 const { assertProcessScope } = require('./processAuthorizationService');
 const { storedStandardSource } = require('../utils/standardSourceCode');
 
 
-
-function eventError(status, code, message, details = null) {
-  const error = new Error(message);
-  error.status = status;
-  error.code = code;
-  error.isPublic = true;
-  if (details) error.details = details;
-  return error;
-}
-
-function isoDate(value) {
-  const text = value instanceof Date
-    ? `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`
-    : String(value || '').slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw eventError(422, 'INVALID_WORK_DATE', 'Ngày sản xuất không hợp lệ');
-  return text;
-}
-
-function normalizeShift(value) {
-  const shift = String(value || '').trim();
-  if (!shift) throw eventError(422, 'SHIFT_REQUIRED', 'Thiếu ca sản xuất');
-  return shift;
-}
-
-function positiveHours(value, field = 'machine_time_hours') {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number <= 0) throw eventError(422, 'INVALID_MACHINE_TIME', `${field} phải là số dương`);
-  return number;
-}
-
-function nonNegativeInteger(value, field) {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < 0 || !Number.isInteger(number)) {
-    throw eventError(422, 'INVALID_QUANTITY', `${field} phải là số nguyên không âm`);
-  }
-  return number;
-}
 
 function isSharedEventManaged(processCode, machineCode) {
   return String(processCode || '').trim().toUpperCase() === 'GC'
@@ -189,20 +152,6 @@ async function linkTempLines(executor, event, tempLineIds = []) {
   await q(executor, `UPDATE production_temp_machine_lines SET machine_event_id=? WHERE id IN (${placeholders})`, [Number(event.id), ...ids]);
   await assertParticipantLimit(executor, event);
   return rows;
-}
-
-function calculateEventPhysical({ physicalOkQuantity, defects, machineTimeHours, standardOutput }) {
-  const ok = nonNegativeInteger(physicalOkQuantity || 0, 'physical_ok_quantity');
-  // Physical output counts every NG defect, including KQD.
-  const output = calculateProductionOutput({ ok, defects });
-  return {
-    physicalOkQuantity: ok,
-    physicalNgQuantity: output.totalNg,
-    physicalCountedOutput: output.actualOutput,
-    physicalTotalOutput: ok + output.totalNg,
-    machineTimeHours: positiveHours(machineTimeHours),
-    maximumOutput: Number(standardOutput) * positiveHours(machineTimeHours)
-  };
 }
 
 // One physical snapshot per GC machine/product/date/shift. Lock the machine row
