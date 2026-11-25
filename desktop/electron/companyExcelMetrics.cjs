@@ -2,6 +2,8 @@
 
 const { parseStoredTrainingSnapshot, safeRatio, calculateNetHours } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'productionMetricPrimitives.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'productionMetricPrimitives.cjs') : '../../shared/productionMetricPrimitives.cjs');
 
+const { calculateProductionMetrics } = require('./productionCalculationEngine.cjs');
+
 // Pure company workbook metrics. Approved report snapshots take precedence over mutable master data.
 function createCompanyExcelMetrics({ num, normalizeCode, safeText }) {
 function sumDetails(items, valueKey) {
@@ -42,22 +44,23 @@ function getMetrics(report) {
   const achievement = safeRatio(outputPerHour, standardOutput) ?? 0;
   const ngRate = safeRatio(totalNg, ok + totalNg) ?? 0;
   const deductionTotal = isGiaCongMachine ? workerDeductionTime : sumDetails(report.deductions, 'hours');
+  const gcMetrics = isGiaCongMachine && machineLines.length ? calculateProductionMetrics(report) : null;
   const changeCount = (report.deductions || []).filter((item) =>
     normalizeCode(item.deduction_type_code || item.deduction_code || item.code || item.deduction_name) === 'CHUYEN_MA' && num(item.hours) > 0
   ).length;
 
   return {
-    ok,
-    totalNg,
-    actualTime,
-    totalTime,
+    ok: gcMetrics ? gcMetrics.ok : ok,
+    totalNg: gcMetrics ? gcMetrics.allNg : totalNg,
+    actualTime: gcMetrics ? gcMetrics.actualTime : actualTime,
+    totalTime: gcMetrics ? gcMetrics.workingTime : totalTime,
     trainingPercent,
-    standardOutput,
-    actualOutput,
-    outputPerHour,
-    achievement,
-    ngRate,
-    deductionTotal,
+    standardOutput: gcMetrics ? gcMetrics.standard : standardOutput,
+    actualOutput: gcMetrics ? gcMetrics.adjustedOutput : actualOutput,
+    outputPerHour: gcMetrics ? gcMetrics.outputPerHour : outputPerHour,
+    achievement: gcMetrics ? gcMetrics.achievement : achievement,
+    ngRate: gcMetrics ? gcMetrics.ngRate : ngRate,
+    deductionTotal: gcMetrics ? gcMetrics.deductionTime : deductionTotal,
     changeCount
   };
 }

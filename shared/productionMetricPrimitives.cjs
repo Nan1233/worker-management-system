@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS = Object.freeze({
 });
 
 function asNumber(value) {
-  if (value === null || value === undefined || value === '') return null;
+  if (value === null || value === undefined || !['number', 'string'].includes(typeof value) || String(value).trim() === '') return null;
   const number = Number(String(value).replace(/,/g, '').trim());
   return Number.isFinite(number) ? number : null;
 }
