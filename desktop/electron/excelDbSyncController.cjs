@@ -29,6 +29,7 @@ async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
       parsed = await readExcelChanges(filePath);
     } catch (error) {
       await writeLog('WARN', 'EXCEL_DB_PREVIEW_READ_SKIPPED', { filePath, ...normalizeError(error) });
+      helperUpdateErrors.push({file:path.basename(filePath),message:error.message,code:error.code||'EXCEL_SYNC_READ_FAILED'});
       continue;
     }
     if (!parsed?.managed) continue;

@@ -6,6 +6,7 @@
 const asText = (value) => {
   if (value && typeof value === 'object' && value.result !== undefined) return asText(value.result);
   if (value && typeof value === 'object' && value.text !== undefined) return asText(value.text);
+  if (value && typeof value === 'object' && ('formula' in value || 'sharedFormula' in value)) return '';
   return String(value ?? '').trim();
 };
 const asNumber = (value) => {
@@ -48,9 +49,10 @@ function excelDateToIso(value) {
   }
   const text=asText(value);
   let m=text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-  m=text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+  const iso=m?`${m[3]}-${m[2]}-${m[1]}`:text.match(/^\d{4}-\d{2}-\d{2}(?=$|T| )/)?.[0];
+  if(!iso)return null;
+  const parsed=new Date(iso+'T00:00:00.000Z');
+  return Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===iso?iso:null;
 }
 
 function detailColumns(columns, prefix) {
@@ -96,6 +98,14 @@ function mergeEditableDetails(current, columns, prefix, originalItems, idField, 
   return [...preserved, ...edited].sort((a, b) => a[idField] - b[idField]);
 }
 
+function strictEditableNumber(value, field, integer=false) {
+  if(value==null||typeof value==='string'&&!value.trim())return 0;
+  if(!['number','string'].includes(typeof value))throw Object.assign(new Error('Ô '+field+' phải là số, không dùng công thức.'),{code:'EXCEL_SYNC_INVALID_NUMBER'});
+  const number=Number(value);
+  if(!Number.isFinite(number)||number<0||(integer&&!Number.isSafeInteger(number)))throw Object.assign(new Error('Ô '+field+' có giá trị không hợp lệ.'),{code:'EXCEL_SYNC_INVALID_NUMBER'});
+  return number;
+}
+
 function normalizeEditable(current, columns, operationMode, original = {}) {
   const rawTraining = current.training;
   const trainingRaw = rawTraining == null || (typeof rawTraining === 'string' && !rawTraining.trim()) ? null : Number(rawTraining?.result ?? rawTraining);
@@ -113,8 +123,8 @@ function normalizeEditable(current, columns, operationMode, original = {}) {
     machine_no: asText(current.machine) || null,
     product_name: asText(current.product) || null,
     training_percent: trainingRaw === null ? original.training_percent ?? null : (trainingRaw <= 1 ? trainingRaw * 100 : trainingRaw),
-    actual_time: asNumber(current.actualTime),
-    tt_ok: asInteger(current.ok),
+    actual_time: strictEditableNumber(current.actualTime,'TG thực tế'),
+    tt_ok: strictEditableNumber(current.ok,'SL OK',true),
     note: asText(current.note),
     deductions: mergeEditableDetails(current, columns, 'deduction:', original.deductions, 'deduction_type_id', 'hours', false),
     defects: mergeEditableDetails(current, columns, 'defect:', original.defects, 'defect_type_id', 'quantity', true)

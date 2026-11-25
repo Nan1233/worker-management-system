@@ -57,7 +57,7 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
   });
   // A duplicated field (e.g. two product columns) cannot safely update DB.
   // Keep it in the raw read-only snapshot, but do not expose an ambiguous patch.
-  const editable = mapped.filter(entry => mapped.filter(other=>other.key===entry.key||other.index===entry.index).length===1);
+  const editable = mapped.filter(entry => !entry.key.startsWith('readonly:') && mapped.filter(other=>other.key===entry.key||other.index===entry.index).length===1);
   const hasMachineRows = code==='GC' && (processData?.reports||[]).some(report=>report.excelMachineLineId!=null);
   // The six approved Workbook1 paper forms have no visible ID column.
   // Store an exact row-to-report mapping in veryHidden metadata, preserving
@@ -79,6 +79,8 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
       reportOrdinals.set(id,identity.stt);
     }
   }
+  const old=workbook.getWorksheet('_KTC_SYNC');
+  if(old)workbook.removeWorksheet(old.id);
   const sheet = workbook.addWorksheet('_KTC_SYNC');
   sheet.state = 'veryHidden';
   sheet.getCell('A1').value = JSON.stringify({
@@ -106,9 +108,8 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
         current.operationMode=normalizeOperationMode(report.operation_mode);
       }
       original.excel_baseline=normalizeEditable(current,editable,normalizeOperationMode(report.operation_mode),original);
-      if(report.excelReadOnly){
-        original.excel_readonly_cells=mapped.map(col=>[col.index,serializeCell(dataSheet.getCell(identity.row,col.index).value)]);
-      }
+      const readonly=report.excelReadOnly ? mapped : mapped.filter(col=>!editable.includes(col));
+      if(readonly.length)original.excel_readonly_cells=readonly.map(col=>[col.index,serializeCell(dataSheet.getCell(identity.row,col.index).value)]);
     }
     sheet.addRow([
       Number(report.id),

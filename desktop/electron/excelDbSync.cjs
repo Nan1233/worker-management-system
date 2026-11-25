@@ -1,6 +1,7 @@
 const ExcelJS = require('exceljs');
 const { EXCEL_SYNC_CONTRACT_VERSION, isExcelMutableField } = require(typeof process.resourcesPath === 'string' && require('node:fs').existsSync(require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs')) ? require('node:path').join(process.resourcesPath, 'shared', 'excelSyncContract.cjs') : '../../shared/excelSyncContract.cjs');
 const path = require('node:path');
+const { PROCESS_CODES } = require('./monthlyExcelContract.cjs');
 const {
   asText,
   asNumber,
@@ -41,8 +42,14 @@ function parseGcHelperSheet(workbook) {
   const bySourceRow = new Map();
   for (let row = 4; row <= sheet.rowCount; row += 1) {
     const item = gcHelperRowValue(sheet, row);
-    if (item.reportId > 0) byId.set(item.reportId, item);
-    if (item.sourceRow > 0) bySourceRow.set(item.sourceRow, item);
+    if (item.reportId > 0) {
+      if(byId.has(item.reportId))throw Object.assign(new Error('Trùng ID trong sheet hỗ trợ GC.'),{code:'EXCEL_SYNC_HELPER_DUPLICATE'});
+      byId.set(item.reportId,item);
+    }
+    if (item.sourceRow > 0) {
+      if(bySourceRow.has(item.sourceRow))throw Object.assign(new Error('Trùng dòng nguồn trong sheet hỗ trợ GC.'),{code:'EXCEL_SYNC_HELPER_DUPLICATE'});
+      bySourceRow.set(item.sourceRow,item);
+    }
   }
   return { sheet, byId, bySourceRow };
 }
@@ -82,8 +89,11 @@ function parseMeta(workbook) {
   const metaSheet = workbook.getWorksheet('_KTC_SYNC');
   if (!metaSheet) return null;
   let config;
-  try { config = JSON.parse(String(metaSheet.getCell('A1').value || '')); } catch { return null; }
-  if (!config?.sheetName || !Array.isArray(config?.columns)) return null;
+  try { config = JSON.parse(String(metaSheet.getCell('A1').value || '')); } catch {throw Object.assign(new Error('Metadata Excel không đọc được.'),{code:'EXCEL_SYNC_META_INVALID'});}
+  if (!config?.sheetName || !Array.isArray(config?.columns) || !PROCESS_CODES.includes(config.processCode)
+      || !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(config.yearMonth||'')))throw Object.assign(new Error('Metadata Excel thiếu công đoạn, tháng hoặc cột dữ liệu.'),{code:'EXCEL_SYNC_META_INVALID'});
+  if(config.columns.some(col=>!col||typeof col.key!=='string'||!Number.isSafeInteger(col.index)||col.index<1||col.index>16384)
+    ||new Set(config.columns.map(col=>col.index)).size!==config.columns.length||new Set(config.columns.map(col=>col.key)).size!==config.columns.length)throw Object.assign(new Error('Ánh xạ cột metadata bị trùng hoặc sai.'),{code:'EXCEL_SYNC_META_INVALID'});
   if (String(config.version || '') !== EXCEL_SYNC_CONTRACT_VERSION) {
     const error = new Error('File Excel đang dùng contract cũ. Hãy chạy Bước 1: Cập nhật Excel từ DB trước khi cập nhật DB từ Excel.');
     error.code = 'EXCEL_SYNC_CONTRACT_OUTDATED';
@@ -113,7 +123,7 @@ function parseMeta(workbook) {
     if(machineLineId!==null&&(!Array.isArray(original.excel_readonly_cells)||!original.excel_readonly_cells.length))throw Object.assign(new Error('Thiếu snapshot dòng máy.'),{code:'EXCEL_SYNC_META_INVALID'});
     reports.set(identity, {
       reportId:id,machineLineId,
-      expectedUpdatedAt: metaSheet.getCell(row, 2).value || null,
+      expectedUpdatedAt: metaSheet.getCell(row, 2).value instanceof Date ? metaSheet.getCell(row,2).value.toISOString() : asText(metaSheet.getCell(row, 2).value)||null,
       operationMode: asText(metaSheet.getCell(row, 3).value).toUpperCase(),
       sourceRow: Number(metaSheet.getCell(row, 5).value || 0),
       workerCode: asText(metaSheet.getCell(row, 6).value),
@@ -180,6 +190,7 @@ async function readExcelChanges(filePath) {
       rowById.set(id, row);
     }
     const explicitDate=explicitIdentity&&dateColumn?excelDateToIso(sheet.getCell(row,dateColumn.index).value):null;
+    if(explicitIdentity&&activeDate&&explicitDate&&activeDate!==explicitDate)throw Object.assign(new Error('Ngày sản xuất không khớp dòng phân ngày.'),{code:'EXCEL_SYNC_ROW_IDENTITY_MISMATCH'});
     if (activeDate || explicitDate) rowDate.set(row, activeDate || explicitDate);
   }
   if (paperRows) {
@@ -215,10 +226,13 @@ async function readExcelChanges(filePath) {
     current.workDate = rowDate.get(row) || null;
     if(explicitIdentity && (asText(current.workerCode)!==reportMeta.workerCode || current.workDate!==reportMeta.workDate))throw Object.assign(new Error('Mã công nhân hoặc ngày của dòng Excel không khớp snapshot.'),{code:'EXCEL_SYNC_ROW_IDENTITY_MISMATCH'});
     const helperItem = gcHelper ? (gcHelper.bySourceRow.get(row) || gcHelper.byId.get(id)) : null;
+    if(dateColumn&&current.date!=null&&excelDateToIso(current.date)!==current.workDate)throw Object.assign(new Error('Ngày sản xuất trên dòng không khớp snapshot.'),{code:'EXCEL_SYNC_ROW_IDENTITY_MISMATCH'});
+    if(helperItem&&((helperItem.reportId>0&&helperItem.reportId!==reportMeta.reportId)||(helperItem.sourceRow>0&&helperItem.sourceRow!==row)))throw Object.assign(new Error('Sheet hỗ trợ GC không khớp dòng báo cáo.'),{code:'EXCEL_SYNC_ROW_IDENTITY_MISMATCH'});
+    const snapshot=reportMeta.original.excel_readonly_cells;
+    const cellValue=value=>value instanceof Date?value.toISOString():value==null?null:value;
+    const changed=Array.isArray(snapshot)&&snapshot.some(item=>!Array.isArray(item)||!Number.isSafeInteger(item[0])||item[0]<1||item[0]>16384||!same(cellValue(sheet.getCell(row,item[0]).value),item[1]));
+    if(changed&&reportMeta.machineLineId===null)throw Object.assign(new Error('Cột Excel không có ánh xạ cập nhật duy nhất đã bị sửa. Hãy sửa trên ứng dụng.'),{code:'EXCEL_SYNC_UNMAPPED_COLUMN_READ_ONLY'});
     if(reportMeta.machineLineId!==null){
-      const snapshot=reportMeta.original.excel_readonly_cells;
-      const cellValue=value=>value instanceof Date?value.toISOString():value==null?null:value;
-      const changed=snapshot.some(([column,before])=>!Number.isSafeInteger(column)||column<1||!same(cellValue(sheet.getCell(row,column).value),before));
       const helperChanged=helperItem&&((helperItem.operationType&&helperItem.operationType!==normalizeOperationType(reportMeta.original.operation_type))
         ||(helperItem.operationMode&&helperItem.operationMode!==normalizeOperationMode(reportMeta.original.operation_mode))
         ||(helperItem.machine&&helperItem.machine!==asText(reportMeta.original.machine_no)));
@@ -286,6 +300,9 @@ async function readExcelChanges(filePath) {
     // Never send a report merely because object key order / enriched metadata differs.
     // A report is editable only when at least one concrete field has a real before -> after diff.
     if (!preview.length) continue;
+    if(!reportMeta.expectedUpdatedAt||!Number.isFinite(Date.parse(reportMeta.expectedUpdatedAt)))throw Object.assign(new Error('Báo cáo thiếu phiên bản gốc. Hãy xuất Excel lại.'),{code:'EXCEL_SYNC_EXPECTED_VERSION_REQUIRED'});
+    if(Object.prototype.hasOwnProperty.call(changedPatch,'training_percent'))throw Object.assign(new Error('Không được thay đổi % học việc lịch sử trong Excel.'),{code:'EXCEL_SYNC_TRAINING_READ_ONLY'});
+    if(reportMeta.operationMode==='MACHINE'&&Object.keys(changedPatch).some(key=>key!=='note'))throw Object.assign(new Error('Số liệu máy đã duyệt phải sửa trên ứng dụng.'),{code:'EXCEL_SYNC_MACHINE_LINE_READ_ONLY'});
 
     changes.push({
       id,

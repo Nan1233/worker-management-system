@@ -23,7 +23,7 @@ function syncColumns(contract,code) {
       result.push({...item,key:kind+':id:'+item.typeId});
     }
   }
-  return result;
+  return result.filter(col=>result.filter(other=>other.key===col.key||other.index===col.index).length===1);
 }
 function addWorkerReportSyncMetadata(workbook,sheet,{code,date,processData,reports,contract,firstDataRow,grouped}){
   const columns=syncColumns(contract,code);

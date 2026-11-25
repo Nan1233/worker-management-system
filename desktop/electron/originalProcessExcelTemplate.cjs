@@ -83,6 +83,19 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
   // Preserve every named NG category in the company's form, including zero-count types.
   // Resolve its display label from the FE/API master list, never from sample daily totals.
   const defectCols=buildDetailColumns("defect",config.defects);
+  // Only a single exact master identity can be an editable detail column.
+  const resolveDetailKey=(type,kind,col)=>{
+    const ids=[...new Set([type?.key,...(type?.aliases||[])].filter(key=>/^id:[1-9]\d*$/.test(String(key))))];
+    return ids.length===1?kind+":"+ids[0]:"readonly:"+kind+":"+col;
+  };
+  for(const d of detailCols){
+    const name=norm(d.header);
+    const matches=deductionTypes.filter(type=>[type.label,...(type.aliases||[])].some(alias=>{
+      const raw=String(alias);
+      return !raw.startsWith("id:")&&!raw.startsWith("code:")&&norm(raw.replace(/^name:/,""))===name;
+    }));
+    mapping.push({index:d.col,key:resolveDetailKey(matches.length===1?matches[0]:null,"deduction",d.col),header:d.header});
+  }
   // MAI's production form has exactly seven active NG types (AN:AT).
   // Historical/inactive API masters must not generate duplicate, unstyled columns.
   const maiDefectLabels=["KQD ĐẢO","Xô cs","PPCM Mất điện","Hàng rơi","K-coleet","Thiếu - lẫn cs CSH","Lỗi cao su"];
@@ -127,10 +140,11 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
       const label=workbook1 ? d.header : (code==="MAI"?maiDefectLabels[defectIndex]:String(type.label||d.header));
       if (!workbook1) sheet.getCell(config.header,d.col).value=label;
       mappedDefects.push({...d,type});
-      mapping.push({index:d.col,key:"defect:"+type.key,header:label});
+      mapping.push({index:d.col,key:resolveDetailKey(type,"defect",d.col),header:label});
     }else{
       // Keep the source heading rather than silently assigning another NG code.
       mappedDefects.push(d);
+      mapping.push({index:d.col,key:"readonly:defect:"+d.col,header:d.header});
     }
     sheet.getColumn(d.col).hidden=false;
   }
@@ -157,7 +171,7 @@ async function renderOriginalProcessTemplate({ExcelJS, code, processData, yearMo
     sheet.getColumn(col).width=Math.max(12,Math.min(30,label.length+3));
     sheet.getColumn(col).hidden=false;
     extraDefects.push({col,header:label,type});
-    mapping.push({index:col,key:"defect:"+key,header:label});
+    mapping.push({index:col,key:resolveDetailKey(type,"defect",col),header:label});
   }
   // Hide obsolete right-hand daily OK/NG/% statistics and sample columns.
   // The original left-hand headings, their colors and date separator rows stay.
