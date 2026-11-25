@@ -6,17 +6,7 @@ const { deleteCachedAuthUser } = require('../utils/authUserCache');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
 const { assertUserManagementScope } = require('../services/processAuthorizationService');
 
-const ROLE_CREATE_RULES = {
-  admin: ['manager', 'lead', 'worker'],
-  admin_ops: ['lead', 'worker'],
-  manager: ['lead', 'worker'],
-  lead: ['worker']
-};
-
-const manageableRoles = (role) => ROLE_CREATE_RULES[role] || [];
-const normalizeStatus = (value) => value === 'inactive' ? 'inactive' : 'active';
-const normalizeProcessIds = (value) => [...new Set((Array.isArray(value) ? value : [])
-  .map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+const {manageableRoles,normalizeStatus,normalizeProcessIds}=require('../domain/userManagementPolicy');
 const parseProcessIds = (value) => {
   if (Array.isArray(value)) return normalizeProcessIds(value);
   const raw = String(value ?? '').trim();
@@ -33,32 +23,7 @@ function publicError(res, error, fallback) {
   return res.status(500).json({ success: false, message: fallback });
 }
 
-async function getActorProcessIds(connection, actor) {
-  if (actor?.role === 'admin') return null;
-  const [rows] = await connection.query('SELECT process_id FROM manager_processes WHERE manager_id=?', [actor?.id]);
-  return rows.map((row) => Number(row.process_id));
-}
-
-async function validateProcessAssignment(connection, actor, processIds, required = true) {
-  if (required && processIds.length === 0) {
-    const error = new Error('Phải phân ít nhất một công đoạn');
-    error.status = 400;
-    throw error;
-  }
-  if (!processIds.length) return;
-  const [valid] = await connection.query(`SELECT id FROM processes WHERE id IN (${processIds.map(() => '?').join(',')}) AND status='active'`, processIds);
-  if (valid.length !== processIds.length) {
-    const error = new Error('Có công đoạn không tồn tại hoặc đã ngừng sử dụng');
-    error.status = 400;
-    throw error;
-  }
-  const actorProcessIds = await getActorProcessIds(connection, actor);
-  if (actorProcessIds && processIds.some((id) => !actorProcessIds.includes(id))) {
-    const error = new Error('Bạn không được phân công đoạn ngoài phạm vi phụ trách');
-    error.status = 403;
-    throw error;
-  }
-}
+const {getActorProcessIds,validateProcessAssignment,replaceProcessAssignments}=require('../services/userProcessAssignmentService');
 
 async function canManageTarget(connection, actor, target) {
   try {
@@ -67,26 +32,7 @@ async function canManageTarget(connection, actor, target) {
   } catch (_) {
     return false;
   }
-  if (!manageableRoles(actor?.role).includes(target.role)) return false;
-  if (actor.role === 'admin') return true;
-  const actorProcessIds = await getActorProcessIds(connection, actor);
-  if (!actorProcessIds?.length) return false;
-  const table = target.role === 'worker' ? 'worker_processes' : 'manager_processes';
-  const idField = target.role === 'worker' ? 'worker_id' : 'manager_id';
-  const targetId = target.role === 'worker' ? target.worker_id : target.id;
-  if (!targetId) return false;
-  const [rows] = await connection.query(`SELECT 1 FROM ${table} WHERE ${idField}=? AND process_id IN (${actorProcessIds.map(() => '?').join(',')}) LIMIT 1`, [targetId, ...actorProcessIds]);
-  return rows.length > 0;
-}
 
-async function replaceProcessAssignments(connection, role, userId, workerId, processIds) {
-  if (role === 'worker') {
-    await connection.query('DELETE FROM worker_processes WHERE worker_id=?', [workerId]);
-    if (processIds.length) await connection.query('INSERT INTO worker_processes (worker_id,process_id) VALUES ?', [processIds.map((processId) => [workerId, processId])]);
-    return;
-  }
-  await connection.query('DELETE FROM manager_processes WHERE manager_id=?', [userId]);
-  if (processIds.length) await connection.query('INSERT INTO manager_processes (manager_id,process_id) VALUES ?', [processIds.map((processId) => [userId, processId])]);
 }
 
 exports.getProcessOptions = async (req, res) => {
