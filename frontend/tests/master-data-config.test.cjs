@@ -37,3 +37,14 @@ test('code normalization and assigned process parsing are unchanged', () => {
   assert.deepEqual(catalog.parseProcessIds([2,6]), ['2','6']);
   assert.deepEqual(catalog.parseProcessIds(null), []);
 });
+
+test('master catalog filters assigned users by every process without broadening other catalog filters',()=>{
+  const row={id:12,process_ids:[1,3],process_id:1};
+  assert.equal(catalog.matchesMasterProcess(row,'users','3'),true);
+  assert.equal(catalog.matchesMasterProcess(row,'users','2'),false);
+  assert.equal(catalog.matchesMasterProcess({process_ids:'1, 3'},'users','3'),true);
+  assert.equal(catalog.matchesMasterProcess({process_id:3},'users','3'),true);
+  assert.equal(catalog.matchesMasterProcess(row,'machines','3'),false);
+  assert.equal(catalog.matchesMasterProcess(row,'processes','12'),true);
+  assert.equal(catalog.matchesMasterProcess(row,'users',''),true);
+});
