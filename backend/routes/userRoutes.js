@@ -20,7 +20,7 @@ const runUserHandler = (name) => (req, res, next) => {
   return handler(req, res, next);
 };
 router.get('/export/excel', permission('USER_VIEW'), runUserHandler('exportUsersExcel'));
-router.post('/import/excel', (req,res,next) => req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được nhập Excel hàng loạt'}) : next(), permission('USER_CREATE','USER_EDIT'), runUserHandler('importUsersExcel'));
+router.post('/import/excel', (req,res,next) => req.user?.role === 'lead' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Tổ trưởng chỉ được quản lý từng công nhân'}) : req.user?.role === 'admin_ops' ? res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được nhập Excel hàng loạt'}) : next(), permission('USER_CREATE','USER_EDIT'), runUserHandler('importUsersExcel'));
 router.get('/', permission('USER_VIEW'), controller.getAllUsers);
 router.get('/options/processes', permission('USER_VIEW','MASTER_VIEW'), (req, res, next) => {
   const originalJson = res.json.bind(res);
