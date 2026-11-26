@@ -95,6 +95,7 @@ export default function Workers() {
   const canCreate = can("USER_CREATE");
   const canEdit = can("USER_EDIT");
   const isAdminOps = String(getStoredUser()?.role || "").toLowerCase() === "admin_ops";
+  const isLead = String(getStoredUser()?.role || "").toLowerCase() === "lead";
 
   const [people, setPeople] = useState<Person[]>([]);
   const [monthlyTTByWorkerCode, setMonthlyTTByWorkerCode] = useState<Record<string, MonthlyTT>>({});
@@ -233,13 +234,13 @@ export default function Workers() {
   }, [people, keyword, tab, roleFilter, processFilter]);
 
   const create = (role: "lead" | "worker") => {
-    if (actionBusy) return;
+    if (!canCreate || actionBusy || (isLead && role !== "worker")) return;
     setFormError("");
     setModal({ ...emptyForm, role, position: role === "worker" ? "Công nhân" : "Tổ trưởng" });
   };
 
   const edit = (person: Person) => {
-    if (actionBusy) return;
+    if (!canEdit || actionBusy || (isLead && person.role !== "worker")) return;
     setFormError("");
     setModal({
       id: person.id,
@@ -309,7 +310,7 @@ export default function Workers() {
   };
 
   const promoteWorkerToLead = async (person: Person) => {
-    if (!canEdit || person.role !== "worker" || actionBusy) return;
+    if (!canEdit || isLead || person.role !== "worker" || actionBusy) return;
     if (!window.confirm(`Nâng ${person.full_name || person.username} lên Tổ trưởng?\n\nGiữ nguyên tài khoản, lịch sử báo cáo và toàn bộ công đoạn hiện tại.`)) return;
     setPromotingId(person.id);
     try {
@@ -327,7 +328,7 @@ export default function Workers() {
   };
 
   const remove = async (person: Person) => {
-    if (!canEdit || actionBusy || !window.confirm(`Ngừng hoạt động tài khoản ${roleText(person.role)} ${person.full_name}? Tài khoản có thể được mở lại sau.`)) return;
+    if (!canEdit || (isLead && person.role !== "worker") || actionBusy || !window.confirm(`Ngừng hoạt động tài khoản ${roleText(person.role)} ${person.full_name}? Tài khoản có thể được mở lại sau.`)) return;
     setDeactivatingId(person.id);
     try {
       await api.put(`/users/${person.id}`, { status: "inactive" });
@@ -413,7 +414,7 @@ export default function Workers() {
         </div>
         {canCreate && (
           <div className="personnel-header-actions">
-            <button className="personnel-primary" onClick={() => create("lead")}><Plus size={15} /> Tổ trưởng</button>
+            {!isLead && <button className="personnel-primary" onClick={() => create("lead")}><Plus size={15} /> Tổ trưởng</button>}
             <button className="personnel-secondary" onClick={() => create("worker")}><Plus size={15} /> Công nhân</button>
           </div>
         )}
@@ -451,7 +452,7 @@ export default function Workers() {
               {processes.map((process) => <option key={process.id} value={process.id}>{process.process_name}</option>)}
             </select>
             <button className="personnel-secondary" disabled={transferBusy} onClick={() => void exportExcel()}><Download size={15} /> Xuất Excel</button>
-            {canCreate && !isAdminOps && <button className="personnel-primary" disabled={transferBusy} onClick={() => fileInputRef.current?.click()}><Upload size={15} /> Nhập Excel</button>}
+            {canCreate && !isAdminOps && !isLead && <button className="personnel-primary" disabled={transferBusy} onClick={() => fileInputRef.current?.click()}><Upload size={15} /> Nhập Excel</button>}
             <input ref={fileInputRef} type="file" accept=".xlsx" hidden onChange={(e) => void handleImportFile(e.target.files?.[0] || null)} />
           </div>
 
@@ -459,7 +460,7 @@ export default function Workers() {
 
           {loading ? <div className="personnel-state" role="status">Đang tải dữ liệu nhân sự...</div> : loadError ? <div className="personnel-state" role="alert">{loadError} <button type="button" className="personnel-secondary" onClick={() => void load()}>Thử tải lại</button></div> : <section className="personnel-card personnel-directory-card">
             <div className="card-head"><div><h2>{tab === "lead" ? `Tổ trưởng (${filteredPeople.length})` : tab === "worker" ? `Công nhân (${filteredPeople.length})` : `Danh sách nhân sự (${filteredPeople.length})`}</h2><p>Danh sách được phân quyền theo các công đoạn quản lý phụ trách</p></div></div>
-            <PersonTable rows={filteredPeople} monthlyTTByWorkerCode={monthlyTTByWorkerCode} canEdit={canEdit} canPromote={!isAdminOps} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} promotingId={promotingId} />
+            <PersonTable rows={filteredPeople} monthlyTTByWorkerCode={monthlyTTByWorkerCode} canEdit={canEdit} canPromote={!isAdminOps && !isLead} onEdit={edit} onDelete={remove} onPromote={promoteWorkerToLead} promotingId={promotingId} />
           </section>}
         </>
       ) : (
@@ -494,7 +495,7 @@ export default function Workers() {
           )}
         </div>
         <div className="modal-actions">
-          {modal.role === "worker" && modal.id && canEdit && !isAdminOps && <button type="button" className="personnel-secondary" disabled={saving || promotingId !== null} onClick={() => { const person = people.find((p) => p.id === modal.id); if (person) void promoteWorkerToLead(person); }}><ShieldCheck size={15} /> {promotingId === modal.id ? "Đang nâng..." : "Nâng lên Tổ trưởng"}</button>}
+          {modal.role === "worker" && modal.id && canEdit && !isAdminOps && !isLead && <button type="button" className="personnel-secondary" disabled={saving || promotingId !== null} onClick={() => { const person = people.find((p) => p.id === modal.id); if (person) void promoteWorkerToLead(person); }}><ShieldCheck size={15} /> {promotingId === modal.id ? "Đang nâng..." : "Nâng lên Tổ trưởng"}</button>}
           <button type="button" disabled={actionBusy} onClick={() => setModal(null)}>Hủy</button>
           <button type="button" className="personnel-primary" disabled={saving || promotingId !== null} onClick={() => void save()}>{saving ? "Đang lưu..." : "Lưu thay đổi"}</button>
         </div>
