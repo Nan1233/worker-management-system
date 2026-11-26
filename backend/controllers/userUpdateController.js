@@ -19,7 +19,7 @@ async function getActorProcessIds(connection, actor) {
 }
 async function canManageTarget(connection, actor, target) {
   try {
-    await assertUserManagementScope(actor, target, { executor: connection, action:'USER_MANAGEMENT_UPDATE' });
+    await assertUserManagementScope(actor, target, { executor: connection, action:'USER_MANAGEMENT_UPDATE', requireAllAssignments: actor?.role === 'lead' });
     return true;
   } catch (_) {
     return false;
@@ -55,6 +55,7 @@ async function replaceProcessAssignments(connection, role, userId, workerId, pro
 
 exports.updateUser = async (req,res) => {
   const connection = await db.promise().getConnection();
+  let leadTransaction = false;
   try {
     const id=Number(req.params.id);
     if(!Number.isInteger(id)||id<=0)return res.status(400).json({success:false,message:'ID người dùng không hợp lệ'});
@@ -81,11 +82,13 @@ exports.updateUser = async (req,res) => {
       return res.status(403).json({success:false,code:'ROLE_SCOPE_FORBIDDEN',message:'Admin vận hành không được thay đổi phân công công đoạn của tài khoản hiện có'});
     }
     if(processIdsProvided)await validateProcessAssignment(connection,req.user,processIds);
+    if(req.user?.role === 'lead') { await connection.beginTransaction(); leadTransaction = true; }
     if(Object.keys(payload).length){const update=buildUpdateSet(payload);await connection.query(`UPDATE users SET ${update.sql} WHERE id=?`,[...update.values,id]);}
     if(found[0].role==='worker'&&'status'in payload)workerPayload.status=payload.status;
     if(found[0].role==='worker'&&Object.keys(workerPayload).length){const update=buildUpdateSet(workerPayload);await connection.query(`UPDATE workers SET ${update.sql} WHERE user_id=?`,[...update.values,id]);}
     if(processIdsProvided)await replaceProcessAssignments(connection,found[0].role,id,found[0].worker_id,processIds);
     if(Object.prototype.hasOwnProperty.call(payload,'password')||payload.status==='inactive')await revokeAllUserFamilies(id,{executor:connection});
+    if(leadTransaction) { await connection.commit(); leadTransaction = false; }
     clearWorkerProfile(id);deleteCachedAuthUser(id);
     // Semantic audit for reversible lock/unlock (the generic activity middleware only records "UPDATE").
     // Master Control writes its own CONTROL_USER_* record and sets _statusAuditHandled.
@@ -95,6 +98,7 @@ exports.updateUser = async (req,res) => {
     }
     return res.json({success:true,message:payload.status==='inactive'?'Đã khóa tài khoản (có thể mở lại)':'Cập nhật người dùng thành công'});
   } catch(error){
+    if(leadTransaction) { try { await connection.rollback(); } catch (_) {} }
     if(error?.code==='ER_DUP_ENTRY')return res.status(409).json({success:false,message:'Tên đăng nhập hoặc mã công nhân đã tồn tại'});
     if(error?.status)return res.status(error.status).json({success:false,message:error.message});
     console.error('UPDATE USER ERROR:',error);
