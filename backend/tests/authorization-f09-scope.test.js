@@ -364,3 +364,37 @@ test('Excel master sync keeps EXCEL_MASTER_SYNC functional permission in additio
   assert.match(routes, /permission\('EXCEL_MASTER_SYNC'\)/);
   assert.match(routes, /checkRole\('admin', 'manager'\)/);
 });
+
+
+test('Lead personnel writes require all worker assignments in scope', async () => {
+  const { assertUserManagementScope } = require('../services/processAuthorizationService');
+  const actor = { id:50, role:'lead' };
+  const target = { id:100, role:'worker', worker_id:10 };
+  let overlap = true;
+  let outside = false;
+  const db = { async query(sql) {
+    if (/NOT EXISTS/i.test(sql)) return [outside ? [{ok:1}] : [], []];
+    if (/manager_processes actor_scope/i.test(sql)) return [overlap ? [{ok:1}] : [], []];
+    throw new Error('Unexpected SQL: ' + sql);
+  }};
+  const options = {executor:db,requireAllAssignments:true};
+  assert.equal(await assertUserManagementScope(actor,target,options),true);
+  outside = true;
+  await forbidden(assertUserManagementScope(actor,target,options));
+  assert.equal(await assertUserManagementScope(actor,target,{executor:db}),true);
+  overlap = false;
+  await forbidden(assertUserManagementScope(actor,target,options));
+});
+
+test('Lead can create workers but cannot create higher roles, import or promote', () => {
+  const create = read('controllers/userCreateController.js');
+  const routes = read('routes/userRoutes.js');
+  const promotion = read('controllers/workerPromotionController.js');
+  const ui = read('../frontend/src/pages/manager/Workers.tsx');
+  assert.ok(create.includes("req.user?.role === 'lead' && role !== 'worker'"));
+  assert.ok(create.includes("assertProcessesScope(req.user, processIds"));
+  assert.ok(routes.includes("req.user?.role === 'lead' ? res.status(403)"));
+  assert.ok(promotion.includes("!['admin', 'manager'].includes"));
+  assert.ok(ui.includes('canPromote={!isAdminOps && !isLead}'));
+  assert.ok(ui.includes('!isLead && <button className="personnel-primary"'));
+});
