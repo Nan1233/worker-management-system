@@ -163,6 +163,14 @@ async function assertUserManagementScope(actor, target, options = {}) {
     target_role: targetRole,
     action: options.action || null
   });
+  if (role === 'lead' && options.requireAllAssignments === true) {
+    const outside = await rows(executor, `SELECT 1 FROM ${targetTable} target_scope
+      WHERE target_scope.${targetField}=? AND NOT EXISTS (
+        SELECT 1 FROM manager_processes actor_scope
+        WHERE actor_scope.manager_id=? AND actor_scope.process_id=target_scope.process_id
+      ) LIMIT 1`, [targetId, actorIdValue]);
+    if (outside.length) throw scopeError('Công nhân còn được phân công ngoài phạm vi tổ trưởng. Liên hệ quản lý để cập nhật.');
+  }
   return true;
 }
 
