@@ -118,10 +118,12 @@ async function validateUniqueUser(connection, username, role, workerCode) {
 
 exports.createUser = async (req, res) => {
   const connection = await db.promise().getConnection();
+  let leadTransaction = false;
   try {
     const body = req.body || {};
     const role = String(body.role || '').trim().toLowerCase();
     if (!['manager', 'lead', 'worker'].includes(role)) return res.status(400).json({ success: false, message: 'Vai trò không hợp lệ' });
+    if (req.user?.role === 'lead' && role !== 'worker') return res.status(403).json({ success:false, code:'ROLE_SCOPE_FORBIDDEN', message:'Tổ trưởng chỉ được tạo Công nhân trong công đoạn phụ trách' });
     if (req.user?.role === 'admin_ops' && !['lead', 'worker'].includes(role)) return res.status(403).json({ success:false, code:'ROLE_SCOPE_FORBIDDEN', message:'Admin vận hành chỉ được tạo Tổ trưởng hoặc Công nhân trong phạm vi phụ trách' });
 
     const username = String(body.username || '').trim().toLowerCase();
@@ -134,7 +136,10 @@ exports.createUser = async (req, res) => {
     await assertProcessesScope(req.user, processIds, { executor: connection, action:'USER_CREATE' });
 
     const workerCode = String(body.worker_code || '').trim();
+    if (role === 'worker' && !workerCode && req.user?.role === 'lead') return res.status(400).json({ success:false, message:'Mã công nhân là bắt buộc' });
     const existingUser = await validateUniqueUser(connection, username, role, workerCode);
+    // An orphan has no worker_processes scope to prove ownership.
+    if (existingUser && req.user?.role === 'lead') return res.status(409).json({ success:false, message:'Tài khoản đã tồn tại. Liên hệ quản lý để khôi phục hồ sơ công nhân.' });
 
     // Repair an orphaned worker account instead of inserting a second users row.
     if (existingUser?.role === 'worker' && role === 'worker' && !existingUser.worker_id) {
@@ -179,6 +184,10 @@ exports.createUser = async (req, res) => {
       role,
       status: body.status === 'inactive' ? 'inactive' : 'active'
     });
+    if (req.user?.role === 'lead') {
+      await connection.beginTransaction();
+      leadTransaction = true;
+    }
     await connection.query(userInsert.sql, userInsert.values);
     const userId = await findUserIdByUsername(connection, username);
 
@@ -202,10 +211,12 @@ exports.createUser = async (req, res) => {
     }
 
     await insertAssignments(connection, role, userId, workerId, processIds);
+    if (leadTransaction) { await connection.commit(); leadTransaction = false; }
     clearWorkerProfile(userId);
     deleteCachedAuthUser(userId);
     return res.status(201).json({ success: true, message: 'Tạo người dùng thành công', data: { id: userId, worker_id: workerId } });
   } catch (error) {
+    if (leadTransaction) { try { await connection.rollback(); } catch (_) {} }
     const message = String(error?.message || '');
     if (error?.code === 'ER_DUP_ENTRY' || /duplicate entry/i.test(message) || /uq_users_username/i.test(message)) {
       if (/worker_code|uq_.*worker.*code/i.test(message)) return res.status(409).json({ success: false, code: 'WORKER_CODE_EXISTS', message: 'Mã công nhân đã tồn tại. Không thể tạo công nhân thứ hai với cùng mã.' });
