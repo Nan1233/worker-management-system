@@ -159,7 +159,7 @@ exports.updateTrainingPercent = async (req, res) => {
     const trainingPercent=parseTrainingPercent(req.body.training_percent);
     if(trainingPercent===null) return res.status(400).json({success:false,message:"% học việc phải nằm trong khoảng từ 0 đến 100"});
     try {
-        await assertUserManagementScope(req.user,{id:workerId,role:'worker',worker_id:workerId},{action:'WORKER_TRAINING_PERCENT_UPDATE'});
+        await assertUserManagementScope(req.user,{id:workerId,role:'worker',worker_id:workerId},{action:'WORKER_TRAINING_PERCENT_UPDATE',requireAllAssignments:req.user?.role === 'lead'});
         await new Promise((resolve,reject)=>workerModel.updateTrainingPercent(workerId,trainingPercent,(err,result)=>err?reject(err):resolve(result)));
         return res.status(200).json({success:true,message:"Cập nhật % học việc thành công",data:{worker_id:workerId,training_percent:trainingPercent}});
     } catch(error) {
