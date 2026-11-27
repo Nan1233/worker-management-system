@@ -1,6 +1,18 @@
 name: Phase 5 Release Readiness (Source Only)
 
 on:
+  push:
+    branches: [refactor/ktc-local-cleanup]
+    paths:
+      - 'scripts/phase5ReleaseReadiness.cjs'
+      - 'tests/phase5-release-readiness.test.cjs'
+      - 'desktop/scripts/verifyWindowsRelease.cjs'
+      - 'desktop/tests/release-signing.test.cjs'
+      - '.github/workflows/phase5-release-readiness.yml'
+      - 'backend/wrangler*.jsonc'
+      - 'frontend/wrangler*.jsonc'
+      - 'package.json'
+      - 'desktop/package.json'
   workflow_dispatch:
 
 permissions:
@@ -16,7 +28,11 @@ jobs:
         with:
           node-version: '22'
       - name: Run source-only readiness report
-        run: node scripts/phase5ReleaseReadiness.cjs
+        run: |
+          npm run check:repository
+          node scripts/phase5ReleaseReadiness.cjs
+      - name: Verify Windows signature policy without signing or packaging
+        run: node --test desktop/tests/release-signing.test.cjs
       - name: Run Cloudflare profile contract tests (no database access)
         run: node --test backend/tests/cloudflare-deployment-profile.test.js desktop/tests/deployment-profile.test.cjs
       - name: Verify release gate fails closed until runtime secrets are verified

@@ -35,7 +35,6 @@ const desktopProductionBuilder = json('desktop/electron-builder.production.json'
 const backendPackage = json('backend/package.json');
 const frontendPackage = json('frontend/package.json');
 const rootPackage = json('package.json');
-const desktopLauncher = read('desktop/electron/launcher.cjs');
 const desktopProfileSource = read('desktop/electron/deploymentProfile.cjs');
 const cloudflareWorker = read('backend/cloudflare-worker.js');
 const frontendEnvSource = read('frontend/src/config/env.ts');
@@ -59,6 +58,7 @@ const productionFrontendApi = envValue('frontend/.env.production', 'VITE_API_URL
 const testProfileOk = Boolean(
   backendTest.name === 'ktc-be-test' &&
   backendTest.vars?.KTC_ENVIRONMENT === 'test' &&
+  backendTest.vars?.NODE_ENV === 'test' &&
   backendTest.vars?.KTC_FRONTEND_ORIGIN === 'https://ktc-fe-test.nan978971.workers.dev' &&
   frontendTest.name === 'ktc-fe-test' &&
   testFrontendApi === expectedTestApi &&
@@ -73,6 +73,7 @@ const testProfileOk = Boolean(
 const productionProfileOk = Boolean(
   backendProduction.name === 'ktc-backend' &&
   backendProduction.vars?.KTC_ENVIRONMENT === 'production' &&
+  backendProduction.vars?.NODE_ENV === 'production' &&
   backendProduction.vars?.KTC_FRONTEND_ORIGIN === 'https://ktc-frontend.nan978971.workers.dev' &&
   backendProduction.vars?.KTC_RUN_MASTER_DATA_BOOTSTRAP === 'false' &&
   frontendProduction.name === 'ktc-frontend' &&
@@ -80,6 +81,7 @@ const productionProfileOk = Boolean(
   frontendPackage.scripts?.['build:cloudflare:production']?.includes('--mode production') &&
   desktopProductionBuilder.extraMetadata?.ktcDeploymentEnvironment === 'production' &&
   desktopPackage.scripts?.['dist:win:production']?.includes('electron-builder.production.json') &&
+  desktopPackage.scripts?.['dist:win:production']?.includes('--publish never') &&
   /ktc-backend\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   /ktc-frontend\.nan978971\.workers\.dev/.test(desktopProfileSource) &&
   productionBackendProfile?.environment === 'production'
@@ -179,26 +181,31 @@ if (githubUpdaterConfigured && /autoUpdater\.checkForUpdates\(\)/.test(updater))
   add(warnings, 'GITHUB_AUTO_UPDATE_RELEASE', 'Electron auto-update dùng GitHub Releases; cần xác minh artifact, latest.yml/blockmap và rollback trên máy TEST trước khi bật phân phối.', 'desktop/package.json + desktop/electron/autoUpdate.cjs');
 }
 
-const workflowDir = path.join(root, '.github', 'workflows');
-let hasArtifactReleaseWorkflow = false;
-try {
-  hasArtifactReleaseWorkflow = fs.readdirSync(workflowDir).some((name) =>
-    /release|publish/i.test(name) && !/phase5-release-readiness/i.test(name)
-  );
-} catch {}
-if (!hasArtifactReleaseWorkflow) {
-  add(warnings, 'RELEASE_ARTIFACT_PIPELINE', 'Chưa có workflow chuyên biệt tạo và đính kèm artifact production cho Cloudflare/Windows Desktop; Phase 5 gate hiện chỉ kiểm tra source.', '.github/workflows');
-}
+// Workflow filenames do not prove a production publication pipeline.
+add(warnings, 'RELEASE_ARTIFACT_PIPELINE_UNVERIFIED',
+  'Chưa xác minh quy trình phát hành artifact production, metadata auto-update và rollback.', '.github/workflows');
+const manualGates = [
+  ['RELEASE_SHA_ACCEPTANCE_UNVERIFIED', 'CI không flaky trên SHA phát hành cuối.'],
+  ['WINDOWS_DEVICE_UAT_UNVERIFIED', 'Cài Setup/Portable, nâng cấp, gỡ/cài lại và thử Excel trên PC KTC được phép.'],
+  ['WINDOWS_TRUSTED_SIGNATURE_UNVERIFIED', 'Xác minh Authenticode Status=Valid và SmartScreen trên PC đích.'],
+  ['EXCEL_DB_RECONCILIATION_UNVERIFIED', 'Đối soát Excel và DB đã duyệt, GC máy dùng chung, định mức lịch sử và import được cấp phép.'],
+  ['ROLE_AND_OFFLINE_UAT_UNVERIFIED', 'Nghiệm thu RBAC, xung đột sửa, offline/draft và nghiệp vụ staging.'],
+  ['BACKUP_RESTORE_ROLLBACK_UNVERIFIED', 'Bằng chứng backup, phục hồi DB cô lập và diễn tập rollback.'],
+  ['RELEASE_APPROVAL_UNVERIFIED', 'Người chịu trách nhiệm phê duyệt bản phát hành và cửa sổ triển khai.']
+];
+for (const [id,message] of manualGates) add(blockers,id,message,'Requires separately approved operational evidence');
 
 const report = {
   project: 'KTC Worker Management System',
-  branchIntent: 'test',
+  branchIntent: 'isolated TEST/refactor source validation',
   targetArchitecture: 'Cloudflare Workers + Cloudflare Workers Static Assets + TiDB Cloud',
   mode: 'source-only; no database/network/deploy/build/publish',
   branchStatus: 'TEST_BRANCH_SOURCE_CHECKS',
   testProfileStatus: testProfileOk ? 'EXPLICIT_TEST_ENDPOINTS' : 'TEST_PROFILE_INVALID',
   productionProfileStatus: productionProfileOk ? 'EXPLICIT_CLOUDFLARE_PROFILES' : 'PRODUCTION_PROFILE_INVALID',
   releaseStatus: blockers.length ? 'BLOCKED' : 'READY_FOR_MANUAL_APPROVAL',
+  sourceStatus: blockers.some(item => !item.id.endsWith('_UNVERIFIED')) ? 'FAIL' : 'PASS',
+  operationalStatus: 'UNVERIFIED',
   blockers,
   warnings,
   checks,

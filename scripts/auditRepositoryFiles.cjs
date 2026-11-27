@@ -9,25 +9,17 @@ const crypto = require('node:crypto');
 const {execFileSync}=require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
-const excluded = new Set(['.git', 'node_modules', 'dist', 'build', '.gradle', '.wrangler', 'coverage', 'playwright-report', 'test-results']);
 const sourceExt = new Set(['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx', '.json', '.css', '.scss']);
 const files = [];
-function walk(dir) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isSymbolicLink()) continue;
-    if (entry.isDirectory()) {
-      if (!excluded.has(entry.name)) walk(path.join(dir, entry.name));
-    } else if (entry.isFile()) files.push(path.join(dir, entry.name));
-  }
-}
 // Prefer tracked files, including small compatibility shims and assets.
 // Do not scan local secrets, caches, build products or untracked workbooks.
 try {
   const tracked=execFileSync('git',['ls-files','-z'],{cwd:root,encoding:'utf8',maxBuffer:32*1024*1024}).split('\0').filter(Boolean);
   for(const name of tracked){const file=path.join(root,name);if(fs.existsSync(file)&&fs.lstatSync(file).isFile()&&!fs.lstatSync(file).isSymbolicLink())files.push(file);}
 } catch {
-  // Source archive without .git: never infer safe deletions from this result.
-  walk(root);
+  // A source archive cannot distinguish tracked files from local secrets.
+  // Fail closed rather than scanning untracked credentials or workbooks.
+  throw new Error('Repository audit requires git ls-files; use a Git checkout.');
 }
 const relative = file => path.relative(root, file).replace(/\\/g, '/');
 const all = new Set(files.map(relative));
@@ -55,7 +47,12 @@ for (const file of files) {
       const spec = match[1];
       if (!spec.startsWith('.')) continue;
       const base = relative(path.resolve(path.dirname(file), spec));
-      const resolved = extensions.map(ext => base + ext).find(candidate => all.has(candidate));
+      const candidates = extensions.map(ext => base + ext);
+      // TypeScript ESM imports may spell the emitted JavaScript extension.
+      if (base.endsWith('.js')) candidates.push(base.slice(0,-3)+'.ts',base.slice(0,-3)+'.tsx');
+      if (base.endsWith('.mjs')) candidates.push(base.slice(0,-4)+'.mts');
+      if (base.endsWith('.cjs')) candidates.push(base.slice(0,-4)+'.cts');
+      const resolved = candidates.find(candidate => all.has(candidate));
       if (resolved) {
         dependencies.add(resolved);
         if (!inbound.has(resolved)) inbound.set(resolved, []);

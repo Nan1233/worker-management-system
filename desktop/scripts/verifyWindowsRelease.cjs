@@ -46,17 +46,18 @@ function sha256(file) {
   return hash.digest('hex');
 }
 
+function assertTrustedSignature(signature, file) {
+  if (!signature?.thumbprint || signature.status !== 'Valid') {
+    throw new Error('Trusted Authenticode signature required for ' + path.basename(file) + ': ' + (signature?.status || 'Missing'));
+  }
+}
+
 function verify(file) {
   if (!fs.existsSync(file)) throw new Error('Missing build artifact: ' + file);
   const signature = readAuthenticode(file);
-  if (!signature.thumbprint || !['Valid', 'UntrustedRoot', 'NotTrusted'].includes(signature.status)) {
-    throw new Error('Signature verification failed for ' + path.basename(file) + ': ' + signature.status + ' ' + signature.message);
-  }
+  assertTrustedSignature(signature, file);
   if (signature.expires && Date.parse(signature.expires) < Date.now()) {
     throw new Error('Signing certificate expired: ' + path.basename(file));
-  }
-  if (signature.status !== 'Valid') {
-    console.warn('[WARN] ' + path.basename(file) + ': signature is present but Windows does not trust the certificate (' + signature.status + ').');
   }
   return {
     file: path.basename(file),
@@ -77,6 +78,7 @@ function main() {
   const appExe = path.join(release, 'win-unpacked', pkg.build.productName + '.exe');
 
   const artifacts = [verify(setup), verify(appExe)];
+  if (process.argv.includes('--include-portable')) artifacts.push(verify(path.join(release, pkg.build.portable.artifactName)));
   const manifest = {
     packageVersion: pkg.version,
     verifiedAt: new Date().toISOString(),
@@ -86,10 +88,7 @@ function main() {
   };
   fs.writeFileSync(path.join(release, 'KTC-release-verification.json'), JSON.stringify(manifest, null, 2) + '\n');
   fs.writeFileSync(path.join(release, 'SHA256SUMS.txt'), artifacts.map(a => a.sha256 + '  ' + a.file).join('\n') + '\n');
-  console.log('[PASS] Setup and app EXE carry Authenticode signatures. SHA-256 manifest generated.');
-  if (artifacts.some(a => a.signatureStatus !== 'Valid')) {
-    console.warn('[WARN] At least one signature is not trusted by this Windows installation; SmartScreen may still block Setup.');
-  }
+  console.log('[PASS] All checked EXEs have trusted Authenticode signatures. SHA-256 manifest generated.');
 }
 
 if (require.main === module) {
@@ -101,4 +100,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { sha256, verify };
+module.exports = { sha256, verify, assertTrustedSignature };

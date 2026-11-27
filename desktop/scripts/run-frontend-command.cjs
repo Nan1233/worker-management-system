@@ -60,8 +60,15 @@ if (command === 'build') {
   const bundledFrontend = path.join(desktopRoot, 'frontend');
   const bundledDist = path.join(bundledFrontend, 'dist');
 
-  fs.rmSync(bundledFrontend, { recursive: true, force: true });
+  // A nested frontend may itself be the build source. Never delete that
+  // checkout, or any source folder, just to copy its generated output.
+  if (fs.existsSync(bundledFrontend) && fs.realpathSync(frontendRoot) === fs.realpathSync(bundledFrontend)) {
+    console.log('[KTC] Frontend build đã nằm đúng vị trí:', sourceDist);
+    process.exit(0);
+  }
   fs.mkdirSync(bundledFrontend, { recursive: true });
+  if (fs.existsSync(bundledDist) && fs.realpathSync(sourceDist) === fs.realpathSync(bundledDist)) process.exit(0);
+  fs.rmSync(bundledDist, { recursive: true, force: true });
   fs.cpSync(sourceDist, bundledDist, { recursive: true });
 
   console.log(`[KTC] Đã sao chép frontend build vào: ${bundledDist}`);

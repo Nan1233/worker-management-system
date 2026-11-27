@@ -30,8 +30,8 @@ test('Phase 5 gate recognizes isolated Cloudflare TEST and production source pro
 
 test('root package exposes both readiness commands for maintainers', () => {
   const packageJson = require(path.join(root, 'package.json'));
-  assert.equal(packageJson.scripts['release:readiness'], 'node scripts/phase5ReleaseReadiness.cjs');
-  assert.equal(packageJson.scripts['release:readiness:strict'], 'node scripts/phase5ReleaseReadiness.cjs --strict');
+  assert.equal(packageJson.scripts['release:readiness'], 'npm run check:repository && node scripts/phase5ReleaseReadiness.cjs');
+  assert.equal(packageJson.scripts['release:readiness:strict'], 'npm run check:repository && node scripts/phase5ReleaseReadiness.cjs --strict');
 });
 
 test('strict release mode fails closed while Cloudflare runtime secrets are unverified', () => {
@@ -39,5 +39,12 @@ test('strict release mode fails closed while Cloudflare runtime secrets are unve
   assert.equal(result.status, 1);
   const report = JSON.parse(result.stdout);
   assert.equal(report.releaseStatus, 'BLOCKED');
-  assert.ok(report.blockers.every((item) => item.id === 'CLOUDFLARE_RUNTIME_SECRETS_UNVERIFIED'));
+  assert.equal(report.sourceStatus,'PASS');
+  assert.equal(report.operationalStatus,'UNVERIFIED');
+  assert.deepEqual(report.blockers.map(item=>item.id).sort(),[
+    'CLOUDFLARE_RUNTIME_SECRETS_UNVERIFIED','RELEASE_SHA_ACCEPTANCE_UNVERIFIED',
+    'WINDOWS_DEVICE_UAT_UNVERIFIED','WINDOWS_TRUSTED_SIGNATURE_UNVERIFIED',
+    'EXCEL_DB_RECONCILIATION_UNVERIFIED','ROLE_AND_OFFLINE_UAT_UNVERIFIED',
+    'BACKUP_RESTORE_ROLLBACK_UNVERIFIED','RELEASE_APPROVAL_UNVERIFIED'
+  ].sort());
 });

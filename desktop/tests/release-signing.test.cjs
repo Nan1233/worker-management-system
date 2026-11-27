@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { sha256 } = require('../scripts/verifyWindowsRelease.cjs');
+const { sha256, assertTrustedSignature } = require('../scripts/verifyWindowsRelease.cjs');
 
 test('Windows setup build keeps code signing enabled', () => {
   const pkg = require('../package.json');
@@ -26,4 +26,12 @@ test('SHA-256 matches the Node crypto reference digest', () => {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('release signature gate rejects missing, invalid and untrusted Authenticode status', () => {
+  for (const status of ['UntrustedRoot','NotTrusted','NotSigned','HashMismatch','UnknownError']) {
+    assert.throws(()=>assertTrustedSignature({status,thumbprint:'ABC'},'setup.exe'),/Trusted Authenticode/);
+  }
+  assert.throws(()=>assertTrustedSignature({status:'Valid'},'setup.exe'),/Trusted Authenticode/);
+  assert.doesNotThrow(()=>assertTrustedSignature({status:'Valid',thumbprint:'ABC'},'setup.exe'));
 });
