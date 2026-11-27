@@ -5,6 +5,10 @@ on:
     branches: [refactor/ktc-local-cleanup]
     paths:
       - 'scripts/phase5ReleaseReadiness.cjs'
+      - 'scripts/finalReleaseAudit.cjs'
+      - 'scripts/releaseConsistencyContract.cjs'
+      - 'scripts/lib/releaseTrackedPaths.cjs'
+      - 'tests/release-tracked-paths.test.cjs'
       - 'tests/phase5-release-readiness.test.cjs'
       - 'desktop/scripts/verifyWindowsRelease.cjs'
       - 'desktop/tests/release-signing.test.cjs'
@@ -31,6 +35,9 @@ jobs:
         run: |
           npm run check:repository
           node scripts/phase5ReleaseReadiness.cjs
+          node scripts/finalReleaseAudit.cjs
+          node scripts/releaseConsistencyContract.cjs
+          node --test tests/release-tracked-paths.test.cjs
       - name: Verify Windows signature policy without signing or packaging
         run: node --test desktop/tests/release-signing.test.cjs
       - name: Run Cloudflare profile contract tests (no database access)
