@@ -1,5 +1,6 @@
 'use strict';
 const fs = require('node:fs/promises');
+const { createHash } = require('node:crypto');
 const fsSync = require('node:fs');
 const path = require('node:path');
 const { operationIdForChange } = require('./excelDbSyncController.cjs');
@@ -61,7 +62,7 @@ async function handlePreviewExcelDbSync(payload = {}) {
   if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
   setCurrentToken(token);
   const yearMonth = /^\d{4}-\d{2}$/.test(String(payload.yearMonth || '')) ? String(payload.yearMonth) : '';
-  const result = await previewEditedExcelFilesToDb({ yearMonth });
+  const result = await previewEditedExcelFilesToDb({ yearMonth, previewOwner: createHash('sha256').update(token).digest('hex') });
   await writeLog('INFO', 'MANUAL_EXCEL_DB_PREVIEW', { yearMonth, detected: result.detected });
   return result;
 }
@@ -71,7 +72,7 @@ async function handleApplyExcelDbSync(payload = {}) {
   if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
   setCurrentToken(token);
   const yearMonth = /^\d{4}-\d{2}$/.test(String(payload.yearMonth || '')) ? String(payload.yearMonth) : '';
-  const result = await syncEditedExcelFilesToDb({ source: 'manual-db-sync', yearMonth });
+  const result = await syncEditedExcelFilesToDb({ source: 'manual-db-sync', yearMonth, previewOwner: createHash('sha256').update(token).digest('hex') });
   const months = Array.isArray(result.changedMonths) ? result.changedMonths : [];
   for (const month of months) {
     if (yearMonth && month !== yearMonth) continue;

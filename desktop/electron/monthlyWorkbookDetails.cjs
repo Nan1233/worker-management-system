@@ -137,8 +137,8 @@ function processDetailTypes(processCode, processData, masterKey, reportKey, kind
 
 function detailValue(item, kind) {
   const value = asNumber(kind === 'deduction'
-    ? item?.deduction_hours ?? item?.duration_hours ?? item?.time_hours ?? item?.hours ?? item?.value
-    : item?.defect_quantity ?? item?.ng_quantity ?? item?.quantity ?? item?.qty ?? item?.value);
+    ? item?.hours ?? item?.deduction_hours ?? item?.duration_hours ?? item?.time_hours ?? item?.value
+    : item?.quantity ?? item?.defect_quantity ?? item?.ng_quantity ?? item?.qty ?? item?.value);
   return kind === 'defect' && value !== null ? Math.round(value) : value;
 }
 

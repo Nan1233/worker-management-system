@@ -13,20 +13,30 @@ function createExcelDbSyncController({
   enqueueManualExcelSync, isQuitting, isSyncRunning,
 }) {
   let excelDbSyncRunning = false;
+  let manualPreview = null;
+  let previewSequence = 0;
   const excelDbSyncState = new Map();
   // Keep acknowledged months pending until every workbook can be read safely.
   const pendingRebuildMonths = new Set();
   const {postExcelChanges} = createExcelSyncTransport({authenticatedFetch, API_BASE_URL});
 
-async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
+async function previewEditedExcelFilesToDb({ yearMonth = '', previewOwner = '' } = {}) {
+  const seq = ++previewSequence;
+  manualPreview = null;
+  if (excelDbSyncRunning) throw new Error('Đang đồng bộ Excel; hãy xem trước lại sau.');
   const files = await listExcelFiles(getExportRoot());
   const changes = [];
+  const versions = new Map();
   const helperUpdatedFiles = [];
   const helperUpdateErrors = [];
   for (const filePath of files) {
     let parsed;
     try {
+      const before = await fs.stat(filePath);
       parsed = await readExcelChanges(filePath);
+      const after = await fs.stat(filePath);
+      if (!sameFileVersion(before, after)) throw new Error('File thay đổi khi xem trước; hãy xem trước lại.');
+      versions.set(filePath, {stat: after, operations: []});
     } catch (error) {
       await writeLog('WARN', 'EXCEL_DB_PREVIEW_READ_SKIPPED', { filePath, ...normalizeError(error) });
       helperUpdateErrors.push({file:path.basename(filePath),message:error.message,code:error.code||'EXCEL_SYNC_READ_FAILED'});
@@ -41,6 +51,14 @@ async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
     }
     if (!parsed.changes.length) continue;
     if (yearMonth && parsed.yearMonth !== yearMonth) continue;
+    const identity = {file:path.resolve(filePath),generatedAt:parsed.generatedAt||null,yearMonth:parsed.yearMonth||null};
+    const operations = parsed.changes.map(change=>operationIdForChange(change,identity));
+    if (parsed.changes.some(change=>!change||change.invalid||(change.create!==true&&!change.expected_updated_at)) ||
+        new Set(operations).size!==operations.length) {
+      helperUpdateErrors.push({file:path.basename(filePath),message:'Thay đổi không hợp lệ hoặc thiếu phiên bản báo cáo.'});
+      continue;
+    }
+    versions.get(filePath).operations=operations;
     const previewIds = parsed.changes.filter((change) => change?.create !== true).map((change) => Number(change?.id));
     if (previewIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
         || new Set(previewIds).size !== previewIds.length) {
@@ -55,6 +73,9 @@ async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
       });
     }
   }
+  if(seq===previewSequence && !helperUpdateErrors.length && changes.length) {
+    manualPreview={yearMonth,previewOwner,versions};
+  }
   return {
     detected: changes.length,
     changes,
@@ -64,7 +85,7 @@ async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
   };
 }
 
-async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } = {}) {
+async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '', previewOwner = '' } = {}) {
   if (excelDbSyncRunning || isQuitting()) return { skipped: true };
   excelDbSyncRunning = true;
   try {
@@ -72,6 +93,16 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
     if (!token) return { skipped: true, reason: 'no-token' };
     if (isQuitting()) return { skipped: true, reason: 'quitting' };
     const files = await listExcelFiles(getExportRoot());
+    let confirmed = null;
+    if(source==='manual-db-sync') {
+      confirmed=manualPreview;
+      manualPreview=null;
+      previewSequence++;
+      const stale=()=>{const error=new Error('File hoặc phạm vi đồng bộ đã thay đổi. Vui lòng xem trước lại.');error.code='KTC_EXCEL_PREVIEW_REQUIRED';return error;};
+      if(!confirmed || confirmed.yearMonth!==yearMonth || confirmed.previewOwner!==previewOwner ||
+         confirmed.versions.size!==files.length || files.some(file=>!confirmed.versions.has(file))) throw stale();
+      for(const file of files) if(!sameFileVersion(await fs.stat(file).catch(()=>null),confirmed.versions.get(file).stat)) throw stale();
+    }
     let detected = 0;
     let succeeded = 0;
     let failed = 0;
@@ -85,8 +116,12 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         await writeLog('WARN', 'EXCEL_DB_SYNC_STAT_FAILED', { filePath, source, ...normalizeError(error) });
         continue;
       }
+      if(confirmed && !sameFileVersion(stat,confirmed.versions.get(filePath).stat)) {
+        unreadableWorkbook=true;
+        continue;
+      }
       const state = excelDbSyncState.get(filePath) || { mtimeMs: 0, versions: new Map() };
-      if (sameFileVersion(state.stat, stat)) continue;
+      if (!confirmed && sameFileVersion(state.stat, stat)) continue;
       let parsed;
       try {
         parsed = await readExcelChanges(filePath);
@@ -125,6 +160,12 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       const workbookChanges = parsed.changes.map((change) => ({
         ...change, operation_id: operationIdForChange(change, workbookIdentity)
       }));
+      if(confirmed && JSON.stringify(workbookChanges.map(change=>change.operation_id))!==JSON.stringify(confirmed.versions.get(filePath).operations)) {
+        detected+=workbookChanges.length;
+        failed+=workbookChanges.length;
+        unreadableWorkbook=true;
+        continue;
+      }
       for (const change of workbookChanges) {
         const reportId = Number(change.id);
         // Never substitute a cached version for the workbook's concurrency
@@ -261,6 +302,11 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
     }
     // An unreadable workbook might contain unsynced changes for any month.
     // Do not regenerate any workbook until it can be inspected safely.
+    if(confirmed) {
+      const currentFiles=await listExcelFiles(getExportRoot());
+      if(currentFiles.length!==confirmed.versions.size || currentFiles.some(file=>!confirmed.versions.has(file))) unreadableWorkbook=true;
+      else for(const file of currentFiles) if(!sameFileVersion(await fs.stat(file).catch(()=>null),confirmed.versions.get(file).stat)) unreadableWorkbook=true;
+    }
     if (unreadableWorkbook) changedMonths.clear();
     if (detected > 0) {
       await writeLog('INFO', 'EXCEL_DB_SYNC_FINISH', { source, detected, succeeded, failed, changedMonths: [...changedMonths] });
@@ -277,7 +323,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
         });
       }
     }
-    return { detected, succeeded, failed, changedMonths: [...changedMonths] };
+    return { detected, succeeded, failed, changedMonths: [...changedMonths], ...(confirmed && unreadableWorkbook ? {sourceChanged:true} : {}) };
   } finally {
     excelDbSyncRunning = false;
   }

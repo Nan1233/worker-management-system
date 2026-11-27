@@ -87,3 +87,64 @@ test('deep comparison ignores key order and reconciles type IDs in canonical seq
   const second={defects:[{defect_type_id:3,quantity:1},{defect_type_id:7,quantity:2}],note:'A'};
   assert.equal(v.same(v.comparable(first),v.comparable(second)),true);
 });
+
+test('monthly Excel detail mapping uses normalized totals rather than stale source aliases', () => {
+  const { detailValue, detailMap } = require('../electron/monthlyWorkbookDetails.cjs');
+  const { mergeDefects, normalizeDeductions } = require('../electron/reportDetailNormalizer.cjs');
+  const defects=mergeDefects({tt_ng:7},[
+    {defect_type_id:4,defect_code:'CAT01',defect_quantity:3},
+    {defect_type_id:4,defect_code:'CAT01',defect_quantity:4}
+  ],[]);
+  assert.equal(defects.length,1);
+  assert.equal(detailValue(defects[0],'defect'),7);
+  assert.equal(detailMap(defects,'defect').get('id:4'),7);
+  const deductions=normalizeDeductions([
+    {deduction_type_id:8,deduction_code:'GIAO_CA',deduction_hours:0.25},
+    {deduction_type_id:8,deduction_code:'GIAO_CA',deduction_hours:0.5}
+  ],{deduction_time:0.75},[],[]);
+  assert.equal(deductions.length,1);
+  assert.equal(detailValue(deductions[0],'deduction'),0.75);
+  assert.equal(detailMap(deductions,'deduction').get('id:8'),0.75);
+  assert.equal(detailValue({quantity:0,defect_quantity:4},'defect'),0);
+  assert.equal(detailValue({hours:0,deduction_hours:1},'deduction'),0);
+  assert.equal(detailValue({defect_quantity:3},'defect'),3);
+  assert.equal(detailValue({deduction_hours:0.5},'deduction'),0.5);
+});
+
+test('bulk manual Excel sync requires a single-use preview of unchanged files and the same session', async()=>{
+  const os=require('node:os');
+  const {createExcelDbSyncController}=require('../electron/excelDbSyncController.cjs');
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ktc-preview-'));
+  const file=path.join(dir,'book.xlsx');
+  fs.writeFileSync(file,'fixture');
+  let posts=0;
+  const change={id:7,expected_updated_at:'2026-11-01T00:00:00.000Z',patch:{tt_ok:5}};
+  const controller=createExcelDbSyncController({
+    authenticatedFetch:async(_url,opts)=>{
+      posts++;
+      const row=JSON.parse(opts.body).changes[0];
+      return {status:200,json:async()=>({success:true,total:1,succeeded:1,failed:0,results:[{success:true,id:7,operation_id:row.operation_id,updated_at:'2026-11-01T00:01:00.000Z'}]})};
+    },
+    API_BASE_URL:'https://invalid.example/api',listExcelFiles:async()=>[file],getExportRoot:()=>dir,
+    readExcelChanges:async()=>({managed:true,yearMonth:'2026-11',generatedAt:'test',changes:[change]}),
+    writeLog:async()=>{},normalizeError:e=>({message:e.message}),waitForUsableRendererToken:async()=> 'local-test',
+    sendRenderer:()=>{},enqueueManualExcelSync:async()=>({success:true}),isQuitting:()=>false,isSyncRunning:()=>false
+  });
+  const apply=owner=>controller.syncEditedExcelFilesToDb({source:'manual-db-sync',yearMonth:'2026-11',previewOwner:owner});
+  const preview=()=>controller.previewEditedExcelFilesToDb({yearMonth:'2026-11',previewOwner:'owner-a'});
+  try{
+    await assert.rejects(apply('owner-a'),{code:'KTC_EXCEL_PREVIEW_REQUIRED'});
+    await preview();
+    await assert.rejects(apply('owner-b'),{code:'KTC_EXCEL_PREVIEW_REQUIRED'});
+    await preview();
+    fs.appendFileSync(file,'new');
+    await assert.rejects(apply('owner-a'),{code:'KTC_EXCEL_PREVIEW_REQUIRED'});
+    assert.equal(posts,0);
+    assert.equal((await preview()).detected,1);
+    const result=await apply('owner-a');
+    assert.equal(result.succeeded,1);
+    assert.equal(posts,1);
+    await assert.rejects(apply('owner-a'),{code:'KTC_EXCEL_PREVIEW_REQUIRED'});
+    assert.equal(posts,1);
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});

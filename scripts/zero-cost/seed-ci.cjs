@@ -28,7 +28,7 @@ async function main(){
  const fixture={worker:{username:workerUser,code:workerCode},manager:{username:managerUser,password:managerPassword},processes:{},date:today};
  for(const [code,pid] of Object.entries(ids)){
    const product=`E2E_${code}`;
-   await db.execute(`INSERT INTO product_standards(process_id,work_type,product_code,standard_output,status) VALUES(?, '', ?,100,'active') ON DUPLICATE KEY UPDATE standard_output=100,status='active'`,[pid,product,exclude]);
+   await db.execute(`INSERT INTO product_standards(process_id,work_type,product_code,standard_output,status) VALUES(?, '', ?,100,'active') ON DUPLICATE KEY UPDATE standard_output=100,status='active'`,[pid,product]);
    const [[ps]]=await db.execute(`SELECT id FROM product_standards WHERE process_id=? AND product_code=?`,[pid,product]);
    await db.execute(`INSERT INTO product_standard_versions(process_id,product_code,standard_output,version_no,effective_from,effective_to,status) SELECT ?,?,100,1,'2020-01-01',NULL,'active' WHERE NOT EXISTS (SELECT 1 FROM product_standard_versions WHERE process_id=? AND product_code=? AND status='active')`,[pid,product,pid,product]);
    const machineRows=[];
