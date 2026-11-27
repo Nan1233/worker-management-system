@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import RouteLoading from "../components/system/RouteLoading";
 import { BarChart3, Boxes, ClipboardCheck, Cog, Download, Factory, FileWarning, History, LayoutDashboard, Menu, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, Bell, X, Layers3, CircleGauge } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser } from "../utils/authStorage";
@@ -55,7 +56,7 @@ export default function AdminLayout(){
   return()=>document.removeEventListener("keydown",onKeyDown);
  },[mobileMoreOpen,mobileSidebarOpen]);
  return <div className="admin-layout">
-  <aside className={`admin-sidebar${mobileSidebarOpen?" open":""}`}>
+  <aside id="admin-sidebar" className={`admin-sidebar${mobileSidebarOpen?" open":""}`}>
    <button className="admin-brand" type="button" onClick={()=>go("")}><img src="/ktc-hanoi-logo.png" alt="KTC HANOI" className="admin-brand-logo"/><span><strong>KTC (HANOI) CO., LTD</strong><small>Trung tâm quản trị hệ thống</small></span></button>
    <div className="admin-sidebar-heading">QUẢN TRỊ HỆ THỐNG</div>
    <nav className="admin-menu" aria-label="Điều hướng quản trị viên">
@@ -69,10 +70,11 @@ export default function AdminLayout(){
   {mobileSidebarOpen&&<button className="admin-sidebar-backdrop" aria-label="Đóng menu" type="button" onClick={()=>setMobileSidebarPath(null)}/>} 
   <section className="admin-main">
    <header className="admin-header">
-    <div className="admin-header-left"><button className="admin-mobile-menu" type="button" aria-label="Mở menu" onClick={()=>setMobileSidebarPath(location.pathname)}><Menu size={20}/></button><div className="admin-header-title"><strong>KTC Production Control</strong><span>ADMIN CONSOLE</span></div></div>
+    <div className="admin-header-left"><button className="admin-mobile-menu" type="button" aria-label="Mở menu" aria-controls="admin-sidebar" aria-expanded={mobileSidebarOpen} onClick={()=>{setMobileMorePath(null);setMobileSidebarPath(location.pathname)}}><Menu size={20}/></button><div className="admin-header-title"><strong>KTC Production Control</strong><span>ADMIN CONSOLE</span></div></div>
     <div className="admin-header-actions">{can("NOTIFICATION_VIEW")&&<button className="admin-notification" type="button" aria-label="Thông báo" onClick={()=>go("notifications")}><Bell size={19}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>}<button className="admin-user" type="button" onClick={()=>go("profile")}><span className="admin-user-avatar">{avatarText}</span><span className="admin-user-copy"><strong>{displayName}</strong><small>{roleLabel}</small></span></button></div>
    </header>
-   <main className="admin-content"><Outlet/></main>
+   {/* Lazy route content must not suspend the surrounding navigation shell. */}
+   <main className="admin-content"><Suspense fallback={<RouteLoading/>}><Outlet/></Suspense></main>
   </section>
   {mobileMoreOpen&&<button className="admin-mobile-overflow-dismiss" type="button" aria-label="Đóng menu điều hướng" onClick={()=>setMobileMorePath(null)}/>}
   <nav className="admin-mobile-nav" aria-label="Điều hướng quản trị trên di động">
@@ -80,7 +82,7 @@ export default function AdminLayout(){
    {mobilePrimary.map(item=>{const Icon=item.icon;return <button key={`primary-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label.replace(" hệ thống","")}</span></button>;})}
    {can("NOTIFICATION_VIEW")&&<button type="button" className={location.pathname.startsWith("/admin/notifications")?"active":""} onClick={()=>go("notifications")}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="admin-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>}
    <button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button>
-   <button type="button" className={mobileMoreOpen?"active":""} aria-label={mobileMoreOpen?"Đóng danh sách trang khác":"Mở danh sách trang khác"} aria-expanded={mobileMoreOpen} aria-controls={mobileMoreOpen?"admin-mobile-overflow":undefined} onClick={()=>setMobileMorePath(current=>current===location.pathname?null:location.pathname)}>{mobileMoreOpen?<X size={18}/>:<MoreHorizontal size={18}/>}<span>Thêm</span></button>
+   <button type="button" className={mobileMoreOpen?"active":""} aria-label={mobileMoreOpen?"Đóng danh sách trang khác":"Mở danh sách trang khác"} aria-expanded={mobileMoreOpen} aria-controls={mobileMoreOpen?"admin-mobile-overflow":undefined} onClick={()=>{setMobileSidebarPath(null);setMobileMorePath(current=>current===location.pathname?null:location.pathname)}}>{mobileMoreOpen?<X size={18}/>:<MoreHorizontal size={18}/>}<span>Thêm</span></button>
   </nav>
  </div>;
 }

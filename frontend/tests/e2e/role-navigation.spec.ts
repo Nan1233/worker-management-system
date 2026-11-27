@@ -15,9 +15,15 @@ async function clickAdminNav(page: Page, label: string) {
   if ((page.viewportSize()?.width || 1440) <= 800) {
     // Use the accessible mobile drawer, which remains independent of the
     // temporary overflow popover during route transitions.
-    await page.getByRole('button', { name: 'Mở menu', exact: true }).click();
-    await page.getByRole('navigation', { name: 'Điều hướng quản trị viên' })
-      .getByRole('button', { name: label, exact: true }).click();
+    const trigger = page.getByRole('button', { name: 'Mở menu', exact: true });
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await trigger.click();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    const target = page.getByRole('navigation', { name: 'Điều hướng quản trị viên' })
+      .getByRole('button', { name: label, exact: true });
+    await expect(target).toBeVisible();
+    await target.click();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   } else {
     await page.getByRole('navigation', { name: 'Điều hướng quản trị viên' }).getByRole('button', { name: label, exact: true }).click();
   }
@@ -65,9 +71,17 @@ test.describe('Role navigation (real browser)', () => {
 
   test('admin: reports/statistics/export menus exist; master tabs stay under /admin; process CRUD works', async ({ page }) => {
     await loginManagement(page, ACCOUNTS.admin, /^\/admin/);
-    for (const [label, path] of [['Chờ duyệt', '/admin/reports'], ['Đã duyệt', '/admin/approved'], ['Thống kê', '/admin/statistics'], ['Xuất Excel', '/admin/export']] as const) {
+    for (const [label, path, heading] of [
+      ['Chờ duyệt', '/admin/reports', 'Báo cáo chờ duyệt'],
+      ['Đã duyệt', '/admin/approved', 'Báo cáo đã duyệt'],
+      ['Thống kê', '/admin/statistics', 'Thống kê báo cáo'],
+      ['Xuất Excel', '/admin/export', 'Xuất Excel'],
+    ] as const) {
       await clickAdminNav(page, label);
       await expect.poll(() => hashPath(page), label).toBe(path);
+      // A hash change alone is not proof that a lazy destination has mounted.
+      // Verify its actual content before navigating to the next screen.
+      await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
     }
 
     await page.goto(route('/admin/master/machines'));

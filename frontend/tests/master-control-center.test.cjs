@@ -101,3 +101,10 @@ test('Master Control entry points are shown to Super Admin only (backend enforce
   assert.match(read('frontend/src/pages/admin/Dashboard.tsx'), /card\.path!=="\/admin\/master-control"\|\|isSuperAdmin/);
   assert.match(read('backend/routes/adminControlRoutes.js'), /if \(req\.user\?\.is_super_admin === true\) return next\(\);[\s\S]*SUPER_ADMIN_REQUIRED/);
 });
+
+ test('admin lazy page loading is scoped to the outlet, not the mobile navigation shell',()=>{
+  const layout=read('frontend/src/layouts/AdminLayout.tsx');
+  assert.match(layout, /<main className="admin-content"><Suspense fallback=\{<RouteLoading\/>\}><Outlet\/><\/Suspense><\/main>/);
+  assert.match(layout, /aria-controls="admin-sidebar" aria-expanded=\{mobileSidebarOpen\}/);
+  assert.match(layout, /<aside id="admin-sidebar"/);
+});
